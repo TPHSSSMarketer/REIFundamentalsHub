@@ -4,6 +4,8 @@ import Layout from './components/Common/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
 import Pipeline from './components/Pipeline/Pipeline'
 import Contacts from './components/Contacts/Contacts'
+import VoiceHub from './components/VoiceHub/VoiceHub'
+import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { ghlService } from './services/ghl'
@@ -49,6 +51,8 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
+        <Route path="/voicehub" element={<VoiceHub />} />
+        <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

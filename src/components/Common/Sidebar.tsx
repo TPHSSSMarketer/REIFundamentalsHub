@@ -3,6 +3,8 @@ import {
   LayoutDashboard,
   Kanban,
   Users,
+  Mic,
+  PenTool,
   Settings,
   ChevronLeft,
   Home,
@@ -14,6 +16,8 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
+  { to: '/voicehub', icon: Mic, label: 'VoiceHub' },
+  { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
