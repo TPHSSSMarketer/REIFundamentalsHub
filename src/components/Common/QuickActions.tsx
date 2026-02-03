@@ -1,11 +1,4 @@
-import {
-  Plus,
-  UserPlus,
-  MessageSquare,
-  Package,
-  Mic,
-  PenTool,
-} from 'lucide-react'
+import { Plus, UserPlus, MessageSquare } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 
 export default function QuickActions() {
@@ -29,24 +22,6 @@ export default function QuickActions() {
       icon: MessageSquare,
       onClick: () => setSMSModalOpen(true),
       color: 'bg-warning-500 hover:bg-warning-600',
-    },
-    {
-      label: 'Track Package',
-      icon: Package,
-      onClick: () => window.open('/integrations#usps', '_self'),
-      color: 'bg-slate-500 hover:bg-slate-600',
-    },
-    {
-      label: 'Voice Agent',
-      icon: Mic,
-      onClick: () => window.open('/integrations#voicehub', '_self'),
-      color: 'bg-purple-500 hover:bg-purple-600',
-    },
-    {
-      label: 'Create Content',
-      icon: PenTool,
-      onClick: () => window.open('/integrations#contenthub', '_self'),
-      color: 'bg-pink-500 hover:bg-pink-600',
     },
   ]
 

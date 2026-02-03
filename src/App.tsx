@@ -4,7 +4,6 @@ import Layout from './components/Common/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
 import Pipeline from './components/Pipeline/Pipeline'
 import Contacts from './components/Contacts/Contacts'
-import Integrations from './components/Integrations/Integrations'
 import Settings from './components/Settings/Settings'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { ghlService } from './services/ghl'
@@ -50,7 +49,6 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
-        <Route path="/integrations" element={<Integrations />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

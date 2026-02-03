@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Kanban,
   Users,
-  Plug,
   Settings,
   ChevronLeft,
   Home,
@@ -15,7 +14,6 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
-  { to: '/integrations', icon: Plug, label: 'Integrations' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
