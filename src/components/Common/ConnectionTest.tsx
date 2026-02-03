@@ -1,11 +1,12 @@
-import { AlertTriangle, RefreshCw, Settings } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Settings, Play } from 'lucide-react'
 import { getConfigStatus } from '@/services/auth'
 
 interface ConnectionTestProps {
   onRetry: () => void
+  onDemoMode?: () => void
 }
 
-export default function ConnectionTest({ onRetry }: ConnectionTestProps) {
+export default function ConnectionTest({ onRetry, onDemoMode }: ConnectionTestProps) {
   const config = getConfigStatus()
 
   return (
@@ -66,24 +67,43 @@ export default function ConnectionTest({ onRetry }: ConnectionTestProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={onRetry}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Retry Connection
-          </button>
-          <a
-            href="https://app.gohighlevel.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-            GHL Settings
-          </a>
+        <div className="space-y-3">
+          <div className="flex gap-3">
+            <button
+              onClick={onRetry}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry Connection
+            </button>
+            <a
+              href="https://app.gohighlevel.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              GHL Settings
+            </a>
+          </div>
+
+          {/* Demo Mode Button */}
+          {onDemoMode && (
+            <button
+              onClick={onDemoMode}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-primary-500 text-white rounded-lg hover:from-purple-600 hover:to-primary-600 transition-all font-medium"
+            >
+              <Play className="w-4 h-4" />
+              Try Demo Mode (No API Required)
+            </button>
+          )}
         </div>
+
+        {onDemoMode && (
+          <p className="text-xs text-slate-500 mt-4">
+            Demo mode uses sample data so you can explore all features without connecting to GHL.
+          </p>
+        )}
       </div>
     </div>
   )

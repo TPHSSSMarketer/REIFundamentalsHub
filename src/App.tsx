@@ -9,12 +9,21 @@ import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { ghlService } from './services/ghl'
+import { useDemoMode } from './hooks/useDemoMode'
 
 function App() {
+  const { isDemoMode, enableDemoMode } = useDemoMode()
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Skip connection test in demo mode
+    if (isDemoMode) {
+      setIsConnected(true)
+      setIsLoading(false)
+      return
+    }
+
     const testConnection = async () => {
       try {
         const connected = await ghlService.testConnection()
@@ -27,7 +36,7 @@ function App() {
     }
 
     testConnection()
-  }, [])
+  }, [isDemoMode])
 
   if (isLoading) {
     return (
@@ -41,7 +50,7 @@ function App() {
   }
 
   if (!isConnected) {
-    return <ConnectionTest onRetry={() => window.location.reload()} />
+    return <ConnectionTest onRetry={() => window.location.reload()} onDemoMode={enableDemoMode} />
   }
 
   return (

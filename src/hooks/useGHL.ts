@@ -1,30 +1,77 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ghlService } from '@/services/ghl'
-import type { Contact, Deal, Pipeline } from '@/types'
+import { useDemoMode } from './useDemoMode'
+import { mockContacts, mockDeals, mockPipelines, mockMetrics, mockActivities } from '@/data/mockData'
+import type { Contact, Deal, DashboardMetrics, Activity } from '@/types'
 import { toast } from 'sonner'
 
 // ============ CONTACTS HOOKS ============
 
 export function useContacts(params?: { limit?: number; offset?: number; query?: string }) {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['contacts', params],
-    queryFn: () => ghlService.getContacts(params),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        let filtered = [...mockContacts]
+        if (params?.query) {
+          const q = params.query.toLowerCase()
+          filtered = filtered.filter(
+            (c) =>
+              c.name.toLowerCase().includes(q) ||
+              c.email.toLowerCase().includes(q) ||
+              c.phone.includes(q)
+          )
+        }
+        return { contacts: filtered, total: filtered.length }
+      }
+      return ghlService.getContacts(params)
+    },
   })
 }
 
 export function useContact(contactId: string) {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['contact', contactId],
-    queryFn: () => ghlService.getContact(contactId),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 200))
+        return mockContacts.find((c) => c.id === contactId) || null
+      }
+      return ghlService.getContact(contactId)
+    },
     enabled: !!contactId,
   })
 }
 
 export function useCreateContact() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: (contact: Partial<Contact>) => ghlService.createContact(contact),
+    mutationFn: async (contact: Partial<Contact>) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 500))
+        const newContact: Contact = {
+          id: `demo-${Date.now()}`,
+          firstName: contact.firstName || '',
+          lastName: contact.lastName || '',
+          name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+          email: contact.email || '',
+          phone: contact.phone || '',
+          tags: contact.tags || [],
+          source: contact.source,
+          dateAdded: new Date().toISOString(),
+        }
+        mockContacts.unshift(newContact)
+        return newContact
+      }
+      return ghlService.createContact(contact)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       toast.success('Contact created successfully')
@@ -37,10 +84,21 @@ export function useCreateContact() {
 
 export function useUpdateContact() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Contact> }) =>
-      ghlService.updateContact(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Contact> }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        const index = mockContacts.findIndex((c) => c.id === id)
+        if (index !== -1) {
+          mockContacts[index] = { ...mockContacts[index], ...data }
+          return mockContacts[index]
+        }
+        throw new Error('Contact not found')
+      }
+      return ghlService.updateContact(id, data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       toast.success('Contact updated successfully')
@@ -53,9 +111,20 @@ export function useUpdateContact() {
 
 export function useDeleteContact() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: (contactId: string) => ghlService.deleteContact(contactId),
+    mutationFn: async (contactId: string) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        const index = mockContacts.findIndex((c) => c.id === contactId)
+        if (index !== -1) {
+          mockContacts.splice(index, 1)
+        }
+        return
+      }
+      return ghlService.deleteContact(contactId)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       toast.success('Contact deleted successfully')
@@ -69,25 +138,64 @@ export function useDeleteContact() {
 // ============ DEALS HOOKS ============
 
 export function useDeals(pipelineId?: string) {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['deals', pipelineId],
-    queryFn: () => ghlService.getDeals(pipelineId),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        let filtered = [...mockDeals]
+        if (pipelineId) {
+          filtered = filtered.filter((d) => d.pipelineId === pipelineId)
+        }
+        return { deals: filtered }
+      }
+      return ghlService.getDeals(pipelineId)
+    },
   })
 }
 
 export function useDeal(dealId: string) {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['deal', dealId],
-    queryFn: () => ghlService.getDeal(dealId),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 200))
+        return mockDeals.find((d) => d.id === dealId) || null
+      }
+      return ghlService.getDeal(dealId)
+    },
     enabled: !!dealId,
   })
 }
 
 export function useCreateDeal() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: (deal: Partial<Deal>) => ghlService.createDeal(deal),
+    mutationFn: async (deal: Partial<Deal>) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 500))
+        const newDeal: Deal = {
+          id: `demo-deal-${Date.now()}`,
+          title: deal.title || 'New Deal',
+          value: deal.value || 0,
+          stageId: deal.stageId || 'stage-1',
+          pipelineId: deal.pipelineId || 'pipeline-1',
+          contactId: deal.contactId,
+          contactName: deal.contactName,
+          status: 'open',
+          createdAt: new Date().toISOString(),
+        }
+        mockDeals.unshift(newDeal)
+        return newDeal
+      }
+      return ghlService.createDeal(deal)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
       queryClient.invalidateQueries({ queryKey: ['metrics'] })
@@ -101,10 +209,21 @@ export function useCreateDeal() {
 
 export function useUpdateDeal() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Deal> }) =>
-      ghlService.updateDeal(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Deal> }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        const index = mockDeals.findIndex((d) => d.id === id)
+        if (index !== -1) {
+          mockDeals[index] = { ...mockDeals[index], ...data }
+          return mockDeals[index]
+        }
+        throw new Error('Deal not found')
+      }
+      return ghlService.updateDeal(id, data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
       queryClient.invalidateQueries({ queryKey: ['metrics'] })
@@ -118,10 +237,21 @@ export function useUpdateDeal() {
 
 export function useUpdateDealStage() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: ({ dealId, stageId }: { dealId: string; stageId: string }) =>
-      ghlService.updateDealStage(dealId, stageId),
+    mutationFn: async ({ dealId, stageId }: { dealId: string; stageId: string }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 200))
+        const index = mockDeals.findIndex((d) => d.id === dealId)
+        if (index !== -1) {
+          mockDeals[index].stageId = stageId
+          return mockDeals[index]
+        }
+        throw new Error('Deal not found')
+      }
+      return ghlService.updateDealStage(dealId, stageId)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
     },
@@ -133,9 +263,20 @@ export function useUpdateDealStage() {
 
 export function useDeleteDeal() {
   const queryClient = useQueryClient()
+  const { isDemoMode } = useDemoMode()
 
   return useMutation({
-    mutationFn: (dealId: string) => ghlService.deleteDeal(dealId),
+    mutationFn: async (dealId: string) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        const index = mockDeals.findIndex((d) => d.id === dealId)
+        if (index !== -1) {
+          mockDeals.splice(index, 1)
+        }
+        return
+      }
+      return ghlService.deleteDeal(dealId)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
       queryClient.invalidateQueries({ queryKey: ['metrics'] })
@@ -150,18 +291,68 @@ export function useDeleteDeal() {
 // ============ PIPELINES HOOKS ============
 
 export function usePipelines() {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['pipelines'],
-    queryFn: () => ghlService.getPipelines(),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 200))
+        return { pipelines: mockPipelines }
+      }
+      return ghlService.getPipelines()
+    },
+  })
+}
+
+// ============ METRICS HOOKS ============
+
+export function useMetrics() {
+  const { isDemoMode } = useDemoMode()
+
+  return useQuery({
+    queryKey: ['metrics'],
+    queryFn: async (): Promise<DashboardMetrics> => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        return mockMetrics
+      }
+      return mockMetrics
+    },
+  })
+}
+
+// ============ ACTIVITIES HOOKS ============
+
+export function useActivities() {
+  const { isDemoMode } = useDemoMode()
+
+  return useQuery({
+    queryKey: ['activities'],
+    queryFn: async (): Promise<Activity[]> => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 300))
+        return mockActivities
+      }
+      return mockActivities
+    },
   })
 }
 
 // ============ MESSAGING HOOKS ============
 
 export function useSendSMS() {
+  const { isDemoMode } = useDemoMode()
+
   return useMutation({
-    mutationFn: ({ contactId, message }: { contactId: string; message: string }) =>
-      ghlService.sendSMS(contactId, message),
+    mutationFn: async ({ contactId, message }: { contactId: string; message: string }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 800))
+        console.log('Demo: SMS sent to', contactId, ':', message)
+        return
+      }
+      return ghlService.sendSMS(contactId, message)
+    },
     onSuccess: () => {
       toast.success('SMS sent successfully')
     },
@@ -172,8 +363,10 @@ export function useSendSMS() {
 }
 
 export function useSendEmail() {
+  const { isDemoMode } = useDemoMode()
+
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       contactId,
       subject,
       body,
@@ -181,7 +374,14 @@ export function useSendEmail() {
       contactId: string
       subject: string
       body: string
-    }) => ghlService.sendEmail(contactId, subject, body),
+    }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 800))
+        console.log('Demo: Email sent to', contactId, ':', subject)
+        return
+      }
+      return ghlService.sendEmail(contactId, subject, body)
+    },
     onSuccess: () => {
       toast.success('Email sent successfully')
     },
@@ -194,8 +394,16 @@ export function useSendEmail() {
 // ============ TASKS HOOKS ============
 
 export function useTasks() {
+  const { isDemoMode } = useDemoMode()
+
   return useQuery({
     queryKey: ['tasks'],
-    queryFn: () => ghlService.getTasks(),
+    queryFn: async () => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 200))
+        return { tasks: [] }
+      }
+      return ghlService.getTasks()
+    },
   })
 }
