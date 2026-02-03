@@ -1,46 +1,46 @@
-# REI Hub - Real Estate Investor CRM Dashboard
+# REI Fundamentals Hub - GHL Dashboard Wrapper
 
-A user-friendly GoHighLevel CRM wrapper built specifically for real estate investors. This application simplifies the most powerful GHL features into an easy-to-use dashboard.
+A simplified React-based dashboard wrapper for GoHighLevel (GHL) designed for REI Fundamentals Hub. This app provides an intuitive interface that hides GHL's complexity while exposing only the features needed for real estate investing business.
 
 ## Features
 
-### Lead Management
-- Track and manage all your real estate leads
-- Filter by status, source, and motivation level
-- Quick actions: call, text, email directly from the interface
-- Import/export functionality
+### Dashboard Home
+- Key metrics displayed in cards (Total Opportunities, Active Deals, Closed This Month, Pending Tasks)
+- Pipeline value summary
+- Recent activity feed
+- Quick action buttons for common tasks
 
-### Deal Pipeline
-- Visual Kanban-style deal tracking
+### Pipeline View (Kanban)
+- Visual pipeline with configurable stages
 - Drag-and-drop deals between stages
-- Track ARV, repair costs, and potential profit
+- Deal cards showing title, value, contact name
+- Click to view deal details
 - Real-time pipeline value calculations
 
-### Marketing Hub
-- Manage SMS, email, and direct mail campaigns
-- Track campaign performance and ROI
-- Quick send functionality for one-off messages
-- Campaign analytics dashboard
+### Contact Management
+- List all contacts with search/filter
+- Add new contacts with essential fields (name, phone, email, tags)
+- View contact details and associated deals
+- Quick SMS/email actions from contact cards
 
-### AI Content Creator
-- Generate marketing content with AI
-- Create SMS, emails, direct mail, social posts, and scripts
-- Customize tone and target audience
-- Save templates for reuse
-
-### Support System
-- Submit support tickets for customization requests
-- Track ticket status and history
-- Priority-based support queue
+### Quick Actions
+- **New Opportunity** - Create deals quickly
+- **Add Contact** - Add new contacts
+- **Send SMS** - Quick SMS composer
+- **Track Package** - USPS Tracking integration
+- **Launch Voice Agent** - VoiceHub integration
+- **Create Content** - ContentHub integration
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Frontend**: React 18 + Vite
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **State Management**: Zustand + React Query
-- **Authentication**: NextAuth.js
-- **API**: GoHighLevel REST API
+- **State Management**: Zustand
+- **Data Fetching**: React Query (TanStack Query)
+- **Drag & Drop**: @dnd-kit
+- **Routing**: React Router v6
+- **API**: Axios to GHL REST API
 
 ## Getting Started
 
@@ -63,16 +63,15 @@ npm install
 
 3. Set up environment variables:
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-4. Configure your `.env.local`:
+4. Configure your `.env`:
 ```env
-GHL_API_KEY=your_gohighlevel_api_key
-GHL_LOCATION_ID=your_location_id
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret
-OPENAI_API_KEY=your_openai_api_key  # Optional, for AI content
+VITE_GHL_API_KEY=your_gohighlevel_api_key
+VITE_GHL_LOCATION_ID=your_location_id
+VITE_GHL_API_BASE_URL=https://services.leadconnectorhq.com
+VITE_GHL_API_VERSION=2021-07-28
 ```
 
 5. Run the development server:
@@ -82,61 +81,96 @@ npm run dev
 
 6. Open [http://localhost:3000](http://localhost:3000)
 
-### Demo Credentials
-- Email: `demo@reihub.com`
-- Password: `demo123`
-
 ## Project Structure
 
 ```
 src/
-├── app/                    # Next.js App Router pages
-│   ├── api/               # API routes
-│   ├── dashboard/         # Dashboard pages
-│   └── login/             # Authentication
-├── components/            # React components
-│   ├── dashboard/         # Dashboard-specific components
-│   ├── layout/            # Layout components
-│   ├── leads/             # Lead management components
-│   └── ui/                # Reusable UI components
-├── lib/                   # Utility functions
-├── services/              # API services (GHL integration)
-└── types/                 # TypeScript type definitions
+├── components/
+│   ├── Dashboard/       # Dashboard view components
+│   ├── Pipeline/        # Pipeline/Kanban view
+│   ├── Contacts/        # Contact management
+│   ├── Integrations/    # USPS, VoiceHub, ContentHub links
+│   ├── Settings/        # Settings page
+│   └── Common/          # Shared components (Layout, Modals, etc.)
+├── services/
+│   ├── ghl.ts          # GHL API wrapper
+│   └── auth.ts         # Authentication utilities
+├── hooks/
+│   ├── useGHL.ts       # React Query hooks for GHL data
+│   └── useStore.ts     # Zustand store
+├── utils/
+│   └── helpers.ts      # Utility functions
+├── types/
+│   └── index.ts        # TypeScript type definitions
+├── App.tsx             # Main app with routing
+├── main.tsx            # Entry point
+└── index.css           # Global styles
 ```
 
-## Key Pages
+## Routes
 
 | Path | Description |
 |------|-------------|
-| `/` | Landing page |
-| `/login` | Authentication |
-| `/dashboard` | Main dashboard with KPIs |
-| `/dashboard/leads` | Lead management |
-| `/dashboard/pipeline` | Deal pipeline (Kanban) |
-| `/dashboard/marketing` | Marketing campaigns |
-| `/dashboard/content` | AI content creator |
-| `/dashboard/support` | Support tickets |
-| `/dashboard/settings` | Account settings |
+| `/dashboard` | Main dashboard with KPIs and activity feed |
+| `/pipeline` | Kanban-style deal pipeline |
+| `/contacts` | Contact list and management |
+| `/integrations` | Third-party integration links |
+| `/settings` | API configuration settings |
 
-## GoHighLevel Integration
+## GHL API Endpoints Used
 
-This app integrates with the following GHL endpoints:
-- Contacts (leads)
-- Opportunities (deals)
-- Pipelines
-- Campaigns
-- Conversations (messaging)
-- Calendars
-- Workflows
+- `GET /locations` - Get locations
+- `GET /opportunities/pipelines` - Get pipelines
+- `GET /opportunities/search` - Get deals
+- `POST /opportunities` - Create deal
+- `PUT /opportunities/{dealId}` - Update deal
+- `GET /contacts` - Get contacts
+- `POST /contacts` - Create contact
+- `PUT /contacts/{contactId}` - Update contact
+- `POST /conversations/messages` - Send SMS/Email
 
-## Customization
+## Development
 
-Need changes? Use the built-in support ticket system to request:
-- Custom fields
-- New pipeline stages
-- Additional integrations
-- UI/UX modifications
-- Workflow automations
+```bash
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run linting
+npm run lint
+```
+
+## Deployment
+
+The app can be deployed to any static hosting platform:
+
+### Vercel
+```bash
+npm run build
+# Deploy dist/ folder
+```
+
+### Netlify
+```bash
+npm run build
+# Deploy dist/ folder with _redirects for SPA
+```
+
+## Phase 2 Enhancements (Future)
+
+- [ ] USPS Tracking module integration
+- [ ] VoiceHub launch functionality
+- [ ] ContentHub AI integration
+- [ ] Custom pipeline stage editor
+- [ ] Reporting/analytics views
+- [ ] Email automation triggers
+- [ ] Zapier integration
+- [ ] Google Calendar sync
 
 ## Contributing
 
