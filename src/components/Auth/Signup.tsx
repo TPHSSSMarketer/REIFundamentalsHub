@@ -8,6 +8,7 @@ export default function Signup() {
   const { signUp } = useAuth()
 
   const [fullName, setFullName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -32,7 +33,7 @@ export default function Signup() {
 
     setIsLoading(true)
 
-    const { error: signUpError } = await signUp(email, password, fullName)
+    const { error: signUpError } = await signUp(email, password, fullName, companyName)
 
     if (signUpError) {
       setError(signUpError)
@@ -103,6 +104,21 @@ export default function Signup() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="John Doe"
+                required
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Company Name */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Company / Business Name
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Your Real Estate Business"
                 required
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />

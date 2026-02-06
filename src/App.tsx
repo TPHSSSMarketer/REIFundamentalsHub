@@ -12,7 +12,6 @@ import LandingPage from './components/LandingPage/LandingPage'
 import Login from './components/Auth/Login'
 import Signup from './components/Auth/Signup'
 import ForgotPassword from './components/Auth/ForgotPassword'
-import Onboarding from './components/Auth/Onboarding'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { apiService } from './services/api'
@@ -95,7 +94,6 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/onboarding" element={<Onboarding />} />
 
       {/* Protected app routes */}
       <Route

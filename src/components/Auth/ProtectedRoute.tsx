@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isOnboarded, isLoading, isSaasMode } = useAuth()
+  const { isAuthenticated, isLoading, isSaasMode } = useAuth()
 
   // If Supabase isn't configured, skip auth entirely (dev/single-tenant mode)
   if (!isSaasMode) {
@@ -25,14 +25,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     )
   }
 
-  // Not logged in
+  // Not logged in — redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
-  }
-
-  // Logged in but hasn't completed onboarding
-  if (!isOnboarded) {
-    return <Navigate to="/onboarding" replace />
   }
 
   return <>{children}</>

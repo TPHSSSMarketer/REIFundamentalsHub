@@ -15,15 +15,11 @@ interface AuthState {
 }
 
 interface AuthActions {
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: string | null }>
-  completeOnboarding: (data: {
-    companyName: string
-    ghlApiKey: string
-    ghlLocationId: string
-  }) => Promise<{ error: string | null }>
+  setupOrganization: (userId: string, fullName: string, companyName: string) => Promise<{ error: string | null }>
   updateOrganization: (updates: Partial<Organization>) => Promise<{ error: string | null }>
   refreshProfile: () => Promise<void>
 }
@@ -73,7 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession?.user) {
           const prof = await fetchProfile(currentSession.user.id)
-          if (prof?.organization_id) {
+          if (prof && !prof.onboarding_completed) {
+            const meta = currentSession.user.user_metadata
+            await setupOrganization(
+              currentSession.user.id,
+              meta?.full_name || '',
+              meta?.company_name || ''
+            )
+          } else if (prof?.organization_id) {
             await fetchOrganization(prof.organization_id)
           }
         }
@@ -95,7 +98,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrganization(null)
         } else if (newSession?.user) {
           const prof = await fetchProfile(newSession.user.id)
-          if (prof?.organization_id) {
+          if (prof && !prof.onboarding_completed) {
+            // Auto-setup org on first login (after email confirmation)
+            const meta = newSession.user.user_metadata
+            await setupOrganization(
+              newSession.user.id,
+              meta?.full_name || '',
+              meta?.company_name || ''
+            )
+          } else if (prof?.organization_id) {
             await fetchOrganization(prof.organization_id)
           }
         }
@@ -105,12 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [saasMode, fetchProfile, fetchOrganization])
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: fullName, company_name: companyName },
       },
     })
     return { error: error?.message || null }
@@ -134,42 +145,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message || null }
   }
 
-  const completeOnboarding = async (data: {
-    companyName: string
-    ghlApiKey: string
-    ghlLocationId: string
-  }) => {
-    if (!user) return { error: 'Not authenticated' }
-
-    // Create organization
+  /**
+   * Auto-creates an organization for a new user on first login.
+   * GHL credentials are provisioned by the platform admin (not the user).
+   */
+  const setupOrganization = async (userId: string, fullName: string, companyName: string) => {
+    // Create organization (no GHL creds — admin adds those later)
     const { data: org, error: orgError } = await supabase
       .from('organizations')
       .insert({
-        name: data.companyName,
-        owner_id: user.id,
-        ghl_api_key: data.ghlApiKey,
-        ghl_location_id: data.ghlLocationId,
+        name: companyName || `${fullName}'s Organization`,
+        owner_id: userId,
       })
       .select()
       .single()
 
     if (orgError) return { error: orgError.message }
 
-    // Update profile with org + onboarding complete
+    // Update profile with org + mark onboarding complete
     const { error: profError } = await supabase
       .from('profiles')
       .update({
-        company_name: data.companyName,
+        company_name: companyName,
         organization_id: org.id,
         onboarding_completed: true,
       })
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (profError) return { error: profError.message }
 
     // Refresh local state
     setOrganization(org)
-    await fetchProfile(user.id)
+    await fetchProfile(userId)
 
     return { error: null }
   }
@@ -209,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signOut,
     resetPassword,
-    completeOnboarding,
+    setupOrganization,
     updateOrganization,
     refreshProfile,
   }
