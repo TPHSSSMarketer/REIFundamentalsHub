@@ -7,6 +7,7 @@ import Contacts from './components/Contacts/Contacts'
 import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
+import Scheduler from './components/Scheduler/Scheduler'
 import LandingPage from './components/LandingPage/LandingPage'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { apiService } from './services/api'
@@ -62,6 +63,7 @@ function AppLayout() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
+        <Route path="/scheduler" element={<Scheduler />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

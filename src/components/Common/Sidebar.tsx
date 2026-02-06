@@ -5,6 +5,7 @@ import {
   Users,
   Headphones,
   PenTool,
+  CalendarCheck,
   Settings,
   ChevronLeft,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ const navItems = [
   { to: '/contacts', icon: Users, label: 'Contacts' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
+  { to: '/scheduler', icon: CalendarCheck, label: 'Smart Scheduler' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

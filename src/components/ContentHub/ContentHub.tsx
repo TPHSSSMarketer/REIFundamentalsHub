@@ -73,9 +73,7 @@ export default function ContentHub() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">ContentHub</h1>
-        <p className="text-slate-600">
-          Powered by <span className="font-semibold text-primary-700">AdFuel</span> — Generate social media and website content with AI
-        </p>
+        <p className="text-slate-600">Generate social media and website content with AI</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

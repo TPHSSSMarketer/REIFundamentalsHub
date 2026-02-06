@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import {
   Zap,
   Phone,
-  Megaphone,
   Search,
   Kanban,
   Star,
@@ -34,14 +33,6 @@ const features = [
       'CallCommander AI answers calls, qualifies sellers, captures property info, and schedules appointments — all while you\'re out closing deals or off the clock.',
     icon: Phone,
     color: 'bg-primary-100 text-primary-600',
-  },
-  {
-    name: 'AdFuel',
-    tagline: 'Launch High-Converting Real Estate Ads in Minutes',
-    description:
-      'Get motivated seller leads flowing with plug-and-play ad templates tailored for wholesaling, creative finance, and distressed properties.',
-    icon: Megaphone,
-    color: 'bg-orange-100 text-orange-600',
   },
   {
     name: 'LeadGen AI',
@@ -332,7 +323,7 @@ export default function LandingPage() {
               Here's What You Get Inside REIFundamentals Hub
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Eight powerful tools working together to help you find, follow up, and close more deals.
+              Seven powerful tools working together to help you find, follow up, and close more deals.
             </p>
           </div>
 
