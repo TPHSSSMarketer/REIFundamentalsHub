@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/hooks/useStore'
-import { useCreateDeal, usePipelines, useContacts } from '@/hooks/useGHL'
+import { useCreateDeal, usePipelines, useContacts } from '@/hooks/useApi'
 
 export default function NewDealModal() {
   const { isNewDealModalOpen, setNewDealModalOpen } = useStore()

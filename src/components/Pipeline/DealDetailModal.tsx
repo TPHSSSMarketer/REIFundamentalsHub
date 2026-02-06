@@ -1,7 +1,7 @@
 import { Phone, Mail, DollarSign, Calendar, Trash2 } from 'lucide-react'
 import Modal from '../Common/Modal'
 import { formatCurrency, formatDate } from '@/utils/helpers'
-import { useDeleteDeal } from '@/hooks/useGHL'
+import { useDeleteDeal } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import type { Deal } from '@/types'
 

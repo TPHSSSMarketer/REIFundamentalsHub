@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   Kanban,
   Users,
-  Mic,
+  Headphones,
   PenTool,
   Settings,
   ChevronLeft,
@@ -16,7 +16,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
-  { to: '/voicehub', icon: Mic, label: 'VoiceHub' },
+  { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
@@ -38,7 +38,7 @@ export default function Sidebar() {
             <Home className="w-5 h-5 text-white" />
           </div>
           {!isSidebarCollapsed && (
-            <span className="font-bold text-slate-800">REI Hub</span>
+            <span className="font-bold text-slate-800">REI Fundamentals</span>
           )}
         </div>
         <button
@@ -81,7 +81,7 @@ export default function Sidebar() {
       {!isSidebarCollapsed && (
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">
           <p className="text-xs text-slate-400 text-center">
-            Powered by GoHighLevel
+            REI Fundamentals Hub
           </p>
         </div>
       )}

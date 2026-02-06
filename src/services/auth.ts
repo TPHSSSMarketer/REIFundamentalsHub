@@ -1,15 +1,15 @@
 /**
- * Authentication utilities for GHL API
+ * Authentication utilities for API
  */
 
 // Check if API key is configured
 export function isApiKeyConfigured(): boolean {
-  return !!import.meta.env.VITE_GHL_API_KEY
+  return !!import.meta.env.VITE_API_KEY
 }
 
 // Check if location ID is configured
 export function isLocationConfigured(): boolean {
-  return !!import.meta.env.VITE_GHL_LOCATION_ID
+  return !!import.meta.env.VITE_API_LOCATION_ID
 }
 
 // Get current configuration status
@@ -30,13 +30,13 @@ export function getConfigStatus(): {
 
 // Store location ID in localStorage for multi-location support
 export function setStoredLocationId(locationId: string): void {
-  localStorage.setItem('ghl_location_id', locationId)
+  localStorage.setItem('rei_location_id', locationId)
 }
 
 export function getStoredLocationId(): string | null {
-  return localStorage.getItem('ghl_location_id')
+  return localStorage.getItem('rei_location_id')
 }
 
 export function clearStoredLocationId(): void {
-  localStorage.removeItem('ghl_location_id')
+  localStorage.removeItem('rei_location_id')
 }

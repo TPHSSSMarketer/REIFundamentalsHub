@@ -7,8 +7,8 @@ export default function Settings() {
   const config = getConfigStatus()
 
   const [settings, setSettings] = useState({
-    apiKey: import.meta.env.VITE_GHL_API_KEY ? '••••••••••••••••' : '',
-    locationId: import.meta.env.VITE_GHL_LOCATION_ID || '',
+    apiKey: import.meta.env.VITE_API_KEY ? '••••••••••••••••' : '',
+    locationId: import.meta.env.VITE_API_LOCATION_ID || '',
   })
 
   const handleSave = () => {
@@ -23,7 +23,7 @@ export default function Settings() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-        <p className="text-slate-600">Configure your GHL connection and preferences</p>
+        <p className="text-slate-600">Configure your API connection and preferences</p>
       </div>
 
       {/* Connection Status */}
@@ -47,7 +47,7 @@ export default function Settings() {
               }`}
             >
               {config.isFullyConfigured
-                ? 'Connected to GoHighLevel'
+                ? 'API Connected'
                 : 'Configuration incomplete'}
             </p>
             <p
@@ -82,11 +82,11 @@ export default function Settings() {
               onChange={(e) =>
                 setSettings({ ...settings, apiKey: e.target.value })
               }
-              placeholder="Enter your GHL API key"
+              placeholder="Enter your API key"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Find your API key in GHL Settings → Business Profile → API
+              Your CRM API key for authentication
             </p>
           </div>
 
@@ -106,7 +106,7 @@ export default function Settings() {
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Your GHL sub-account location identifier
+              Your sub-account location identifier
             </p>
           </div>
         </div>
@@ -133,9 +133,9 @@ export default function Settings() {
           project root:
         </p>
         <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
-          {`VITE_GHL_API_KEY=your_api_key_here
-VITE_GHL_LOCATION_ID=your_location_id_here
-VITE_GHL_API_BASE_URL=https://services.leadconnectorhq.com`}
+          {`VITE_API_KEY=your_api_key_here
+VITE_API_LOCATION_ID=your_location_id_here
+VITE_API_BASE_URL=https://services.leadconnectorhq.com`}
         </pre>
       </div>
     </div>

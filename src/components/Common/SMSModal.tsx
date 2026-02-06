@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Loader2, Search } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/hooks/useStore'
-import { useContacts, useSendSMS } from '@/hooks/useGHL'
+import { useContacts, useSendSMS } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
 
 export default function SMSModal() {

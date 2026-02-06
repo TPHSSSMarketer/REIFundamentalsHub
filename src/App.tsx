@@ -4,11 +4,11 @@ import Layout from './components/Common/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
 import Pipeline from './components/Pipeline/Pipeline'
 import Contacts from './components/Contacts/Contacts'
-import VoiceHub from './components/VoiceHub/VoiceHub'
+import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
 import ConnectionTest from './components/Common/ConnectionTest'
-import { ghlService } from './services/ghl'
+import { apiService } from './services/api'
 import { useDemoMode } from './hooks/useDemoMode'
 
 function App() {
@@ -26,7 +26,7 @@ function App() {
 
     const testConnection = async () => {
       try {
-        const connected = await ghlService.testConnection()
+        const connected = await apiService.testConnection()
         setIsConnected(connected)
       } catch {
         setIsConnected(false)
@@ -43,7 +43,7 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600">Connecting to GoHighLevel...</p>
+          <p className="text-slate-600">Connecting to REI Fundamentals Hub...</p>
         </div>
       </div>
     )
@@ -60,7 +60,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
-        <Route path="/voicehub" element={<VoiceHub />} />
+        <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>

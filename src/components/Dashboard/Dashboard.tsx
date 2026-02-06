@@ -1,7 +1,7 @@
 import { Target, DollarSign, CheckCircle, Clock } from 'lucide-react'
 import MetricCard from './MetricCard'
 import ActivityFeed from './ActivityFeed'
-import { useDeals, useTasks } from '@/hooks/useGHL'
+import { useDeals, useTasks } from '@/hooks/useApi'
 import { formatCurrency } from '@/utils/helpers'
 import type { Activity } from '@/types'
 

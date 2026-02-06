@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react'
 import PipelineColumn from './PipelineColumn'
 import DealCard from './DealCard'
 import DealDetailModal from './DealDetailModal'
-import { usePipelines, useDeals, useUpdateDealStage } from '@/hooks/useGHL'
+import { usePipelines, useDeals, useUpdateDealStage } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import { formatCurrency, getStageColor } from '@/utils/helpers'
 import type { Deal, Pipeline as PipelineType } from '@/types'
@@ -94,7 +94,7 @@ export default function Pipeline() {
       <div className="text-center py-12">
         <p className="text-slate-600">No pipelines found.</p>
         <p className="text-sm text-slate-500 mt-1">
-          Create a pipeline in GoHighLevel to get started.
+          Create a pipeline to get started.
         </p>
       </div>
     )

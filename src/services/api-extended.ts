@@ -2,20 +2,20 @@ import axios, { AxiosInstance } from 'axios'
 import type { Lead, Deal, Campaign, ApiResponse, PaginatedResponse } from '@/types'
 
 /**
- * GoHighLevel API Service
- * Handles all communication with the GHL API
+ * REI Fundamentals Hub Extended API Service
+ * Handles additional CRM API interactions
  */
-class GHLApiService {
+class ApiExtendedService {
   private client: AxiosInstance
   private locationId: string
 
   constructor() {
-    this.locationId = process.env.GHL_LOCATION_ID || ''
+    this.locationId = process.env.API_LOCATION_ID || ''
 
     this.client = axios.create({
-      baseURL: process.env.GHL_API_BASE_URL || 'https://services.leadconnectorhq.com',
+      baseURL: process.env.API_BASE_URL || 'https://services.leadconnectorhq.com',
       headers: {
-        'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+        'Authorization': `Bearer ${process.env.API_KEY}`,
         'Content-Type': 'application/json',
         'Version': '2021-07-28',
       },
@@ -25,7 +25,7 @@ class GHLApiService {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('GHL API Error:', error.response?.data || error.message)
+        console.error('API Error:', error.response?.data || error.message)
         throw error
       }
     )
@@ -50,7 +50,7 @@ class GHLApiService {
     const contacts = response.data.contacts || []
 
     return {
-      data: contacts.map(this.mapGHLContactToLead),
+      data: contacts.map(this.mapContactToLead),
       total: response.data.total || contacts.length,
       page: Math.floor((params?.offset || 0) / (params?.limit || 20)) + 1,
       pageSize: params?.limit || 20,
@@ -60,7 +60,7 @@ class GHLApiService {
 
   async getContact(contactId: string): Promise<Lead> {
     const response = await this.client.get(`/contacts/${contactId}`)
-    return this.mapGHLContactToLead(response.data.contact)
+    return this.mapContactToLead(response.data.contact)
   }
 
   async createContact(lead: Partial<Lead>): Promise<Lead> {
@@ -83,7 +83,7 @@ class GHLApiService {
       ],
     })
 
-    return this.mapGHLContactToLead(response.data.contact)
+    return this.mapContactToLead(response.data.contact)
   }
 
   async updateContact(contactId: string, lead: Partial<Lead>): Promise<Lead> {
@@ -99,7 +99,7 @@ class GHLApiService {
       tags: lead.tags,
     })
 
-    return this.mapGHLContactToLead(response.data.contact)
+    return this.mapContactToLead(response.data.contact)
   }
 
   async deleteContact(contactId: string): Promise<void> {
@@ -124,12 +124,12 @@ class GHLApiService {
       },
     })
 
-    return (response.data.opportunities || []).map(this.mapGHLOpportunityToDeal)
+    return (response.data.opportunities || []).map(this.mapOpportunityToDeal)
   }
 
   async getOpportunity(opportunityId: string): Promise<Deal> {
     const response = await this.client.get(`/opportunities/${opportunityId}`)
-    return this.mapGHLOpportunityToDeal(response.data.opportunity)
+    return this.mapOpportunityToDeal(response.data.opportunity)
   }
 
   async createOpportunity(deal: Partial<Deal>): Promise<Deal> {
@@ -142,7 +142,7 @@ class GHLApiService {
       monetaryValue: deal.value,
     })
 
-    return this.mapGHLOpportunityToDeal(response.data.opportunity)
+    return this.mapOpportunityToDeal(response.data.opportunity)
   }
 
   async updateOpportunity(opportunityId: string, deal: Partial<Deal>): Promise<Deal> {
@@ -152,7 +152,7 @@ class GHLApiService {
       monetaryValue: deal.value,
     })
 
-    return this.mapGHLOpportunityToDeal(response.data.opportunity)
+    return this.mapOpportunityToDeal(response.data.opportunity)
   }
 
   async updateOpportunityStage(opportunityId: string, stageId: string): Promise<Deal> {
@@ -160,7 +160,7 @@ class GHLApiService {
       pipelineStageId: stageId,
     })
 
-    return this.mapGHLOpportunityToDeal(response.data.opportunity)
+    return this.mapOpportunityToDeal(response.data.opportunity)
   }
 
   // ============ PIPELINES ============
@@ -180,7 +180,7 @@ class GHLApiService {
       params: { locationId: this.locationId },
     })
 
-    return (response.data.campaigns || []).map(this.mapGHLCampaignToCampaign)
+    return (response.data.campaigns || []).map(this.mapCampaign)
   }
 
   // ============ CONVERSATIONS/MESSAGING ============
@@ -270,7 +270,7 @@ class GHLApiService {
 
   // ============ MAPPING FUNCTIONS ============
 
-  private mapGHLContactToLead(contact: any): Lead {
+  private mapContactToLead(contact: any): Lead {
     return {
       id: contact.id,
       firstName: contact.firstName || '',
@@ -306,11 +306,11 @@ class GHLApiService {
     return statusMap[status?.toLowerCase()] || 'new'
   }
 
-  private mapGHLOpportunityToDeal(opportunity: any): Deal {
+  private mapOpportunityToDeal(opportunity: any): Deal {
     return {
       id: opportunity.id,
       leadId: opportunity.contactId,
-      lead: {} as Lead, // Will be populated separately if needed
+      lead: {} as Lead,
       pipelineId: opportunity.pipelineId,
       stageId: opportunity.pipelineStageId,
       title: opportunity.name,
@@ -320,7 +320,7 @@ class GHLApiService {
     }
   }
 
-  private mapGHLCampaignToCampaign(campaign: any): Campaign {
+  private mapCampaign(campaign: any): Campaign {
     return {
       id: campaign.id,
       name: campaign.name,
@@ -334,7 +334,7 @@ class GHLApiService {
 }
 
 // Export singleton instance
-export const ghlApi = new GHLApiService()
+export const apiExtended = new ApiExtendedService()
 
 // Export class for testing
-export { GHLApiService }
+export { ApiExtendedService }

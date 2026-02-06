@@ -21,7 +21,7 @@ export default function ConnectionTest({ onRetry, onDemoMode }: ConnectionTestPr
         </h1>
 
         <p className="text-slate-600 mb-6">
-          Unable to connect to GoHighLevel. Please check your configuration.
+          Unable to connect to the CRM API. Please check your configuration.
         </p>
 
         {/* Config Status */}
@@ -60,7 +60,7 @@ export default function ConnectionTest({ onRetry, onDemoMode }: ConnectionTestPr
           </h3>
           <ol className="text-sm text-primary-600 space-y-1 list-decimal list-inside">
             <li>Copy .env.example to .env</li>
-            <li>Add your GHL API key</li>
+            <li>Add your API key</li>
             <li>Add your Location ID</li>
             <li>Restart the application</li>
           </ol>
@@ -76,15 +76,13 @@ export default function ConnectionTest({ onRetry, onDemoMode }: ConnectionTestPr
               <RefreshCw className="w-4 h-4" />
               Retry Connection
             </button>
-            <a
-              href="https://app.gohighlevel.com"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => window.location.href = '/settings'}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
             >
               <Settings className="w-4 h-4" />
-              GHL Settings
-            </a>
+              Settings
+            </button>
           </div>
 
           {/* Demo Mode Button */}
@@ -101,7 +99,7 @@ export default function ConnectionTest({ onRetry, onDemoMode }: ConnectionTestPr
 
         {onDemoMode && (
           <p className="text-xs text-slate-500 mt-4">
-            Demo mode uses sample data so you can explore all features without connecting to GHL.
+            Demo mode uses sample data so you can explore all features without an API connection.
           </p>
         )}
       </div>
