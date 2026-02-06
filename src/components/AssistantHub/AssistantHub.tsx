@@ -101,9 +101,9 @@ export default function AssistantHub() {
   }
 
   const tabs = [
-    { id: 'voice' as ActiveTab, label: 'Voice Agents', icon: Mic },
-    { id: 'sms' as ActiveTab, label: 'SMS', icon: MessageSquare },
-    { id: 'email' as ActiveTab, label: 'Email', icon: Mail },
+    { id: 'voice' as ActiveTab, label: 'CallCommander AI', icon: Mic },
+    { id: 'sms' as ActiveTab, label: 'DealCloser SMS', icon: MessageSquare },
+    { id: 'email' as ActiveTab, label: 'DealCloser Email', icon: Mail },
   ]
 
   return (
@@ -111,7 +111,10 @@ export default function AssistantHub() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">AssistantHub</h1>
-        <p className="text-slate-600">Manage voice agents, SMS, and email communications</p>
+        <p className="text-slate-600">
+          Powered by <span className="font-semibold text-primary-700">CallCommander AI</span> &{' '}
+          <span className="font-semibold text-accent-600">DealCloser AI</span>
+        </p>
       </div>
 
       {/* Stats */}
@@ -174,7 +177,7 @@ export default function AssistantHub() {
         {activeTab === 'voice' && (
           <div>
             <div className="p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-800">Voice Agents</h2>
+              <h2 className="text-lg font-semibold text-slate-800">CallCommander AI Agents</h2>
             </div>
             <div className="divide-y divide-slate-200">
               {agents.map((agent) => (

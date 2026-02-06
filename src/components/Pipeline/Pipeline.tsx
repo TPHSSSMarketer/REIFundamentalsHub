@@ -105,7 +105,7 @@ export default function Pipeline() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Pipeline</h1>
+          <h1 className="text-2xl font-bold text-slate-800">REI Pipeline Manager</h1>
           <p className="text-slate-600">Drag and drop deals between stages</p>
         </div>
 

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Layout from './components/Common/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
@@ -7,11 +7,12 @@ import Contacts from './components/Contacts/Contacts'
 import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
+import LandingPage from './components/LandingPage/LandingPage'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { apiService } from './services/api'
 import { useDemoMode } from './hooks/useDemoMode'
 
-function App() {
+function AppLayout() {
   const { isDemoMode, enableDemoMode } = useDemoMode()
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -56,7 +57,6 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
@@ -65,6 +65,15 @@ function App() {
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/*" element={<AppLayout />} />
+    </Routes>
   )
 }
 
