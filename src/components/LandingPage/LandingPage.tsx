@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Home,
   Zap,
   Phone,
   Megaphone,
@@ -238,13 +237,8 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
-                <Home className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="font-bold text-primary-800">REI Fundamentals Hub</span>
-              </div>
+            <div className="flex items-center">
+              <img src="/logo.png" alt="REI Fundamentals Hub" className="h-12 object-contain" />
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
@@ -274,7 +268,7 @@ export default function LandingPage() {
           <div className="absolute top-20 left-10 w-72 h-72 bg-accent-500 rounded-full filter blur-3xl" />
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary-400 rounded-full filter blur-3xl" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-22">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
               Close More Real Estate Deals with{' '}
@@ -283,7 +277,7 @@ export default function LandingPage() {
             <p className="text-xl md:text-2xl text-primary-200 mb-4">
               Built for Wholesalers + Subject-To Investors
             </p>
-            <p className="text-lg text-primary-300 max-w-3xl mx-auto mb-10">
+            <p className="text-lg text-primary-300 max-w-3xl mx-auto mb-8">
               REIFundamentals Hub is your all-in-one marketing engine, lead manager, and virtual
               acquisition assistant. Everything you need to find, follow up, and close deals —
               without hiring a team.
@@ -316,7 +310,7 @@ export default function LandingPage() {
       </section>
 
       {/* Problem Statement */}
-      <section className="py-16 md:py-20">
+      <section className="py-10 md:py-14">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-6">
             Are you tired of chasing dead leads, missing calls, and managing 10 different tools?
@@ -331,9 +325,9 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-16 md:py-20 bg-slate-50">
+      <section id="features" className="py-10 md:py-14 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
               Here's What You Get Inside REIFundamentals Hub
             </h2>
@@ -363,9 +357,9 @@ export default function LandingPage() {
       </section>
 
       {/* Who Is This For */}
-      <section id="who-is-this-for" className="py-16 md:py-20">
+      <section id="who-is-this-for" className="py-10 md:py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
               Designed for Real Estate Investors Who:
             </h2>
@@ -389,13 +383,13 @@ export default function LandingPage() {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-16 md:py-20 bg-gradient-to-br from-primary-800 to-primary-900">
+      <section className="py-10 md:py-14 bg-gradient-to-br from-primary-800 to-primary-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 text-center">
               Why REIFundamentals Hub Beats Every Other CRM or Investor Tool Stack
             </h2>
-            <p className="text-primary-300 text-center mb-10 text-lg">
+            <p className="text-primary-300 text-center mb-8 text-lg">
               Everything you need, nothing you don't.
             </p>
             <div className="space-y-4">
@@ -411,9 +405,9 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials Placeholder */}
-      <section className="py-16 md:py-20">
+      <section className="py-10 md:py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
               Investors Are Closing Deals in Weeks, Not Months
             </h2>
@@ -452,9 +446,9 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-16 md:py-20 bg-slate-50">
+      <section id="faq" className="py-10 md:py-14 bg-slate-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
               Frequently Asked Questions
             </h2>
@@ -472,7 +466,7 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-16 md:py-24 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 relative overflow-hidden">
+      <section className="py-10 md:py-16 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-20 w-64 h-64 bg-accent-500 rounded-full filter blur-3xl" />
         </div>
@@ -483,7 +477,7 @@ export default function LandingPage() {
           <p className="text-xl text-primary-200 mb-4">
             Let us show you how it works — no pressure, no tech skills needed.
           </p>
-          <p className="text-primary-300 mb-10">
+          <p className="text-primary-300 mb-8">
             We'll show you how investors are closing their first deals within 14–30 days
             using our tools — even with ZERO tech experience.
           </p>
@@ -514,11 +508,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand */}
             <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
-                  <Home className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-lg">REI Fundamentals Hub</span>
+              <div className="flex items-center mb-4">
+                <img src="/logo.png" alt="REI Fundamentals Hub" className="h-14 object-contain brightness-0 invert" />
               </div>
               <p className="text-primary-400 text-sm mb-1">
                 Power Up Your Real Estate Business
