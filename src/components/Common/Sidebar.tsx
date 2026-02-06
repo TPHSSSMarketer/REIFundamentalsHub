@@ -33,16 +33,24 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
+        <div className="flex items-center gap-2 min-w-0">
+          <img
+            src="/logo.png"
+            alt="REI Fundamentals Hub"
+            className={cn(
+              'object-contain shrink-0',
+              isSidebarCollapsed ? 'w-8 h-8' : 'h-12 max-w-[180px]'
+            )}
+            onError={(e) => {
+              const target = e.currentTarget
+              target.style.display = 'none'
+              const fallback = target.nextElementSibling as HTMLElement
+              if (fallback) fallback.style.display = 'flex'
+            }}
+          />
+          <div className="w-8 h-8 bg-primary-800 rounded-lg items-center justify-center shrink-0 hidden">
             <Home className="w-5 h-5 text-white" />
           </div>
-          {!isSidebarCollapsed && (
-            <div className="flex flex-col">
-              <span className="font-bold text-primary-800 text-sm leading-tight">REI Fundamentals</span>
-              <span className="text-[10px] text-accent-600 font-medium leading-tight">Power Up Your Real Estate Business</span>
-            </div>
-          )}
         </div>
         <button
           onClick={toggleSidebar}

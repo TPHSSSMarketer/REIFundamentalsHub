@@ -9,19 +9,19 @@ export default function QuickActions() {
       label: 'New Opportunity',
       icon: Plus,
       onClick: () => setNewDealModalOpen(true),
-      color: 'bg-primary-500 hover:bg-primary-600',
+      color: 'bg-primary-800 hover:bg-primary-700',
     },
     {
       label: 'Add Contact',
       icon: UserPlus,
       onClick: () => setNewContactModalOpen(true),
-      color: 'bg-success-500 hover:bg-success-600',
+      color: 'bg-primary-600 hover:bg-primary-500',
     },
     {
       label: 'Send SMS',
       icon: MessageSquare,
       onClick: () => setSMSModalOpen(true),
-      color: 'bg-warning-500 hover:bg-warning-600',
+      color: 'bg-accent-600 hover:bg-accent-700',
     },
   ]
 
