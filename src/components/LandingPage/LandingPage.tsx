@@ -236,9 +236,9 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-32">
             <div className="flex items-center">
-              <img src="/logo.png" alt="REI Fundamentals Hub" className="h-16 object-contain" />
+              <img src="/logo.png" alt="REI Fundamentals Hub" className="h-28 object-contain" />
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
@@ -508,8 +508,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand */}
             <div className="md:col-span-2">
-              <div className="flex items-center mb-4 bg-white rounded-lg p-2">
-                <img src="/logo.png" alt="REI Fundamentals Hub" className="h-12 object-contain" />
+              <div className="inline-flex items-center mb-4 bg-white rounded-lg p-2">
+                <img src="/logo.png" alt="REI Fundamentals Hub" className="h-14 object-contain" />
               </div>
               <p className="text-primary-400 text-sm mb-1">
                 Power Up Your Real Estate Business
