@@ -117,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [saasMode, fetchProfile, fetchOrganization])
 
   const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
+    if (!saasMode) return { error: 'SaaS mode is not configured. Add Supabase credentials to enable authentication.' }
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -128,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!saasMode) return { error: 'SaaS mode is not configured. Add Supabase credentials to enable authentication.' }
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message || null }
   }
@@ -139,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
+    if (!saasMode) return { error: 'SaaS mode is not configured. Add Supabase credentials to enable authentication.' }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   Zap,
   Phone,
@@ -222,6 +223,10 @@ function FaqAccordion({ item }: { item: FaqItem }) {
 }
 
 export default function LandingPage() {
+  const saasMode = isSupabaseConfigured()
+  const ctaLink = saasMode ? '/signup' : '/dashboard'
+  const loginLink = saasMode ? '/login' : '/dashboard'
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -242,17 +247,19 @@ export default function LandingPage() {
                 FAQ
               </a>
               <Link
-                to="/login"
+                to={loginLink}
                 className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-primary-700 transition-colors"
               >
-                Sign In
+                {saasMode ? 'Sign In' : 'Go to Dashboard'}
               </Link>
-              <Link
-                to="/signup"
-                className="px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 transition-colors"
-              >
-                Start Free Trial
-              </Link>
+              {saasMode && (
+                <Link
+                  to={ctaLink}
+                  className="px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 transition-colors"
+                >
+                  Start Free Trial
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -281,7 +288,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                to="/signup"
+                to={ctaLink}
                 className="px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
               >
                 Get Started Today
@@ -333,11 +340,11 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="flex flex-wrap justify-center gap-6">
             {features.map((feature) => (
               <div
                 key={feature.name}
-                className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all group"
+                className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all group w-full md:w-[calc(50%-12px)] lg:w-[calc(25%-18px)]"
               >
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}>
                   <feature.icon className="w-6 h-6" />
@@ -480,7 +487,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/signup"
+              to={ctaLink}
               className="flex items-center gap-2 px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
             >
               Get Started Now
@@ -524,7 +531,7 @@ export default function LandingPage() {
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#who-is-this-for" className="hover:text-white transition-colors">Who It's For</a></li>
                 <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
-                <li><Link to="/signup" className="hover:text-white transition-colors">Dashboard</Link></li>
+                <li><Link to={ctaLink} className="hover:text-white transition-colors">Dashboard</Link></li>
               </ul>
             </div>
 
