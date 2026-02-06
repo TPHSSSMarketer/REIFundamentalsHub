@@ -242,10 +242,16 @@ export default function LandingPage() {
                 FAQ
               </a>
               <Link
-                to="/dashboard"
+                to="/login"
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-primary-700 transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/signup"
                 className="px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 transition-colors"
               >
-                Get Started
+                Start Free Trial
               </Link>
             </div>
           </div>
@@ -275,7 +281,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                to="/dashboard"
+                to="/signup"
                 className="px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
               >
                 Get Started Today
@@ -474,7 +480,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/dashboard"
+              to="/signup"
               className="flex items-center gap-2 px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
             >
               Get Started Now
@@ -518,7 +524,7 @@ export default function LandingPage() {
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#who-is-this-for" className="hover:text-white transition-colors">Who It's For</a></li>
                 <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
-                <li><Link to="/dashboard" className="hover:text-white transition-colors">Dashboard</Link></li>
+                <li><Link to="/signup" className="hover:text-white transition-colors">Dashboard</Link></li>
               </ul>
             </div>
 

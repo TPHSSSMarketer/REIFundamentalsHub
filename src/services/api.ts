@@ -31,6 +31,31 @@ class ApiService {
     )
   }
 
+  /**
+   * Reconfigure the API client with per-user credentials (SaaS mode).
+   * Called when a user logs in and their org credentials are loaded.
+   */
+  configure(config: { apiKey: string; locationId: string; baseUrl?: string }) {
+    this.locationId = config.locationId
+
+    this.client = axios.create({
+      baseURL: config.baseUrl || 'https://services.leadconnectorhq.com',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+        'Version': import.meta.env.VITE_API_VERSION || '2021-07-28',
+      },
+    })
+
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        console.error('API Error:', error.response?.data || error.message)
+        throw error
+      }
+    )
+  }
+
   // ============ CONNECTION TEST ============
 
   async testConnection(): Promise<boolean> {

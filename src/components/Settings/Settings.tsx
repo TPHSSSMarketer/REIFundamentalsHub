@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Save, Key, MapPin, Check, AlertTriangle, Calendar, LinkIcon, Unlink, Loader2 } from 'lucide-react'
+import { Save, Key, MapPin, Check, AlertTriangle, Calendar, LinkIcon, Unlink, Loader2, LogOut, User, Building2, CreditCard } from 'lucide-react'
 import { getConfigStatus } from '@/services/auth'
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
+import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 
 export default function Settings() {
   const config = getConfigStatus()
+  const auth = useAuth()
   const {
     isConfigured: isGCalConfigured,
     isAuthorized: isGCalAuthorized,
@@ -15,16 +17,50 @@ export default function Settings() {
   } = useGoogleCalendar()
 
   const [isConnectingGCal, setIsConnectingGCal] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
+  // In SaaS mode, populate from org. In single-tenant, from env vars.
   const [settings, setSettings] = useState({
-    apiKey: import.meta.env.VITE_API_KEY ? '••••••••••••••••' : '',
-    locationId: import.meta.env.VITE_API_LOCATION_ID || '',
+    apiKey: auth.isSaasMode
+      ? (auth.organization?.ghl_api_key ? '••••••••••••••••' : '')
+      : (import.meta.env.VITE_API_KEY ? '••••••••••••••••' : ''),
+    locationId: auth.isSaasMode
+      ? (auth.organization?.ghl_location_id || '')
+      : (import.meta.env.VITE_API_LOCATION_ID || ''),
   })
 
-  const handleSave = () => {
-    toast.info(
-      'Settings are managed via environment variables. Update your .env file and restart the app.'
-    )
+  const [apiKeyChanged, setApiKeyChanged] = useState(false)
+
+  const isConfigured = auth.isSaasMode
+    ? !!(auth.organization?.ghl_api_key && auth.organization?.ghl_location_id)
+    : config.isFullyConfigured
+
+  const handleSave = async () => {
+    if (auth.isSaasMode && auth.organization) {
+      setIsSaving(true)
+      const updates: Record<string, string> = {
+        ghl_location_id: settings.locationId,
+      }
+      // Only update API key if it was actually changed (not the masked value)
+      if (apiKeyChanged) {
+        updates.ghl_api_key = settings.apiKey
+      }
+      const { error } = await auth.updateOrganization(updates)
+      setIsSaving(false)
+
+      if (error) {
+        toast.error(`Failed to save: ${error}`)
+      } else {
+        toast.success('CRM credentials updated! The app will reconnect.')
+        setApiKeyChanged(false)
+        // Reload to reinitialize API connection
+        setTimeout(() => window.location.reload(), 1500)
+      }
+    } else {
+      toast.info(
+        'Settings are managed via environment variables. Update your .env file and restart the app.'
+      )
+    }
   }
 
   const handleGCalConnect = async () => {
@@ -44,6 +80,11 @@ export default function Settings() {
     toast.success('Google Calendar disconnected')
   }
 
+  const handleSignOut = async () => {
+    await auth.signOut()
+    window.location.href = '/'
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
@@ -52,16 +93,63 @@ export default function Settings() {
         <p className="text-slate-600">Configure your API connections and integrations</p>
       </div>
 
+      {/* Account Info (SaaS mode only) */}
+      {auth.isSaasMode && auth.profile && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <User className="w-5 h-5" />
+            Account
+          </h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-slate-800">{auth.profile.full_name || 'User'}</p>
+                <p className="text-sm text-slate-500">{auth.profile.email}</p>
+              </div>
+              <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-700 capitalize">
+                {auth.profile.role}
+              </span>
+            </div>
+            {auth.organization && (
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Building2 className="w-4 h-4" />
+                {auth.organization.name}
+              </div>
+            )}
+            {auth.organization && (
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <CreditCard className="w-4 h-4" />
+                <span className="capitalize">{auth.organization.plan}</span> Plan
+                {auth.organization.plan === 'trial' && auth.organization.trial_ends_at && (
+                  <span className="text-warning-600">
+                    — Expires {new Date(auth.organization.trial_ends_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="pt-3 border-t border-slate-200">
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-4 py-2 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CRM Connection Status */}
       <div
         className={`p-4 rounded-lg border ${
-          config.isFullyConfigured
+          isConfigured
             ? 'bg-success-50 border-success-200'
             : 'bg-warning-50 border-warning-200'
         }`}
       >
         <div className="flex items-center gap-3">
-          {config.isFullyConfigured ? (
+          {isConfigured ? (
             <Check className="w-5 h-5 text-success-600" />
           ) : (
             <AlertTriangle className="w-5 h-5 text-warning-600" />
@@ -69,19 +157,19 @@ export default function Settings() {
           <div>
             <p
               className={`font-medium ${
-                config.isFullyConfigured ? 'text-success-800' : 'text-warning-800'
+                isConfigured ? 'text-success-800' : 'text-warning-800'
               }`}
             >
-              {config.isFullyConfigured
+              {isConfigured
                 ? 'CRM API Connected'
                 : 'CRM Configuration Incomplete'}
             </p>
             <p
               className={`text-sm ${
-                config.isFullyConfigured ? 'text-success-600' : 'text-warning-600'
+                isConfigured ? 'text-success-600' : 'text-warning-600'
               }`}
             >
-              {config.isFullyConfigured
+              {isConfigured
                 ? 'Your CRM API connection is working properly'
                 : 'Please configure your API key and location ID'}
             </p>
@@ -105,9 +193,10 @@ export default function Settings() {
             <input
               type="password"
               value={settings.apiKey}
-              onChange={(e) =>
+              onChange={(e) => {
                 setSettings({ ...settings, apiKey: e.target.value })
-              }
+                setApiKeyChanged(true)
+              }}
               placeholder="Enter your API key"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
@@ -140,10 +229,20 @@ export default function Settings() {
         <div className="mt-6 pt-4 border-t border-slate-200">
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
-            Save Settings
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Settings
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -257,39 +356,36 @@ export default function Settings() {
         )}
       </div>
 
-      {/* Environment Variables Help */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
-        <h3 className="font-semibold text-slate-800 mb-3">
-          Environment Variables
-        </h3>
-        <p className="text-sm text-slate-600 mb-4">
-          Settings are configured via environment variables for security. Create a
-          <code className="mx-1 px-1 bg-slate-200 rounded">.env</code> file in the
-          project root:
-        </p>
-        <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
-          {`# CRM API Configuration
+      {/* Environment Variables Help (only show in non-SaaS mode) */}
+      {!auth.isSaasMode && (
+        <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
+          <h3 className="font-semibold text-slate-800 mb-3">
+            Environment Variables
+          </h3>
+          <p className="text-sm text-slate-600 mb-4">
+            Settings are configured via environment variables for security. Create a
+            <code className="mx-1 px-1 bg-slate-200 rounded">.env</code> file in the
+            project root:
+          </p>
+          <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
+            {`# CRM API Configuration
 VITE_API_KEY=your_api_key_here
 VITE_API_LOCATION_ID=your_location_id_here
 VITE_API_BASE_URL=https://services.leadconnectorhq.com
 
 # Google Calendar Integration
 VITE_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-VITE_GOOGLE_API_KEY=your_google_api_key_here`}
-        </pre>
-        <p className="text-xs text-slate-500 mt-3">
-          Google Calendar credentials can be obtained from the{' '}
-          <a
-            href="https://console.cloud.google.com/apis/credentials"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:underline"
-          >
-            Google Cloud Console
-          </a>
-          . Enable the Google Calendar API and create OAuth 2.0 credentials.
-        </p>
-      </div>
+VITE_GOOGLE_API_KEY=your_google_api_key_here
+
+# SaaS Mode (Supabase)
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
+          </pre>
+          <p className="text-xs text-slate-500 mt-3">
+            To enable multi-user SaaS mode, add your Supabase credentials. Without them, the app runs in single-tenant mode.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

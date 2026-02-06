@@ -9,17 +9,34 @@ import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
 import Scheduler from './components/Scheduler/Scheduler'
 import LandingPage from './components/LandingPage/LandingPage'
+import Login from './components/Auth/Login'
+import Signup from './components/Auth/Signup'
+import ForgotPassword from './components/Auth/ForgotPassword'
+import Onboarding from './components/Auth/Onboarding'
+import ProtectedRoute from './components/Auth/ProtectedRoute'
 import ConnectionTest from './components/Common/ConnectionTest'
 import { apiService } from './services/api'
 import { useDemoMode } from './hooks/useDemoMode'
+import { useAuth } from './contexts/AuthContext'
 
 function AppLayout() {
   const { isDemoMode, enableDemoMode } = useDemoMode()
+  const { organization, isSaasMode } = useAuth()
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Skip connection test in demo mode
+    // In SaaS mode, configure API service with org credentials
+    if (isSaasMode && organization) {
+      apiService.configure({
+        apiKey: organization.ghl_api_key || '',
+        locationId: organization.ghl_location_id || '',
+        baseUrl: organization.ghl_base_url || 'https://services.leadconnectorhq.com',
+      })
+    }
+  }, [isSaasMode, organization])
+
+  useEffect(() => {
     if (isDemoMode) {
       setIsConnected(true)
       setIsLoading(false)
@@ -73,8 +90,22 @@ function AppLayout() {
 function App() {
   return (
     <Routes>
+      {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
-      <Route path="/*" element={<AppLayout />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/onboarding" element={<Onboarding />} />
+
+      {/* Protected app routes */}
+      <Route
+        path="/*"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   )
 }
