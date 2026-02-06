@@ -6,6 +6,9 @@ import {
   Headphones,
   PenTool,
   CalendarCheck,
+  Calculator,
+  Hammer,
+  Map,
   Settings,
   ChevronLeft,
 } from 'lucide-react'
@@ -19,6 +22,9 @@ const navItems = [
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/scheduler', icon: CalendarCheck, label: 'Smart Scheduler' },
+  { to: '/deal-analyzer', icon: Calculator, label: 'Deal Analyzer' },
+  { to: '/repair-estimator', icon: Hammer, label: 'Repair Estimator' },
+  { to: '/market-map', icon: Map, label: 'Market Heatmap' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

@@ -8,6 +8,9 @@ import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
 import Settings from './components/Settings/Settings'
 import Scheduler from './components/Scheduler/Scheduler'
+import DealAnalyzer from './components/DealAnalyzer/DealAnalyzer'
+import RepairEstimator from './components/RepairEstimator/RepairEstimator'
+import MarketMap from './components/MarketMap/MarketMap'
 import LandingPage from './components/LandingPage/LandingPage'
 import Login from './components/Auth/Login'
 import Signup from './components/Auth/Signup'
@@ -80,6 +83,9 @@ function AppLayout() {
         <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/scheduler" element={<Scheduler />} />
+        <Route path="/deal-analyzer" element={<DealAnalyzer />} />
+        <Route path="/repair-estimator" element={<RepairEstimator />} />
+        <Route path="/market-map" element={<MarketMap />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
