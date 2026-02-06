@@ -31,14 +31,14 @@ export default function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="h-20 flex items-center justify-between px-3 border-b border-slate-200">
+      <div className="h-28 flex items-center justify-between px-3 border-b border-slate-200">
         <div className="flex items-center min-w-0">
           <img
             src="/logo.png"
             alt="REI Fundamentals Hub"
             className={cn(
               'object-contain',
-              isSidebarCollapsed ? 'w-10 h-10' : 'h-16 max-w-[200px]'
+              isSidebarCollapsed ? 'w-12 h-12' : 'h-24 max-w-[220px]'
             )}
           />
         </div>
