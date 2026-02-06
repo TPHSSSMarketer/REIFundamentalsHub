@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ghlService } from '@/services/ghl'
+import { apiService } from '@/services/api'
 import { useDemoMode } from './useDemoMode'
 import { mockContacts, mockDeals, mockPipelines, mockMetrics, mockActivities } from '@/data/mockData'
 import type { Contact, Deal, DashboardMetrics, Activity } from '@/types'
@@ -27,7 +27,7 @@ export function useContacts(params?: { limit?: number; offset?: number; query?: 
         }
         return { contacts: filtered, total: filtered.length }
       }
-      return ghlService.getContacts(params)
+      return apiService.getContacts(params)
     },
   })
 }
@@ -42,7 +42,7 @@ export function useContact(contactId: string) {
         await new Promise((r) => setTimeout(r, 200))
         return mockContacts.find((c) => c.id === contactId) || null
       }
-      return ghlService.getContact(contactId)
+      return apiService.getContact(contactId)
     },
     enabled: !!contactId,
   })
@@ -70,7 +70,7 @@ export function useCreateContact() {
         mockContacts.unshift(newContact)
         return newContact
       }
-      return ghlService.createContact(contact)
+      return apiService.createContact(contact)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
@@ -97,7 +97,7 @@ export function useUpdateContact() {
         }
         throw new Error('Contact not found')
       }
-      return ghlService.updateContact(id, data)
+      return apiService.updateContact(id, data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
@@ -123,7 +123,7 @@ export function useDeleteContact() {
         }
         return
       }
-      return ghlService.deleteContact(contactId)
+      return apiService.deleteContact(contactId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
@@ -151,7 +151,7 @@ export function useDeals(pipelineId?: string) {
         }
         return { deals: filtered }
       }
-      return ghlService.getDeals(pipelineId)
+      return apiService.getDeals(pipelineId)
     },
   })
 }
@@ -166,7 +166,7 @@ export function useDeal(dealId: string) {
         await new Promise((r) => setTimeout(r, 200))
         return mockDeals.find((d) => d.id === dealId) || null
       }
-      return ghlService.getDeal(dealId)
+      return apiService.getDeal(dealId)
     },
     enabled: !!dealId,
   })
@@ -194,7 +194,7 @@ export function useCreateDeal() {
         mockDeals.unshift(newDeal)
         return newDeal
       }
-      return ghlService.createDeal(deal)
+      return apiService.createDeal(deal)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
@@ -222,7 +222,7 @@ export function useUpdateDeal() {
         }
         throw new Error('Deal not found')
       }
-      return ghlService.updateDeal(id, data)
+      return apiService.updateDeal(id, data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
@@ -250,7 +250,7 @@ export function useUpdateDealStage() {
         }
         throw new Error('Deal not found')
       }
-      return ghlService.updateDealStage(dealId, stageId)
+      return apiService.updateDealStage(dealId, stageId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
@@ -275,7 +275,7 @@ export function useDeleteDeal() {
         }
         return
       }
-      return ghlService.deleteDeal(dealId)
+      return apiService.deleteDeal(dealId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
@@ -300,7 +300,7 @@ export function usePipelines() {
         await new Promise((r) => setTimeout(r, 200))
         return { pipelines: mockPipelines }
       }
-      return ghlService.getPipelines()
+      return apiService.getPipelines()
     },
   })
 }
@@ -351,7 +351,7 @@ export function useSendSMS() {
         console.log('Demo: SMS sent to', contactId, ':', message)
         return
       }
-      return ghlService.sendSMS(contactId, message)
+      return apiService.sendSMS(contactId, message)
     },
     onSuccess: () => {
       toast.success('SMS sent successfully')
@@ -380,7 +380,7 @@ export function useSendEmail() {
         console.log('Demo: Email sent to', contactId, ':', subject)
         return
       }
-      return ghlService.sendEmail(contactId, subject, body)
+      return apiService.sendEmail(contactId, subject, body)
     },
     onSuccess: () => {
       toast.success('Email sent successfully')
@@ -403,7 +403,7 @@ export function useTasks() {
         await new Promise((r) => setTimeout(r, 200))
         return { tasks: [] }
       }
-      return ghlService.getTasks()
+      return apiService.getTasks()
     },
   })
 }

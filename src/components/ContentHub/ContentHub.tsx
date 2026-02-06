@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import {
   PenTool,
-  MessageSquare,
-  Mail,
-  FileText,
+  Globe,
   Sparkles,
   Copy,
   Check,
@@ -12,7 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-type ContentType = 'sms' | 'email' | 'script' | 'social'
+type ContentType = 'social' | 'website'
 
 interface ContentTemplate {
   id: string
@@ -22,20 +20,18 @@ interface ContentTemplate {
 }
 
 const contentTypes = [
-  { id: 'sms', label: 'SMS', icon: MessageSquare, color: 'bg-warning-100 text-warning-600' },
-  { id: 'email', label: 'Email', icon: Mail, color: 'bg-primary-100 text-primary-600' },
-  { id: 'script', label: 'Call Script', icon: FileText, color: 'bg-success-100 text-success-600' },
   { id: 'social', label: 'Social Post', icon: PenTool, color: 'bg-purple-100 text-purple-600' },
+  { id: 'website', label: 'Website Post', icon: Globe, color: 'bg-primary-100 text-primary-600' },
 ]
 
 const savedTemplates: ContentTemplate[] = [
-  { id: '1', name: 'Initial Outreach', type: 'sms', content: 'Hi {name}, I noticed your property at {address}...' },
-  { id: '2', name: 'Follow-up Email', type: 'email', content: 'Subject: Quick question about your property...' },
-  { id: '3', name: 'Cold Call Intro', type: 'script', content: 'Hi, is this {name}? Great! My name is...' },
+  { id: '1', name: 'We Buy Houses Post', type: 'social', content: 'Looking to sell your property FAST? We buy houses in ANY condition...' },
+  { id: '2', name: 'Blog: Selling Tips', type: 'website', content: '5 Tips for Selling Your Home Fast in Today\'s Market...' },
+  { id: '3', name: 'Cash Offer Promo', type: 'social', content: 'Get a fair cash offer for your home in 24 hours...' },
 ]
 
 export default function ContentHub() {
-  const [selectedType, setSelectedType] = useState<ContentType>('sms')
+  const [selectedType, setSelectedType] = useState<ContentType>('social')
   const [prompt, setPrompt] = useState('')
   const [generatedContent, setGeneratedContent] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -53,10 +49,8 @@ export default function ContentHub() {
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
     const templates: Record<ContentType, string> = {
-      sms: `Hi {first_name}, I came across your property at {address} and wanted to reach out. I'm a local investor and I help homeowners like you get cash offers quickly. Would you be open to a quick chat? Reply STOP to opt out.`,
-      email: `Subject: Cash Offer for Your Property at {address}\n\nHi {first_name},\n\nI hope this message finds you well. I'm reaching out because I'm actively looking to purchase properties in your area.\n\nI noticed your property at {address} and wanted to see if you'd consider a cash offer. Here's what I can provide:\n\n• Fair cash offer within 24 hours\n• Close on your timeline\n• No repairs needed - I buy as-is\n• No agent commissions or fees\n\nWould you be open to a brief conversation?\n\nBest regards`,
-      script: `OPENING:\n"Hi, is this {first_name}? Great! My name is [Your Name], and I'm a local real estate investor. I noticed your property at {address} and wanted to reach out."\n\nQUALIFYING QUESTIONS:\n1. "Are you the owner of this property?"\n2. "Have you thought about selling?"\n3. "What would need to happen for you to consider an offer?"\n\nVALUE PROPOSITION:\n"I buy properties as-is for cash. No repairs, no commissions, and we can close whenever works for you."\n\nCLOSE:\n"I'd love to see the property and make you a fair offer. Would tomorrow or the next day work better for a quick visit?"`,
       social: `🏠 Attention Homeowners!\n\nLooking to sell your property FAST?\n\nI'm a local investor buying homes in ANY condition:\n\n✅ Cash offers in 24 hours\n✅ Close in as little as 7 days\n✅ No repairs needed\n✅ No agent fees or commissions\n✅ We handle ALL paperwork\n\nWhether you're facing foreclosure, inherited a property, or just need to move quickly - I can help!\n\nDM me "CASH" or comment below to learn more! 👇\n\n#RealEstate #WeBuyHouses #CashOffer #HomeSeller`,
+      website: `<h2>Sell Your Home Fast for Cash - No Repairs, No Hassle</h2>\n\n<p>Are you a homeowner looking to sell quickly? Whether you're dealing with an inherited property, facing foreclosure, going through a divorce, or simply need to relocate fast, we can help.</p>\n\n<h3>Why Choose Us?</h3>\n<ul>\n<li><strong>Fair Cash Offers</strong> - We provide competitive cash offers within 24 hours of viewing your property.</li>\n<li><strong>Close on Your Timeline</strong> - Need to close in 7 days? 30 days? We work around YOUR schedule.</li>\n<li><strong>No Repairs Needed</strong> - We buy houses as-is. Don't spend a dime on repairs or renovations.</li>\n<li><strong>Zero Fees</strong> - No agent commissions, no closing costs, no hidden fees.</li>\n</ul>\n\n<h3>How It Works</h3>\n<ol>\n<li>Contact us with your property details</li>\n<li>We schedule a quick walkthrough</li>\n<li>Receive a fair, no-obligation cash offer</li>\n<li>Close on your timeline and get paid</li>\n</ol>\n\n<p><strong>Ready to get started?</strong> Fill out our form or call us today for your free, no-obligation cash offer.</p>`,
     }
 
     setGeneratedContent(templates[selectedType])
@@ -79,7 +73,9 @@ export default function ContentHub() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">ContentHub</h1>
-        <p className="text-slate-600">Generate marketing content with AI assistance</p>
+        <p className="text-slate-600">
+          Powered by <span className="font-semibold text-primary-700">AdFuel</span> — Generate social media and website content with AI
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -88,7 +84,7 @@ export default function ContentHub() {
           {/* Content Type Selection */}
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <h2 className="text-sm font-medium text-slate-700 mb-3">Content Type</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {contentTypes.map((type) => (
                 <button
                   key={type.id}
@@ -114,7 +110,11 @@ export default function ContentHub() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g., Write a friendly SMS to follow up with a motivated seller who mentioned they're behind on payments..."
+              placeholder={
+                selectedType === 'social'
+                  ? 'e.g., Write a Facebook post targeting motivated sellers in the Dallas area...'
+                  : 'e.g., Write a landing page section about our cash home buying process...'
+              }
               className="w-full h-24 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
             />
             <div className="flex justify-end mt-3">
@@ -165,9 +165,11 @@ export default function ContentHub() {
                   {generatedContent}
                 </pre>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Variables like {'{first_name}'} and {'{address}'} will be replaced automatically when sending.
-              </p>
+              {selectedType === 'website' && (
+                <p className="text-xs text-slate-500 mt-2">
+                  HTML content can be pasted directly into your website editor.
+                </p>
+              )}
             </div>
           )}
         </div>

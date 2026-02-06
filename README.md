@@ -1,6 +1,6 @@
-# REI Fundamentals Hub - GHL Dashboard Wrapper
+# REI Fundamentals Hub
 
-A simplified React-based dashboard wrapper for GoHighLevel (GHL) designed for REI Fundamentals Hub. This app provides an intuitive interface that hides GHL's complexity while exposing only the features needed for real estate investing business.
+A CRM dashboard built for real estate investors. Provides an intuitive interface for managing contacts, deals, communication, and content generation.
 
 ## Features
 
@@ -23,13 +23,20 @@ A simplified React-based dashboard wrapper for GoHighLevel (GHL) designed for RE
 - View contact details and associated deals
 - Quick SMS/email actions from contact cards
 
+### AssistantHub
+- **Voice Agents** - Manage AI voice agents for automated calls
+- **SMS** - Compose and send SMS messages to contacts
+- **Email** - Compose and send emails to contacts
+
+### ContentHub
+- **Social Posts** - Generate social media marketing content
+- **Website Posts** - Generate website landing page content and blog posts
+- AI-powered content generation with templates
+
 ### Quick Actions
 - **New Opportunity** - Create deals quickly
 - **Add Contact** - Add new contacts
 - **Send SMS** - Quick SMS composer
-- **Track Package** - USPS Tracking integration
-- **Launch Voice Agent** - VoiceHub integration
-- **Create Content** - ContentHub integration
 
 ## Tech Stack
 
@@ -40,13 +47,13 @@ A simplified React-based dashboard wrapper for GoHighLevel (GHL) designed for RE
 - **Data Fetching**: React Query (TanStack Query)
 - **Drag & Drop**: @dnd-kit
 - **Routing**: React Router v6
-- **API**: Axios to GHL REST API
+- **HTTP Client**: Axios
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
-- GoHighLevel account with API access
+- CRM API access
 
 ### Installation
 
@@ -68,10 +75,10 @@ cp .env.example .env
 
 4. Configure your `.env`:
 ```env
-VITE_GHL_API_KEY=your_gohighlevel_api_key
-VITE_GHL_LOCATION_ID=your_location_id
-VITE_GHL_API_BASE_URL=https://services.leadconnectorhq.com
-VITE_GHL_API_VERSION=2021-07-28
+VITE_API_KEY=your_api_key
+VITE_API_LOCATION_ID=your_location_id
+VITE_API_BASE_URL=https://services.leadconnectorhq.com
+VITE_API_VERSION=2021-07-28
 ```
 
 5. Run the development server:
@@ -89,22 +96,27 @@ src/
 │   ├── Dashboard/       # Dashboard view components
 │   ├── Pipeline/        # Pipeline/Kanban view
 │   ├── Contacts/        # Contact management
-│   ├── Integrations/    # USPS, VoiceHub, ContentHub links
+│   ├── AssistantHub/    # Voice agents, SMS, and email
+│   ├── ContentHub/      # Social media and website content generation
 │   ├── Settings/        # Settings page
 │   └── Common/          # Shared components (Layout, Modals, etc.)
 ├── services/
-│   ├── ghl.ts          # GHL API wrapper
-│   └── auth.ts         # Authentication utilities
+│   ├── api.ts           # CRM API wrapper
+│   ├── api-extended.ts  # Extended API service
+│   └── auth.ts          # Authentication utilities
 ├── hooks/
-│   ├── useGHL.ts       # React Query hooks for GHL data
-│   └── useStore.ts     # Zustand store
+│   ├── useApi.ts        # React Query hooks for API data
+│   ├── useStore.ts      # Zustand store
+│   └── useDemoMode.ts   # Demo mode toggle
 ├── utils/
-│   └── helpers.ts      # Utility functions
+│   └── helpers.ts       # Utility functions
+├── data/
+│   └── mockData.ts      # Mock data for demo mode
 ├── types/
-│   └── index.ts        # TypeScript type definitions
-├── App.tsx             # Main app with routing
-├── main.tsx            # Entry point
-└── index.css           # Global styles
+│   └── index.ts         # TypeScript type definitions
+├── App.tsx              # Main app with routing
+├── main.tsx             # Entry point
+└── index.css            # Global styles
 ```
 
 ## Routes
@@ -114,10 +126,11 @@ src/
 | `/dashboard` | Main dashboard with KPIs and activity feed |
 | `/pipeline` | Kanban-style deal pipeline |
 | `/contacts` | Contact list and management |
-| `/integrations` | Third-party integration links |
+| `/assistanthub` | Voice agents, SMS, and email communications |
+| `/contenthub` | Social media and website content generation |
 | `/settings` | API configuration settings |
 
-## GHL API Endpoints Used
+## API Endpoints Used
 
 - `GET /locations` - Get locations
 - `GET /opportunities/pipelines` - Get pipelines
@@ -145,36 +158,14 @@ npm run preview
 npm run lint
 ```
 
-## Deployment
-
-The app can be deployed to any static hosting platform:
-
-### Vercel
-```bash
-npm run build
-# Deploy dist/ folder
-```
-
-### Netlify
-```bash
-npm run build
-# Deploy dist/ folder with _redirects for SPA
-```
-
 ## Phase 2 Enhancements (Future)
 
-- [ ] USPS Tracking module integration
-- [ ] VoiceHub launch functionality
+- [ ] AssistantHub voice agent calling integration
 - [ ] ContentHub AI integration
 - [ ] Custom pipeline stage editor
 - [ ] Reporting/analytics views
 - [ ] Email automation triggers
-- [ ] Zapier integration
-- [ ] Google Calendar sync
-
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines before submitting a PR.
+- [ ] Calendar sync
 
 ## License
 

@@ -1,7 +1,7 @@
 import { Phone, Mail, MessageSquare, Tag, Calendar, Trash2 } from 'lucide-react'
 import Modal from '../Common/Modal'
 import { formatPhone, formatDate, getInitials } from '@/utils/helpers'
-import { useDeleteContact } from '@/hooks/useGHL'
+import { useDeleteContact } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import type { Contact } from '@/types'
 

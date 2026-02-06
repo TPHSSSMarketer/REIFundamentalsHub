@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/hooks/useStore'
-import { useCreateContact } from '@/hooks/useGHL'
+import { useCreateContact } from '@/hooks/useApi'
 
 export default function NewContactModal() {
   const { isNewContactModalOpen, setNewContactModalOpen } = useStore()

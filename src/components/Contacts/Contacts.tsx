@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, Phone, Mail, MessageSquare, MoreHorizontal, Loader2 } from 'lucide-react'
 import ContactDetailModal from './ContactDetailModal'
-import { useContacts } from '@/hooks/useGHL'
+import { useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import { formatPhone, formatRelativeTime, getInitials, debounce, cn } from '@/utils/helpers'
 import type { Contact } from '@/types'

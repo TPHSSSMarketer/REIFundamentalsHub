@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   Kanban,
   Users,
-  Mic,
+  Headphones,
   PenTool,
   Settings,
   ChevronLeft,
@@ -16,7 +16,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
-  { to: '/voicehub', icon: Mic, label: 'VoiceHub' },
+  { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
@@ -34,11 +34,14 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
             <Home className="w-5 h-5 text-white" />
           </div>
           {!isSidebarCollapsed && (
-            <span className="font-bold text-slate-800">REI Hub</span>
+            <div className="flex flex-col">
+              <span className="font-bold text-primary-800 text-sm leading-tight">REI Fundamentals</span>
+              <span className="text-[10px] text-accent-600 font-medium leading-tight">Power Up Your Real Estate Business</span>
+            </div>
           )}
         </div>
         <button
@@ -80,8 +83,11 @@ export default function Sidebar() {
       {/* Footer */}
       {!isSidebarCollapsed && (
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">
-          <p className="text-xs text-slate-400 text-center">
-            Powered by GoHighLevel
+          <p className="text-xs text-primary-800 font-semibold text-center">
+            REI Fundamentals Hub
+          </p>
+          <p className="text-[10px] text-slate-400 text-center mt-0.5">
+            Power Up Your Real Estate Business
           </p>
         </div>
       )}

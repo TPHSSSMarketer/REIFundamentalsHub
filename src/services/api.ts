@@ -2,22 +2,22 @@ import axios, { AxiosInstance } from 'axios'
 import type { Contact, Deal, Pipeline, PipelineStage, Location, Conversation } from '@/types'
 
 /**
- * GoHighLevel API Service
- * Wrapper for all GHL REST API interactions
+ * REI Fundamentals Hub API Service
+ * Wrapper for all CRM REST API interactions
  */
-class GHLService {
+class ApiService {
   private client: AxiosInstance
   private locationId: string
 
   constructor() {
-    this.locationId = import.meta.env.VITE_GHL_LOCATION_ID || ''
+    this.locationId = import.meta.env.VITE_API_LOCATION_ID || ''
 
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_GHL_API_BASE_URL || 'https://services.leadconnectorhq.com',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'https://services.leadconnectorhq.com',
       headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_GHL_API_KEY}`,
+        'Authorization': `Bearer ${import.meta.env.VITE_API_KEY}`,
         'Content-Type': 'application/json',
-        'Version': import.meta.env.VITE_GHL_API_VERSION || '2021-07-28',
+        'Version': import.meta.env.VITE_API_VERSION || '2021-07-28',
       },
     })
 
@@ -25,7 +25,7 @@ class GHLService {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('GHL API Error:', error.response?.data || error.message)
+        console.error('API Error:', error.response?.data || error.message)
         throw error
       }
     )
@@ -35,17 +35,15 @@ class GHLService {
 
   async testConnection(): Promise<boolean> {
     try {
-      // Try to fetch location info to test connection
       if (!this.locationId) {
         console.warn('No location ID configured')
-        return true // Allow app to run without location for demo
+        return true
       }
       await this.client.get(`/locations/${this.locationId}`)
       return true
     } catch (error) {
       console.error('Connection test failed:', error)
-      // Return true for demo mode if no API key
-      if (!import.meta.env.VITE_GHL_API_KEY) {
+      if (!import.meta.env.VITE_API_KEY) {
         return true
       }
       return false
@@ -150,14 +148,14 @@ class GHLService {
       },
     })
     return {
-      contacts: (response.data.contacts || []).map(this.mapGHLContact),
+      contacts: (response.data.contacts || []).map(this.mapContact),
       total: response.data.total || 0,
     }
   }
 
   async getContact(contactId: string): Promise<Contact> {
     const response = await this.client.get(`/contacts/${contactId}`)
-    return this.mapGHLContact(response.data.contact)
+    return this.mapContact(response.data.contact)
   }
 
   async createContact(contact: Partial<Contact>): Promise<Contact> {
@@ -170,7 +168,7 @@ class GHLService {
       tags: contact.tags,
       source: contact.source,
     })
-    return this.mapGHLContact(response.data.contact)
+    return this.mapContact(response.data.contact)
   }
 
   async updateContact(contactId: string, contact: Partial<Contact>): Promise<Contact> {
@@ -181,7 +179,7 @@ class GHLService {
       phone: contact.phone,
       tags: contact.tags,
     })
-    return this.mapGHLContact(response.data.contact)
+    return this.mapContact(response.data.contact)
   }
 
   async deleteContact(contactId: string): Promise<void> {
@@ -196,7 +194,7 @@ class GHLService {
         limit: 50,
       },
     })
-    return (response.data.contacts || []).map(this.mapGHLContact)
+    return (response.data.contacts || []).map(this.mapContact)
   }
 
   // ============ CONVERSATIONS/MESSAGING ============
@@ -252,7 +250,7 @@ class GHLService {
 
   // ============ MAPPING FUNCTIONS ============
 
-  private mapGHLContact = (contact: any): Contact => ({
+  private mapContact = (contact: any): Contact => ({
     id: contact.id,
     firstName: contact.firstName || '',
     lastName: contact.lastName || '',
@@ -280,7 +278,7 @@ class GHLService {
 }
 
 // Export singleton instance
-export const ghlService = new GHLService()
+export const apiService = new ApiService()
 
 // Export class for testing
-export { GHLService }
+export { ApiService }
