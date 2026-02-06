@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   CalendarCheck,
   ChevronLeft,
@@ -10,9 +10,15 @@ import {
   MapPin,
   Phone,
   Trash2,
+  RefreshCw,
+  Link2,
+  Unlink,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useContacts } from '@/hooks/useApi'
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
+import type { GoogleCalendarEvent } from '@/services/google-calendar'
 
 interface TimeSlot {
   id: string
@@ -129,6 +135,11 @@ export default function Scheduler() {
   const [appointments, setAppointments] = useState<Appointment[]>(sampleAppointments)
   const [showNewAppointment, setShowNewAppointment] = useState(false)
   const [activeView, setActiveView] = useState<'week' | 'availability'>('week')
+  const [syncingToGoogle, setSyncingToGoogle] = useState(false)
+
+  // Google Calendar integration
+  const gcal = useGoogleCalendar()
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([])
 
   // New appointment form state
   const [newAppt, setNewAppt] = useState({
@@ -139,9 +150,23 @@ export default function Scheduler() {
     endTime: '09:30',
     type: 'phone_call' as Appointment['type'],
     notes: '',
+    syncToGoogle: false,
   })
 
   const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate])
+
+  // Fetch Google Calendar events when authorized and week changes
+  useEffect(() => {
+    if (gcal.isAuthorized && weekDates.length > 0) {
+      const timeMin = new Date(weekDates[0]).toISOString()
+      const endDate = new Date(weekDates[6])
+      endDate.setDate(endDate.getDate() + 1)
+      const timeMax = endDate.toISOString()
+      gcal.fetchEvents(timeMin, timeMax).then((events) => {
+        if (events) setGoogleEvents(events)
+      })
+    }
+  }, [gcal.isAuthorized, weekDates[0]?.toISOString()])
 
   const navigateWeek = (direction: number) => {
     const newDate = new Date(currentDate)
@@ -156,7 +181,7 @@ export default function Scheduler() {
       .filter((a) => a.date === date)
       .sort((a, b) => a.startTime.localeCompare(b.startTime))
 
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newAppt.contactName.trim()) {
       toast.error('Contact name is required')
@@ -169,6 +194,28 @@ export default function Scheduler() {
     }
 
     setAppointments((prev) => [...prev, appointment])
+
+    // Sync to Google Calendar if requested
+    if (newAppt.syncToGoogle && gcal.isAuthorized) {
+      setSyncingToGoogle(true)
+      try {
+        const typeLabel = APPOINTMENT_TYPES.find((t) => t.value === newAppt.type)?.label || ''
+        await gcal.createEvent({
+          summary: `${typeLabel}: ${newAppt.contactName}`,
+          description: newAppt.notes,
+          startDateTime: `${newAppt.date}T${newAppt.startTime}:00`,
+          endDateTime: `${newAppt.date}T${newAppt.endTime}:00`,
+        })
+        toast.success('Appointment scheduled and synced to Google Calendar!')
+      } catch {
+        toast.error('Scheduled locally but failed to sync to Google Calendar')
+      } finally {
+        setSyncingToGoogle(false)
+      }
+    } else {
+      toast.success('Appointment scheduled!')
+    }
+
     setShowNewAppointment(false)
     setNewAppt({
       contactName: '',
@@ -178,8 +225,8 @@ export default function Scheduler() {
       endTime: '09:30',
       type: 'phone_call',
       notes: '',
+      syncToGoogle: false,
     })
-    toast.success('Appointment scheduled!')
   }
 
   const deleteAppointment = (id: string) => {
@@ -284,6 +331,71 @@ export default function Scheduler() {
         )}
       </div>
 
+      {/* Google Calendar Integration Banner */}
+      {gcal.isConfigured && (
+        <div className={`p-3 rounded-lg border flex items-center justify-between ${
+          gcal.isAuthorized
+            ? 'bg-success-50 border-success-200'
+            : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${gcal.isAuthorized ? 'bg-success-100' : 'bg-slate-100'}`}>
+              <CalendarCheck className={`w-5 h-5 ${gcal.isAuthorized ? 'text-success-600' : 'text-slate-500'}`} />
+            </div>
+            <div>
+              <p className={`text-sm font-medium ${gcal.isAuthorized ? 'text-success-800' : 'text-slate-700'}`}>
+                {gcal.isAuthorized ? 'Google Calendar Connected' : 'Google Calendar'}
+              </p>
+              <p className={`text-xs ${gcal.isAuthorized ? 'text-success-600' : 'text-slate-500'}`}>
+                {gcal.isAuthorized
+                  ? 'Events are syncing with your Google Calendar'
+                  : 'Connect to sync appointments with Google Calendar'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {gcal.isAuthorized ? (
+              <>
+                <button
+                  onClick={() => {
+                    const timeMin = new Date(weekDates[0]).toISOString()
+                    const endDate = new Date(weekDates[6])
+                    endDate.setDate(endDate.getDate() + 1)
+                    gcal.fetchEvents(timeMin, endDate.toISOString()).then((events) => {
+                      if (events) setGoogleEvents(events)
+                      toast.success(`Synced ${events?.length || 0} events from Google Calendar`)
+                    })
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-success-200 text-success-700 rounded-lg hover:bg-success-50 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${gcal.isLoading ? 'animate-spin' : ''}`} />
+                  Sync
+                </button>
+                <button
+                  onClick={() => {
+                    gcal.disconnect()
+                    setGoogleEvents([])
+                    toast.success('Google Calendar disconnected')
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => gcal.authorize()}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-primary-800 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                Connect Google Calendar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-3">
@@ -329,7 +441,27 @@ export default function Scheduler() {
                             </button>
                           )
                         })}
-                        {dayAppts.length === 0 && (
+                        {/* Google Calendar events for this day */}
+                        {googleEvents
+                          .filter((ge) => ge.start?.dateTime?.startsWith(dateStr))
+                          .map((ge) => {
+                            const startTime = new Date(ge.start.dateTime).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
+                            return (
+                              <button
+                                key={ge.id}
+                                onClick={() => toast.info(`Google: ${ge.summary}`, { duration: 3000 })}
+                                className="w-full text-left p-1.5 rounded-md border text-xs bg-blue-50 text-blue-700 border-blue-200"
+                              >
+                                <p className="font-medium truncate">{ge.summary}</p>
+                                <p className="opacity-75">{startTime}</p>
+                              </button>
+                            )
+                          })}
+                        {dayAppts.length === 0 && googleEvents.filter((ge) => ge.start?.dateTime?.startsWith(dateStr)).length === 0 && (
                           <p className="text-xs text-slate-300 text-center pt-4">No appts</p>
                         )}
                       </div>
@@ -610,6 +742,22 @@ export default function Scheduler() {
                 />
               </div>
 
+              {/* Google Calendar sync option */}
+              {gcal.isAuthorized && (
+                <label className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newAppt.syncToGoogle}
+                    onChange={(e) => setNewAppt((prev) => ({ ...prev, syncToGoogle: e.target.checked }))}
+                    className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Sync to Google Calendar</p>
+                    <p className="text-xs text-blue-600">Create this event in your Google Calendar too</p>
+                  </div>
+                </label>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -620,9 +768,17 @@ export default function Scheduler() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 bg-primary-800 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  disabled={syncingToGoogle}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-800 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
-                  Schedule
+                  {syncingToGoogle ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    'Schedule'
+                  )}
                 </button>
               </div>
             </form>
