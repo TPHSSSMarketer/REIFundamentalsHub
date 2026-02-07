@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   MapPin,
   Filter,
@@ -11,6 +11,8 @@ import {
   Flame,
   ThermometerSun,
   Snowflake,
+  Navigation,
+  Loader2,
 } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -37,21 +39,41 @@ interface MapProperty {
 type FilterType = 'all' | MapProperty['type']
 type HeatType = 'score' | 'equity' | 'price'
 
-// Sample data — in production this comes from ATTOM/RealtyMole API
-const SAMPLE_PROPERTIES: MapProperty[] = [
-  { id: '1', address: '1234 Oak St', city: 'Dallas', state: 'TX', lat: 32.7767, lng: -96.7970, price: 145000, arv: 225000, equity: 72, score: 85, type: 'high_equity', bedrooms: 3, bathrooms: 2, sqft: 1450, yearBuilt: 1978 },
-  { id: '2', address: '567 Elm Ave', city: 'Dallas', state: 'TX', lat: 32.7850, lng: -96.8100, price: 89000, arv: 180000, equity: 100, score: 92, type: 'vacant', bedrooms: 3, bathrooms: 1, sqft: 1200, yearBuilt: 1965 },
-  { id: '3', address: '890 Main Blvd', city: 'Dallas', state: 'TX', lat: 32.7600, lng: -96.7800, price: 175000, arv: 240000, equity: 45, score: 68, type: 'pre_foreclosure', bedrooms: 4, bathrooms: 2, sqft: 1800, yearBuilt: 1985 },
-  { id: '4', address: '321 Pine Dr', city: 'Irving', state: 'TX', lat: 32.8140, lng: -96.9490, price: 125000, arv: 195000, equity: 88, score: 78, type: 'absentee', bedrooms: 3, bathrooms: 2, sqft: 1350, yearBuilt: 1972 },
-  { id: '5', address: '456 Cedar Ln', city: 'Garland', state: 'TX', lat: 32.9126, lng: -96.6389, price: 98000, arv: 165000, equity: 100, score: 88, type: 'tax_lien', bedrooms: 2, bathrooms: 1, sqft: 1100, yearBuilt: 1960 },
-  { id: '6', address: '789 Walnut Way', city: 'Plano', state: 'TX', lat: 33.0198, lng: -96.6989, price: 215000, arv: 310000, equity: 55, score: 74, type: 'distressed', bedrooms: 4, bathrooms: 3, sqft: 2200, yearBuilt: 1990 },
-  { id: '7', address: '111 Birch Ct', city: 'Arlington', state: 'TX', lat: 32.7357, lng: -97.1081, price: 110000, arv: 185000, equity: 90, score: 82, type: 'vacant', bedrooms: 3, bathrooms: 2, sqft: 1400, yearBuilt: 1975 },
-  { id: '8', address: '222 Maple St', city: 'Fort Worth', state: 'TX', lat: 32.7555, lng: -97.3308, price: 78000, arv: 155000, equity: 100, score: 95, type: 'distressed', bedrooms: 3, bathrooms: 1, sqft: 1150, yearBuilt: 1958 },
-  { id: '9', address: '333 Spruce Ave', city: 'Mesquite', state: 'TX', lat: 32.7668, lng: -96.5992, price: 135000, arv: 200000, equity: 60, score: 71, type: 'high_equity', bedrooms: 3, bathrooms: 2, sqft: 1550, yearBuilt: 1982 },
-  { id: '10', address: '444 Pecan Rd', city: 'Grand Prairie', state: 'TX', lat: 32.7459, lng: -96.9978, price: 105000, arv: 175000, equity: 78, score: 80, type: 'absentee', bedrooms: 3, bathrooms: 2, sqft: 1300, yearBuilt: 1970 },
-  { id: '11', address: '555 Ash Blvd', city: 'Richardson', state: 'TX', lat: 32.9483, lng: -96.7299, price: 195000, arv: 275000, equity: 42, score: 65, type: 'pre_foreclosure', bedrooms: 4, bathrooms: 2, sqft: 1900, yearBuilt: 1988 },
-  { id: '12', address: '666 Poplar Dr', city: 'Carrollton', state: 'TX', lat: 32.9537, lng: -96.8903, price: 155000, arv: 230000, equity: 68, score: 76, type: 'high_equity', bedrooms: 3, bathrooms: 2, sqft: 1600, yearBuilt: 1980 },
-]
+// Generate sample properties around any location
+function generateSampleProperties(centerLat: number, centerLng: number, locationName: string): MapProperty[] {
+  const types: MapProperty['type'][] = ['pre_foreclosure', 'vacant', 'absentee', 'high_equity', 'distressed', 'tax_lien']
+  const streetNames = ['Oak', 'Elm', 'Main', 'Pine', 'Cedar', 'Walnut', 'Birch', 'Maple', 'Spruce', 'Pecan', 'Ash', 'Poplar']
+  const streetSuffixes = ['St', 'Ave', 'Blvd', 'Dr', 'Ln', 'Way', 'Ct', 'Rd']
+
+  return Array.from({ length: 12 }, (_, i) => {
+    const latOffset = (Math.random() - 0.5) * 0.15
+    const lngOffset = (Math.random() - 0.5) * 0.15
+    const price = Math.round((80000 + Math.random() * 180000) / 1000) * 1000
+    const arvMultiplier = 1.3 + Math.random() * 0.5
+    const arv = Math.round((price * arvMultiplier) / 1000) * 1000
+    const equity = Math.round(30 + Math.random() * 70)
+    const score = Math.round(50 + Math.random() * 50)
+    const num = Math.round(100 + Math.random() * 9000)
+
+    return {
+      id: String(i + 1),
+      address: `${num} ${streetNames[i]} ${streetSuffixes[i % streetSuffixes.length]}`,
+      city: locationName,
+      state: '',
+      lat: centerLat + latOffset,
+      lng: centerLng + lngOffset,
+      price,
+      arv,
+      equity,
+      score,
+      type: types[i % types.length],
+      bedrooms: 2 + Math.floor(Math.random() * 3),
+      bathrooms: 1 + Math.floor(Math.random() * 2),
+      sqft: Math.round((900 + Math.random() * 1500) / 50) * 50,
+      yearBuilt: 1950 + Math.floor(Math.random() * 60),
+    }
+  })
+}
 
 const TYPE_LABELS: Record<MapProperty['type'], { label: string; color: string }> = {
   pre_foreclosure: { label: 'Pre-Foreclosure', color: '#ef4444' },
@@ -81,28 +103,73 @@ export default function MarketMap() {
 
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [heatType, setHeatType] = useState<HeatType>('score')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [propertySearch, setPropertySearch] = useState('')
   const [selectedProperty, setSelectedProperty] = useState<MapProperty | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [minScore, setMinScore] = useState(0)
 
-  const filteredProperties = SAMPLE_PROPERTIES.filter((p) => {
+  // Location search state
+  const [locationQuery, setLocationQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState('Enter an address or ZIP code to get started')
+  const [properties, setProperties] = useState<MapProperty[]>([])
+  const [mapReady, setMapReady] = useState(false)
+
+  const filteredProperties = properties.filter((p) => {
     if (filterType !== 'all' && p.type !== filterType) return false
     if (p.score < minScore) return false
-    if (searchQuery && !`${p.address} ${p.city}`.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    if (propertySearch && !`${p.address} ${p.city}`.toLowerCase().includes(propertySearch.toLowerCase())) return false
     return true
   })
+
+  // Geocode using OpenStreetMap Nominatim (free, no API key)
+  const geocodeLocation = useCallback(async (query: string) => {
+    setIsSearching(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=us`
+      )
+      const results = await response.json()
+      if (results.length > 0) {
+        const { lat, lon, display_name } = results[0]
+        const centerLat = parseFloat(lat)
+        const centerLng = parseFloat(lon)
+        const shortName = display_name.split(',').slice(0, 2).join(',').trim()
+
+        // Move map to new location
+        mapInstance.current?.setView([centerLat, centerLng], 11)
+
+        // Generate sample properties for this area
+        const newProperties = generateSampleProperties(centerLat, centerLng, shortName)
+        setProperties(newProperties)
+        setCurrentLocation(shortName)
+        setSelectedProperty(null)
+      }
+    } catch {
+      // Geocoding failed — silently ignore
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  const handleLocationSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (locationQuery.trim()) {
+      geocodeLocation(locationQuery.trim())
+    }
+  }
 
   // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return
 
-    const map = L.map(mapRef.current).setView([32.7767, -96.7970], 10)
+    const map = L.map(mapRef.current).setView([39.8283, -98.5795], 4) // Start zoomed out on US
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map)
 
     mapInstance.current = map
+    setMapReady(true)
 
     return () => {
       map.remove()
@@ -158,7 +225,7 @@ export default function MarketMap() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <MapPin className="w-7 h-7 text-primary-600" />
@@ -167,7 +234,9 @@ export default function MarketMap() {
           <p className="text-slate-600">Interactive property map with deal scoring and market insights</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">{filteredProperties.length} properties</span>
+          {properties.length > 0 && (
+            <span className="text-sm text-slate-500">{filteredProperties.length} properties</span>
+          )}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors ${
@@ -180,19 +249,53 @@ export default function MarketMap() {
         </div>
       </div>
 
+      {/* Location Search */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <form onSubmit={handleLocationSearch} className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={locationQuery}
+              onChange={(e) => setLocationQuery(e.target.value)}
+              placeholder="Enter address, city, ZIP code, or neighborhood..."
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isSearching || !locationQuery.trim()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-lg hover:bg-accent-700 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {isSearching ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+            Search Area
+          </button>
+        </form>
+        {currentLocation && (
+          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            {currentLocation}
+          </p>
+        )}
+      </div>
+
       {/* Filters Bar */}
       {showFilters && (
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex flex-wrap items-end gap-4">
-            {/* Search */}
+            {/* Search within results */}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Search</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Filter Properties</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={propertySearch}
+                  onChange={(e) => setPropertySearch(e.target.value)}
                   placeholder="Address or city..."
                   className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
@@ -276,12 +379,18 @@ export default function MarketMap() {
 
         {/* Property Detail / List */}
         <div className="space-y-3">
-          {selectedProperty ? (
+          {properties.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+              <Navigation className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="font-medium text-slate-500">Search a location</p>
+              <p className="text-sm text-slate-400 mt-1">Enter an address, city, or ZIP code above to explore properties in that area</p>
+            </div>
+          ) : selectedProperty ? (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-bold text-slate-800">{selectedProperty.address}</h3>
-                  <p className="text-sm text-slate-500">{selectedProperty.city}, {selectedProperty.state}</p>
+                  <p className="text-sm text-slate-500">{selectedProperty.city}{selectedProperty.state ? `, ${selectedProperty.state}` : ''}</p>
                 </div>
                 <button onClick={() => setSelectedProperty(null)} className="text-slate-400 hover:text-slate-600">
                   <X className="w-4 h-4" />

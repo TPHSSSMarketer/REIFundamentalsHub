@@ -100,7 +100,6 @@ const ROOM_TEMPLATES: { name: string; items: Omit<RepairItem, 'id'>[] }[] = [
       { name: 'Dumpster rental', quantity: 1, unitCost: 500, unit: 'each' },
       { name: 'Permit fees', quantity: 1, unitCost: 800, unit: 'lot' },
       { name: 'Cleaning (deep)', quantity: 1, unitCost: 400, unit: 'job' },
-      { name: 'Contingency (10%)', quantity: 1, unitCost: 0, unit: 'auto' },
     ],
   },
 ]
@@ -111,6 +110,7 @@ const genId = () => `item-${nextId++}`
 export default function RepairEstimator() {
   const [rooms, setRooms] = useState<RepairRoom[]>([])
   const [laborPercent, setLaborPercent] = useState(35)
+  const [contingencyPercent, setContingencyPercent] = useState(10)
 
   const addRoom = (template: typeof ROOM_TEMPLATES[number]) => {
     const existing = rooms.filter((r) => r.name.startsWith(template.name)).length
@@ -176,9 +176,7 @@ export default function RepairEstimator() {
   const materialTotal = rooms.reduce((sum, room) => sum + getRoomTotal(room), 0)
   const laborTotal = materialTotal * (laborPercent / 100)
   const subtotal = materialTotal + laborTotal
-  // Update contingency items automatically
-  const contingencyItems = rooms.flatMap((r) => r.items.filter((i) => i.name.toLowerCase().includes('contingency')))
-  const contingencyTotal = contingencyItems.length > 0 ? subtotal * 0.1 : 0
+  const contingencyTotal = subtotal * (contingencyPercent / 100)
   const grandTotal = subtotal + contingencyTotal
 
   const formatCurrency = (val: number) =>
@@ -359,12 +357,25 @@ export default function RepairEstimator() {
                     </div>
                   </div>
 
-                  {contingencyItems.length > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-600">Contingency (10%)</span>
+                  {/* Contingency slider */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-slate-600">Contingency ({contingencyPercent}%)</span>
                       <span className="font-medium text-amber-600">{formatCurrency(contingencyTotal)}</span>
                     </div>
-                  )}
+                    <input
+                      type="range"
+                      min="0"
+                      max="25"
+                      value={contingencyPercent}
+                      onChange={(e) => setContingencyPercent(parseInt(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400 mt-0.5">
+                      <span>None (0%)</span>
+                      <span>High (25%)</span>
+                    </div>
+                  </div>
 
                   <div className="h-px bg-slate-200" />
                   <div className="flex justify-between items-center">
@@ -401,7 +412,7 @@ export default function RepairEstimator() {
             <ul className="space-y-1.5 text-sm text-primary-700">
               <li>- Adjust quantities for your property's actual square footage</li>
               <li>- Use the labor slider: 0% for DIY, 35% for average, 50%+ for high-cost markets</li>
-              <li>- Always include 10% contingency for unexpected costs</li>
+              <li>- Use 10% contingency minimum; increase for older properties</li>
               <li>- Copy the total to the Deal Analyzer's repair cost field</li>
             </ul>
           </div>

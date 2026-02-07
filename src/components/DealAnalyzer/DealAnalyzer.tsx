@@ -26,7 +26,6 @@ interface AnalysisResult {
   cashOnCash?: number
   monthlyRent?: number
   monthlyCashFlow?: number
-  capRate?: number
   wholesaleFee?: number
   holdingCosts: number
   closingCosts: number
@@ -51,6 +50,7 @@ export default function DealAnalyzer() {
   const [closingPercent, setClosingPercent] = useState('3')
   const [downPaymentPercent, setDownPaymentPercent] = useState('20')
   const [interestRate, setInterestRate] = useState('8')
+  const [maoOverride, setMaoOverride] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
 
   const analyzeFlip = (): AnalysisResult => {
@@ -65,7 +65,7 @@ export default function DealAnalyzer() {
     const totalInvestment = purchase + repairs + holdingCosts + closingCosts
     const profit = arvVal - totalInvestment
     const roi = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0
-    const mao = (arvVal * 0.7) - repairs
+    const mao = maoOverride ? parseFloat(maoOverride) : (arvVal * 0.7) - repairs
 
     let verdict: AnalysisResult['verdict'] = 'pass'
     if (roi >= 25) verdict = 'great'
@@ -83,7 +83,7 @@ export default function DealAnalyzer() {
     const purchase = parseFloat(purchasePrice) || 0
     const repairs = parseFloat(repairCost) || 0
     const fee = parseFloat(wholesaleFee) || 10000
-    const mao = (arvVal * 0.7) - repairs
+    const mao = maoOverride ? parseFloat(maoOverride) : (arvVal * 0.7) - repairs
     const closingCosts = purchase * 0.01
     const profit = fee
     const roi = purchase > 0 ? (profit / (purchase * 0.01 + closingCosts)) * 100 : 0
@@ -117,8 +117,7 @@ export default function DealAnalyzer() {
     const annualCashFlow = monthlyCashFlow * 12
     const totalInvestment = downPayment + repairs + (purchase * closingPct)
     const cashOnCash = totalInvestment > 0 ? (annualCashFlow / totalInvestment) * 100 : 0
-    const capRate = purchase > 0 ? ((rent * 12 - monthlyExpenses * 12) / purchase) * 100 : 0
-    const mao = (arvVal * 0.7) - repairs
+    const mao = maoOverride ? parseFloat(maoOverride) : (arvVal * 0.7) - repairs
 
     let verdict: AnalysisResult['verdict'] = 'pass'
     if (cashOnCash >= 12) verdict = 'great'
@@ -128,7 +127,7 @@ export default function DealAnalyzer() {
     return {
       arv: arvVal, mao, totalRepairCost: repairs, purchasePrice: purchase,
       profit: annualCashFlow, roi: cashOnCash, exitStrategy: 'buy_and_hold',
-      monthlyRent: rent, monthlyCashFlow, cashOnCash, capRate,
+      monthlyRent: rent, monthlyCashFlow, cashOnCash,
       holdingCosts: 0, closingCosts: purchase * closingPct, verdict,
     }
   }
@@ -145,6 +144,7 @@ export default function DealAnalyzer() {
     setArv('')
     setRepairCost('')
     setMonthlyRent('')
+    setMaoOverride('')
     setResult(null)
   }
 
@@ -191,7 +191,7 @@ export default function DealAnalyzer() {
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Purchase Price</label>
                   <div className="relative">
@@ -227,6 +227,22 @@ export default function DealAnalyzer() {
                       value={repairCost}
                       onChange={(e) => setRepairCost(e.target.value)}
                       placeholder="35,000"
+                      className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    MAO Override
+                    <span className="text-xs text-slate-400 font-normal ml-1">(optional — defaults to 70% rule)</span>
+                  </label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="number"
+                      value={maoOverride}
+                      onChange={(e) => setMaoOverride(e.target.value)}
+                      placeholder={arv && repairCost ? String(Math.round((parseFloat(arv) * 0.7) - parseFloat(repairCost))) : 'Auto-calculated'}
                       className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
@@ -387,7 +403,7 @@ export default function DealAnalyzer() {
                 <h3 className="font-semibold text-slate-800 mb-3">Key Numbers</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-600">MAO (70% Rule)</span>
+                    <span className="text-sm text-slate-600">MAO {maoOverride ? '(Custom)' : '(70% Rule)'}</span>
                     <span className="font-bold text-primary-700">{formatCurrency(result.mao)}</span>
                   </div>
                   <div className="h-px bg-slate-100" />
@@ -441,10 +457,6 @@ export default function DealAnalyzer() {
                         <span className={`font-bold ${(result.monthlyCashFlow || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {formatCurrency(result.monthlyCashFlow || 0)}
                         </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">Cap Rate</span>
-                        <span className="font-medium">{(result.capRate || 0).toFixed(1)}%</span>
                       </div>
                     </>
                   )}
