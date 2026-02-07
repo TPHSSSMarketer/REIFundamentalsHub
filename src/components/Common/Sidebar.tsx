@@ -9,6 +9,7 @@ import {
   Calculator,
   Hammer,
   Map,
+  BookOpen,
   Settings,
   ChevronLeft,
 } from 'lucide-react'
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/deal-analyzer', icon: Calculator, label: 'Deal Analyzer' },
   { to: '/repair-estimator', icon: Hammer, label: 'Repair Estimator' },
   { to: '/market-map', icon: Map, label: 'Market Heatmap' },
+  { to: '/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Mic,
   Phone,
@@ -19,22 +19,37 @@ import {
   Instagram,
   Sparkles,
   User,
+  CalendarPlus,
+  UserCheck,
+  Target,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
 import type { Contact } from '@/types'
+import {
+  AIChatEngine,
+  type ChatMessage as AIChatMessage,
+  type LeadQualification,
+  type AppointmentRequest,
+  type KnowledgeEntry,
+} from '@/services/ai-chat'
 
 type ActiveTab = 'voice' | 'sms' | 'email' | 'chat'
 
 type ChatChannel = 'web' | 'sms' | 'facebook' | 'instagram'
 
-interface ChatMessage {
+interface DisplayMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   channel: ChatChannel
   timestamp: Date
+  metadata?: AIChatMessage['metadata']
 }
 
 interface VoiceAgent {
@@ -58,21 +73,22 @@ const channelConfig: { id: ChatChannel; label: string; icon: typeof Globe; color
   { id: 'instagram', label: 'Instagram', icon: Instagram, color: 'text-pink-600 bg-pink-100' },
 ]
 
-const aiResponses: Record<string, string> = {
-  'hello': "Hi there! I'm your REI Fundamentals AI assistant. I can help you with property analysis, deal evaluation, scheduling, and more. What can I help you with today?",
-  'property': "I'd be happy to help with property analysis! You can use our Deal Analyzer to calculate ARV, MAO, and profit estimates. Would you like me to walk you through it, or would you prefer to check out a specific property?",
-  'deal': "Great question about deals! Our Deal Analyzer supports Wholesale, Fix & Flip, and Buy & Hold strategies. Each calculates different metrics like MAO (70% rule), cash-on-cash return, and cap rate. Want me to help you analyze a specific deal?",
-  'schedule': "I can help you schedule appointments! Our Smart Scheduler integrates with Google Calendar. Would you like to book a showing, a call with a seller, or set up a follow-up reminder?",
-  'default': "That's a great question! I'm here to help with anything related to your real estate investing business — from analyzing deals and estimating repairs to scheduling appointments and managing your pipeline. Could you tell me more about what you're looking for?",
-}
+// Generate available appointment slots for the next 5 business days
+function generateAppointmentSlots(): string[] {
+  const slots: string[] = []
+  const now = new Date()
+  let daysAdded = 0
+  const d = new Date(now)
 
-function getAIResponse(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) return aiResponses['hello']
-  if (lower.includes('property') || lower.includes('house') || lower.includes('home')) return aiResponses['property']
-  if (lower.includes('deal') || lower.includes('offer') || lower.includes('analyze')) return aiResponses['deal']
-  if (lower.includes('schedule') || lower.includes('appointment') || lower.includes('calendar')) return aiResponses['schedule']
-  return aiResponses['default']
+  while (daysAdded < 5) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow === 0 || dow === 6) continue // Skip weekends
+    const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    slots.push(`${dateStr} — 9:00 AM, 10:30 AM, 1:00 PM, 3:00 PM`)
+    daysAdded++
+  }
+  return slots
 }
 
 export default function AssistantHub() {
@@ -91,11 +107,24 @@ export default function AssistantHub() {
   const [emailSearch, setEmailSearch] = useState('')
 
   // AI Chat state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+  const [qualification, setQualification] = useState<Partial<LeadQualification>>({ status: 'new', score: 0 })
+  const [pendingAppointment, setPendingAppointment] = useState<Partial<AppointmentRequest> | null>(null)
+  const [showQualPanel, setShowQualPanel] = useState(true)
+
+  const aiEngine = useMemo(() => new AIChatEngine({
+    appointmentSlots: generateAppointmentSlots(),
+    onQualificationUpdate: (qual) => setQualification(qual),
+    onAppointmentRequest: (appt) => {
+      setPendingAppointment(appt)
+      toast.success('Appointment request detected!')
+    },
+  }), [])
+
+  const [chatMessages, setChatMessages] = useState<DisplayMessage[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Welcome to REI Fundamentals AI Chat! I'm your intelligent assistant for real estate investing. Ask me anything about deals, properties, scheduling, or your pipeline. How can I help you today?",
+      content: "Hey there! Welcome to REI Fundamentals. I'm here to help with anything real estate investing — whether you're looking at a property, want to analyze a deal, or need to schedule something. What can I help you with today?",
       channel: 'web',
       timestamp: new Date(),
     },
@@ -156,33 +185,68 @@ export default function AssistantHub() {
 
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!chatInput.trim()) return
+    if (!chatInput.trim() || isChatTyping) return
 
-    const userMessage: ChatMessage = {
+    const userContent = chatInput.trim()
+    const userMsg: DisplayMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: chatInput.trim(),
+      content: userContent,
       channel: chatChannel,
       timestamp: new Date(),
     }
 
-    setChatMessages((prev) => [...prev, userMessage])
+    setChatMessages((prev) => [...prev, userMsg])
     setChatInput('')
     setIsChatTyping(true)
 
-    // Simulate AI thinking delay
-    setTimeout(() => {
-      const aiMessage: ChatMessage = {
+    try {
+      const { response, metadata } = await aiEngine.sendMessage(userContent, chatChannel)
+
+      const assistantMsg: DisplayMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: getAIResponse(userMessage.content),
+        content: response,
         channel: chatChannel,
         timestamp: new Date(),
+        metadata,
       }
-      setChatMessages((prev) => [...prev, aiMessage])
+      setChatMessages((prev) => [...prev, assistantMsg])
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: "I'm sorry, I had a brief hiccup. Could you say that again?",
+          channel: chatChannel,
+          timestamp: new Date(),
+        },
+      ])
+    } finally {
       setIsChatTyping(false)
-    }, 1000 + Math.random() * 1500)
+    }
   }
+
+  const handleResetChat = () => {
+    aiEngine.reset()
+    setChatMessages([
+      {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Fresh start! I'm ready to help. What can I do for you today?",
+        channel: 'web',
+        timestamp: new Date(),
+      },
+    ])
+    setQualification({ status: 'new', score: 0 })
+    setPendingAppointment(null)
+    toast.success('Conversation reset')
+  }
+
+  const qualScore = qualification.score || 0
+  const qualColor = qualScore >= 70 ? 'text-emerald-600' : qualScore >= 40 ? 'text-amber-500' : 'text-slate-400'
+  const qualBg = qualScore >= 70 ? 'bg-emerald-50 border-emerald-200' : qualScore >= 40 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'
 
   const stats = {
     totalCalls: agents.reduce((acc, a) => acc + a.callsToday, 0),
@@ -564,112 +628,266 @@ export default function AssistantHub() {
 
         {/* AI Chat Tab */}
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-[600px]">
-            {/* Channel Selector */}
-            <div className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
-              <span className="text-sm font-medium text-slate-600 mr-1">Channel:</span>
-              {channelConfig.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => setChatChannel(ch.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    chatChannel === ch.id
-                      ? ch.color + ' ring-2 ring-offset-1 ring-slate-300'
-                      : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  <ch.icon className="w-3.5 h-3.5" />
-                  {ch.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex h-[650px]">
+            {/* Chat Column */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Channel Selector + Controls */}
+              <div className="flex items-center justify-between gap-2 p-3 border-b border-slate-200 bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-600 mr-1">Channel:</span>
+                  {channelConfig.map((ch) => (
+                    <button
+                      key={ch.id}
+                      onClick={() => setChatChannel(ch.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        chatChannel === ch.id
+                          ? ch.color + ' ring-2 ring-offset-1 ring-slate-300'
+                          : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <ch.icon className="w-3.5 h-3.5" />
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setShowQualPanel(!showQualPanel)}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${showQualPanel ? 'bg-primary-100 text-primary-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                    title="Toggle qualification panel"
+                  >
+                    <Target className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleResetChat}
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+                    title="Reset conversation"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.role === 'assistant' && (
+              {/* AI Status Bar */}
+              <div className="flex items-center gap-3 px-4 py-1.5 bg-gradient-to-r from-primary-50 to-white border-b border-slate-100 text-xs">
+                <span className="flex items-center gap-1 text-primary-600">
+                  <Zap className="w-3 h-3" />
+                  {aiEngine.isConfigured ? 'AI Connected' : 'Smart Local Mode'}
+                </span>
+                <span className="text-slate-300">|</span>
+                <span className="text-slate-500">
+                  Objective: <strong className="text-slate-700">{aiEngine.currentObjective.name}</strong>
+                </span>
+                {qualScore > 0 && (
+                  <>
+                    <span className="text-slate-300">|</span>
+                    <span className={qualColor}>
+                      Lead Score: <strong>{qualScore}</strong>
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {msg.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-primary-600" />
+                      </div>
+                    )}
+                    <div className="max-w-[75%]">
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
+                          msg.role === 'user'
+                            ? 'bg-primary-500 text-white rounded-br-md'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-md'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      <div className={`text-[10px] mt-0.5 px-1 ${msg.role === 'user' ? 'text-right text-slate-400' : 'text-slate-400'}`}>
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {msg.role === 'user' && (
+                          <span className="ml-1.5">
+                            via {channelConfig.find((c) => c.id === msg.channel)?.label}
+                          </span>
+                        )}
+                        {msg.metadata?.action === 'qualify' && (
+                          <span className="ml-1.5 text-emerald-500"><UserCheck className="w-3 h-3 inline" /> Data captured</span>
+                        )}
+                        {msg.metadata?.action === 'book_appointment' && (
+                          <span className="ml-1.5 text-blue-500"><CalendarPlus className="w-3 h-3 inline" /> Booking</span>
+                        )}
+                      </div>
+                    </div>
+                    {msg.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-slate-600" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Typing indicator */}
+                {isChatTyping && (
+                  <div className="flex items-end gap-2">
                     <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                       <Sparkles className="w-4 h-4 text-primary-600" />
                     </div>
-                  )}
-                  <div
-                    className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-primary-500 text-white rounded-br-md'
-                        : 'bg-slate-100 text-slate-800 rounded-bl-md'
-                    }`}
-                  >
-                    {msg.content}
-                    <div
-                      className={`text-[10px] mt-1 ${
-                        msg.role === 'user' ? 'text-primary-200' : 'text-slate-400'
-                      }`}
-                    >
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {msg.role === 'user' && (
-                        <span className="ml-2">
-                          via {channelConfig.find((c) => c.id === msg.channel)?.label}
-                        </span>
-                      )}
+                    <div className="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
                   </div>
-                  {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4 text-slate-600" />
-                    </div>
-                  )}
-                </div>
-              ))}
+                )}
+                <div ref={chatEndRef} />
+              </div>
 
-              {/* Typing indicator */}
-              {isChatTyping && (
-                <div className="flex items-end gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-4 h-4 text-primary-600" />
+              {/* Chat Input */}
+              <form onSubmit={handleSendChat} className="p-3 border-t border-slate-200 bg-white">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder={`Message via ${channelConfig.find((c) => c.id === chatChannel)?.label}...`}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      disabled={isChatTyping}
+                    />
                   </div>
-                  <div className="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || isChatTyping}
+                    className="p-2.5 bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
-              <div ref={chatEndRef} />
+                <div className="flex items-center gap-4 mt-2 px-2">
+                  <p className="text-[10px] text-slate-400">
+                    Powered by <span className="font-semibold">REI Fundamentals AI</span> &bull; {aiEngine.isConfigured ? 'OpenAI-connected' : 'Objective-based local engine'} &bull; Natural language across all channels
+                  </p>
+                </div>
+              </form>
             </div>
 
-            {/* Chat Input */}
-            <form onSubmit={handleSendChat} className="p-3 border-t border-slate-200 bg-white">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={`Message via ${channelConfig.find((c) => c.id === chatChannel)?.label}...`}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                    disabled={isChatTyping}
-                  />
+            {/* Lead Qualification Side Panel */}
+            {showQualPanel && (
+              <div className="w-72 border-l border-slate-200 bg-slate-50 overflow-y-auto">
+                <div className="p-4 space-y-4">
+                  {/* Lead Score */}
+                  <div className={`rounded-xl border p-4 text-center ${qualBg}`}>
+                    <p className="text-xs font-medium text-slate-500 mb-1">Lead Score</p>
+                    <p className={`text-3xl font-bold ${qualColor}`}>{qualScore}</p>
+                    <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          qualScore >= 70 ? 'bg-emerald-500' : qualScore >= 40 ? 'bg-amber-400' : 'bg-slate-300'
+                        }`}
+                        style={{ width: `${qualScore}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {qualScore >= 70 ? 'Hot Lead' : qualScore >= 40 ? 'Warm Lead' : 'Gathering Info'}
+                    </p>
+                  </div>
+
+                  {/* Current Objective */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-3">
+                    <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+                      <Target className="w-3 h-3" /> Current Objective
+                    </p>
+                    <p className="text-sm font-semibold text-slate-700">{aiEngine.currentObjective.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{aiEngine.currentObjective.description}</p>
+                  </div>
+
+                  {/* Qualification Data */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-3">
+                    <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+                      <UserCheck className="w-3 h-3" /> Lead Information
+                    </p>
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Name', value: qualification.name },
+                        { label: 'Phone', value: qualification.phone },
+                        { label: 'Email', value: qualification.email },
+                        { label: 'Property', value: qualification.propertyAddress },
+                        { label: 'Type', value: qualification.propertyType?.replace('_', ' ') },
+                        { label: 'Motivation', value: qualification.motivation?.replace('_', ' ') },
+                        { label: 'Timeline', value: qualification.timeline?.replace(/_/g, ' ') },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          {value ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                          )}
+                          <span className="text-xs text-slate-500 w-16 shrink-0">{label}</span>
+                          <span className={`text-xs truncate ${value ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}`}>
+                            {value || 'Not yet'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pending Appointment */}
+                  {pendingAppointment && (
+                    <div className="bg-blue-50 rounded-xl border border-blue-200 p-3">
+                      <p className="text-xs font-medium text-blue-600 mb-2 flex items-center gap-1">
+                        <CalendarPlus className="w-3 h-3" /> Appointment Request
+                      </p>
+                      <div className="space-y-1 text-xs">
+                        {pendingAppointment.date && (
+                          <p className="text-slate-700"><strong>Date:</strong> {pendingAppointment.date}</p>
+                        )}
+                        {pendingAppointment.startTime && (
+                          <p className="text-slate-700"><strong>Time:</strong> {pendingAppointment.startTime}</p>
+                        )}
+                        {pendingAppointment.type && (
+                          <p className="text-slate-700"><strong>Type:</strong> {pendingAppointment.type.replace('_', ' ')}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          toast.success('Appointment confirmed and added to Smart Scheduler!')
+                          setPendingAppointment(null)
+                        }}
+                        className="w-full mt-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Confirm & Add to Scheduler
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Quick Stats */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-3">
+                    <p className="text-xs font-medium text-slate-500 mb-2">Conversation Stats</p>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div>
+                        <p className="text-lg font-bold text-slate-700">{chatMessages.filter((m) => m.role === 'user').length}</p>
+                        <p className="text-[10px] text-slate-400">Messages</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-slate-700">
+                          {Object.entries(qualification).filter(([k, v]) => v && k !== 'status' && k !== 'score').length}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Fields Captured</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim() || isChatTyping}
-                  className="p-2.5 bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
               </div>
-              <div className="flex items-center gap-4 mt-2 px-2">
-                <p className="text-[10px] text-slate-400">
-                  Powered by <span className="font-semibold">REI Fundamentals AI</span> &bull; Natural language conversations across all channels
-                </p>
-              </div>
-            </form>
+            )}
           </div>
         )}
       </div>
