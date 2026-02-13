@@ -48,3 +48,7 @@ frontend/dist/
 
 # Docker
 docker/data/
+
+# Runtime artifacts
+workspace/
+workspaces/
