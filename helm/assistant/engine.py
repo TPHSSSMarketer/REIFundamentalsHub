@@ -108,30 +108,11 @@ class HelmEngine:
                     clean_message, tier, system_prompt, messages,
                 )
 
-            # ── Claude CLI backend ─────────────────────────────────────
-            elif self._use_claude_cli:
-                reply_text, model_used = await self._chat_via_claude_cli(
-                    system_prompt, messages,
-                )
-
-            # ── OpenRouter backend ─────────────────────────────────────
-            elif self._use_openrouter:
-                reply_text, model_used = await self._chat_via_openrouter(
+            else:
+                # Use the configured backend with automatic fallback
+                reply_text, model_used = await self._chat_with_fallback(
                     tier, system_prompt, messages,
                 )
-
-            # ── Anthropic direct ───────────────────────────────────────
-            else:
-                model_id = self._model_for_tier(tier)
-                model_used = model_id
-
-                response = await self.client.messages.create(
-                    model=model_id,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=messages,
-                )
-                reply_text = response.content[0].text
 
         except anthropic.APIError as exc:
             logger.error("Anthropic API error: %s", exc)
@@ -156,6 +137,86 @@ class HelmEngine:
             model_tier=tier,
             model_used=model_used,
         )
+
+    async def _chat_with_fallback(
+        self,
+        tier: str,
+        system_prompt: str,
+        messages: list[dict],
+    ) -> tuple[str, str]:
+        """Try the configured backend, then fall back to alternatives.
+
+        Order: configured backend → claude_cli → openrouter → anthropic.
+        Stops at the first backend that returns a non-empty response.
+        """
+        from helm.integrations.claude_cli import claude_cli_client
+        from helm.integrations.openrouter import openrouter_client
+
+        # Determine the configured primary backend from properties
+        # (uses _use_* properties so test mocks work correctly)
+        if self._use_claude_cli:
+            configured = "claude_cli"
+        elif self._use_openrouter:
+            configured = "openrouter"
+        else:
+            configured = "anthropic"
+
+        # Build an ordered list of backends to try
+        backends: list[str] = [configured]
+        for alt in ["claude_cli", "openrouter", "anthropic"]:
+            if alt not in backends:
+                backends.append(alt)
+
+        errors: list[str] = []
+
+        for backend in backends:
+            try:
+                if backend == "claude_cli":
+                    if not claude_cli_client.is_configured:
+                        errors.append("claude_cli: binary not found")
+                        continue
+                    text, model = await self._chat_via_claude_cli(system_prompt, messages)
+                    if text and not text.startswith("I'm having trouble"):
+                        return text, model
+                    errors.append(f"claude_cli: {text[:100]}")
+
+                elif backend == "openrouter":
+                    if not openrouter_client.is_configured:
+                        errors.append("openrouter: no API key")
+                        continue
+                    text, model = await self._chat_via_openrouter(tier, system_prompt, messages)
+                    if text and not text.startswith("I'm having trouble"):
+                        return text, model
+                    errors.append(f"openrouter: {text[:100]}")
+
+                elif backend == "anthropic":
+                    if not settings.anthropic_api_key:
+                        errors.append("anthropic: no API key set")
+                        continue
+                    model_id = self._model_for_tier(tier)
+                    response = await self.client.messages.create(
+                        model=model_id,
+                        max_tokens=4096,
+                        system=system_prompt,
+                        messages=messages,
+                    )
+                    return response.content[0].text, model_id
+
+            except Exception as exc:
+                errors.append(f"{backend}: {exc}")
+                logger.warning("Backend %s failed: %s", backend, exc)
+                continue
+
+        # All backends failed — give a clear, actionable error
+        logger.error("All AI backends failed: %s", errors)
+        return (
+            "I couldn't reach any AI backend. Here's what I tried:\n\n"
+            + "\n".join(f"- {e}" for e in errors)
+            + "\n\nTo fix this, set up at least one backend in your .env file:\n"
+            "- **Claude CLI**: Run `claude` once to log in (uses Max subscription)\n"
+            "- **OpenRouter**: Set OPENROUTER_API_KEY in .env\n"
+            "- **Anthropic**: Set ANTHROPIC_API_KEY in .env"
+        ), "none"
 
     async def _chat_via_openrouter(
         self,
@@ -262,23 +323,10 @@ class HelmEngine:
         system_prompt: str,
         messages: list[dict],
     ) -> tuple[str, str]:
-        """Run a chat completion using whichever backend is active."""
-        if self._use_claude_cli:
-            return await self._chat_via_claude_cli(system_prompt, messages)
-
-        if self._use_openrouter:
-            return await self._chat_via_openrouter(
-                ModelTier.SONNET, system_prompt, messages,
-            )
-
-        model_id = settings.anthropic_model
-        response = await self.client.messages.create(
-            model=model_id,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
+        """Run a chat completion using the backend fallback chain."""
+        return await self._chat_with_fallback(
+            ModelTier.SONNET, system_prompt, messages,
         )
-        return response.content[0].text, model_id
 
     async def _load_user_context(self) -> str:
         """Load user context files (profile, rules, memory) for the system prompt."""

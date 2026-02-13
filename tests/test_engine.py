@@ -263,8 +263,11 @@ async def test_chat_via_openrouter_backend():
 
     with patch.object(type(engine), "_use_openrouter",
                       new_callable=PropertyMock, return_value=True), \
+         patch.object(type(engine), "_use_claude_cli",
+                      new_callable=PropertyMock, return_value=False), \
          patch("helm.integrations.openrouter.openrouter_client") as mock_or:
         mock_or._call = mock_or_call
+        mock_or.is_configured = True
 
         request = ChatRequest(message="hello")
         response = await engine.chat(request)
