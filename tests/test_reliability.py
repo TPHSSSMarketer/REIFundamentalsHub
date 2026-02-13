@@ -97,6 +97,9 @@ async def test_retry_queue_processes_successfully():
     queue.register_handler("test_action", handler)
     queue.enqueue("test_action", {"key": "value"})
 
+    # Make the action immediately due (enqueue sets 5s delay by default)
+    queue._queue[0].next_retry_at = 0
+
     result = await queue.process()
     assert result["succeeded"] == 1
     assert queue.pending_count == 0

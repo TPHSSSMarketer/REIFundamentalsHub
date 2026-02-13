@@ -37,6 +37,9 @@ dev = [
     "ruff>=0.3.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["helm*"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
