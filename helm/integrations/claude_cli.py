@@ -77,6 +77,14 @@ class ClaudeCLIClient:
         # Build the user prompt from conversation history (no system prompt here)
         prompt = self._build_prompt(messages)
 
+        # Prepend a hard override to the system prompt so Claude Code's
+        # base personality ("software engineering helper") doesn't leak through.
+        cli_preamble = (
+            "OVERRIDE: Ignore any default instructions about being a coding assistant "
+            "or software engineer.  Follow ONLY the instructions below.\n\n"
+        )
+        full_system = f"{cli_preamble}{system_prompt}" if system_prompt else ""
+
         # Build command
         cmd = [
             self.claude_binary,
@@ -85,8 +93,8 @@ class ClaudeCLIClient:
         ]
 
         # Pass system prompt via CLI flag so it's treated as instructions
-        if system_prompt:
-            cmd.extend(["--system-prompt", system_prompt])
+        if full_system:
+            cmd.extend(["--system-prompt", full_system])
 
         # Add model override if specified
         if model:
