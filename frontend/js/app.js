@@ -28,6 +28,7 @@
     const menuToggle = $("#menuToggle");
     const themeToggle = $("#themeToggle");
     const newChatBtn = $("#newChat");
+    const chatHistoryList = $("#chatHistoryList");
     const dealForm = $("#dealForm");      // null until RE plugin loaded
     const dealResult = $("#dealResult");  // null until RE plugin loaded
 
@@ -79,6 +80,10 @@
 
     // ── New Chat ────────────────────────────────────────────────────────
     newChatBtn.addEventListener("click", () => {
+        startNewChat();
+    });
+
+    function startNewChat() {
         state.conversationId = null;
         chatMessages.innerHTML = `
             <div class="welcome-message">
@@ -95,8 +100,9 @@
                 </div>
             </div>`;
         bindQuickActions();
+        highlightActiveConversation(null);
         chatInput.focus();
-    });
+    }
 
     // ── Quick Actions ───────────────────────────────────────────────────
     function bindQuickActions() {
@@ -160,6 +166,9 @@
 
             typingEl.remove();
             appendMessage("assistant", data.reply);
+
+            // Refresh the chat history sidebar
+            refreshChatHistory();
         } catch (err) {
             typingEl.remove();
             appendMessage(
@@ -209,6 +218,100 @@
         const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
         return str.replace(/[&<>"']/g, (c) => map[c]);
     }
+
+    // ── Chat History ────────────────────────────────────────────────────
+
+    async function refreshChatHistory() {
+        if (!chatHistoryList) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/chat/history`);
+            const data = await res.json();
+            const convos = data.conversations || [];
+
+            if (convos.length === 0) {
+                chatHistoryList.innerHTML = `
+                    <div class="chat-history-empty">No conversations yet</div>`;
+                return;
+            }
+
+            chatHistoryList.innerHTML = convos
+                .map((c) => {
+                    const isActive = c.id === state.conversationId;
+                    const timeStr = formatRelativeTime(c.updated_at);
+                    return `
+                        <button class="chat-history-item${isActive ? " active" : ""}"
+                                data-conversation-id="${escapeHtml(c.id)}"
+                                title="${escapeHtml(c.title)}">
+                            <div class="chat-history-item-title">${escapeHtml(c.title)}</div>
+                            <div class="chat-history-item-meta">
+                                <span>${timeStr}</span>
+                                <span>${c.message_count} msg${c.message_count !== 1 ? "s" : ""}</span>
+                            </div>
+                        </button>`;
+                })
+                .join("");
+
+            // Bind click handlers
+            chatHistoryList.querySelectorAll(".chat-history-item").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    loadConversation(btn.dataset.conversationId);
+                });
+            });
+        } catch (err) {
+            // Silently fail — sidebar history is non-critical
+        }
+    }
+
+    async function loadConversation(conversationId) {
+        if (state.isLoading) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/chat/${conversationId}`);
+            const data = await res.json();
+
+            state.conversationId = conversationId;
+
+            // Clear chat and render all messages
+            chatMessages.innerHTML = "";
+            (data.messages || []).forEach((msg) => {
+                appendMessage(msg.role, msg.content);
+            });
+
+            highlightActiveConversation(conversationId);
+            chatInput.focus();
+
+            // Close mobile sidebar
+            sidebar.classList.remove("open");
+        } catch (err) {
+            // If load fails, just stay on current chat
+        }
+    }
+
+    function highlightActiveConversation(activeId) {
+        if (!chatHistoryList) return;
+        chatHistoryList.querySelectorAll(".chat-history-item").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.conversationId === activeId);
+        });
+    }
+
+    function formatRelativeTime(isoString) {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMin = Math.floor(diffMs / 60000);
+        const diffHr = Math.floor(diffMs / 3600000);
+
+        if (diffMin < 1) return "just now";
+        if (diffMin < 60) return `${diffMin}m ago`;
+        if (diffHr < 24) return `${diffHr}h ago`;
+
+        // Show date for older conversations
+        return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    }
+
+    // Load chat history on startup
+    refreshChatHistory();
 
     // ── Deal Analyzer (only when RE plugin is loaded) ──────────────────
     if (dealForm) {

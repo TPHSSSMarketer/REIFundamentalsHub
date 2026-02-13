@@ -109,6 +109,34 @@ async def clear_conversation(conversation_id: str):
     return {"status": "cleared", "conversation_id": conversation_id}
 
 
+@router.get("/chat/history")
+async def list_conversations_route():
+    """List all conversations with metadata for the sidebar."""
+    convos = memory.list_conversations_meta()
+    return {
+        "conversations": [
+            {
+                "id": c.id,
+                "title": c.title,
+                "preview": c.preview,
+                "message_count": c.message_count,
+                "created_at": c.created_at.isoformat(),
+                "updated_at": c.updated_at.isoformat(),
+            }
+            for c in convos
+        ]
+    }
+
+
+@router.get("/chat/{conversation_id}")
+async def get_conversation(conversation_id: str):
+    """Load a conversation's full message history."""
+    messages = memory.get_full_history(conversation_id)
+    if not messages:
+        return {"conversation_id": conversation_id, "messages": []}
+    return {"conversation_id": conversation_id, "messages": messages}
+
+
 # ── Briefing ─────────────────────────────────────────────────────────────────
 
 
