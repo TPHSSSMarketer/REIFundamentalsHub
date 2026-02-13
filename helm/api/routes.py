@@ -582,3 +582,91 @@ async def classify_message(request: Request):
         return {"error": "No message provided"}
     tier = classify_task(message, mode=mode)
     return {"tier": tier, "model": get_model_info(tier)}
+
+
+# ── Modes & Styles ───────────────────────────────────────────────────────
+
+
+@router.get("/modes")
+async def list_modes():
+    """List all available assistant modes (core + plugin-provided)."""
+    from helm.assistant.output_styles import get_style_for_mode
+    from helm.assistant.prompts import MODE_PROMPTS, _plugin_mode_prompts
+
+    modes = []
+    descriptions = {
+        "business": "Strategic planning, financial modeling, operations, communication",
+        "personal": "Daily planning, goal tracking, brainstorming, wellness",
+        "real_estate": "Deal analysis, comps, market research, portfolio management",
+    }
+
+    all_modes = {**MODE_PROMPTS, **_plugin_mode_prompts}
+    for mode_key in all_modes:
+        modes.append({
+            "id": mode_key,
+            "label": mode_key.replace("_", " ").title(),
+            "description": descriptions.get(mode_key, ""),
+            "source": "plugin" if mode_key in _plugin_mode_prompts else "core",
+        })
+
+    return {"modes": modes}
+
+
+@router.get("/output-styles")
+async def list_output_styles():
+    """List all available output styles (core + plugin-provided)."""
+    from helm.assistant.output_styles import STYLES, _plugin_styles
+
+    styles = []
+    descriptions = {
+        "default": "Clear, structured, professional",
+        "briefing": "Executive summary format, priority-ordered",
+        "personal": "Casual, brief, friendly",
+        "client-facing": "Professional, warm, action-oriented",
+        "re-investor": "Numbers-focused, RE terminology, metrics-first",
+    }
+
+    for name in {**STYLES, **_plugin_styles}:
+        styles.append({
+            "id": name,
+            "label": name.replace("-", " ").replace("_", " ").title(),
+            "description": descriptions.get(name, ""),
+            "source": "plugin" if name in _plugin_styles else "core",
+        })
+
+    return {"styles": styles}
+
+
+# ── System Info ──────────────────────────────────────────────────────────
+
+
+@router.get("/system/info")
+async def system_info():
+    """Return system-level info for the settings dashboard."""
+    from helm.config import get_settings
+    from helm.integrations.claude_cli import claude_cli_client
+    from helm.integrations.openrouter import openrouter_client
+
+    s = get_settings()
+    return {
+        "ai_backend": s.ai_backend,
+        "backends": {
+            "claude_cli": {
+                "configured": claude_cli_client.is_configured,
+                "label": "Claude CLI (Max subscription)",
+            },
+            "openrouter": {
+                "configured": openrouter_client.is_configured,
+                "model": s.openrouter_model,
+                "label": "OpenRouter",
+            },
+            "anthropic": {
+                "configured": bool(s.anthropic_api_key and s.anthropic_api_key != "test-key-placeholder"),
+                "model": s.anthropic_model,
+                "label": "Anthropic API",
+            },
+        },
+        "app_name": s.app_name,
+        "app_env": s.app_env,
+        "debug": s.app_debug,
+    }

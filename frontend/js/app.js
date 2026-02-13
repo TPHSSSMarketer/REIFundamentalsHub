@@ -29,12 +29,15 @@
     const themeToggle = $("#themeToggle");
     const newChatBtn = $("#newChat");
     const chatHistoryList = $("#chatHistoryList");
-    const dealForm = $("#dealForm");      // null until RE plugin loaded
-    const dealResult = $("#dealResult");  // null until RE plugin loaded
+    const dealForm = $("#dealForm");
+    const dealResult = $("#dealResult");
 
     // ── View Titles ─────────────────────────────────────────────────────
     const VIEW_TITLES = {
         chat: "Chat with Grace",
+        agents: "AI Agents",
+        integrations: "Integrations",
+        settings: "Settings",
     };
 
     // ── Navigation ──────────────────────────────────────────────────────
@@ -46,9 +49,15 @@
             btn.classList.add("active");
 
             $$(".view").forEach((v) => v.classList.remove("active"));
-            $(`#view-${view}`).classList.add("active");
+            const viewEl = $(`#view-${view}`);
+            if (viewEl) viewEl.classList.add("active");
 
             viewTitle.textContent = VIEW_TITLES[view] || "Helm";
+
+            // Load data for the view
+            if (view === "agents") loadAgents();
+            if (view === "integrations") loadIntegrations();
+            if (view === "settings") loadSettings();
 
             // Close mobile sidebar
             sidebar.classList.remove("open");
@@ -65,23 +74,64 @@
         const html = document.documentElement;
         const current = html.getAttribute("data-theme");
         const next = current === "dark" ? "light" : "dark";
-        html.setAttribute("data-theme", next);
-        localStorage.setItem("helm-theme", next);
+        applyTheme(next);
     });
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("helm-theme", theme);
+        const sel = $("#settingsTheme");
+        if (sel) sel.value = theme;
+    }
 
     // Restore saved theme
     const savedTheme = localStorage.getItem("helm-theme");
-    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+    if (savedTheme) applyTheme(savedTheme);
+
+    // Settings theme selector sync
+    const settingsTheme = $("#settingsTheme");
+    if (settingsTheme) {
+        settingsTheme.value = document.documentElement.getAttribute("data-theme") || "dark";
+        settingsTheme.addEventListener("change", () => applyTheme(settingsTheme.value));
+    }
 
     // ── Mode Selection ──────────────────────────────────────────────────
     modeSelect.addEventListener("change", () => {
         state.mode = modeSelect.value;
+        localStorage.setItem("helm-mode", state.mode);
     });
 
+    // ── Dynamic Mode Loading ────────────────────────────────────────────
+    async function loadModes() {
+        try {
+            const res = await fetch(`${API_BASE}/modes`);
+            const data = await res.json();
+            const modes = data.modes || [];
+
+            modeSelect.innerHTML = modes
+                .map((m) => `<option value="${m.id}">${m.label}</option>`)
+                .join("");
+
+            // Restore saved mode
+            const saved = localStorage.getItem("helm-mode");
+            if (saved && modes.some((m) => m.id === saved)) {
+                modeSelect.value = saved;
+                state.mode = saved;
+            } else if (modes.length > 0) {
+                state.mode = modes[0].id;
+            }
+        } catch {
+            // Fallback: hardcoded modes
+            modeSelect.innerHTML = `
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>`;
+        }
+    }
+
+    loadModes();
+
     // ── New Chat ────────────────────────────────────────────────────────
-    newChatBtn.addEventListener("click", () => {
-        startNewChat();
-    });
+    newChatBtn.addEventListener("click", () => startNewChat());
 
     function startNewChat() {
         state.conversationId = null;
@@ -138,16 +188,13 @@
         state.isLoading = true;
         sendBtn.disabled = true;
 
-        // Clear welcome screen on first message
         const welcome = chatMessages.querySelector(".welcome-message");
         if (welcome) welcome.remove();
 
-        // Add user message
         appendMessage("user", text);
         chatInput.value = "";
         chatInput.style.height = "auto";
 
-        // Show typing indicator
         const typingEl = showTyping();
 
         try {
@@ -166,8 +213,6 @@
 
             typingEl.remove();
             appendMessage("assistant", data.reply);
-
-            // Refresh the chat history sidebar
             refreshChatHistory();
         } catch (err) {
             typingEl.remove();
@@ -252,14 +297,13 @@
                 })
                 .join("");
 
-            // Bind click handlers
             chatHistoryList.querySelectorAll(".chat-history-item").forEach((btn) => {
                 btn.addEventListener("click", () => {
                     loadConversation(btn.dataset.conversationId);
                 });
             });
         } catch (err) {
-            // Silently fail — sidebar history is non-critical
+            // Silently fail
         }
     }
 
@@ -272,7 +316,6 @@
 
             state.conversationId = conversationId;
 
-            // Clear chat and render all messages
             chatMessages.innerHTML = "";
             (data.messages || []).forEach((msg) => {
                 appendMessage(msg.role, msg.content);
@@ -280,11 +323,9 @@
 
             highlightActiveConversation(conversationId);
             chatInput.focus();
-
-            // Close mobile sidebar
             sidebar.classList.remove("open");
         } catch (err) {
-            // If load fails, just stay on current chat
+            // Stay on current chat
         }
     }
 
@@ -306,12 +347,290 @@
         if (diffMin < 60) return `${diffMin}m ago`;
         if (diffHr < 24) return `${diffHr}h ago`;
 
-        // Show date for older conversations
         return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }
 
-    // Load chat history on startup
     refreshChatHistory();
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ── Agents Page ─────────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════
+
+    const SCOPE_ICONS = {
+        project: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>`,
+        personal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    };
+
+    async function loadAgents() {
+        const grid = $("#agentsGrid");
+        if (!grid) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/agents`);
+            const data = await res.json();
+            const agents = data.agents || [];
+
+            if (agents.length === 0) {
+                grid.innerHTML = `<div class="empty-state">No agents available.</div>`;
+                return;
+            }
+
+            grid.innerHTML = agents
+                .map((a) => {
+                    const icon = SCOPE_ICONS[a.scope] || SCOPE_ICONS.project;
+                    const pluginBadge = a.requires_plugins?.length
+                        ? `<span class="badge badge-plugin">${a.requires_plugins[0]}</span>`
+                        : "";
+                    return `
+                        <div class="agent-card">
+                            <div class="agent-card-header">
+                                <div class="agent-card-icon">${icon}</div>
+                                <div>
+                                    <div class="agent-card-name">${escapeHtml(a.name)}</div>
+                                    <div class="agent-card-scope">${escapeHtml(a.scope)} ${pluginBadge}</div>
+                                </div>
+                            </div>
+                            <p class="agent-card-desc">${escapeHtml(a.description)}</p>
+                        </div>`;
+                })
+                .join("");
+        } catch {
+            grid.innerHTML = `<div class="empty-state">Could not load agents. Is the backend running?</div>`;
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ── Integrations Page ───────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════
+
+    async function loadIntegrations() {
+        const backendsGrid = $("#backendsGrid");
+        const intGrid = $("#integrationsGrid");
+        const plugGrid = $("#pluginsGrid");
+
+        // AI Backends
+        try {
+            const res = await fetch(`${API_BASE}/system/info`);
+            const data = await res.json();
+            const backends = data.backends || {};
+            const activeBackend = data.ai_backend || "";
+
+            if (backendsGrid) {
+                backendsGrid.innerHTML = Object.entries(backends)
+                    .map(([key, b]) => {
+                        const isActive = activeBackend === key;
+                        const statusClass = b.configured ? "status-ok" : "status-off";
+                        const statusText = b.configured
+                            ? isActive ? "Active" : "Ready"
+                            : "Not configured";
+                        return `
+                            <div class="integration-card${isActive ? " integration-active" : ""}">
+                                <div class="integration-card-header">
+                                    <div class="integration-card-name">${escapeHtml(b.label)}</div>
+                                    <span class="status-dot ${statusClass}"></span>
+                                </div>
+                                <div class="integration-card-status">${statusText}</div>
+                                ${b.model ? `<div class="integration-card-detail">Model: ${escapeHtml(b.model)}</div>` : ""}
+                            </div>`;
+                    })
+                    .join("");
+            }
+        } catch {
+            if (backendsGrid) backendsGrid.innerHTML = `<div class="empty-state">Could not load backend info.</div>`;
+        }
+
+        // Service Integrations
+        try {
+            const res = await fetch(`${API_BASE}/integrations`);
+            const data = await res.json();
+            const integrations = data.integrations || data.active || [];
+
+            if (intGrid) {
+                if (Array.isArray(integrations) && integrations.length > 0) {
+                    intGrid.innerHTML = integrations
+                        .map((name) => `
+                            <div class="integration-card">
+                                <div class="integration-card-header">
+                                    <div class="integration-card-name">${escapeHtml(String(name))}</div>
+                                    <span class="status-dot status-ok"></span>
+                                </div>
+                                <div class="integration-card-status">Connected</div>
+                            </div>`)
+                        .join("");
+                } else if (typeof integrations === "object") {
+                    // Status report format: { active: [...], inactive: [...] }
+                    const active = data.active || [];
+                    const inactive = data.inactive || [];
+                    const all = [
+                        ...active.map((n) => ({ name: n, active: true })),
+                        ...inactive.map((n) => ({ name: n, active: false })),
+                    ];
+                    if (all.length === 0) {
+                        intGrid.innerHTML = `<div class="empty-state">No integrations registered.</div>`;
+                    } else {
+                        intGrid.innerHTML = all
+                            .map((i) => `
+                                <div class="integration-card">
+                                    <div class="integration-card-header">
+                                        <div class="integration-card-name">${escapeHtml(i.name)}</div>
+                                        <span class="status-dot ${i.active ? "status-ok" : "status-off"}"></span>
+                                    </div>
+                                    <div class="integration-card-status">${i.active ? "Connected" : "Not configured"}</div>
+                                </div>`)
+                            .join("");
+                    }
+                } else {
+                    intGrid.innerHTML = `<div class="empty-state">No integrations registered.</div>`;
+                }
+            }
+        } catch {
+            if (intGrid) intGrid.innerHTML = `<div class="empty-state">Could not load integrations.</div>`;
+        }
+
+        // Plugins
+        try {
+            const res = await fetch(`${API_BASE}/plugins`);
+            const data = await res.json();
+            const plugins = data.plugins || [];
+
+            if (plugGrid) {
+                if (plugins.length === 0) {
+                    plugGrid.innerHTML = `<div class="empty-state">No plugins loaded.</div>`;
+                } else {
+                    plugGrid.innerHTML = plugins
+                        .map((p) => `
+                            <div class="integration-card">
+                                <div class="integration-card-header">
+                                    <div class="integration-card-name">${escapeHtml(p.name || p)}</div>
+                                    <span class="status-dot status-ok"></span>
+                                </div>
+                                <div class="integration-card-status">v${escapeHtml(p.version || "1.0")}</div>
+                                ${p.description ? `<div class="integration-card-detail">${escapeHtml(p.description)}</div>` : ""}
+                            </div>`)
+                        .join("");
+                }
+            }
+        } catch {
+            if (plugGrid) plugGrid.innerHTML = `<div class="empty-state">Could not load plugins.</div>`;
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ── Settings Page ───────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════
+
+    async function loadSettings() {
+        loadSettingsModes();
+        loadSettingsStyles();
+        loadSettingsSystem();
+    }
+
+    async function loadSettingsModes() {
+        const container = $("#settingsModes");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/modes`);
+            const data = await res.json();
+            const modes = data.modes || [];
+
+            container.innerHTML = modes
+                .map((m) => {
+                    const isActive = state.mode === m.id;
+                    const sourceBadge = m.source === "plugin"
+                        ? `<span class="badge badge-plugin">plugin</span>`
+                        : "";
+                    return `
+                        <button class="option-card${isActive ? " option-active" : ""}"
+                                data-mode-id="${escapeHtml(m.id)}">
+                            <div class="option-card-header">
+                                <div class="option-card-name">${escapeHtml(m.label)} ${sourceBadge}</div>
+                                ${isActive ? '<span class="badge badge-active">Active</span>' : ""}
+                            </div>
+                            <div class="option-card-desc">${escapeHtml(m.description)}</div>
+                        </button>`;
+                })
+                .join("");
+
+            container.querySelectorAll(".option-card").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const modeId = btn.dataset.modeId;
+                    state.mode = modeId;
+                    modeSelect.value = modeId;
+                    localStorage.setItem("helm-mode", modeId);
+                    loadSettingsModes(); // re-render to update active state
+                });
+            });
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load modes.</div>`;
+        }
+    }
+
+    async function loadSettingsStyles() {
+        const container = $("#settingsStyles");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/output-styles`);
+            const data = await res.json();
+            const styles = data.styles || [];
+
+            const savedStyle = localStorage.getItem("helm-style") || "default";
+
+            container.innerHTML = styles
+                .map((s) => {
+                    const isActive = savedStyle === s.id;
+                    const sourceBadge = s.source === "plugin"
+                        ? `<span class="badge badge-plugin">plugin</span>`
+                        : "";
+                    return `
+                        <button class="option-card${isActive ? " option-active" : ""}"
+                                data-style-id="${escapeHtml(s.id)}">
+                            <div class="option-card-header">
+                                <div class="option-card-name">${escapeHtml(s.label)} ${sourceBadge}</div>
+                                ${isActive ? '<span class="badge badge-active">Active</span>' : ""}
+                            </div>
+                            <div class="option-card-desc">${escapeHtml(s.description)}</div>
+                        </button>`;
+                })
+                .join("");
+
+            container.querySelectorAll(".option-card").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    localStorage.setItem("helm-style", btn.dataset.styleId);
+                    loadSettingsStyles();
+                });
+            });
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load styles.</div>`;
+        }
+    }
+
+    async function loadSettingsSystem() {
+        const container = $("#settingsSystem");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/system/info`);
+            const data = await res.json();
+
+            const rows = [
+                ["AI Backend", data.ai_backend || "unknown"],
+                ["Environment", data.app_env || "production"],
+                ["Debug Mode", data.debug ? "On" : "Off"],
+            ];
+
+            container.innerHTML = rows
+                .map(([label, value]) => `
+                    <div class="settings-row">
+                        <div class="settings-row-label">${escapeHtml(label)}</div>
+                        <div class="settings-row-value">${escapeHtml(value)}</div>
+                    </div>`)
+                .join("");
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load system info.</div>`;
+        }
+    }
 
     // ── Deal Analyzer (only when RE plugin is loaded) ──────────────────
     if (dealForm) {
