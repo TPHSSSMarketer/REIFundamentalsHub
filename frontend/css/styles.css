@@ -981,6 +981,123 @@ a:hover { color: var(--accent-hover); }
     border-color: var(--accent);
 }
 
+/* ── Account / Plan ────────────────────────────────────────────────────── */
+.plan-card {
+    padding: 4px 0;
+}
+
+.plan-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.plan-card-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.badge-plan {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-size: 0.72rem;
+    padding: 3px 10px;
+}
+
+.badge-upgrade {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa;
+}
+
+.badge-soon {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+
+.plan-features {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.plan-feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+}
+
+.plan-feature-icon {
+    width: 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--success);
+}
+
+.plan-feature:has(.badge-upgrade) .plan-feature-icon {
+    color: var(--text-muted);
+}
+
+.plan-feature-name {
+    text-transform: capitalize;
+}
+
+/* ── Plugin Marketplace Cards ──────────────────────────────────────────── */
+.plugins-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.plugin-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    transition: border-color var(--transition);
+}
+
+.plugin-card:hover {
+    border-color: var(--text-muted);
+}
+
+.plugin-installed {
+    border-color: var(--success);
+    background: rgba(34, 197, 94, 0.04);
+}
+
+.plugin-soon {
+    opacity: 0.65;
+}
+
+.plugin-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.plugin-card-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.plugin-card-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    margin-bottom: 8px;
+}
+
+.plugin-card-price {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -588,9 +588,8 @@ async def classify_message(request: Request):
 
 
 @router.get("/modes")
-async def list_modes():
-    """List all available assistant modes (core + plugin-provided)."""
-    from helm.assistant.output_styles import get_style_for_mode
+async def list_modes(source: str | None = None):
+    """List available assistant modes. Use ?source=core to exclude plugin modes."""
     from helm.assistant.prompts import MODE_PROMPTS, _plugin_mode_prompts
 
     modes = []
@@ -602,19 +601,22 @@ async def list_modes():
 
     all_modes = {**MODE_PROMPTS, **_plugin_mode_prompts}
     for mode_key in all_modes:
+        mode_source = "plugin" if mode_key in _plugin_mode_prompts else "core"
+        if source and mode_source != source:
+            continue
         modes.append({
             "id": mode_key,
             "label": mode_key.replace("_", " ").title(),
             "description": descriptions.get(mode_key, ""),
-            "source": "plugin" if mode_key in _plugin_mode_prompts else "core",
+            "source": mode_source,
         })
 
     return {"modes": modes}
 
 
 @router.get("/output-styles")
-async def list_output_styles():
-    """List all available output styles (core + plugin-provided)."""
+async def list_output_styles(source: str | None = None):
+    """List available output styles. Use ?source=core to exclude plugin styles."""
     from helm.assistant.output_styles import STYLES, _plugin_styles
 
     styles = []
@@ -627,14 +629,114 @@ async def list_output_styles():
     }
 
     for name in {**STYLES, **_plugin_styles}:
+        style_source = "plugin" if name in _plugin_styles else "core"
+        if source and style_source != source:
+            continue
         styles.append({
             "id": name,
             "label": name.replace("-", " ").replace("_", " ").title(),
             "description": descriptions.get(name, ""),
-            "source": "plugin" if name in _plugin_styles else "core",
+            "source": style_source,
         })
 
     return {"styles": styles}
+
+
+# ── Account ──────────────────────────────────────────────────────────────
+
+
+@router.get("/account")
+async def account_info():
+    """Account profile and plan information."""
+    content = await default_workspace.read_file("USER.md")
+    user_name = ""
+    if content:
+        text = content.decode("utf-8", errors="replace")
+        # Try to extract name from the USER.md file
+        for line in text.splitlines():
+            if line.startswith("# ") and "name" not in line.lower():
+                user_name = line.lstrip("# ").strip()
+                break
+
+    return {
+        "name": user_name or "User",
+        "plan": "base",  # base | pro | enterprise
+        "features": {
+            "chat": True,
+            "agents": True,
+            "voice": True,
+            "integrations": True,
+            "plugins": False,   # Upsell — requires Pro plan
+            "multi_tenant": False,
+        },
+    }
+
+
+@router.get("/account/plugins/available")
+async def available_plugins():
+    """List plugins available for purchase / activation."""
+    from helm.plugins import plugin_manager
+
+    installed = {p["name"] for p in plugin_manager.list_plugins()}
+
+    # Plugin catalog — add new plugins here as they're built
+    catalog = [
+        {
+            "id": "rei",
+            "name": "Real Estate Investor",
+            "description": "Deal analysis, comps, portfolio tracking, BRRRR calculator. Adds Real Estate mode and RE Investor output style.",
+            "price": "Included with Pro",
+            "category": "industry",
+            "installed": "rei" in installed,
+        },
+        {
+            "id": "ecommerce",
+            "name": "E-Commerce",
+            "description": "Inventory tracking, order management, supplier comms, pricing optimization.",
+            "price": "Included with Pro",
+            "category": "industry",
+            "installed": False,
+            "coming_soon": True,
+        },
+        {
+            "id": "agency",
+            "name": "Marketing Agency",
+            "description": "Client reporting, campaign management, content calendar, social media scheduling.",
+            "price": "Included with Pro",
+            "category": "industry",
+            "installed": False,
+            "coming_soon": True,
+        },
+        {
+            "id": "quickbooks",
+            "name": "QuickBooks",
+            "description": "Sync invoices, expenses, and financial reports with QuickBooks Online.",
+            "price": "$29/mo add-on",
+            "category": "software",
+            "installed": False,
+            "coming_soon": True,
+        },
+        {
+            "id": "google_workspace",
+            "name": "Google Workspace",
+            "description": "Gmail, Calendar, Drive, and Docs integration for full productivity sync.",
+            "price": "Included with Pro",
+            "category": "software",
+            "installed": False,
+            "coming_soon": True,
+        },
+        {
+            "id": "slack",
+            "name": "Slack",
+            "description": "Receive briefings and manage tasks directly from Slack channels.",
+            "price": "Included with Pro",
+            "category": "software",
+            "installed": False,
+            "coming_soon": True,
+        },
+    ]
+
+    return {"plugins": catalog}
 
 
 # ── System Info ──────────────────────────────────────────────────────────

@@ -40,6 +40,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             <span>Settings</span>
         </button>
+        <button class="nav-item" data-view="account" title="Account">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Account</span>
+        </button>
     </nav>
 
     <!-- Chat History -->
@@ -150,11 +154,6 @@
             <div class="integrations-grid" id="integrationsGrid">
                 <div class="loading-placeholder">Loading integrations...</div>
             </div>
-
-            <div class="section-label">Plugins</div>
-            <div class="integrations-grid" id="pluginsGrid">
-                <div class="loading-placeholder">Loading plugins...</div>
-            </div>
         </div>
     </section>
 
@@ -166,7 +165,6 @@
                 <p class="muted">Configure Grace's behavior and your preferences.</p>
             </div>
 
-            <!-- Mode & Style -->
             <div class="card">
                 <h3>Assistant Mode</h3>
                 <p class="muted" style="margin-bottom: 12px;">Choose how Grace operates. Each mode adjusts her expertise, tone, and focus areas.</p>
@@ -183,7 +181,6 @@
                 </div>
             </div>
 
-            <!-- Appearance -->
             <div class="card">
                 <h3>Appearance</h3>
                 <div class="settings-row">
@@ -198,11 +195,44 @@
                 </div>
             </div>
 
-            <!-- System Info -->
             <div class="card">
                 <h3>System</h3>
                 <div class="settings-info" id="settingsSystem">
                     <div class="loading-placeholder">Loading system info...</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Account View ───────────────────────────────────────────────── -->
+    <section class="view" id="view-account">
+        <div class="view-content">
+            <div class="page-header">
+                <h2>Account</h2>
+                <p class="muted">Your plan, profile, and available add-ons.</p>
+            </div>
+
+            <!-- Profile & Plan -->
+            <div class="card">
+                <h3>Your Plan</h3>
+                <div class="account-plan" id="accountPlan">
+                    <div class="loading-placeholder">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Plugin Marketplace -->
+            <div class="card">
+                <h3>Plugins</h3>
+                <p class="muted" style="margin-bottom: 12px;">Extend Grace with industry-specific tools and software integrations. Plugins add new modes, agents, and capabilities.</p>
+
+                <div class="section-label">Industry Plugins</div>
+                <div class="plugins-grid" id="industryPlugins">
+                    <div class="loading-placeholder">Loading...</div>
+                </div>
+
+                <div class="section-label">Software Integrations</div>
+                <div class="plugins-grid" id="softwarePlugins">
+                    <div class="loading-placeholder">Loading...</div>
                 </div>
             </div>
         </div>

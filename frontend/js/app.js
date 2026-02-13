@@ -38,6 +38,7 @@
         agents: "AI Agents",
         integrations: "Integrations",
         settings: "Settings",
+        account: "Account",
     };
 
     // ── Navigation ──────────────────────────────────────────────────────
@@ -58,6 +59,7 @@
             if (view === "agents") loadAgents();
             if (view === "integrations") loadIntegrations();
             if (view === "settings") loadSettings();
+            if (view === "account") loadAccount();
 
             // Close mobile sidebar
             sidebar.classList.remove("open");
@@ -406,7 +408,6 @@
     async function loadIntegrations() {
         const backendsGrid = $("#backendsGrid");
         const intGrid = $("#integrationsGrid");
-        const plugGrid = $("#pluginsGrid");
 
         // AI Backends
         try {
@@ -487,32 +488,6 @@
             if (intGrid) intGrid.innerHTML = `<div class="empty-state">Could not load integrations.</div>`;
         }
 
-        // Plugins
-        try {
-            const res = await fetch(`${API_BASE}/plugins`);
-            const data = await res.json();
-            const plugins = data.plugins || [];
-
-            if (plugGrid) {
-                if (plugins.length === 0) {
-                    plugGrid.innerHTML = `<div class="empty-state">No plugins loaded.</div>`;
-                } else {
-                    plugGrid.innerHTML = plugins
-                        .map((p) => `
-                            <div class="integration-card">
-                                <div class="integration-card-header">
-                                    <div class="integration-card-name">${escapeHtml(p.name || p)}</div>
-                                    <span class="status-dot status-ok"></span>
-                                </div>
-                                <div class="integration-card-status">v${escapeHtml(p.version || "1.0")}</div>
-                                ${p.description ? `<div class="integration-card-detail">${escapeHtml(p.description)}</div>` : ""}
-                            </div>`)
-                        .join("");
-                }
-            }
-        } catch {
-            if (plugGrid) plugGrid.innerHTML = `<div class="empty-state">Could not load plugins.</div>`;
-        }
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -530,6 +505,7 @@
         if (!container) return;
 
         try {
+            // Fetch all modes — installed plugins contribute theirs
             const res = await fetch(`${API_BASE}/modes`);
             const data = await res.json();
             const modes = data.modes || [];
@@ -537,14 +513,11 @@
             container.innerHTML = modes
                 .map((m) => {
                     const isActive = state.mode === m.id;
-                    const sourceBadge = m.source === "plugin"
-                        ? `<span class="badge badge-plugin">plugin</span>`
-                        : "";
                     return `
                         <button class="option-card${isActive ? " option-active" : ""}"
                                 data-mode-id="${escapeHtml(m.id)}">
                             <div class="option-card-header">
-                                <div class="option-card-name">${escapeHtml(m.label)} ${sourceBadge}</div>
+                                <div class="option-card-name">${escapeHtml(m.label)}</div>
                                 ${isActive ? '<span class="badge badge-active">Active</span>' : ""}
                             </div>
                             <div class="option-card-desc">${escapeHtml(m.description)}</div>
@@ -580,14 +553,11 @@
             container.innerHTML = styles
                 .map((s) => {
                     const isActive = savedStyle === s.id;
-                    const sourceBadge = s.source === "plugin"
-                        ? `<span class="badge badge-plugin">plugin</span>`
-                        : "";
                     return `
                         <button class="option-card${isActive ? " option-active" : ""}"
                                 data-style-id="${escapeHtml(s.id)}">
                             <div class="option-card-header">
-                                <div class="option-card-name">${escapeHtml(s.label)} ${sourceBadge}</div>
+                                <div class="option-card-name">${escapeHtml(s.label)}</div>
                                 ${isActive ? '<span class="badge badge-active">Active</span>' : ""}
                             </div>
                             <div class="option-card-desc">${escapeHtml(s.description)}</div>
@@ -630,6 +600,95 @@
         } catch {
             container.innerHTML = `<div class="empty-state">Could not load system info.</div>`;
         }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ── Account Page ────────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════
+
+    async function loadAccount() {
+        loadAccountPlan();
+        loadPluginMarketplace();
+    }
+
+    async function loadAccountPlan() {
+        const container = $("#accountPlan");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/account`);
+            const data = await res.json();
+
+            const planLabels = { base: "Base", pro: "Pro", enterprise: "Enterprise" };
+            const planLabel = planLabels[data.plan] || data.plan;
+
+            container.innerHTML = `
+                <div class="plan-card">
+                    <div class="plan-card-header">
+                        <div class="plan-card-name">${escapeHtml(data.name)}</div>
+                        <span class="badge badge-plan">${escapeHtml(planLabel)}</span>
+                    </div>
+                    <div class="plan-features">
+                        ${Object.entries(data.features || {})
+                            .map(([feature, enabled]) => `
+                                <div class="plan-feature">
+                                    <span class="plan-feature-icon">${enabled ? "+" : "-"}</span>
+                                    <span class="plan-feature-name">${escapeHtml(feature.replace(/_/g, " "))}</span>
+                                    ${!enabled ? '<span class="badge badge-upgrade">Pro</span>' : ""}
+                                </div>`)
+                            .join("")}
+                    </div>
+                </div>`;
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load account info.</div>`;
+        }
+    }
+
+    async function loadPluginMarketplace() {
+        const industryGrid = $("#industryPlugins");
+        const softwareGrid = $("#softwarePlugins");
+
+        try {
+            const res = await fetch(`${API_BASE}/account/plugins/available`);
+            const data = await res.json();
+            const plugins = data.plugins || [];
+
+            const industry = plugins.filter((p) => p.category === "industry");
+            const software = plugins.filter((p) => p.category === "software");
+
+            if (industryGrid) renderPluginGrid(industryGrid, industry);
+            if (softwareGrid) renderPluginGrid(softwareGrid, software);
+        } catch {
+            if (industryGrid) industryGrid.innerHTML = `<div class="empty-state">Could not load plugins.</div>`;
+            if (softwareGrid) softwareGrid.innerHTML = `<div class="empty-state">Could not load plugins.</div>`;
+        }
+    }
+
+    function renderPluginGrid(container, plugins) {
+        if (plugins.length === 0) {
+            container.innerHTML = `<div class="empty-state">None available yet.</div>`;
+            return;
+        }
+
+        container.innerHTML = plugins
+            .map((p) => {
+                const statusBadge = p.installed
+                    ? '<span class="badge badge-active">Installed</span>'
+                    : p.coming_soon
+                    ? '<span class="badge badge-soon">Coming Soon</span>'
+                    : '<span class="badge badge-upgrade">Pro</span>';
+
+                return `
+                    <div class="plugin-card${p.installed ? " plugin-installed" : ""}${p.coming_soon ? " plugin-soon" : ""}">
+                        <div class="plugin-card-header">
+                            <div class="plugin-card-name">${escapeHtml(p.name)}</div>
+                            ${statusBadge}
+                        </div>
+                        <p class="plugin-card-desc">${escapeHtml(p.description)}</p>
+                        <div class="plugin-card-price">${escapeHtml(p.price)}</div>
+                    </div>`;
+            })
+            .join("");
     }
 
     // ── Deal Analyzer (only when RE plugin is loaded) ──────────────────
