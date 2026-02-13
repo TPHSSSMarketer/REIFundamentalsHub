@@ -183,8 +183,8 @@ async def classify_task_smart(message: str, mode: str = "business") -> str:
 
         settings = get_settings()
 
-        # Skip AI classification when using OpenRouter backend or no Anthropic key
-        if settings.ai_backend.lower() == "openrouter" or not settings.anthropic_api_key:
+        # Skip AI classification when not using direct Anthropic backend
+        if settings.ai_backend.lower() != "anthropic" or not settings.anthropic_api_key:
             return ModelTier.SONNET
 
         import anthropic

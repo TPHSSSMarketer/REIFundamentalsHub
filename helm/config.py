@@ -29,9 +29,10 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
 
     # ── AI Backend ──────────────────────────────────────────────────────
-    ai_backend: str = "anthropic"  # "anthropic" or "openrouter"
+    ai_backend: str = "anthropic"  # "anthropic", "openrouter", or "claude_cli"
     openrouter_model: str = "anthropic/claude-sonnet-4-5-20250929"
     openrouter_model_opus: str = "anthropic/claude-opus-4-6"
+    claude_cli_timeout: int = 120  # Seconds before CLI subprocess times out
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./helm.db"

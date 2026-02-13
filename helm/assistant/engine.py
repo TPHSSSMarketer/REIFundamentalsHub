@@ -6,9 +6,10 @@ Uses the multi-model router to send each message to the right AI model:
   - Perplexity Sonar Pro for web research (comps, market data, news)
   - Perplexity Deep Research for comprehensive reports
 
-Supports two AI backends (configured via AI_BACKEND env var):
+Supports three AI backends (configured via AI_BACKEND env var):
   - "anthropic" — direct Anthropic API (requires API credits)
   - "openrouter" — OpenRouter gateway (supports Claude + many other models)
+  - "claude_cli" — Claude Code CLI headless mode (uses Max subscription)
 """
 
 from __future__ import annotations
@@ -58,14 +59,22 @@ class HelmEngine:
         return settings.openrouter_model  # Sonnet default
 
     @property
+    def _backend(self) -> str:
+        return settings.ai_backend.lower()
+
+    @property
     def _use_openrouter(self) -> bool:
-        return settings.ai_backend.lower() == "openrouter"
+        return self._backend == "openrouter"
+
+    @property
+    def _use_claude_cli(self) -> bool:
+        return self._backend == "claude_cli"
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a user message and return Helm's response.
 
         Uses the smart router to classify intent and pick the right model:
-          - Opus / Sonnet → Anthropic API or OpenRouter (based on ai_backend)
+          - Opus / Sonnet → Anthropic API, OpenRouter, or Claude CLI
           - Perplexity tiers → OpenRouter, then synthesised by the active backend
         """
         conversation_id = request.conversation_id or uuid.uuid4().hex
@@ -94,6 +103,12 @@ class HelmEngine:
             if tier in (ModelTier.PERPLEXITY_SEARCH, ModelTier.PERPLEXITY_DEEP):
                 reply_text, model_used = await self._research_and_synthesise(
                     clean_message, tier, system_prompt, messages,
+                )
+
+            # ── Claude CLI backend ─────────────────────────────────────
+            elif self._use_claude_cli:
+                reply_text, model_used = await self._chat_via_claude_cli(
+                    system_prompt, messages,
                 )
 
             # ── OpenRouter backend ─────────────────────────────────────
@@ -173,6 +188,32 @@ class HelmEngine:
         logger.info("OpenRouter response via %s (%d chars)", actual_model, len(content))
         return content, actual_model
 
+    async def _chat_via_claude_cli(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+    ) -> tuple[str, str]:
+        """Route a chat request through Claude CLI (Max subscription)."""
+        from helm.integrations.claude_cli import claude_cli_client
+
+        result = await claude_cli_client.chat(
+            messages=messages,
+            system_prompt=system_prompt,
+        )
+
+        content = result.get("content", "")
+        if not content:
+            error = result.get("error", "unknown error")
+            logger.error("Claude CLI chat failed: %s", error)
+            return (
+                "I'm having trouble reaching the Claude CLI backend. "
+                f"Error: {error}"
+            ), "claude-cli"
+
+        model_label = result.get("model", "claude-cli (Max)")
+        logger.info("Claude CLI response (%d chars)", len(content))
+        return content, model_label
+
     async def _research_and_synthesise(
         self,
         query: str,
@@ -182,8 +223,8 @@ class HelmEngine:
     ) -> tuple[str, str]:
         """Run a Perplexity research call, then synthesise the results.
 
-        Uses whichever backend is active (Anthropic or OpenRouter) for synthesis.
-        Returns (reply_text, model_used_label).
+        Uses whichever backend is active (Anthropic, OpenRouter, or CLI)
+        for synthesis.  Returns (reply_text, model_used_label).
         """
         from helm.integrations.openrouter import openrouter_client
 
@@ -219,6 +260,9 @@ class HelmEngine:
         messages: list[dict],
     ) -> tuple[str, str]:
         """Run a chat completion using whichever backend is active."""
+        if self._use_claude_cli:
+            return await self._chat_via_claude_cli(system_prompt, messages)
+
         if self._use_openrouter:
             return await self._chat_via_openrouter(
                 ModelTier.SONNET, system_prompt, messages,

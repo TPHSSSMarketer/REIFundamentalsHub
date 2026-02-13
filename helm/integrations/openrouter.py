@@ -15,7 +15,7 @@ Usage:
     result = await openrouter_client.deep_research("Atlanta rental market trends 2026")
 
     # Route to any model via OpenRouter
-    result = await openrouter_client.chat("analyze this", model="anthropic/claude-3.5-sonnet")
+    result = await openrouter_client.chat("analyze this", model="anthropic/claude-sonnet-4-5")
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ class OpenRouterClient:
     ) -> dict:
         """Make a chat completion call through OpenRouter."""
         if not self.is_configured:
-            return {"error": "OpenRouter not configured", "content": ""}
+            return {"error": "OpenRouter not configured — set OPENROUTER_API_KEY", "content": ""}
 
         payload = {
             "model": model,
@@ -82,8 +82,21 @@ class OpenRouterClient:
                     headers=self._headers,
                     json=payload,
                 )
-                resp.raise_for_status()
+
+                # Read the response body before checking status
                 data = resp.json()
+
+                if resp.status_code != 200:
+                    error_detail = data.get("error", {})
+                    if isinstance(error_detail, dict):
+                        error_msg = error_detail.get("message", resp.text[:500])
+                    else:
+                        error_msg = str(error_detail) or resp.text[:500]
+                    logger.error(
+                        "OpenRouter %d error (model=%s): %s",
+                        resp.status_code, model, error_msg,
+                    )
+                    return {"error": f"OpenRouter {resp.status_code}: {error_msg}", "content": ""}
 
                 # Extract the response
                 choices = data.get("choices", [])
@@ -102,7 +115,7 @@ class OpenRouterClient:
                 }
 
         except httpx.HTTPError as exc:
-            logger.error("OpenRouter API error: %s", exc)
+            logger.error("OpenRouter connection error: %s", exc)
             return {"error": str(exc), "content": ""}
 
     # ── Perplexity Web Research ───────────────────────────────────────────

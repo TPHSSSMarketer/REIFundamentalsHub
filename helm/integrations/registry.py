@@ -176,6 +176,16 @@ def register_all_plugins() -> None:
         category="ai",
     )
 
+    # Claude CLI (Max subscription backend)
+    from helm.integrations.claude_cli import claude_cli_client
+
+    registry.register(
+        "claude_cli",
+        claude_cli_client,
+        description="Claude CLI — headless Claude Code using Max subscription",
+        category="ai",
+    )
+
     # Supabase memory (imported lazily)
     try:
         from helm.integrations.supabase_memory import supabase_memory

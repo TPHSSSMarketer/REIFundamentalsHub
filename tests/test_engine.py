@@ -107,12 +107,17 @@ def _mock_anthropic_response(text: str):
     return response
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
 def _force_anthropic(engine):
     """Context manager to force Anthropic backend for testing."""
-    return patch.object(
-        type(engine), "_use_openrouter",
-        new_callable=PropertyMock, return_value=False,
-    )
+    with patch.object(type(engine), "_use_openrouter",
+                      new_callable=PropertyMock, return_value=False), \
+         patch.object(type(engine), "_use_claude_cli",
+                      new_callable=PropertyMock, return_value=False):
+        yield
 
 
 @pytest.mark.asyncio
