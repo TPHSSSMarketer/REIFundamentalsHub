@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from helm.assistant.memory import ConversationMemory
 from helm.assistant.prompts import MODE_PROMPTS, build_system_prompt
 from helm.models.schemas import AssistantMode, ChatRequest
@@ -71,3 +75,152 @@ def test_assistant_modes():
     assert AssistantMode.BUSINESS.value == "business"
     assert AssistantMode.PERSONAL.value == "personal"
     assert AssistantMode.REAL_ESTATE.value == "real_estate"
+
+
+# ── Smart Router Integration ─────────────────────────────────────────────────
+
+
+def test_model_for_tier_opus():
+    from helm.assistant.engine import HelmEngine
+    from helm.orchestrator.multi_ai_router import ModelTier
+
+    engine = HelmEngine()
+    assert "opus" in engine._model_for_tier(ModelTier.OPUS).lower()
+
+
+def test_model_for_tier_sonnet():
+    from helm.assistant.engine import HelmEngine
+    from helm.orchestrator.multi_ai_router import ModelTier
+
+    engine = HelmEngine()
+    result = engine._model_for_tier(ModelTier.SONNET)
+    assert "sonnet" in result.lower() or "claude" in result.lower()
+
+
+def _mock_anthropic_response(text: str):
+    """Create a mock Anthropic messages.create response."""
+    block = MagicMock()
+    block.text = text
+    response = MagicMock()
+    response.content = [block]
+    return response
+
+
+@pytest.mark.asyncio
+async def test_chat_routes_opus_for_deal_analysis():
+    """Messages with deal analysis keywords should use Opus model."""
+    from helm.assistant.engine import HelmEngine
+    from helm.config import get_settings
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("Deal looks great!"))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    request = ChatRequest(message="analyze this deal at 123 Oak St", mode=AssistantMode.REAL_ESTATE)
+    response = await engine.chat(request)
+
+    assert response.model_tier == "opus"
+    settings = get_settings()
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args[1]
+    assert call_kwargs["model"] == settings.anthropic_model_opus
+    assert response.reply == "Deal looks great!"
+
+
+@pytest.mark.asyncio
+async def test_chat_routes_sonnet_for_simple_message():
+    """Simple messages should route to Sonnet."""
+    from helm.assistant.engine import HelmEngine
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("Good morning!"))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    request = ChatRequest(message="hello, how are you?")
+    response = await engine.chat(request)
+
+    assert response.model_tier == "sonnet"
+    assert response.reply == "Good morning!"
+
+
+@pytest.mark.asyncio
+async def test_chat_routes_research_to_openrouter():
+    """Research queries should hit OpenRouter, then synthesise with Claude."""
+    from helm.assistant.engine import HelmEngine
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("Here's what I found..."))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    with patch("helm.integrations.openrouter.openrouter_client") as mock_or:
+        mock_or.search = AsyncMock(return_value={"content": "Median price is $350k..."})
+
+        request = ChatRequest(message="look up comparable sales near 30318")
+        response = await engine.chat(request)
+
+    assert response.model_tier == "perplexity_search"
+    assert "perplexity" in response.model_used
+    assert response.reply == "Here's what I found..."
+
+
+@pytest.mark.asyncio
+async def test_chat_research_fallback_when_openrouter_unconfigured():
+    """When OpenRouter has no content, fall back to Sonnet."""
+    from helm.assistant.engine import HelmEngine
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("I'll do my best without research."))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    with patch("helm.integrations.openrouter.openrouter_client") as mock_or:
+        mock_or.search = AsyncMock(return_value={"error": "OpenRouter not configured", "content": ""})
+
+        request = ChatRequest(message="look up comparable sales near 30318")
+        response = await engine.chat(request)
+
+    assert response.model_tier == "perplexity_search"
+    # Should have fallen back to Sonnet
+    assert "perplexity" not in response.model_used
+    assert response.reply == "I'll do my best without research."
+
+
+@pytest.mark.asyncio
+async def test_chat_explicit_opus_command():
+    """/opus command should force Opus model."""
+    from helm.assistant.engine import HelmEngine
+    from helm.config import get_settings
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("Deep analysis..."))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    request = ChatRequest(message="/opus what do you think of this deal?")
+    response = await engine.chat(request)
+
+    assert response.model_tier == "opus"
+    settings = get_settings()
+    call_kwargs = mock_create.call_args[1]
+    assert call_kwargs["model"] == settings.anthropic_model_opus
+
+
+@pytest.mark.asyncio
+async def test_chat_response_includes_routing_metadata():
+    """ChatResponse should include model_tier and model_used fields."""
+    from helm.assistant.engine import HelmEngine
+
+    engine = HelmEngine()
+    mock_create = AsyncMock(return_value=_mock_anthropic_response("Hi"))
+    engine._client = MagicMock()
+    engine._client.messages.create = mock_create
+
+    request = ChatRequest(message="hello")
+    response = await engine.chat(request)
+
+    assert response.model_tier != ""
+    assert response.model_used != ""
+    assert response.conversation_id != ""

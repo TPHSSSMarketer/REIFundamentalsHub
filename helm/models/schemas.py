@@ -45,6 +45,8 @@ class ChatResponse(BaseModel):
     conversation_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     reply: str
     mode: AssistantMode
+    model_tier: str = ""
+    model_used: str = ""
     sources: list[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
