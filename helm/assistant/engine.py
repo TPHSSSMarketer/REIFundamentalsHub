@@ -94,8 +94,11 @@ class HelmEngine:
             settings.ai_backend,
         )
 
-        # Build context
-        system_prompt = build_system_prompt(request.mode.value)
+        # Build context — inject user profile, rules, and memory
+        user_context = await self._load_user_context()
+        system_prompt = build_system_prompt(
+            request.mode.value, user_context=user_context,
+        )
         messages = memory.get_history(conversation_id)
 
         try:
@@ -276,6 +279,17 @@ class HelmEngine:
             messages=messages,
         )
         return response.content[0].text, model_id
+
+    async def _load_user_context(self) -> str:
+        """Load user context files (profile, rules, memory) for the system prompt."""
+        from helm.context.templates import read_context_for_prompt
+        from helm.integrations.workspace import default_workspace
+
+        try:
+            return await read_context_for_prompt(default_workspace)
+        except Exception as exc:
+            logger.warning("Could not load user context: %s", exc)
+            return ""
 
     async def daily_briefing(self) -> str:
         """Generate a morning briefing."""

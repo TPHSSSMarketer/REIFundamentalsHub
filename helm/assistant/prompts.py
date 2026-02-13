@@ -70,7 +70,7 @@ def register_plugin_modes(modes: dict[str, str]) -> None:
     _plugin_mode_prompts.update(modes)
 
 
-def build_system_prompt(mode: str, output_style: str | None = None) -> str:
+def build_system_prompt(mode: str, output_style: str | None = None, user_context: str = "") -> str:
     """Assemble the full system prompt for a given mode + output style."""
     from helm.assistant.output_styles import get_style, get_style_for_mode
     from helm.integrations.registry import registry
@@ -94,7 +94,16 @@ def build_system_prompt(mode: str, output_style: str | None = None) -> str:
             "Work with whatever information the user provides directly."
         )
 
-    return f"{HELM_IDENTITY}\n\n{mode_section}\n\n{style}{integration_note}"
+    # Inject user context (identity, rules, memory) if available
+    context_section = ""
+    if user_context:
+        context_section = (
+            "\n\n--- USER CONTEXT (loaded from their profile) ---\n"
+            f"{user_context}\n"
+            "--- END USER CONTEXT ---\n"
+        )
+
+    return f"{HELM_IDENTITY}\n\n{mode_section}\n\n{style}{integration_note}{context_section}"
 
 
 # ── Core Tool Definitions (for function-calling models) ──────────────────────

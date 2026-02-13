@@ -439,6 +439,51 @@ async def provision_context():
     return result
 
 
+# ── Onboarding ─────────────────────────────────────────────────────────────
+
+
+@router.get("/onboarding/questions")
+async def onboarding_questions():
+    """Return the onboarding questionnaire for new users."""
+    from helm.context.templates import get_onboarding_questions
+
+    return {"questions": get_onboarding_questions()}
+
+
+@router.post("/onboarding/complete")
+async def onboarding_complete(request: Request):
+    """Submit onboarding answers and provision personalised context files.
+
+    Body: ``{"answers": {"name": "Alex", "role": "Entrepreneur", ...}}``
+    """
+    from helm.context.templates import provision_from_onboarding
+
+    data = await request.json()
+    answers = data.get("answers", {})
+    if not answers:
+        return {"error": "No answers provided. Send {\"answers\": {\"name\": \"...\", ...}}"}
+    if not answers.get("name"):
+        return {"error": "At minimum, a name is required."}
+
+    result = await provision_from_onboarding(default_workspace, answers)
+    return result
+
+
+@router.get("/onboarding/status")
+async def onboarding_status():
+    """Check whether the user has completed onboarding."""
+    content = await default_workspace.read_file("USER.md")
+    if content is None:
+        return {"onboarded": False, "reason": "No USER.md found"}
+
+    text = content.decode("utf-8", errors="replace")
+    # If the file still has unfilled template placeholders, not onboarded
+    if "{name}" in text or ("[Your Name]" in text and "[amount]" in text):
+        return {"onboarded": False, "reason": "USER.md contains unfilled placeholders"}
+
+    return {"onboarded": True}
+
+
 @router.get("/context/{filename:path}")
 async def read_context_file(filename: str):
     """Read a specific context file from the workspace."""

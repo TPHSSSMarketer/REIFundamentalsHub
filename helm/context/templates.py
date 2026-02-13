@@ -2,13 +2,13 @@
 
 When a new tenant is provisioned (SaaS signup or personal setup), the system
 creates a set of living context files in their workspace.  These files are
-the "brain" of the AI assistant — the investor profile, rules, pipeline,
-contacts, market data, portfolio, and memory log.
+the "brain" of the AI assistant — the user profile, rules, goals, contacts,
+and memory log.
 
-The AI reads these files before every high-value interaction and updates
-them after deal status changes, contact interactions, and market research.
+Domain-specific templates (e.g. real estate) are registered by plugins.
+The general-purpose templates below work for any user.
 
-For SaaS: each tenant gets their own set, pre-filled with templates.
+For SaaS: each tenant gets their own set, pre-filled from onboarding answers.
 For personal use: you fill these out once, and the AI maintains them.
 """
 
@@ -525,8 +525,10 @@ async def read_context_for_prompt(workspace: VirtualWorkspace, files: list[str] 
         content = await workspace.read_file(filename)
         if content:
             text = content.decode("utf-8", errors="replace").strip()
-            # Skip template placeholders (files that haven't been filled out)
+            # Skip unfilled templates (RE-style or general-purpose)
             if "[Your Name]" in text and "[amount]" in text:
+                continue
+            if "{name}" in text and "{role}" in text:
                 continue
             sections.append(f"--- {filename} ---\n{text}")
 
@@ -558,3 +560,264 @@ _DESCRIPTIONS = {
     "docs/CRON_JOBS.md": "Scheduled automation definitions",
     "templates/deal-brief.md": "Auto-generated deal analysis format",
 }
+
+
+# ── General-Purpose Templates (non-domain-specific) ─────────────────────────
+
+GENERAL_TEMPLATES: dict[str, str] = {}
+
+GENERAL_TEMPLATES["USER.md"] = """\
+# My Profile
+
+## About Me
+- Name: {name}
+- Role / Title: {role}
+- Industry: {industry}
+- Location: {location}
+- Time Zone: {timezone}
+
+## What I Do
+{about}
+
+## Goals
+- Primary Goal: {primary_goal}
+- Secondary Goals: {secondary_goals}
+
+## Schedule & Preferences
+- Work Hours: {work_hours}
+- Sacred Time (do not disturb): {sacred_time}
+- Preferred Check-in Times: {checkin_times}
+- Communication Channel: {comm_channel}
+- Response Style Preference: {response_style}
+
+## Team & Key People
+{team}
+
+## Personal Notes
+{personal_notes}
+"""
+
+GENERAL_TEMPLATES["RULES.md"] = """\
+# Rules & Guardrails
+
+> These rules shape how Helm operates for you.
+> HARD rules are always enforced.  SOFT rules are preferences.
+
+## Hard Rules
+- Always respect my sacred time / quiet hours.
+- Never fabricate data or statistics.
+- Never take irreversible actions without my explicit confirmation.
+- Keep my information private — never share across tenants.
+{custom_hard_rules}
+
+## Soft Rules (Preferences)
+- Communication tone: {tone}
+- Detail level: {detail_level}
+- When unsure, {uncertainty_action}
+{custom_soft_rules}
+
+## Decision Framework
+When I ask you to help me decide:
+1. Present the options clearly with pros/cons.
+2. Highlight risks I might overlook.
+3. Give your recommendation with reasoning.
+4. Respect my final call.
+"""
+
+GENERAL_TEMPLATES["MEMORY.md"] = """\
+# Agent Memory & Learning Log
+> Updated automatically after meaningful interactions.
+
+---
+
+## Decision Patterns Observed
+
+(Helm will record patterns from your decisions here)
+
+---
+
+## Communication Preferences Learned
+
+(Your preferred times, formats, and styles will be logged here)
+
+---
+
+## Key Facts & Context
+
+(Important information Helm learns over time)
+
+---
+
+## What's Working Well
+
+(Effective patterns Helm identifies will be noted here)
+
+---
+
+## Corrections & Adjustments
+
+(When you correct Helm, the lesson is logged here)
+"""
+
+# Core files for general (non-domain) tenants
+GENERAL_CONTEXT_FILES = ["USER.md", "RULES.md", "MEMORY.md"]
+
+
+# ── Onboarding ──────────────────────────────────────────────────────────────
+
+# Questions asked during the onboarding flow.  Each maps to a field
+# in the general templates above.
+ONBOARDING_QUESTIONS = [
+    {
+        "id": "name",
+        "question": "What's your name?",
+        "placeholder": "e.g., Alex Rivera",
+        "required": True,
+    },
+    {
+        "id": "role",
+        "question": "What's your role or title?",
+        "placeholder": "e.g., Entrepreneur, Marketing Director, Freelance Designer",
+        "required": True,
+    },
+    {
+        "id": "industry",
+        "question": "What industry are you in?",
+        "placeholder": "e.g., Real Estate, Tech, Finance, Healthcare, Creative",
+        "required": False,
+    },
+    {
+        "id": "location",
+        "question": "Where are you located?",
+        "placeholder": "e.g., Atlanta, GA",
+        "required": False,
+    },
+    {
+        "id": "timezone",
+        "question": "What's your time zone?",
+        "placeholder": "e.g., America/New_York, America/Los_Angeles",
+        "required": False,
+    },
+    {
+        "id": "about",
+        "question": "Tell Helm about yourself in a few sentences. What do you do? What matters to you?",
+        "placeholder": "e.g., I run a small real estate investing company. I'm also building a SaaS product on the side. Family-first mindset — I want to be efficient so I can be present at home.",
+        "required": True,
+    },
+    {
+        "id": "primary_goal",
+        "question": "What's your #1 goal right now that Helm should help you with?",
+        "placeholder": "e.g., Close my first 4 rental property deals this year",
+        "required": True,
+    },
+    {
+        "id": "secondary_goals",
+        "question": "Any other goals? (comma-separated)",
+        "placeholder": "e.g., Launch SaaS MVP, improve daily routine, stay on top of finances",
+        "required": False,
+    },
+    {
+        "id": "work_hours",
+        "question": "What are your typical work hours?",
+        "placeholder": "e.g., 8am-6pm weekdays",
+        "required": False,
+    },
+    {
+        "id": "sacred_time",
+        "question": "Any times Helm should NEVER disturb you?",
+        "placeholder": "e.g., Before 7am, after 10pm, Sunday mornings",
+        "required": False,
+    },
+    {
+        "id": "comm_channel",
+        "question": "How do you prefer Helm to reach you?",
+        "placeholder": "e.g., Telegram, WhatsApp, Both",
+        "required": False,
+    },
+    {
+        "id": "response_style",
+        "question": "How should Helm talk to you?",
+        "placeholder": "e.g., Direct and concise, Detailed and thorough, Casual and friendly",
+        "required": False,
+    },
+    {
+        "id": "tone",
+        "question": "Preferred tone for communications?",
+        "placeholder": "e.g., Professional but warm, Casual, Strictly business",
+        "required": False,
+    },
+    {
+        "id": "team",
+        "question": "Key people Helm should know about? (name - role - notes)",
+        "placeholder": "e.g., Sarah - Business Partner - handles marketing\nMike - CPA - tax questions go to him",
+        "required": False,
+    },
+    {
+        "id": "personal_notes",
+        "question": "Anything else Helm should know about you?",
+        "placeholder": "e.g., I'm a morning person. I hate unnecessary meetings. I learn best from examples.",
+        "required": False,
+    },
+]
+
+
+def get_onboarding_questions() -> list[dict]:
+    """Return the onboarding questionnaire."""
+    return ONBOARDING_QUESTIONS
+
+
+async def provision_from_onboarding(
+    workspace: VirtualWorkspace,
+    answers: dict[str, str],
+) -> dict:
+    """Create context files populated from onboarding questionnaire answers.
+
+    ``answers`` is a dict mapping question ``id`` → user's answer.
+    Unanswered optional fields get sensible defaults.
+    """
+    defaults = {
+        "name": "User",
+        "role": "Professional",
+        "industry": "Not specified",
+        "location": "Not specified",
+        "timezone": "UTC",
+        "about": "No description provided yet.",
+        "primary_goal": "Not specified yet.",
+        "secondary_goals": "None specified yet.",
+        "work_hours": "9am-5pm",
+        "sacred_time": "After 10pm",
+        "checkin_times": "Morning and evening",
+        "comm_channel": "Telegram",
+        "response_style": "Direct and concise",
+        "tone": "Professional but warm",
+        "detail_level": "Concise with option to drill deeper",
+        "uncertainty_action": "ask me rather than guess",
+        "team": "(No team members added yet)",
+        "personal_notes": "(Nothing added yet)",
+        "custom_hard_rules": "",
+        "custom_soft_rules": "",
+    }
+
+    # Merge user answers over defaults
+    fields = {**defaults, **{k: v for k, v in answers.items() if v}}
+
+    created = []
+    for filename in GENERAL_CONTEXT_FILES:
+        template = GENERAL_TEMPLATES.get(filename, "")
+        if not template:
+            continue
+
+        # Fill in template placeholders
+        try:
+            content = template.format(**fields)
+        except KeyError:
+            # Template uses a key not in fields — fall back to raw template
+            content = template
+
+        result = await workspace.write_file(filename, content.encode("utf-8"))
+        if result:
+            created.append(filename)
+            logger.info("Onboarding: created %s", filename)
+
+    logger.info("Onboarding complete: %d files created", len(created))
+    return {"created": created, "answers_received": list(answers.keys())}
