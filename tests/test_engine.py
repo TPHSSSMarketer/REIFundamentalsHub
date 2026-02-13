@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -107,6 +107,14 @@ def _mock_anthropic_response(text: str):
     return response
 
 
+def _force_anthropic(engine):
+    """Context manager to force Anthropic backend for testing."""
+    return patch.object(
+        type(engine), "_use_openrouter",
+        new_callable=PropertyMock, return_value=False,
+    )
+
+
 @pytest.mark.asyncio
 async def test_chat_routes_opus_for_deal_analysis():
     """Messages with deal analysis keywords should use Opus model."""
@@ -119,7 +127,8 @@ async def test_chat_routes_opus_for_deal_analysis():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="analyze this deal at 123 Oak St", mode=AssistantMode.REAL_ESTATE)
-    response = await engine.chat(request)
+    with _force_anthropic(engine):
+        response = await engine.chat(request)
 
     assert response.model_tier == "opus"
     settings = get_settings()
@@ -140,7 +149,8 @@ async def test_chat_routes_sonnet_for_simple_message():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="hello, how are you?")
-    response = await engine.chat(request)
+    with _force_anthropic(engine):
+        response = await engine.chat(request)
 
     assert response.model_tier == "sonnet"
     assert response.reply == "Good morning!"
@@ -156,7 +166,8 @@ async def test_chat_routes_research_to_openrouter():
     engine._client = MagicMock()
     engine._client.messages.create = mock_create
 
-    with patch("helm.integrations.openrouter.openrouter_client") as mock_or:
+    with patch("helm.integrations.openrouter.openrouter_client") as mock_or, \
+         _force_anthropic(engine):
         mock_or.search = AsyncMock(return_value={"content": "Median price is $350k..."})
 
         request = ChatRequest(message="look up comparable sales near 30318")
@@ -177,7 +188,8 @@ async def test_chat_research_fallback_when_openrouter_unconfigured():
     engine._client = MagicMock()
     engine._client.messages.create = mock_create
 
-    with patch("helm.integrations.openrouter.openrouter_client") as mock_or:
+    with patch("helm.integrations.openrouter.openrouter_client") as mock_or, \
+         _force_anthropic(engine):
         mock_or.search = AsyncMock(return_value={"error": "OpenRouter not configured", "content": ""})
 
         request = ChatRequest(message="look up comparable sales near 30318")
@@ -201,7 +213,8 @@ async def test_chat_explicit_opus_command():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="/opus what do you think of this deal?")
-    response = await engine.chat(request)
+    with _force_anthropic(engine):
+        response = await engine.chat(request)
 
     assert response.model_tier == "opus"
     settings = get_settings()
@@ -220,8 +233,37 @@ async def test_chat_response_includes_routing_metadata():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="hello")
-    response = await engine.chat(request)
+    with _force_anthropic(engine):
+        response = await engine.chat(request)
 
     assert response.model_tier != ""
     assert response.model_used != ""
     assert response.conversation_id != ""
+
+
+# ── OpenRouter Backend Tests ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_chat_via_openrouter_backend():
+    """When ai_backend=openrouter, chat should route through OpenRouter."""
+    from helm.assistant.engine import HelmEngine
+
+    engine = HelmEngine()
+
+    mock_or_call = AsyncMock(return_value={
+        "content": "Hello from OpenRouter!",
+        "model": "anthropic/claude-sonnet-4-5-20250929",
+    })
+
+    with patch.object(type(engine), "_use_openrouter",
+                      new_callable=PropertyMock, return_value=True), \
+         patch("helm.integrations.openrouter.openrouter_client") as mock_or:
+        mock_or._call = mock_or_call
+
+        request = ChatRequest(message="hello")
+        response = await engine.chat(request)
+
+    assert response.reply == "Hello from OpenRouter!"
+    assert response.model_tier == "sonnet"
+    mock_or_call.assert_called_once()

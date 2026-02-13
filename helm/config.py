@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # ── OpenRouter (multi-model gateway + Perplexity research) ─────────
     openrouter_api_key: str = ""
 
+    # ── AI Backend ──────────────────────────────────────────────────────
+    ai_backend: str = "anthropic"  # "anthropic" or "openrouter"
+    openrouter_model: str = "anthropic/claude-sonnet-4-5-20250929"
+    openrouter_model_opus: str = "anthropic/claude-opus-4-6"
+
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./helm.db"
 

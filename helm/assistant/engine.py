@@ -5,6 +5,10 @@ Uses the multi-model router to send each message to the right AI model:
   - Sonnet for routine tasks (summaries, reminders, simple Q&A)
   - Perplexity Sonar Pro for web research (comps, market data, news)
   - Perplexity Deep Research for comprehensive reports
+
+Supports two AI backends (configured via AI_BACKEND env var):
+  - "anthropic" — direct Anthropic API (requires API credits)
+  - "openrouter" — OpenRouter gateway (supports Claude + many other models)
 """
 
 from __future__ import annotations
@@ -47,12 +51,22 @@ class HelmEngine:
             return settings.anthropic_model_opus
         return settings.anthropic_model  # Sonnet default
 
+    def _openrouter_model_for_tier(self, tier: str) -> str:
+        """Map a model tier to an OpenRouter model ID."""
+        if tier == ModelTier.OPUS:
+            return settings.openrouter_model_opus
+        return settings.openrouter_model  # Sonnet default
+
+    @property
+    def _use_openrouter(self) -> bool:
+        return settings.ai_backend.lower() == "openrouter"
+
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a user message and return Helm's response.
 
         Uses the smart router to classify intent and pick the right model:
-          - Opus / Sonnet → Anthropic API directly
-          - Perplexity tiers → OpenRouter, then Opus synthesises the result
+          - Opus / Sonnet → Anthropic API or OpenRouter (based on ai_backend)
+          - Perplexity tiers → OpenRouter, then synthesised by the active backend
         """
         conversation_id = request.conversation_id or uuid.uuid4().hex
 
@@ -65,9 +79,10 @@ class HelmEngine:
         model_used = ""
 
         logger.info(
-            "Router: '%s' → tier=%s",
+            "Router: '%s' → tier=%s  backend=%s",
             request.message[:80],
             tier,
+            settings.ai_backend,
         )
 
         # Build context
@@ -81,7 +96,13 @@ class HelmEngine:
                     clean_message, tier, system_prompt, messages,
                 )
 
-            # ── Anthropic tiers (Opus / Sonnet) ─────────────────────────
+            # ── OpenRouter backend ─────────────────────────────────────
+            elif self._use_openrouter:
+                reply_text, model_used = await self._chat_via_openrouter(
+                    tier, system_prompt, messages,
+                )
+
+            # ── Anthropic direct ───────────────────────────────────────
             else:
                 model_id = self._model_for_tier(tier)
                 model_used = model_id
@@ -100,6 +121,12 @@ class HelmEngine:
                 "I'm having trouble reaching my AI backend right now. "
                 "Please check the API key configuration and try again."
             )
+        except Exception as exc:
+            logger.error("Chat error: %s", exc)
+            reply_text = (
+                "Something went wrong processing your message. "
+                "Please try again."
+            )
 
         # Store assistant reply
         memory.add(conversation_id, "assistant", reply_text)
@@ -112,6 +139,40 @@ class HelmEngine:
             model_used=model_used,
         )
 
+    async def _chat_via_openrouter(
+        self,
+        tier: str,
+        system_prompt: str,
+        messages: list[dict],
+    ) -> tuple[str, str]:
+        """Route a chat request through OpenRouter."""
+        from helm.integrations.openrouter import openrouter_client
+
+        model_id = self._openrouter_model_for_tier(tier)
+
+        # Build messages list with system prompt
+        or_messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        or_messages.extend(messages)
+
+        result = await openrouter_client._call(
+            messages=or_messages,
+            model=model_id,
+            max_tokens=4096,
+        )
+
+        content = result.get("content", "")
+        if not content:
+            error = result.get("error", "unknown error")
+            logger.error("OpenRouter chat failed: %s", error)
+            return (
+                "I'm having trouble reaching my AI backend right now. "
+                f"OpenRouter error: {error}"
+            ), model_id
+
+        actual_model = result.get("model", model_id)
+        logger.info("OpenRouter response via %s (%d chars)", actual_model, len(content))
+        return content, actual_model
+
     async def _research_and_synthesise(
         self,
         query: str,
@@ -119,8 +180,9 @@ class HelmEngine:
         system_prompt: str,
         messages: list[dict],
     ) -> tuple[str, str]:
-        """Run a Perplexity research call, then have Claude synthesise the results.
+        """Run a Perplexity research call, then synthesise the results.
 
+        Uses whichever backend is active (Anthropic or OpenRouter) for synthesis.
         Returns (reply_text, model_used_label).
         """
         from helm.integrations.openrouter import openrouter_client
@@ -133,20 +195,13 @@ class HelmEngine:
 
         research_content = research.get("content", "")
 
-        # If OpenRouter isn't configured or returned nothing, fall back to Sonnet
+        # If OpenRouter isn't configured or returned nothing, fall back
         if not research_content:
             error = research.get("error", "no content returned")
-            logger.warning("Research unavailable (%s), falling back to Sonnet", error)
-            model_id = settings.anthropic_model
-            response = await self.client.messages.create(
-                model=model_id,
-                max_tokens=4096,
-                system=system_prompt,
-                messages=messages,
-            )
-            return response.content[0].text, model_id
+            logger.warning("Research unavailable (%s), falling back to chat", error)
+            return await self._synthesise_chat(system_prompt, messages)
 
-        # 2. Synthesise with Sonnet (fast + cheap) using the research as context
+        # 2. Synthesise using the active backend
         synthesis_prompt = (
             f"{system_prompt}\n\n"
             f"--- Web Research Results ---\n{research_content}\n"
@@ -155,16 +210,28 @@ class HelmEngine:
             f"Cite specific data points. If research is insufficient, say so."
         )
 
+        reply_text, model_id = await self._synthesise_chat(synthesis_prompt, messages)
+        return reply_text, f"perplexity+{model_id}"
+
+    async def _synthesise_chat(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+    ) -> tuple[str, str]:
+        """Run a chat completion using whichever backend is active."""
+        if self._use_openrouter:
+            return await self._chat_via_openrouter(
+                ModelTier.SONNET, system_prompt, messages,
+            )
+
         model_id = settings.anthropic_model
         response = await self.client.messages.create(
             model=model_id,
             max_tokens=4096,
-            system=synthesis_prompt,
+            system=system_prompt,
             messages=messages,
         )
-
-        model_label = f"perplexity+{model_id}"
-        return response.content[0].text, model_label
+        return response.content[0].text, model_id
 
     async def daily_briefing(self) -> str:
         """Generate a morning briefing."""

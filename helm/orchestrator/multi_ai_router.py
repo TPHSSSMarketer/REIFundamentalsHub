@@ -179,12 +179,15 @@ async def classify_task_smart(message: str, mode: str = "business") -> str:
 
     # 3. AI classification (costs ~0.1¢, takes ~0.5s)
     try:
-        import anthropic
         from helm.config import get_settings
 
         settings = get_settings()
-        if not settings.anthropic_api_key:
+
+        # Skip AI classification when using OpenRouter backend or no Anthropic key
+        if settings.ai_backend.lower() == "openrouter" or not settings.anthropic_api_key:
             return ModelTier.SONNET
+
+        import anthropic
 
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await client.messages.create(
