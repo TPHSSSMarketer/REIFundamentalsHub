@@ -29,9 +29,16 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
-    logger.info("Starting Helm AI Assistant v0.2.0")
+    logger.info("Starting Helm AI Assistant v0.3.0")
     await init_db()
     logger.info("Database initialized")
+
+    # Load persisted conversations into memory
+    from helm.assistant.memory import memory
+
+    loaded = await memory.load_from_db()
+    if loaded:
+        logger.info("Restored %d conversations from database", loaded)
 
     # ── Plugin System ─────────────────────────────────────────────────────
     from helm.plugins import plugin_manager
@@ -91,7 +98,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Helm AI Assistant",
     description="Your AI-powered command center for business and life.",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 

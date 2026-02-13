@@ -6,6 +6,8 @@ and mounted at /api/plugins/{plugin_name}/.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 
 from helm.agents.definitions import list_agents
@@ -772,3 +774,367 @@ async def system_info():
         "app_env": s.app_env,
         "debug": s.app_debug,
     }
+
+
+# ── GoHighLevel OAuth ─────────────────────────────────────────────────────
+
+
+@router.get("/ghl/auth/url")
+async def ghl_auth_url():
+    """Get the GHL OAuth authorization URL."""
+    from helm.integrations.ghl import ghl_client
+
+    url = ghl_client.get_auth_url()
+    if not url:
+        return {"error": "GHL not configured (missing client_id)"}
+    return {"url": url}
+
+
+@router.get("/ghl/auth/callback")
+async def ghl_auth_callback(code: str = ""):
+    """Handle GHL OAuth callback — exchange code for tokens."""
+    if not code:
+        return {"error": "No authorization code provided"}
+    from helm.integrations.ghl import ghl_client
+
+    result = await ghl_client.exchange_code(code)
+    if "error" in result:
+        return {"error": result["error"]}
+    return {"status": "connected", "location_id": result.get("locationId")}
+
+
+@router.get("/ghl/status")
+async def ghl_status():
+    """Check GHL connection status."""
+    from helm.integrations.ghl import ghl_client
+
+    return ghl_client.get_connection_status()
+
+
+@router.get("/ghl/tools")
+async def ghl_tools():
+    """List available GHL MCP tools."""
+    from helm.integrations.ghl import ghl_client
+
+    return {"tools": ghl_client.get_tool_definitions()}
+
+
+@router.post("/ghl/tools/execute")
+async def execute_ghl_tool(request: Request):
+    """Execute a GHL MCP tool call."""
+    from helm.integrations.ghl import ghl_client
+
+    data = await request.json()
+    tool_name = data.get("tool", "")
+    params = data.get("params", {})
+    if not tool_name:
+        return {"error": "No tool name provided"}
+    return await ghl_client.execute_tool(tool_name, params)
+
+
+@router.get("/ghl/pipelines")
+async def ghl_pipelines():
+    """List GHL pipelines."""
+    from helm.integrations.ghl import ghl_client
+
+    pipelines = await ghl_client.get_pipelines()
+    return {"pipelines": pipelines}
+
+
+@router.get("/ghl/contacts")
+async def ghl_contacts(q: str = ""):
+    """Search GHL contacts."""
+    from helm.integrations.ghl import ghl_client
+
+    if not q:
+        return {"error": "Provide a search query with ?q="}
+    contacts = await ghl_client.search_contacts(q)
+    return {"contacts": contacts}
+
+
+# ── Agent Execution ───────────────────────────────────────────────────────
+
+
+@router.post("/agents/run")
+async def run_agent(request: Request):
+    """Run a specific sub-agent on a task."""
+    from helm.orchestrator.agent_spawner import agent_spawner
+
+    data = await request.json()
+    agent_name = data.get("agent", "")
+    task = data.get("task", "")
+    context = data.get("context", "")
+    mode = data.get("mode", "persona")
+
+    if not agent_name or not task:
+        return {"error": "Both 'agent' and 'task' are required"}
+
+    result = await agent_spawner.run_agent(agent_name, task, context=context, mode=mode)
+    return {
+        "agent": result.agent_name,
+        "status": result.status,
+        "output": result.output,
+        "duration_ms": result.duration_ms,
+        "model_used": result.model_used,
+        "error": result.error,
+    }
+
+
+@router.post("/agents/run-parallel")
+async def run_agents_parallel(request: Request):
+    """Run multiple agents in parallel."""
+    from helm.orchestrator.agent_spawner import agent_spawner
+
+    data = await request.json()
+    tasks = data.get("tasks", [])
+    context = data.get("context", "")
+
+    if not tasks:
+        return {"error": "Provide a 'tasks' array with [{agent, task}, ...]"}
+
+    results = await agent_spawner.run_parallel(tasks, context=context)
+    return {
+        "results": [
+            {
+                "agent": r.agent_name,
+                "status": r.status,
+                "output": r.output,
+                "duration_ms": r.duration_ms,
+                "error": r.error,
+            }
+            for r in results
+        ]
+    }
+
+
+@router.get("/agents/logs")
+async def agent_logs(limit: int = 50):
+    """Get recent agent execution logs."""
+    try:
+        from helm.models.database import AgentLog, async_session
+        from sqlalchemy import select
+
+        async with async_session() as session:
+            result = await session.execute(
+                select(AgentLog).order_by(AgentLog.created_at.desc()).limit(limit)
+            )
+            logs = result.scalars().all()
+            return {
+                "logs": [
+                    {
+                        "id": log.id,
+                        "agent_name": log.agent_name,
+                        "task": log.task[:200],
+                        "status": log.status,
+                        "duration_ms": log.duration_ms,
+                        "error": log.error,
+                        "created_at": log.created_at.isoformat() if log.created_at else None,
+                    }
+                    for log in logs
+                ]
+            }
+    except Exception as exc:
+        return {"logs": [], "error": str(exc)}
+
+
+# ── Tenant Management ─────────────────────────────────────────────────────
+
+
+@router.get("/tenants")
+async def list_tenants():
+    """List all tenants."""
+    from helm.integrations.tenant_manager import tenant_manager
+
+    tenants = await tenant_manager.list_tenants()
+    return {"tenants": tenants}
+
+
+@router.post("/tenants")
+async def create_tenant(request: Request):
+    """Create a new tenant."""
+    from helm.integrations.tenant_manager import tenant_manager
+
+    data = await request.json()
+    name = data.get("name", "")
+    if not name:
+        return {"error": "Tenant name is required"}
+    return await tenant_manager.create_tenant(
+        name=name,
+        ghl_location_id=data.get("ghl_location_id"),
+        telegram_chat_id=data.get("telegram_chat_id"),
+        whatsapp_phone=data.get("whatsapp_phone"),
+    )
+
+
+@router.get("/tenants/{tenant_id}")
+async def get_tenant(tenant_id: str):
+    """Get tenant details."""
+    from helm.integrations.tenant_manager import tenant_manager
+
+    tenant = await tenant_manager.get_tenant(tenant_id)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return tenant
+
+
+@router.put("/tenants/{tenant_id}")
+async def update_tenant(tenant_id: str, request: Request):
+    """Update tenant configuration."""
+    from helm.integrations.tenant_manager import tenant_manager
+
+    data = await request.json()
+    result = await tenant_manager.update_tenant(tenant_id, data)
+    if not result:
+        return {"error": "Tenant not found or update failed"}
+    return result
+
+
+@router.post("/tenants/onboard")
+async def onboard_tenant(request: Request):
+    """Full tenant onboarding flow."""
+    from helm.integrations.tenant_manager import tenant_manager
+
+    data = await request.json()
+    name = data.get("name", "")
+    if not name:
+        return {"error": "Name is required"}
+    return await tenant_manager.provision_from_onboarding(
+        name=name,
+        business_type=data.get("business_type", ""),
+        goals=data.get("goals", []),
+        schedule_prefs=data.get("schedule_prefs"),
+    )
+
+
+# ── ElevenLabs Voice ──────────────────────────────────────────────────────
+
+
+@router.get("/voice/elevenlabs/status")
+async def elevenlabs_status():
+    """Check ElevenLabs connection status."""
+    from helm.integrations.elevenlabs import elevenlabs_client
+
+    return elevenlabs_client.get_connection_status()
+
+
+@router.get("/voice/elevenlabs/voices")
+async def elevenlabs_voices():
+    """List available ElevenLabs voices."""
+    from helm.integrations.elevenlabs import elevenlabs_client
+
+    voices = await elevenlabs_client.list_voices()
+    return {"voices": voices}
+
+
+@router.post("/voice/elevenlabs/synthesize")
+async def elevenlabs_synthesize(request: Request):
+    """Synthesize text using ElevenLabs TTS."""
+    from helm.integrations.elevenlabs import elevenlabs_client
+
+    data = await request.json()
+    text = data.get("text", "")
+    if not text:
+        return {"error": "No text provided"}
+
+    audio = await elevenlabs_client.synthesize(
+        text,
+        voice_id=data.get("voice_id"),
+        model_id=data.get("model_id", "eleven_turbo_v2_5"),
+    )
+    if not audio:
+        return {"error": "ElevenLabs synthesis failed or not configured"}
+
+    import base64
+    return {
+        "audio_base64": base64.b64encode(audio).decode(),
+        "format": "mp3",
+        "size_bytes": len(audio),
+    }
+
+
+# ── Goals ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/goals")
+async def list_goals(status: str = "active"):
+    """List goals."""
+    try:
+        from helm.models.database import Goal, async_session
+        from sqlalchemy import select
+
+        async with async_session() as session:
+            query = select(Goal).order_by(Goal.created_at.desc())
+            if status:
+                query = query.where(Goal.status == status)
+            result = await session.execute(query.limit(50))
+            goals = result.scalars().all()
+            return {
+                "goals": [
+                    {
+                        "id": g.id,
+                        "goal": g.goal,
+                        "status": g.status,
+                        "target_date": g.target_date,
+                        "progress_notes": g.progress_notes or [],
+                        "created_at": g.created_at.isoformat() if g.created_at else None,
+                    }
+                    for g in goals
+                ]
+            }
+    except Exception as exc:
+        return {"goals": [], "error": str(exc)}
+
+
+@router.post("/goals")
+async def create_goal(request: Request):
+    """Create a new goal."""
+    try:
+        from helm.models.database import Goal, async_session
+
+        data = await request.json()
+        goal_text = data.get("goal", "")
+        if not goal_text:
+            return {"error": "Goal text is required"}
+
+        async with async_session() as session:
+            goal = Goal(
+                goal=goal_text,
+                status="active",
+                target_date=data.get("target_date"),
+                tenant_id=data.get("tenant_id"),
+            )
+            session.add(goal)
+            await session.commit()
+            await session.refresh(goal)
+            return {"id": goal.id, "goal": goal.goal, "status": goal.status}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.put("/goals/{goal_id}")
+async def update_goal(goal_id: str, request: Request):
+    """Update a goal's status or notes."""
+    try:
+        from helm.models.database import Goal, async_session
+        from sqlalchemy import select
+
+        data = await request.json()
+        async with async_session() as session:
+            result = await session.execute(
+                select(Goal).where(Goal.id == goal_id)
+            )
+            goal = result.scalar_one_or_none()
+            if not goal:
+                return {"error": "Goal not found"}
+
+            if "status" in data:
+                goal.status = data["status"]
+            if "progress_note" in data:
+                notes = goal.progress_notes or []
+                notes.append({"note": data["progress_note"], "at": datetime.now(timezone.utc).isoformat()})
+                goal.progress_notes = notes
+
+            await session.commit()
+            return {"id": goal.id, "status": goal.status}
+    except Exception as exc:
+        return {"error": str(exc)}

@@ -186,6 +186,26 @@ def register_all_plugins() -> None:
         category="ai",
     )
 
+    # GoHighLevel CRM
+    from helm.integrations.ghl import ghl_client
+
+    registry.register(
+        "ghl",
+        ghl_client,
+        description="GoHighLevel — CRM, pipelines, tasks, calendar, messaging",
+        category="crm",
+    )
+
+    # ElevenLabs premium voice
+    from helm.integrations.elevenlabs import elevenlabs_client
+
+    registry.register(
+        "elevenlabs",
+        elevenlabs_client,
+        description="ElevenLabs — premium TTS and conversational AI agent",
+        category="voice",
+    )
+
     # Supabase memory (imported lazily)
     try:
         from helm.integrations.supabase_memory import supabase_memory

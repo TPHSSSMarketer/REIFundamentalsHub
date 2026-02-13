@@ -79,8 +79,8 @@ class HelmEngine:
         """
         conversation_id = request.conversation_id or uuid.uuid4().hex
 
-        # Store the user message
-        memory.add(conversation_id, "user", request.message)
+        # Store the user message (in-memory + persist to DB)
+        await memory.add_and_persist(conversation_id, "user", request.message)
 
         # ── Smart routing ────────────────────────────────────────────────
         tier = await classify_task_smart(request.message, mode=request.mode.value)
@@ -127,8 +127,8 @@ class HelmEngine:
                 "Please try again."
             )
 
-        # Store assistant reply
-        memory.add(conversation_id, "assistant", reply_text)
+        # Store assistant reply (in-memory + persist to DB)
+        await memory.add_and_persist(conversation_id, "assistant", reply_text)
 
         return ChatResponse(
             conversation_id=conversation_id,

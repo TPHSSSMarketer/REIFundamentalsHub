@@ -87,11 +87,20 @@ class Settings(BaseSettings):
     workspace_enabled: bool = True
     workspace_max_size_mb: int = 500   # Per-tenant limit
 
+    # ── ElevenLabs (premium voice) ────────────────────────────────────────
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = ""       # Your preferred voice
+    elevenlabs_agent_id: str = ""       # Conversational AI agent ID
+
     # ── Smart Check-ins ─────────────────────────────────────────────────
     checkin_enabled: bool = False
     checkin_interval_minutes: int = 30
     checkin_quiet_hours_start: int = 22   # 10pm
     checkin_quiet_hours_end: int = 7      # 7am
+
+    # ── Admin ─────────────────────────────────────────────────────────────
+    admin_tenant_id: str = ""           # Your personal tenant ID
+    telegram_admin_user_id: str = ""    # Telegram user ID whitelist
 
     # ── Logging ──────────────────────────────────────────────────────────
     log_level: str = "INFO"

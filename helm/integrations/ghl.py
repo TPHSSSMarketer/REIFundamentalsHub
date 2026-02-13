@@ -242,6 +242,113 @@ class GHLClient:
         data = await self._get("/locations/custom-fields", params={"locationId": loc})
         return data.get("customFields", []) if data else []
 
+    # ── OAuth Flow ────────────────────────────────────────────────────────
+
+    def get_auth_url(self, scopes: str = "contacts.readonly contacts.write opportunities.readonly opportunities.write calendars.readonly calendars.write conversations.readonly conversations.write") -> str | None:
+        """Generate the OAuth authorization URL for GHL app installation."""
+        if not self._client_id:
+            return None
+        redirect = settings.ghl_redirect_uri or "http://localhost:8000/api/ghl/auth/callback"
+        return (
+            f"{self.API_BASE}/oauth/chooselocation"
+            f"?response_type=code"
+            f"&redirect_uri={redirect}"
+            f"&client_id={self._client_id}"
+            f"&scope={scopes}"
+        )
+
+    async def exchange_code(self, code: str) -> dict:
+        """Exchange an authorization code for access + refresh tokens."""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{self.API_BASE}/oauth/token",
+                    data={
+                        "client_id": self._client_id,
+                        "client_secret": self._client_secret,
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": settings.ghl_redirect_uri,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                self._access_token = data["access_token"]
+                self._refresh_token = data.get("refresh_token", "")
+                self._location_id = data.get("locationId", self._location_id)
+                self._token_expires_at = time.time() + data.get("expires_in", 86400)
+                logger.info("GHL OAuth completed. Location: %s", self._location_id)
+                return data
+        except httpx.HTTPError as exc:
+            logger.error("GHL OAuth code exchange failed: %s", exc)
+            return {"error": str(exc)}
+
+    def get_connection_status(self) -> dict:
+        """Return current connection status for the dashboard."""
+        return {
+            "configured": self.is_configured,
+            "has_tokens": bool(self._access_token),
+            "location_id": self._location_id or None,
+        }
+
+    # ── MCP Tool Definitions ─────────────────────────────────────────────
+
+    def get_tool_definitions(self) -> list[dict]:
+        """Return MCP-compatible tool definitions for Claude Code."""
+        return [
+            {"name": "ghl_search_contacts", "description": "Search GHL contacts by name/tag/email/phone", "parameters": {"query": "string", "locationId": "string (optional)"}},
+            {"name": "ghl_get_contact", "description": "Get full contact details", "parameters": {"contactId": "string"}},
+            {"name": "ghl_create_contact", "description": "Create a new contact", "parameters": {"data": "object (firstName, lastName, email, phone, tags)"}},
+            {"name": "ghl_update_contact", "description": "Update contact fields/tags", "parameters": {"contactId": "string", "data": "object"}},
+            {"name": "ghl_get_opportunities", "description": "Get deals from a pipeline", "parameters": {"pipelineId": "string", "stageId": "string (optional)", "status": "string (optional)"}},
+            {"name": "ghl_create_opportunity", "description": "Create a new deal", "parameters": {"data": "object (name, pipelineId, pipelineStageId, contactId, monetaryValue)"}},
+            {"name": "ghl_update_opportunity", "description": "Update deal or move stages", "parameters": {"opportunityId": "string", "data": "object"}},
+            {"name": "ghl_get_pipelines", "description": "List all pipelines and stages", "parameters": {"locationId": "string (optional)"}},
+            {"name": "ghl_get_tasks", "description": "Get tasks (today/overdue)", "parameters": {"contactId": "string (optional)"}},
+            {"name": "ghl_create_task", "description": "Create a task", "parameters": {"data": "object (title, body, dueDate, contactId)"}},
+            {"name": "ghl_complete_task", "description": "Mark task complete", "parameters": {"taskId": "string"}},
+            {"name": "ghl_get_calendar_events", "description": "Get calendar events", "parameters": {"startDate": "string", "endDate": "string"}},
+            {"name": "ghl_create_calendar_event", "description": "Schedule an event", "parameters": {"data": "object (title, startTime, endTime, calendarId)"}},
+            {"name": "ghl_send_message", "description": "Send message via GHL", "parameters": {"contactId": "string", "message": "string", "channel": "string (sms/email/whatsapp)"}},
+            {"name": "ghl_get_notes", "description": "Get contact notes", "parameters": {"contactId": "string"}},
+            {"name": "ghl_add_note", "description": "Add note to contact", "parameters": {"contactId": "string", "note": "string"}},
+        ]
+
+    async def execute_tool(self, tool_name: str, params: dict) -> dict:
+        """Execute an MCP tool call. Returns the result or error."""
+        if not self.is_configured:
+            return {"error": "GHL not configured"}
+
+        tool_map = {
+            "ghl_search_contacts": lambda p: self.search_contacts(p["query"], p.get("locationId")),
+            "ghl_get_contact": lambda p: self.get_contact(p["contactId"]),
+            "ghl_create_contact": lambda p: self.create_contact(p.get("data", p)),
+            "ghl_update_contact": lambda p: self.update_contact(p["contactId"], p.get("data", {})),
+            "ghl_get_opportunities": lambda p: self.get_opportunities(p["pipelineId"], p.get("stageId"), p.get("status")),
+            "ghl_create_opportunity": lambda p: self.create_opportunity(p.get("data", p)),
+            "ghl_update_opportunity": lambda p: self.update_opportunity(p["opportunityId"], p.get("data", {})),
+            "ghl_get_pipelines": lambda p: self.get_pipelines(p.get("locationId")),
+            "ghl_get_tasks": lambda p: self.get_tasks(p.get("contactId")),
+            "ghl_create_task": lambda p: self.create_task(p.get("data", p)),
+            "ghl_complete_task": lambda p: self.complete_task(p["taskId"]),
+            "ghl_get_calendar_events": lambda p: self.get_calendar_events(p["startDate"], p["endDate"]),
+            "ghl_create_calendar_event": lambda p: self.create_calendar_event(p.get("data", p)),
+            "ghl_send_message": lambda p: self.send_message(p["contactId"], p["message"], p.get("channel", "sms")),
+            "ghl_get_notes": lambda p: self.get_notes(p["contactId"]),
+            "ghl_add_note": lambda p: self.add_note(p["contactId"], p["note"]),
+        }
+
+        handler = tool_map.get(tool_name)
+        if not handler:
+            return {"error": f"Unknown tool: {tool_name}"}
+
+        try:
+            result = await handler(params)
+            return {"result": result}
+        except Exception as exc:
+            logger.error("GHL tool %s failed: %s", tool_name, exc)
+            return {"error": str(exc)}
+
 
 # Singleton
 ghl_client = GHLClient()
