@@ -8,11 +8,14 @@ from helm.agents.definitions import get_agent, list_agents
 from helm.assistant.engine import helm_engine
 from helm.assistant.memory import memory
 from helm.checkins.scheduler import checkin_scheduler
+from helm.integrations.file_manager import file_manager
+from helm.integrations.google_drive import google_drive_client
 from helm.integrations.registry import registry
 from helm.integrations.reifundamentals import reifundamentals_client
 from helm.integrations.telegram import telegram_bot
 from helm.integrations.voice import voice_processor
 from helm.integrations.whatsapp import whatsapp_client
+from helm.integrations.workspace import default_workspace
 from helm.models.schemas import (
     AssistantMode,
     ChatRequest,
@@ -250,3 +253,178 @@ async def voice_chat(file: UploadFile):
         }
 
     return {"text": reply_text, "audio_base64": None}
+
+
+# ── File Management ────────────────────────────────────────────────────────
+
+
+@router.get("/files")
+async def list_files(path: str = "/"):
+    """List files at a path. Supports prefixes: drive://, ws://, or default."""
+    if not file_manager.active_backends:
+        return {"path": path, "files": [], "note": "No file backends configured"}
+    files = await file_manager.list_files(path)
+    return {
+        "path": path,
+        "files": [
+            {
+                "name": f.name,
+                "path": f.path,
+                "mime_type": f.mime_type,
+                "size_bytes": f.size_bytes,
+                "is_folder": f.is_folder,
+                "backend": f.backend,
+                "modified_at": f.modified_at.isoformat() if f.modified_at else None,
+            }
+            for f in files
+        ],
+    }
+
+
+@router.get("/files/read")
+async def read_file(path: str):
+    """Read a file's contents. Returns base64-encoded data."""
+    import base64
+
+    if not file_manager.active_backends:
+        return {"error": "No file backends configured", "path": path}
+    content = await file_manager.read_file(path)
+    if content is None:
+        return {"error": "File not found or not readable", "path": path}
+    return {
+        "path": path,
+        "size_bytes": len(content),
+        "content_base64": base64.b64encode(content).decode(),
+    }
+
+
+@router.post("/files/write")
+async def write_file(request: Request):
+    """Write content to a file. Accepts JSON with path, content (base64), and optional mime_type."""
+    import base64
+
+    data = await request.json()
+    path = data.get("path", "")
+    if not path:
+        return {"error": "No path provided"}
+    if not file_manager.active_backends:
+        return {"error": "No file backends configured"}
+
+    content_b64 = data.get("content_base64", "")
+    content_text = data.get("content_text", "")
+    mime_type = data.get("mime_type", "")
+
+    if content_b64:
+        content = base64.b64decode(content_b64)
+    elif content_text:
+        content = content_text.encode("utf-8")
+    else:
+        return {"error": "No content provided (use content_base64 or content_text)"}
+
+    result = await file_manager.write_file(path, content, mime_type)
+    if result is None:
+        return {"error": "Failed to write file", "path": path}
+    return {"status": "ok", "file": {"name": result.name, "path": result.path, "backend": result.backend}}
+
+
+@router.post("/files/folder")
+async def create_folder(request: Request):
+    """Create a folder at the given path."""
+    data = await request.json()
+    path = data.get("path", "")
+    if not path:
+        return {"error": "No path provided"}
+    result = await file_manager.create_folder(path)
+    if result is None:
+        return {"error": "Failed to create folder", "path": path}
+    return {"status": "ok", "folder": {"name": result.name, "path": result.path, "backend": result.backend}}
+
+
+@router.delete("/files")
+async def delete_file(path: str):
+    """Delete a file or folder."""
+    success = await file_manager.delete_file(path)
+    return {"status": "deleted" if success else "not_found", "path": path}
+
+
+@router.post("/files/move")
+async def move_file(request: Request):
+    """Move or rename a file."""
+    data = await request.json()
+    src = data.get("src", "")
+    dst = data.get("dst", "")
+    if not src or not dst:
+        return {"error": "Both src and dst are required"}
+    result = await file_manager.move_file(src, dst)
+    if result is None:
+        return {"error": "Move failed", "src": src, "dst": dst}
+    return {"status": "ok", "file": {"name": result.name, "path": result.path, "backend": result.backend}}
+
+
+@router.get("/files/search")
+async def search_files(q: str, backend: str | None = None):
+    """Search for files by name across backends."""
+    results = await file_manager.search_files(q, backend=backend)
+    return {
+        "query": q,
+        "results": [
+            {"name": f.name, "path": f.path, "backend": f.backend, "is_folder": f.is_folder}
+            for f in results
+        ],
+    }
+
+
+@router.get("/files/backends")
+async def list_file_backends():
+    """List active file storage backends."""
+    return {"backends": file_manager.active_backends}
+
+
+# ── Virtual Workspace (Tier 2) ────────────────────────────────────────────
+
+
+@router.post("/workspace/execute")
+async def workspace_execute(request: Request):
+    """Execute code in the virtual workspace sandbox."""
+    data = await request.json()
+    language = data.get("language", "python")
+    code = data.get("code", "")
+    timeout = min(data.get("timeout", 30), 30)  # Cap at 30s
+
+    if not code:
+        return {"error": "No code provided"}
+
+    if language == "python":
+        result = await default_workspace.execute_python(code, timeout=timeout)
+    elif language in ("bash", "shell", "sh"):
+        result = await default_workspace.execute_shell(code, timeout=timeout)
+    else:
+        return {"error": f"Unsupported language: {language}. Use 'python' or 'bash'."}
+
+    return result
+
+
+@router.get("/workspace/usage")
+async def workspace_usage():
+    """Get workspace disk usage stats."""
+    return default_workspace.get_usage()
+
+
+# ── Google Drive OAuth ─────────────────────────────────────────────────────
+
+
+@router.get("/drive/auth/url")
+async def drive_auth_url():
+    """Get the Google Drive OAuth consent URL."""
+    if not google_drive_client.is_configured:
+        return {"error": "Google Drive not configured (missing client_id/secret)"}
+    return {"url": google_drive_client.get_auth_url()}
+
+
+@router.get("/drive/auth/callback")
+async def drive_auth_callback(code: str = ""):
+    """Handle Google Drive OAuth callback — exchange code for tokens."""
+    if not code:
+        return {"error": "No authorization code provided"}
+    tokens = await google_drive_client.exchange_code(code)
+    return {"status": "connected", "has_refresh_token": bool(tokens.get("refresh_token"))}

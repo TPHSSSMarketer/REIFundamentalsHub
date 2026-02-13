@@ -143,6 +143,34 @@ def register_all_plugins() -> None:
         category="voice",
     )
 
+    # Google Drive
+    from helm.integrations.google_drive import google_drive_client
+
+    registry.register(
+        "google_drive",
+        google_drive_client,
+        description="Google Drive — cloud file management for SaaS tenants",
+        category="storage",
+    )
+
+    # Virtual Workspace
+    from helm.integrations.workspace import default_workspace
+
+    registry.register(
+        "workspace",
+        default_workspace,
+        description="Virtual Workspace — sandboxed file system + code execution",
+        category="storage",
+    )
+
+    # Wire active storage backends into the file manager
+    from helm.integrations.file_manager import file_manager
+
+    if google_drive_client.is_configured and google_drive_client.is_connected:
+        file_manager.register_backend(google_drive_client, default=True)
+    if default_workspace.is_configured:
+        file_manager.register_backend(default_workspace, default=not google_drive_client.is_connected)
+
     # GHL (imported lazily to avoid errors if not installed)
     try:
         from helm.integrations.ghl import ghl_client

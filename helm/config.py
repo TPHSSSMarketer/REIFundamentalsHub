@@ -66,6 +66,17 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
 
+    # ── Google Drive (cloud file management) ─────────────────────────────
+    google_drive_client_id: str = ""
+    google_drive_client_secret: str = ""
+    google_drive_redirect_uri: str = ""
+    google_drive_access_token: str = ""
+    google_drive_refresh_token: str = ""
+
+    # ── Virtual Workspace ──────────────────────────────────────────────────
+    workspace_enabled: bool = True
+    workspace_max_size_mb: int = 500   # Per-tenant limit
+
     # ── Smart Check-ins ─────────────────────────────────────────────────
     checkin_enabled: bool = False
     checkin_interval_minutes: int = 30
