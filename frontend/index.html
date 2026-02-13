@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Helm — AI Command Center</title>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                <path d="M16 6 L16 26 M10 12 L16 6 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="logo-text">Helm</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="chat" title="Chat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span>Chat</span>
+        </button>
+        <button class="nav-item" data-view="portfolio" title="Portfolio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Portfolio</span>
+        </button>
+        <button class="nav-item" data-view="deals" title="Deal Analyzer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+            <span>Deals</span>
+        </button>
+        <button class="nav-item" data-view="tasks" title="Tasks">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <span>Tasks</span>
+        </button>
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="mode-selector">
+            <label class="mode-label">Mode</label>
+            <select id="modeSelect">
+                <option value="business">Business</option>
+                <option value="real_estate">Real Estate</option>
+                <option value="personal">Personal</option>
+            </select>
+        </div>
+    </div>
+</aside>
+
+<!-- ── Main Content ────────────────────────────────────────────────────── -->
+<main class="main">
+
+    <!-- Top bar -->
+    <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle sidebar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <h1 class="topbar-title" id="viewTitle">Chat with Helm</h1>
+        <div class="topbar-actions">
+            <button class="btn-icon" id="themeToggle" title="Toggle theme">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
+            <button class="btn-icon" id="newChat" title="New conversation">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ── Chat View ──────────────────────────────────────────────────── -->
+    <section class="view active" id="view-chat">
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <div class="welcome-icon">
+                        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                            <path d="M16 6 L16 26 M10 12 L16 6 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h2>Welcome to Helm</h2>
+                    <p>Your AI-powered command center for business and life.</p>
+                    <div class="quick-actions">
+                        <button class="quick-action" data-prompt="Give me my daily briefing">Daily Briefing</button>
+                        <button class="quick-action" data-prompt="Show me my portfolio overview">Portfolio Overview</button>
+                        <button class="quick-action" data-prompt="Help me analyze a new deal">Analyze a Deal</button>
+                        <button class="quick-action" data-prompt="What are my priorities today?">Today's Priorities</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <textarea
+                        id="chatInput"
+                        placeholder="Message Helm..."
+                        rows="1"
+                        autofocus
+                    ></textarea>
+                    <button class="send-btn" id="sendBtn" title="Send message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
+                <p class="chat-disclaimer">Helm is AI-powered. Verify important information independently.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Portfolio View ─────────────────────────────────────────────── -->
+    <section class="view" id="view-portfolio">
+        <div class="view-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Total Properties</span>
+                    <span class="stat-value" id="statProperties">--</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Portfolio Value</span>
+                    <span class="stat-value" id="statValue">--</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Monthly Income</span>
+                    <span class="stat-value" id="statIncome">--</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Avg Cap Rate</span>
+                    <span class="stat-value" id="statCapRate">--</span>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Properties</h3>
+                <p class="muted" id="portfolioPlaceholder">
+                    Connect your REIFundamentals Hub account in settings to see your properties here.
+                </p>
+                <div id="propertyList"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Deal Analyzer View ─────────────────────────────────────────── -->
+    <section class="view" id="view-deals">
+        <div class="view-content">
+            <div class="card">
+                <h3>Deal Analyzer</h3>
+                <p class="muted">Enter deal details and let Helm run the numbers.</p>
+                <form id="dealForm" class="deal-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="dealAddress">Property Address</label>
+                            <input type="text" id="dealAddress" placeholder="123 Main St, City, State" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="dealPrice">Purchase Price ($)</label>
+                            <input type="number" id="dealPrice" placeholder="250000" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="dealRehab">Rehab Cost ($)</label>
+                            <input type="number" id="dealRehab" placeholder="0" value="0" />
+                        </div>
+                        <div class="form-group">
+                            <label for="dealARV">After Repair Value ($)</label>
+                            <input type="number" id="dealARV" placeholder="Optional" />
+                        </div>
+                        <div class="form-group">
+                            <label for="dealRent">Monthly Rent ($)</label>
+                            <input type="number" id="dealRent" placeholder="Optional" />
+                        </div>
+                        <div class="form-group">
+                            <label for="dealStrategy">Strategy</label>
+                            <select id="dealStrategy">
+                                <option value="buy_and_hold">Buy & Hold</option>
+                                <option value="flip">Fix & Flip</option>
+                                <option value="brrrr">BRRRR</option>
+                                <option value="wholesale">Wholesale</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Analyze Deal</button>
+                </form>
+                <div id="dealResult" class="deal-result hidden"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Tasks View ─────────────────────────────────────────────────── -->
+    <section class="view" id="view-tasks">
+        <div class="view-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Tasks</h3>
+                    <button class="btn-small" id="addTaskBtn">+ Add Task</button>
+                </div>
+                <p class="muted" id="tasksPlaceholder">No tasks yet. Ask Helm to help you plan your day, or add tasks manually.</p>
+                <div id="taskList"></div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
