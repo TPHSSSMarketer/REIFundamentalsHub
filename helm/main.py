@@ -29,9 +29,15 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
-    logger.info("Starting Helm AI Assistant v0.1.0")
+    logger.info("Starting Helm AI Assistant v0.2.0")
     await init_db()
     logger.info("Database initialized")
+
+    # Register all integration plugins (each one self-checks if configured)
+    from helm.integrations.registry import register_all_plugins
+
+    register_all_plugins()
+
     yield
     logger.info("Shutting down Helm")
 

@@ -76,10 +76,30 @@ MODE_PROMPTS: dict[str, str] = {
 }
 
 
-def build_system_prompt(mode: str) -> str:
-    """Assemble the full system prompt for a given mode."""
+def build_system_prompt(mode: str, output_style: str | None = None) -> str:
+    """Assemble the full system prompt for a given mode + output style."""
+    from helm.assistant.output_styles import get_style, get_style_for_mode
+    from helm.integrations.registry import registry
+
     mode_section = MODE_PROMPTS.get(mode, BUSINESS_PROMPT)
-    return f"{HELM_IDENTITY}\n\n{mode_section}"
+
+    # Add output style
+    style = get_style(output_style) if output_style else get_style_for_mode(mode)
+
+    # Add integration context (what's available)
+    active_plugins = registry.list_active()
+    if active_plugins:
+        integration_note = (
+            "\n\n**Active integrations:** " + ", ".join(active_plugins) + ".\n"
+            "You can reference data from these services when relevant."
+        )
+    else:
+        integration_note = (
+            "\n\nYou are running standalone without external integrations. "
+            "Work with whatever information the user provides directly."
+        )
+
+    return f"{HELM_IDENTITY}\n\n{mode_section}\n\n{style}{integration_note}"
 
 
 # ── Tool Descriptions (for function-calling models) ─────────────────────────

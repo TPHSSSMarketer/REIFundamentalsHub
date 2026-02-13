@@ -53,6 +53,25 @@ class Settings(BaseSettings):
     voice_tts_model: str = "tts-1"
     voice_tts_voice: str = "onyx"  # alloy, echo, fable, onyx, nova, shimmer
 
+    # ── GoHighLevel (optional CRM) ──────────────────────────────────────
+    ghl_client_id: str = ""
+    ghl_client_secret: str = ""
+    ghl_redirect_uri: str = ""
+    ghl_access_token: str = ""
+    ghl_refresh_token: str = ""
+    ghl_location_id: str = ""
+
+    # ── Supabase (optional persistent memory) ───────────────────────────
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
+
+    # ── Smart Check-ins ─────────────────────────────────────────────────
+    checkin_enabled: bool = False
+    checkin_interval_minutes: int = 30
+    checkin_quiet_hours_start: int = 22   # 10pm
+    checkin_quiet_hours_end: int = 7      # 7am
+
     # ── Logging ──────────────────────────────────────────────────────────
     log_level: str = "INFO"
 

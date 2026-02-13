@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 
+from helm.agents.definitions import get_agent, list_agents
 from helm.assistant.engine import helm_engine
 from helm.assistant.memory import memory
+from helm.checkins.scheduler import checkin_scheduler
+from helm.integrations.registry import registry
 from helm.integrations.reifundamentals import reifundamentals_client
 from helm.integrations.telegram import telegram_bot
 from helm.integrations.voice import voice_processor
@@ -17,6 +20,7 @@ from helm.models.schemas import (
     DealAnalysisRequest,
     PortfolioOverview,
 )
+from helm.reliability.health_check import health_checker
 
 router = APIRouter()
 
@@ -27,6 +31,51 @@ router = APIRouter()
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "Helm AI Assistant"}
+
+
+@router.get("/health/detailed")
+async def health_detailed():
+    """Detailed health check with all integration statuses."""
+    return await health_checker.full_check()
+
+
+# ── Integrations Status ─────────────────────────────────────────────────────
+
+
+@router.get("/integrations")
+async def list_integrations():
+    """List all registered integrations and their status."""
+    return registry.get_status_report()
+
+
+# ── Agents ───────────────────────────────────────────────────────────────────
+
+
+@router.get("/agents")
+async def list_available_agents(scope: str | None = None):
+    """List all available sub-agents."""
+    agents = list_agents(scope)
+    return {
+        "agents": [
+            {
+                "name": a.name,
+                "description": a.description,
+                "scope": a.scope,
+                "requires_plugins": a.requires_plugins,
+            }
+            for a in agents
+        ]
+    }
+
+
+# ── Check-ins ────────────────────────────────────────────────────────────────
+
+
+@router.post("/checkin/trigger")
+async def trigger_checkin():
+    """Manually trigger a smart check-in cycle."""
+    result = await checkin_scheduler.run_cycle()
+    return result
 
 
 # ── Chat ─────────────────────────────────────────────────────────────────────
