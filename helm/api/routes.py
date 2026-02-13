@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 
 from helm.assistant.engine import helm_engine
 from helm.assistant.memory import memory
 from helm.integrations.reifundamentals import reifundamentals_client
+from helm.integrations.telegram import telegram_bot
+from helm.integrations.voice import voice_processor
+from helm.integrations.whatsapp import whatsapp_client
 from helm.models.schemas import (
     AssistantMode,
     ChatRequest,
@@ -108,3 +111,93 @@ async def websocket_chat(ws: WebSocket):
 
     except WebSocketDisconnect:
         pass
+
+
+# ── Telegram Webhook ────────────────────────────────────────────────────────
+
+
+@router.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Receive inbound updates from Telegram."""
+    update = await request.json()
+    await telegram_bot.handle_update(update)
+    return {"ok": True}
+
+
+# ── WhatsApp Webhook ────────────────────────────────────────────────────────
+
+
+@router.get("/whatsapp/webhook")
+async def whatsapp_verify(
+    hub_mode: str = Query("", alias="hub.mode"),
+    hub_verify_token: str = Query("", alias="hub.verify_token"),
+    hub_challenge: str = Query("", alias="hub.challenge"),
+):
+    """Meta webhook verification (GET request)."""
+    challenge = whatsapp_client.verify_webhook(hub_mode, hub_verify_token, hub_challenge)
+    if challenge is not None:
+        return Response(content=challenge, media_type="text/plain")
+    return Response(content="Forbidden", status_code=403)
+
+
+@router.post("/whatsapp/webhook")
+async def whatsapp_webhook(request: Request):
+    """Receive inbound messages from WhatsApp."""
+    payload = await request.json()
+    await whatsapp_client.handle_webhook(payload)
+    return {"status": "ok"}
+
+
+# ── Voice ───────────────────────────────────────────────────────────────────
+
+
+@router.post("/voice/transcribe")
+async def voice_transcribe(file: UploadFile):
+    """Upload an audio file and get a text transcription."""
+    audio_bytes = await file.read()
+    text = await voice_processor.transcribe(audio_bytes, filename=file.filename or "audio.ogg")
+    if text is None:
+        return {"error": "Transcription failed. Check voice API configuration."}
+    return {"text": text}
+
+
+@router.post("/voice/synthesize")
+async def voice_synthesize(request: Request):
+    """Convert text to speech. Returns audio bytes."""
+    data = await request.json()
+    text = data.get("text", "")
+    voice = data.get("voice")
+    if not text:
+        return {"error": "No text provided."}
+
+    audio_bytes = await voice_processor.synthesize(text, voice=voice)
+    if audio_bytes is None:
+        return {"error": "Speech synthesis failed. Check voice API configuration."}
+
+    return Response(
+        content=audio_bytes,
+        media_type="audio/ogg",
+        headers={"Content-Disposition": "attachment; filename=helm_reply.ogg"},
+    )
+
+
+@router.post("/voice/chat")
+async def voice_chat(file: UploadFile):
+    """Full voice round-trip: upload audio → transcribe → AI reply → synthesize."""
+    audio_bytes = await file.read()
+    reply_text, reply_audio = await voice_processor.voice_chat(
+        audio_bytes, filename=file.filename or "audio.ogg"
+    )
+
+    if reply_text is None:
+        return {"error": "Could not process voice message."}
+
+    if reply_audio:
+        import base64
+
+        return {
+            "text": reply_text,
+            "audio_base64": base64.b64encode(reply_audio).decode(),
+        }
+
+    return {"text": reply_text, "audio_base64": None}

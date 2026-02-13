@@ -38,3 +38,37 @@ async def test_clear_nonexistent_conversation(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "cleared"
+
+
+@pytest.mark.asyncio
+async def test_telegram_webhook_accepts_empty_update(client: AsyncClient):
+    resp = await client.post("/api/telegram/webhook", json={})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_webhook_verification_rejects_bad_token(client: AsyncClient):
+    resp = await client.get(
+        "/api/whatsapp/webhook",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "bad-token",
+            "hub.challenge": "test",
+        },
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_webhook_post_accepts_empty_payload(client: AsyncClient):
+    resp = await client.post("/api/whatsapp/webhook", json={})
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_voice_synthesize_rejects_empty_text(client: AsyncClient):
+    resp = await client.post("/api/voice/synthesize", json={"text": ""})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "error" in data

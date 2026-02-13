@@ -37,6 +37,22 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 1440
 
+    # ── Telegram ─────────────────────────────────────────────────────────
+    telegram_bot_token: str = ""
+    telegram_webhook_url: str = ""  # e.g. https://yourdomain.com/api/telegram/webhook
+
+    # ── WhatsApp (Meta Business Cloud API) ───────────────────────────────
+    whatsapp_phone_number_id: str = ""
+    whatsapp_access_token: str = ""
+    whatsapp_verify_token: str = "helm-whatsapp-verify"
+    whatsapp_api_version: str = "v21.0"
+
+    # ── Voice ────────────────────────────────────────────────────────────
+    openai_api_key_voice: str = ""  # For Whisper STT & TTS (uses OpenAI key if blank)
+    voice_stt_model: str = "whisper-1"
+    voice_tts_model: str = "tts-1"
+    voice_tts_voice: str = "onyx"  # alloy, echo, fable, onyx, nova, shimmer
+
     # ── Logging ──────────────────────────────────────────────────────────
     log_level: str = "INFO"
 
