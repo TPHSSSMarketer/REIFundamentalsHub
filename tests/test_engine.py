@@ -18,7 +18,8 @@ def test_build_system_prompt_includes_identity():
 
 
 def test_build_system_prompt_includes_mode():
-    for mode in ("business", "personal", "real_estate"):
+    """Core modes (business, personal) are in the prompt."""
+    for mode in ("business", "personal"):
         prompt = build_system_prompt(mode)
         assert MODE_PROMPTS[mode] in prompt
 

@@ -1,17 +1,20 @@
-"""API route definitions — the external surface of Helm."""
+"""API route definitions — the external surface of Helm.
+
+Domain-specific routes (e.g. real estate) are provided by plugins
+and mounted at /api/plugins/{plugin_name}/.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 
-from helm.agents.definitions import get_agent, list_agents
+from helm.agents.definitions import list_agents
 from helm.assistant.engine import helm_engine
 from helm.assistant.memory import memory
 from helm.checkins.scheduler import checkin_scheduler
 from helm.integrations.file_manager import file_manager
 from helm.integrations.google_drive import google_drive_client
 from helm.integrations.registry import registry
-from helm.integrations.reifundamentals import reifundamentals_client
 from helm.integrations.telegram import telegram_bot
 from helm.integrations.voice import voice_processor
 from helm.integrations.whatsapp import whatsapp_client
@@ -20,8 +23,6 @@ from helm.models.schemas import (
     AssistantMode,
     ChatRequest,
     ChatResponse,
-    DealAnalysisRequest,
-    PortfolioOverview,
 )
 from helm.reliability.health_check import health_checker
 
@@ -51,12 +52,23 @@ async def list_integrations():
     return registry.get_status_report()
 
 
+# ── Plugins Status ──────────────────────────────────────────────────────────
+
+
+@router.get("/plugins")
+async def list_plugins():
+    """List all loaded plugins."""
+    from helm.plugins import plugin_manager
+
+    return {"plugins": plugin_manager.list_plugins()}
+
+
 # ── Agents ───────────────────────────────────────────────────────────────────
 
 
 @router.get("/agents")
 async def list_available_agents(scope: str | None = None):
-    """List all available sub-agents."""
+    """List all available sub-agents (core + plugin-provided)."""
     agents = list_agents(scope)
     return {
         "agents": [
@@ -97,28 +109,6 @@ async def clear_conversation(conversation_id: str):
     return {"status": "cleared", "conversation_id": conversation_id}
 
 
-# ── Real Estate ──────────────────────────────────────────────────────────────
-
-
-@router.get("/portfolio", response_model=PortfolioOverview)
-async def get_portfolio():
-    """Fetch the user's portfolio overview from REIFundamentals Hub."""
-    return await reifundamentals_client.get_portfolio()
-
-
-@router.post("/deal/analyze")
-async def analyze_deal(request: DealAnalysisRequest):
-    """Run an AI-powered analysis on a potential deal."""
-    return await helm_engine.analyze_deal(
-        address=request.address,
-        purchase_price=request.purchase_price,
-        rehab_cost=request.rehab_cost,
-        after_repair_value=request.after_repair_value,
-        monthly_rent=request.monthly_rent,
-        strategy=request.strategy,
-    )
-
-
 # ── Briefing ─────────────────────────────────────────────────────────────────
 
 
@@ -143,7 +133,6 @@ async def websocket_chat(ws: WebSocket):
         while True:
             data = await ws.receive_json()
 
-            # Allow the client to switch modes mid-conversation
             if "mode" in data:
                 mode = AssistantMode(data["mode"])
 
@@ -300,7 +289,7 @@ async def read_file(path: str):
 
 @router.post("/files/write")
 async def write_file(request: Request):
-    """Write content to a file. Accepts JSON with path, content (base64), and optional mime_type."""
+    """Write content to a file."""
     import base64
 
     data = await request.json()
@@ -389,7 +378,7 @@ async def workspace_execute(request: Request):
     data = await request.json()
     language = data.get("language", "python")
     code = data.get("code", "")
-    timeout = min(data.get("timeout", 30), 30)  # Cap at 30s
+    timeout = min(data.get("timeout", 30), 30)
 
     if not code:
         return {"error": "No code provided"}
@@ -430,12 +419,12 @@ async def drive_auth_callback(code: str = ""):
     return {"status": "connected", "has_refresh_token": bool(tokens.get("refresh_token"))}
 
 
-# ── Context Files (REI Living Files) ──────────────────────────────────────
+# ── Context Files ──────────────────────────────────────────────────────────
 
 
 @router.get("/context/templates")
 async def list_context_templates():
-    """List all available context file templates."""
+    """List all available context file templates (core + plugins)."""
     from helm.context.templates import list_context_templates as _list
 
     return {"templates": _list()}
@@ -503,48 +492,6 @@ async def deep_research(request: Request):
     if not openrouter_client.is_configured:
         return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
     return await openrouter_client.deep_research(query, context=context)
-
-
-@router.post("/research/comps")
-async def research_comps(request: Request):
-    """Research comparable sales for a property address."""
-    from helm.integrations.openrouter import openrouter_client
-
-    data = await request.json()
-    address = data.get("address", "")
-    if not address:
-        return {"error": "No address provided"}
-    if not openrouter_client.is_configured:
-        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
-    return await openrouter_client.research_comps(address)
-
-
-@router.post("/research/neighborhood")
-async def research_neighborhood(request: Request):
-    """Research neighborhood data for a property address."""
-    from helm.integrations.openrouter import openrouter_client
-
-    data = await request.json()
-    address = data.get("address", "")
-    if not address:
-        return {"error": "No address provided"}
-    if not openrouter_client.is_configured:
-        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
-    return await openrouter_client.research_neighborhood(address)
-
-
-@router.post("/research/market")
-async def research_market(request: Request):
-    """Research market conditions for a city/metro area."""
-    from helm.integrations.openrouter import openrouter_client
-
-    data = await request.json()
-    market = data.get("market", "")
-    if not market:
-        return {"error": "No market provided"}
-    if not openrouter_client.is_configured:
-        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
-    return await openrouter_client.research_market(market)
 
 
 # ── Model Router Info ─────────────────────────────────────────────────────

@@ -1,4 +1,7 @@
-"""System prompts and templates that shape Helm's personality and expertise."""
+"""System prompts and templates that shape Helm's personality and expertise.
+
+Domain-specific modes (e.g. real_estate) are provided by plugins.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +24,7 @@ formatting.  Never fabricate data — if you don't have information, say so \
 and suggest how to get it.
 """
 
-# ── Mode-Specific Prompts ────────────────────────────────────────────────────
+# ── Core Mode-Specific Prompts ───────────────────────────────────────────────
 
 BUSINESS_PROMPT = """\
 You are operating in **Business Mode**.
@@ -32,25 +35,8 @@ Focus areas:
 - Communication drafting (emails, proposals, pitch decks).
 - Operations: scheduling, delegation, process optimization.
 
-When the user discusses real estate, seamlessly pull context from \
-REIFundamentals Hub when integration is active.  Present property data, \
-deal analyses, and portfolio metrics cleanly.
-"""
-
-REAL_ESTATE_PROMPT = """\
-You are operating in **Real Estate Mode**, tightly integrated with \
-**REIFundamentals Hub**.
-
-You are an expert real estate investment analyst.  Capabilities:
-- Pull and summarize portfolio data from REIFundamentals Hub.
-- Analyze deals: cap rate, cash-on-cash return, ROI projections, \
-  the 1% rule, 70% rule, BRRRR feasibility.
-- Compare properties, markets, and investment strategies.
-- Draft LOIs, counter-offers, and partnership proposals.
-- Explain complex RE concepts in plain language when asked.
-
-Always show your math.  Label assumptions clearly.  When data is missing, \
-state what's needed and provide a range of scenarios.
+When domain-specific integrations are active, seamlessly pull context \
+from connected services.  Present data cleanly with actionable insights.
 """
 
 PERSONAL_PROMPT = """\
@@ -69,11 +55,19 @@ concise.  Offer to break large goals into actionable next steps.
 
 # ── Mapping ──────────────────────────────────────────────────────────────────
 
+# Core modes — always available
 MODE_PROMPTS: dict[str, str] = {
     "business": BUSINESS_PROMPT,
     "personal": PERSONAL_PROMPT,
-    "real_estate": REAL_ESTATE_PROMPT,
 }
+
+# Plugin-provided modes merged in at startup
+_plugin_mode_prompts: dict[str, str] = {}
+
+
+def register_plugin_modes(modes: dict[str, str]) -> None:
+    """Register mode prompts provided by plugins. Called during startup."""
+    _plugin_mode_prompts.update(modes)
 
 
 def build_system_prompt(mode: str, output_style: str | None = None) -> str:
@@ -81,7 +75,8 @@ def build_system_prompt(mode: str, output_style: str | None = None) -> str:
     from helm.assistant.output_styles import get_style, get_style_for_mode
     from helm.integrations.registry import registry
 
-    mode_section = MODE_PROMPTS.get(mode, BUSINESS_PROMPT)
+    # Check plugin modes first, then core
+    mode_section = _plugin_mode_prompts.get(mode, MODE_PROMPTS.get(mode, BUSINESS_PROMPT))
 
     # Add output style
     style = get_style(output_style) if output_style else get_style_for_mode(mode)
@@ -102,42 +97,9 @@ def build_system_prompt(mode: str, output_style: str | None = None) -> str:
     return f"{HELM_IDENTITY}\n\n{mode_section}\n\n{style}{integration_note}"
 
 
-# ── Tool Descriptions (for function-calling models) ─────────────────────────
+# ── Core Tool Definitions (for function-calling models) ──────────────────────
 
 TOOL_DEFINITIONS = [
-    {
-        "name": "get_portfolio_overview",
-        "description": (
-            "Retrieve a summary of the user's real estate portfolio from "
-            "REIFundamentals Hub, including total properties, value, income, "
-            "and average cap rate."
-        ),
-    },
-    {
-        "name": "get_property_details",
-        "description": (
-            "Fetch detailed information about a specific property by address "
-            "or property ID from REIFundamentals Hub."
-        ),
-        "parameters": {
-            "query": "Address or property ID to look up.",
-        },
-    },
-    {
-        "name": "analyze_deal",
-        "description": (
-            "Run a full investment analysis on a potential deal, including "
-            "cap rate, cash-on-cash return, ROI projection, and risk assessment."
-        ),
-        "parameters": {
-            "address": "Property address.",
-            "purchase_price": "Proposed purchase price.",
-            "rehab_cost": "Estimated rehabilitation cost (default 0).",
-            "after_repair_value": "Estimated ARV (optional).",
-            "monthly_rent": "Expected monthly rent (optional).",
-            "strategy": "Investment strategy: buy_and_hold, flip, brrrr, wholesale.",
-        },
-    },
     {
         "name": "create_task",
         "description": "Create a new task or to-do item for the user.",
@@ -146,14 +108,13 @@ TOOL_DEFINITIONS = [
             "description": "Optional details.",
             "due_date": "Optional due date (ISO 8601).",
             "priority": "low, medium, or high.",
-            "category": "Category tag (e.g. business, personal, real_estate).",
+            "category": "Category tag (e.g. business, personal).",
         },
     },
     {
         "name": "get_daily_briefing",
         "description": (
-            "Generate a morning briefing with today's tasks, portfolio "
-            "snapshot, and actionable insights."
+            "Generate a morning briefing with today's tasks and actionable insights."
         ),
     },
 ]

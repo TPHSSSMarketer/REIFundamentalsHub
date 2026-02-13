@@ -33,19 +33,65 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
-    # Register all integration plugins (each one self-checks if configured)
+    # ── Plugin System ─────────────────────────────────────────────────────
+    from helm.plugins import plugin_manager
+
+    # Discover and register all plugins (e.g. REI)
+    plugin_manager.discover_plugins()
+    logger.info(
+        "Plugins loaded: %s",
+        plugin_manager.loaded_plugins or "(none — Helm running general-purpose)",
+    )
+
+    # Let plugins register their agents, output styles, modes, and router signals
+    from helm.agents.definitions import register_plugin_agents
+    from helm.assistant.output_styles import register_plugin_mode_style, register_plugin_styles
+    from helm.assistant.prompts import register_plugin_modes
+
+    # Agents
+    plugin_agents = plugin_manager.get_all_agents()
+    if plugin_agents:
+        register_plugin_agents(plugin_agents)
+        logger.info("Plugin agents registered: %s", list(plugin_agents.keys()))
+
+    # Output styles
+    plugin_styles = plugin_manager.get_all_output_styles()
+    if plugin_styles:
+        register_plugin_styles(plugin_styles)
+        logger.info("Plugin output styles registered: %s", list(plugin_styles.keys()))
+
+    # Mode prompts
+    plugin_modes = plugin_manager.get_all_mode_prompts()
+    if plugin_modes:
+        register_plugin_modes(plugin_modes)
+        logger.info("Plugin modes registered: %s", list(plugin_modes.keys()))
+
+    # Wire mode → style mappings for known plugins
+    if "real_estate" in plugin_modes and "re-investor" in plugin_styles:
+        register_plugin_mode_style("real_estate", "re-investor")
+
+    # Mount plugin routes onto the main API router
+    plugin_manager.mount_routes(router)
+
+    # ── Core Integrations ─────────────────────────────────────────────────
     from helm.integrations.registry import register_all_plugins
 
     register_all_plugins()
 
+    # Run plugin startup hooks
+    await plugin_manager.startup_all(app)
+
     yield
+
+    # Shutdown
+    await plugin_manager.shutdown_all(app)
     logger.info("Shutting down Helm")
 
 
 app = FastAPI(
     title="Helm AI Assistant",
     description="Your AI-powered command center for business and life.",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

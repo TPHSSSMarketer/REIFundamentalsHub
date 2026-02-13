@@ -166,41 +166,6 @@ class HelmEngine:
         model_label = f"perplexity+{model_id}"
         return response.content[0].text, model_label
 
-    async def analyze_deal(
-        self,
-        address: str,
-        purchase_price: float,
-        rehab_cost: float = 0.0,
-        after_repair_value: float | None = None,
-        monthly_rent: float | None = None,
-        strategy: str = "buy_and_hold",
-    ) -> ChatResponse:
-        """Run an AI-powered deal analysis using real estate expertise.
-
-        Always uses Opus — deal analysis is complex by definition.
-        """
-        prompt = (
-            f"/opus Analyze this potential real estate deal:\n"
-            f"- Address: {address}\n"
-            f"- Purchase Price: ${purchase_price:,.2f}\n"
-            f"- Rehab Cost: ${rehab_cost:,.2f}\n"
-        )
-        if after_repair_value:
-            prompt += f"- After Repair Value (ARV): ${after_repair_value:,.2f}\n"
-        if monthly_rent:
-            prompt += f"- Expected Monthly Rent: ${monthly_rent:,.2f}\n"
-        prompt += (
-            f"- Strategy: {strategy}\n\n"
-            "Provide a thorough analysis including cap rate, cash-on-cash return, "
-            "ROI projection, risk factors, and your verdict. Show all math."
-        )
-
-        request = ChatRequest(
-            message=prompt,
-            mode=AssistantMode.REAL_ESTATE,
-        )
-        return await self.chat(request)
-
     async def daily_briefing(self) -> str:
         """Generate a morning briefing."""
         request = ChatRequest(

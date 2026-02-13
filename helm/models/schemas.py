@@ -13,10 +13,16 @@ from pydantic import BaseModel, Field
 
 
 class AssistantMode(str, Enum):
-    """Which personality / tool-set Helm is operating in."""
+    """Which personality / tool-set Helm is operating in.
+
+    Core modes are BUSINESS and PERSONAL.  Plugins may add additional
+    modes (e.g. REAL_ESTATE is added by the REI plugin).
+    """
 
     BUSINESS = "business"
     PERSONAL = "personal"
+    # Plugin modes — kept as enum values for API stability.
+    # The REI plugin registers its own prompt/style for this mode.
     REAL_ESTATE = "real_estate"
 
 
@@ -51,51 +57,6 @@ class ChatResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
-# ── REIFundamentals Hub ──────────────────────────────────────────────────────
-
-
-class PropertySummary(BaseModel):
-    address: str
-    city: str
-    state: str
-    zip_code: str
-    property_type: str = ""
-    purchase_price: float | None = None
-    current_value: float | None = None
-    monthly_rent: float | None = None
-    cap_rate: float | None = None
-    cash_on_cash: float | None = None
-    occupancy_status: str = ""
-
-
-class PortfolioOverview(BaseModel):
-    total_properties: int = 0
-    total_value: float = 0.0
-    total_monthly_income: float = 0.0
-    average_cap_rate: float | None = None
-    properties: list[PropertySummary] = Field(default_factory=list)
-
-
-class DealAnalysisRequest(BaseModel):
-    address: str
-    purchase_price: float
-    rehab_cost: float = 0.0
-    after_repair_value: float | None = None
-    monthly_rent: float | None = None
-    strategy: str = "buy_and_hold"
-
-
-class DealAnalysisResponse(BaseModel):
-    verdict: str
-    score: float
-    cap_rate: float | None = None
-    cash_on_cash: float | None = None
-    roi_projection: float | None = None
-    analysis: str
-    risks: list[str] = Field(default_factory=list)
-    recommendations: list[str] = Field(default_factory=list)
-
-
 # ── Personal Assistant ───────────────────────────────────────────────────────
 
 
@@ -114,7 +75,6 @@ class DailyBriefing(BaseModel):
     date: str
     weather_summary: str = ""
     tasks_today: list[TaskItem] = Field(default_factory=list)
-    portfolio_snapshot: PortfolioOverview | None = None
     insights: list[str] = Field(default_factory=list)
 
 
@@ -137,3 +97,13 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# ── RE schemas (backward compat — canonical location is helm.plugins.rei.schemas)
+
+from helm.plugins.rei.schemas import (  # noqa: E402, F401
+    DealAnalysisRequest,
+    DealAnalysisResponse,
+    PortfolioOverview,
+    PropertySummary,
+)

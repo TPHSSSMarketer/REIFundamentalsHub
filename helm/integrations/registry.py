@@ -105,22 +105,17 @@ registry = IntegrationRegistry()
 
 
 def register_all_plugins() -> None:
-    """Discover and register all available integration plugins.
+    """Discover and register all available core integration plugins.
 
     Called once at application startup.  Each integration checks its own
     configuration — if API keys are missing, it registers as inactive.
+
+    Domain-specific integrations (e.g. REIFundamentals, GHL) are
+    registered by their respective plugins — see ``helm.plugins``.
     """
-    from helm.integrations.reifundamentals import reifundamentals_client
     from helm.integrations.telegram import telegram_bot
     from helm.integrations.voice import voice_processor
     from helm.integrations.whatsapp import whatsapp_client
-
-    registry.register(
-        "reifundamentals",
-        reifundamentals_client,
-        description="REIFundamentals Hub — real estate portfolio and deal management",
-        category="crm",
-    )
 
     registry.register(
         "telegram",
@@ -181,19 +176,6 @@ def register_all_plugins() -> None:
         category="ai",
     )
 
-    # GHL (imported lazily to avoid errors if not installed)
-    try:
-        from helm.integrations.ghl import ghl_client
-
-        registry.register(
-            "ghl",
-            ghl_client,
-            description="GoHighLevel — CRM, pipelines, tasks, calendar, conversations",
-            category="crm",
-        )
-    except ImportError:
-        logger.debug("GHL integration not available.")
-
     # Supabase memory (imported lazily)
     try:
         from helm.integrations.supabase_memory import supabase_memory
@@ -207,9 +189,14 @@ def register_all_plugins() -> None:
     except ImportError:
         logger.debug("Supabase memory integration not available.")
 
+    # Let Helm plugins register their domain-specific integrations
+    from helm.plugins import plugin_manager
+
+    plugin_manager.register_all_integrations(registry)
+
     active = registry.list_active()
     logger.info(
-        "Plugin registration complete: %d active out of %d registered — %s",
+        "Integration registration complete: %d active out of %d registered — %s",
         len(active),
         len(registry.list_all()),
         active if active else "(none — Helm running standalone)",

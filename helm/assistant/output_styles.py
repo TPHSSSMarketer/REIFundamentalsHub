@@ -3,23 +3,15 @@
 Helm adapts its communication style based on who it's talking to and
 what mode it's in.  These style instructions get appended to the system
 prompt to shape tone, formatting, and focus.
+
+Domain-specific styles (e.g. re-investor) are provided by plugins.
 """
 
 from __future__ import annotations
 
 
+# Core styles — always available
 STYLES: dict[str, str] = {
-    "re-investor": """\
-**Output Style: Real Estate Investor**
-- Concise, numbers-focused.  Lead with metrics, not narratives.
-- Use RE investing terminology naturally (cap rate, cash-on-cash, NOI,
-  ARV, LTV, DSCR, 70% rule, 1% rule, BRRRR).
-- Always include key financial metrics in your analysis.
-- Frame decisions in terms of ROI and risk.
-- Use tables for comparing properties or scenarios.
-- When presenting a deal: Verdict first, then the numbers, then the reasoning.
-""",
-
     "client-facing": """\
 **Output Style: Client-Facing Professional**
 - Professional and warm.  Approachable but not casual.
@@ -61,9 +53,27 @@ STYLES: dict[str, str] = {
 """,
 }
 
+# Plugin-provided styles merged in at startup
+_plugin_styles: dict[str, str] = {}
+
+# Plugin mode → style mappings
+_plugin_mode_style_map: dict[str, str] = {}
+
+
+def register_plugin_styles(styles: dict[str, str]) -> None:
+    """Register output styles provided by plugins. Called during startup."""
+    _plugin_styles.update(styles)
+
+
+def register_plugin_mode_style(mode: str, style_name: str) -> None:
+    """Register a mode → style mapping from a plugin."""
+    _plugin_mode_style_map[mode] = style_name
+
 
 def get_style(name: str) -> str:
     """Get a style instruction block by name."""
+    if name in _plugin_styles:
+        return _plugin_styles[name]
     return STYLES.get(name, STYLES["default"])
 
 
@@ -71,12 +81,14 @@ def get_style_for_mode(mode: str) -> str:
     """Map assistant modes to appropriate output styles."""
     mode_style_map = {
         "business": "briefing",
-        "real_estate": "re-investor",
         "personal": "personal",
     }
+    # Merge plugin mappings
+    mode_style_map.update(_plugin_mode_style_map)
+
     style_name = mode_style_map.get(mode, "default")
     return get_style(style_name)
 
 
 def list_styles() -> list[str]:
-    return list(STYLES.keys())
+    return list(set(list(STYLES.keys()) + list(_plugin_styles.keys())))
