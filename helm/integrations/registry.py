@@ -171,6 +171,16 @@ def register_all_plugins() -> None:
     if default_workspace.is_configured:
         file_manager.register_backend(default_workspace, default=not google_drive_client.is_connected)
 
+    # OpenRouter (multi-model gateway + Perplexity research)
+    from helm.integrations.openrouter import openrouter_client
+
+    registry.register(
+        "openrouter",
+        openrouter_client,
+        description="OpenRouter — multi-model gateway + Perplexity web research",
+        category="ai",
+    )
+
     # GHL (imported lazily to avoid errors if not installed)
     try:
         from helm.integrations.ghl import ghl_client

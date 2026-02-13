@@ -428,3 +428,137 @@ async def drive_auth_callback(code: str = ""):
         return {"error": "No authorization code provided"}
     tokens = await google_drive_client.exchange_code(code)
     return {"status": "connected", "has_refresh_token": bool(tokens.get("refresh_token"))}
+
+
+# ── Context Files (REI Living Files) ──────────────────────────────────────
+
+
+@router.get("/context/templates")
+async def list_context_templates():
+    """List all available context file templates."""
+    from helm.context.templates import list_context_templates as _list
+
+    return {"templates": _list()}
+
+
+@router.post("/context/provision")
+async def provision_context():
+    """Create context files for the default tenant workspace."""
+    from helm.context.templates import provision_tenant_context
+
+    result = await provision_tenant_context(default_workspace)
+    return result
+
+
+@router.get("/context/{filename:path}")
+async def read_context_file(filename: str):
+    """Read a specific context file from the workspace."""
+    content = await default_workspace.read_file(filename)
+    if content is None:
+        return {"error": f"Context file not found: {filename}"}
+    return {"filename": filename, "content": content.decode("utf-8", errors="replace")}
+
+
+@router.put("/context/{filename:path}")
+async def update_context_file(filename: str, request: Request):
+    """Update a context file in the workspace."""
+    data = await request.json()
+    content = data.get("content", "")
+    if not content:
+        return {"error": "No content provided"}
+    result = await default_workspace.write_file(filename, content.encode("utf-8"))
+    if result is None:
+        return {"error": f"Failed to write: {filename}"}
+    return {"status": "ok", "filename": filename, "size_bytes": result.size_bytes}
+
+
+# ── Web Research (Perplexity via OpenRouter) ──────────────────────────────
+
+
+@router.post("/research/search")
+async def web_research(request: Request):
+    """Quick web research via Perplexity Sonar Pro Search."""
+    from helm.integrations.openrouter import openrouter_client
+
+    data = await request.json()
+    query = data.get("query", "")
+    context = data.get("context", "")
+    if not query:
+        return {"error": "No query provided"}
+    if not openrouter_client.is_configured:
+        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
+    return await openrouter_client.search(query, context=context)
+
+
+@router.post("/research/deep")
+async def deep_research(request: Request):
+    """Deep research via Perplexity Deep Research."""
+    from helm.integrations.openrouter import openrouter_client
+
+    data = await request.json()
+    query = data.get("query", "")
+    context = data.get("context", "")
+    if not query:
+        return {"error": "No query provided"}
+    if not openrouter_client.is_configured:
+        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
+    return await openrouter_client.deep_research(query, context=context)
+
+
+@router.post("/research/comps")
+async def research_comps(request: Request):
+    """Research comparable sales for a property address."""
+    from helm.integrations.openrouter import openrouter_client
+
+    data = await request.json()
+    address = data.get("address", "")
+    if not address:
+        return {"error": "No address provided"}
+    if not openrouter_client.is_configured:
+        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
+    return await openrouter_client.research_comps(address)
+
+
+@router.post("/research/neighborhood")
+async def research_neighborhood(request: Request):
+    """Research neighborhood data for a property address."""
+    from helm.integrations.openrouter import openrouter_client
+
+    data = await request.json()
+    address = data.get("address", "")
+    if not address:
+        return {"error": "No address provided"}
+    if not openrouter_client.is_configured:
+        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
+    return await openrouter_client.research_neighborhood(address)
+
+
+@router.post("/research/market")
+async def research_market(request: Request):
+    """Research market conditions for a city/metro area."""
+    from helm.integrations.openrouter import openrouter_client
+
+    data = await request.json()
+    market = data.get("market", "")
+    if not market:
+        return {"error": "No market provided"}
+    if not openrouter_client.is_configured:
+        return {"error": "OpenRouter not configured (set OPENROUTER_API_KEY)"}
+    return await openrouter_client.research_market(market)
+
+
+# ── Model Router Info ─────────────────────────────────────────────────────
+
+
+@router.post("/router/classify")
+async def classify_message(request: Request):
+    """Classify which model tier should handle a message."""
+    from helm.orchestrator.multi_ai_router import classify_task, get_model_info
+
+    data = await request.json()
+    message = data.get("message", "")
+    mode = data.get("mode", "business")
+    if not message:
+        return {"error": "No message provided"}
+    tier = classify_task(message, mode=mode)
+    return {"tier": tier, "model": get_model_info(tier)}

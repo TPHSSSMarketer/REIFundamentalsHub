@@ -21,8 +21,12 @@ class Settings(BaseSettings):
     # ── AI ───────────────────────────────────────────────────────────────
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_model_opus: str = "claude-opus-4-6"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+
+    # ── OpenRouter (multi-model gateway + Perplexity research) ─────────
+    openrouter_api_key: str = ""
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./helm.db"
