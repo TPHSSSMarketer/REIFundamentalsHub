@@ -3,6 +3,9 @@
 Runs ``claude -p "prompt"`` in headless mode, routing chat through your
 Max subscription instead of burning API credits.
 
+IMPORTANT: The subprocess runs from a temp directory to prevent Claude CLI
+from reading CLAUDE.md (project context) and overriding Helm's personality.
+
 Requirements:
   - Claude Code CLI installed: ``npm install -g @anthropic-ai/claude-code``
   - Authenticated: run ``claude`` once interactively to log in
@@ -20,9 +23,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import shutil
+import tempfile
 from datetime import datetime, timezone
 
 from helm.config import get_settings
@@ -71,8 +74,8 @@ class ClaudeCLIClient:
                 "content": "",
             }
 
-        # Build the prompt from conversation history
-        prompt = self._build_prompt(messages, system_prompt)
+        # Build the user prompt from conversation history (no system prompt here)
+        prompt = self._build_prompt(messages)
 
         # Build command
         cmd = [
@@ -81,12 +84,19 @@ class ClaudeCLIClient:
             "--output-format", "text",
         ]
 
+        # Pass system prompt via CLI flag so it's treated as instructions
+        if system_prompt:
+            cmd.extend(["--system-prompt", system_prompt])
+
         # Add model override if specified
         if model:
             cmd.extend(["--model", model])
 
         # Add max tokens
         cmd.extend(["--max-tokens", str(max_tokens)])
+
+        # Disable tools — we want pure chat, not code execution
+        cmd.extend(["--allowedTools", ""])
 
         try:
             result = await self._run_subprocess(cmd)
@@ -96,16 +106,25 @@ class ClaudeCLIClient:
             return {"error": str(exc), "content": ""}
 
     async def _run_subprocess(self, cmd: list[str]) -> dict:
-        """Execute the Claude CLI command and capture output."""
+        """Execute the Claude CLI command and capture output.
+
+        Runs from a temp directory to prevent Claude CLI from reading
+        CLAUDE.md or any project context files from the working directory.
+        """
         timeout = getattr(settings, "claude_cli_timeout", DEFAULT_TIMEOUT)
 
         logger.info("Claude CLI: running subprocess (%d char prompt)", len(cmd[2]) if len(cmd) > 2 else 0)
+
+        # Use temp dir as cwd so Claude CLI won't read CLAUDE.md
+        # from the Helm project root and override our system prompt
+        cwd = tempfile.gettempdir()
 
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
@@ -146,6 +165,7 @@ class ClaudeCLIClient:
 
         Claude CLI headless mode takes a single prompt. We format the
         conversation as a structured block so Claude understands the context.
+        System prompt is passed via --system-prompt flag, not embedded here.
         """
         parts: list[str] = []
 
@@ -156,7 +176,6 @@ class ClaudeCLIClient:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             if role == "system":
-                # System messages go into the system block
                 if not system_prompt:
                     parts.insert(0, f"<system>\n{content}\n</system>\n")
             elif role == "assistant":
