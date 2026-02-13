@@ -42,7 +42,9 @@ class ModelTier:
 OPUS_SIGNALS = [
     "analyze this deal", "evaluate this property", "deal analysis",
     "negotiation strategy", "creative financing", "seller financing",
-    "portfolio analysis", "portfolio health", "brrrr", "cash-on-cash",
+    "portfolio analysis", "portfolio health", "portfolio review",
+    "portfolio performance", "review my portfolio",
+    "brrrr", "cash-on-cash",
     "should i buy", "should i sell", "refinance strategy",
     "partnership structure", "exit strategy", "complex",
     "compare these", "which deal is better", "risk assessment",
@@ -55,6 +57,7 @@ RESEARCH_SIGNALS = [
     "school ratings", "flood zone", "zoning", "permits", "listings",
     "rent estimate", "property tax", "insurance cost", "news about",
     "interest rate", "market trend", "population growth",
+    "cap rate in", "what are rents", "average rent", "median price",
 ]
 
 DEEP_RESEARCH_SIGNALS = [
@@ -70,6 +73,7 @@ COMMAND_MAP = {
     "/opus": ModelTier.OPUS,
     "/sonnet": ModelTier.SONNET,
     "/research": ModelTier.PERPLEXITY_SEARCH,
+    "/deep": ModelTier.PERPLEXITY_DEEP,
     "/deepresearch": ModelTier.PERPLEXITY_DEEP,
 }
 
