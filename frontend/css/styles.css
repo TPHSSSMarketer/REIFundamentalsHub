@@ -252,7 +252,7 @@ a:hover { color: var(--accent-hover); }
     overflow-y: auto;
 }
 
-.view.active { display: flex; }
+.view.active { display: flex; flex-direction: column; }
 
 .view-content {
     max-width: 900px;
@@ -269,6 +269,7 @@ a:hover { color: var(--accent-hover); }
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;            /* critical: allows flex child to shrink for scroll */
     max-width: 820px;
     width: 100%;
     margin: 0 auto;

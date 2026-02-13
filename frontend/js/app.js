@@ -28,15 +28,12 @@
     const menuToggle = $("#menuToggle");
     const themeToggle = $("#themeToggle");
     const newChatBtn = $("#newChat");
-    const dealForm = $("#dealForm");
-    const dealResult = $("#dealResult");
+    const dealForm = $("#dealForm");      // null until RE plugin loaded
+    const dealResult = $("#dealResult");  // null until RE plugin loaded
 
     // ── View Titles ─────────────────────────────────────────────────────
     const VIEW_TITLES = {
-        chat: "Chat with Helm",
-        portfolio: "Portfolio",
-        deals: "Deal Analyzer",
-        tasks: "Tasks",
+        chat: "Chat with Grace",
     };
 
     // ── Navigation ──────────────────────────────────────────────────────
@@ -51,9 +48,6 @@
             $(`#view-${view}`).classList.add("active");
 
             viewTitle.textContent = VIEW_TITLES[view] || "Helm";
-
-            // Load data for the view
-            if (view === "portfolio") loadPortfolio();
 
             // Close mobile sidebar
             sidebar.classList.remove("open");
@@ -91,13 +85,13 @@
                 <div class="welcome-icon">
                     <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/><path d="M16 6 L16 26 M10 12 L16 6 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
-                <h2>Welcome to Helm</h2>
+                <h2>Hey, I'm Grace</h2>
                 <p>Your AI-powered command center for business and life.</p>
                 <div class="quick-actions">
                     <button class="quick-action" data-prompt="Give me my daily briefing">Daily Briefing</button>
-                    <button class="quick-action" data-prompt="Show me my portfolio overview">Portfolio Overview</button>
-                    <button class="quick-action" data-prompt="Help me analyze a new deal">Analyze a Deal</button>
                     <button class="quick-action" data-prompt="What are my priorities today?">Today's Priorities</button>
+                    <button class="quick-action" data-prompt="Help me brainstorm ideas">Brainstorm</button>
+                    <button class="quick-action" data-prompt="What can you help me with?">What Can You Do?</button>
                 </div>
             </div>`;
         bindQuickActions();
@@ -216,75 +210,41 @@
         return str.replace(/[&<>"']/g, (c) => map[c]);
     }
 
-    // ── Portfolio ───────────────────────────────────────────────────────
-    async function loadPortfolio() {
-        try {
-            const res = await fetch(`${API_BASE}/portfolio`);
-            const data = await res.json();
+    // ── Deal Analyzer (only when RE plugin is loaded) ──────────────────
+    if (dealForm) {
+        dealForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btn = dealForm.querySelector("button[type=submit]");
+            btn.disabled = true;
+            btn.textContent = "Analyzing...";
+            dealResult.classList.add("hidden");
 
-            if (data.total_properties > 0) {
-                $("#statProperties").textContent = data.total_properties;
-                $("#statValue").textContent = `$${(data.total_value || 0).toLocaleString()}`;
-                $("#statIncome").textContent = `$${(data.total_monthly_income || 0).toLocaleString()}/mo`;
-                $("#statCapRate").textContent = data.average_cap_rate
-                    ? `${data.average_cap_rate.toFixed(1)}%`
-                    : "--";
-                $("#portfolioPlaceholder").style.display = "none";
+            try {
+                const payload = {
+                    address: $("#dealAddress").value,
+                    purchase_price: parseFloat($("#dealPrice").value),
+                    rehab_cost: parseFloat($("#dealRehab").value) || 0,
+                    after_repair_value: parseFloat($("#dealARV").value) || null,
+                    monthly_rent: parseFloat($("#dealRent").value) || null,
+                    strategy: $("#dealStrategy").value,
+                };
+
+                const res = await fetch(`${API_BASE}/deal/analyze`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await res.json();
+                dealResult.textContent = data.reply || JSON.stringify(data, null, 2);
+                dealResult.classList.remove("hidden");
+            } catch {
+                dealResult.textContent = "Unable to reach the server.";
+                dealResult.classList.remove("hidden");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Analyze Deal";
             }
-        } catch {
-            // Integration not connected — show placeholder
-        }
-    }
-
-    // ── Deal Analyzer ───────────────────────────────────────────────────
-    dealForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const btn = dealForm.querySelector("button[type=submit]");
-        btn.disabled = true;
-        btn.textContent = "Analyzing...";
-        dealResult.classList.add("hidden");
-
-        try {
-            const payload = {
-                address: $("#dealAddress").value,
-                purchase_price: parseFloat($("#dealPrice").value),
-                rehab_cost: parseFloat($("#dealRehab").value) || 0,
-                after_repair_value: parseFloat($("#dealARV").value) || null,
-                monthly_rent: parseFloat($("#dealRent").value) || null,
-                strategy: $("#dealStrategy").value,
-            };
-
-            const res = await fetch(`${API_BASE}/deal/analyze`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await res.json();
-            dealResult.textContent = data.reply || JSON.stringify(data, null, 2);
-            dealResult.classList.remove("hidden");
-        } catch {
-            dealResult.textContent = "Unable to reach the server. Make sure Helm is running.";
-            dealResult.classList.remove("hidden");
-        } finally {
-            btn.disabled = false;
-            btn.textContent = "Analyze Deal";
-        }
-    });
-
-    // ── Tasks (simple add via prompt) ───────────────────────────────────
-    const addTaskBtn = $("#addTaskBtn");
-    if (addTaskBtn) {
-        addTaskBtn.addEventListener("click", () => {
-            // Switch to chat and pre-fill
-            $$(".nav-item").forEach((b) => b.classList.remove("active"));
-            $('[data-view="chat"]').classList.add("active");
-            $$(".view").forEach((v) => v.classList.remove("active"));
-            $("#view-chat").classList.add("active");
-            viewTitle.textContent = VIEW_TITLES.chat;
-
-            chatInput.value = "Help me create a task list for today.";
-            chatInput.focus();
         });
     }
 })();
