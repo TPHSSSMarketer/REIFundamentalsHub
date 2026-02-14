@@ -23,6 +23,7 @@ import httpx
 from helm.assistant.engine import helm_engine
 from helm.config import get_settings
 from helm.models.schemas import AssistantMode, ChatRequest
+from helm.reliability.breakers import whatsapp_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -269,7 +270,8 @@ class WhatsAppClient:
     async def _api_post(self, path: str, payload: dict) -> dict | None:
         if not self.is_configured:
             return None
-        try:
+
+        async def _do_post() -> dict:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     f"{self._base_url}{path}",
@@ -278,7 +280,10 @@ class WhatsAppClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await whatsapp_breaker.call(_do_post)
+        except Exception as exc:
             logger.error("WhatsApp API error [%s]: %s", path, exc)
             return None
 

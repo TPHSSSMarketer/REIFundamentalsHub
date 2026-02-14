@@ -13,6 +13,7 @@
         conversationId: null,
         mode: "business",
         isLoading: false,
+        monitoringInterval: null,
     };
 
     // ── DOM References ──────────────────────────────────────────────────
@@ -65,6 +66,9 @@
 
             // Close mobile sidebar
             sidebar.classList.remove("open");
+
+            // Stop monitoring auto-refresh when leaving the view
+            if (view !== "monitoring") stopMonitoringAutoRefresh();
         });
     });
 
@@ -715,6 +719,25 @@
         const refreshLogs = $("#monRefreshLogs");
         if (refreshLogs) {
             refreshLogs.onclick = () => loadMonitoringAgentLogs();
+        }
+
+        // Start auto-refresh (every 30 seconds)
+        startMonitoringAutoRefresh();
+    }
+
+    function startMonitoringAutoRefresh() {
+        stopMonitoringAutoRefresh();
+        state.monitoringInterval = setInterval(() => {
+            loadMonitoringStats();
+            loadMonitoringIntegrations();
+            loadMonitoringAgentLogs();
+        }, 30000);
+    }
+
+    function stopMonitoringAutoRefresh() {
+        if (state.monitoringInterval) {
+            clearInterval(state.monitoringInterval);
+            state.monitoringInterval = null;
         }
     }
 

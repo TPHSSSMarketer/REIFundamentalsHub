@@ -23,6 +23,7 @@ import httpx
 from helm.assistant.engine import helm_engine
 from helm.config import get_settings
 from helm.models.schemas import AssistantMode, ChatRequest
+from helm.reliability.breakers import telegram_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -195,12 +196,85 @@ class TelegramBot:
         if data.startswith("confirm:"):
             action = data[len("confirm:"):]
             await self.send_message(chat_id, f"Confirmed: {action}. Executing...")
-            # TODO: Execute the confirmed action via the permission system
+            result = await self._execute_callback_action(action, chat_id)
+            if result:
+                await self.send_message(chat_id, result)
         elif data.startswith("snooze:"):
-            hours = data[len("snooze:"):]
+            topic_and_hours = data[len("snooze:"):]
+            parts = topic_and_hours.split(":", 1)
+            hours = parts[0]
             await self.send_message(chat_id, f"Snoozed for {hours} hours.")
+            # Update checkin state to suppress this topic
+            try:
+                from helm.checkins.scheduler import checkin_scheduler
+                tenant = await self._resolve_tenant(str(chat_id))
+                if tenant:
+                    await checkin_scheduler.snooze_topic(
+                        tenant["id"],
+                        parts[1] if len(parts) > 1 else "unknown",
+                        int(hours),
+                    )
+            except Exception as exc:
+                logger.warning("Failed to update snooze state: %s", exc)
         elif data == "dismiss":
             await self.send_message(chat_id, "Dismissed.")
+
+    async def _execute_callback_action(self, action: str, chat_id: int) -> str | None:
+        """Execute a confirmed action from an inline keyboard callback."""
+        try:
+            parts = action.split(":", 1)
+            action_type = parts[0]
+            action_params = parts[1] if len(parts) > 1 else ""
+
+            if action_type == "complete_task":
+                from helm.integrations.ghl import ghl_client
+                result = await ghl_client.complete_task(action_params)
+                return "Task marked complete." if result else "Failed to complete task."
+
+            elif action_type == "send_message":
+                # Format: send_message:contact_id:channel:message
+                msg_parts = action_params.split(":", 2)
+                if len(msg_parts) >= 3:
+                    from helm.integrations.ghl import ghl_client
+                    result = await ghl_client.send_message(
+                        msg_parts[0], msg_parts[2], msg_parts[1]
+                    )
+                    return "Message sent." if result else "Failed to send message."
+                return "Invalid message parameters."
+
+            elif action_type == "move_deal":
+                # Format: move_deal:opp_id:stage_id
+                deal_parts = action_params.split(":", 1)
+                if len(deal_parts) == 2:
+                    from helm.integrations.ghl import ghl_client
+                    result = await ghl_client.update_opportunity(
+                        deal_parts[0], {"pipelineStageId": deal_parts[1]}
+                    )
+                    return "Deal moved to new stage." if result else "Failed to move deal."
+                return "Invalid deal parameters."
+
+            elif action_type == "create_task":
+                from helm.integrations.ghl import ghl_client
+                result = await ghl_client.create_task({"title": action_params})
+                return "Task created." if result else "Failed to create task."
+
+            elif action_type == "call":
+                # Initiate a voice call
+                from helm.integrations.whatsapp_calling import whatsapp_calling
+                tenant = await self._resolve_tenant(str(chat_id))
+                if tenant and tenant.get("whatsapp_phone"):
+                    result = await whatsapp_calling.initiate_call(
+                        tenant["whatsapp_phone"], tenant["id"]
+                    )
+                    return "Call initiated." if result else "Failed to initiate call."
+                return "No phone number configured for calls."
+
+            else:
+                return f"Unknown action type: {action_type}"
+
+        except Exception as exc:
+            logger.error("Callback action execution failed: %s", exc)
+            return f"Action failed: {exc}"
 
     # ── Voice Transcription ──────────────────────────────────────────────
 
@@ -289,24 +363,32 @@ class TelegramBot:
     async def _api_post(self, path: str, payload: dict) -> dict | None:
         if not self.is_configured:
             return None
-        try:
+
+        async def _do_post() -> dict:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(f"{self._base_url}{path}", json=payload)
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await telegram_breaker.call(_do_post)
+        except Exception as exc:
             logger.error("Telegram API error [%s]: %s", path, exc)
             return None
 
     async def _api_get(self, path: str, params: dict | None = None) -> dict | None:
         if not self.is_configured:
             return None
-        try:
+
+        async def _do_get() -> dict:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(f"{self._base_url}{path}", params=params)
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await telegram_breaker.call(_do_get)
+        except Exception as exc:
             logger.error("Telegram API error [%s]: %s", path, exc)
             return None
 

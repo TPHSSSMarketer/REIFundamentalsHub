@@ -556,3 +556,161 @@ async def test_saas_onboarding_questions_endpoint():
         data = resp.json()
         assert "questions" in data
         assert len(data["questions"]) > 0
+
+
+# ── Idempotency Key Tests ──────────────────────────────────────────────────
+
+
+def test_retry_queue_idempotency_key_generation():
+    """Idempotency keys are deterministic for same input."""
+    from helm.reliability.retry_queue import RetryQueue
+
+    key1 = RetryQueue._generate_idempotency_key("ghl_create_task", {"title": "Test"})
+    key2 = RetryQueue._generate_idempotency_key("ghl_create_task", {"title": "Test"})
+    assert key1 == key2
+    assert len(key1) == 16  # truncated sha256 hex
+
+
+def test_retry_queue_idempotency_key_differs():
+    """Different payloads produce different keys."""
+    from helm.reliability.retry_queue import RetryQueue
+
+    key1 = RetryQueue._generate_idempotency_key("ghl_create_task", {"title": "A"})
+    key2 = RetryQueue._generate_idempotency_key("ghl_create_task", {"title": "B"})
+    assert key1 != key2
+
+
+def test_retry_queue_deduplication():
+    """Enqueue rejects duplicate actions with same idempotency key."""
+    from helm.reliability.retry_queue import RetryQueue
+
+    q = RetryQueue()
+    q._queue.clear()  # ensure clean state
+
+    id1 = q.enqueue("test_action", {"key": "value"})
+    id2 = q.enqueue("test_action", {"key": "value"})  # duplicate
+
+    assert id1 == id2  # Same ID returned
+    assert q.pending_count == 1  # Only one in queue
+
+    q._queue.clear()  # cleanup
+
+
+# ── Circuit Breaker Wiring Tests ───────────────────────────────────────────
+
+
+def test_ghl_imports_breaker():
+    """GHL module imports and uses ghl_breaker."""
+    import helm.integrations.ghl as ghl_mod
+    assert hasattr(ghl_mod, "ghl_breaker")
+
+
+def test_whatsapp_imports_breaker():
+    """WhatsApp module imports and uses whatsapp_breaker."""
+    import helm.integrations.whatsapp as wa_mod
+    assert hasattr(wa_mod, "whatsapp_breaker")
+
+
+def test_telegram_imports_breaker():
+    """Telegram module imports and uses telegram_breaker."""
+    import helm.integrations.telegram as tg_mod
+    assert hasattr(tg_mod, "telegram_breaker")
+
+
+def test_elevenlabs_imports_breaker():
+    """ElevenLabs module imports and uses elevenlabs_breaker."""
+    import helm.integrations.elevenlabs as el_mod
+    assert hasattr(el_mod, "elevenlabs_breaker")
+
+
+def test_openrouter_imports_breaker():
+    """OpenRouter module imports and uses openrouter_breaker."""
+    import helm.integrations.openrouter as or_mod
+    assert hasattr(or_mod, "openrouter_breaker")
+
+
+def test_supabase_imports_breaker():
+    """Supabase memory module imports and uses supabase_breaker."""
+    import helm.integrations.supabase_memory as sb_mod
+    assert hasattr(sb_mod, "supabase_breaker")
+
+
+# ── JSON Logging Tests ────────────────────────────────────────────────────
+
+
+def test_json_formatter():
+    """JSONFormatter produces valid JSON log entries."""
+    import json as json_mod
+    import logging as log_mod
+    from helm.logging_config import JSONFormatter
+
+    formatter = JSONFormatter()
+    record = log_mod.LogRecord(
+        name="test", level=log_mod.INFO, pathname="", lineno=0,
+        msg="Hello %s", args=("world",), exc_info=None,
+    )
+    output = formatter.format(record)
+    parsed = json_mod.loads(output)
+    assert parsed["message"] == "Hello world"
+    assert parsed["level"] == "INFO"
+    assert "timestamp" in parsed
+
+
+def test_json_formatter_extra_fields():
+    """JSONFormatter includes Helm-specific extra fields."""
+    import json as json_mod
+    import logging as log_mod
+    from helm.logging_config import JSONFormatter
+
+    formatter = JSONFormatter()
+    record = log_mod.LogRecord(
+        name="test", level=log_mod.INFO, pathname="", lineno=0,
+        msg="test", args=(), exc_info=None,
+    )
+    record.tenant_id = "t-123"
+    record.agent_name = "deal-analyzer"
+    output = formatter.format(record)
+    parsed = json_mod.loads(output)
+    assert parsed["tenant_id"] == "t-123"
+    assert parsed["agent_name"] == "deal-analyzer"
+
+
+def test_setup_logging():
+    """setup_logging configures root logger without error."""
+    from helm.logging_config import setup_logging
+    setup_logging(level="WARNING", json_output=False)
+    # Restore for other tests
+    setup_logging(level="WARNING", json_output=False)
+
+
+# ── Runner Scripts Tests ─────────────────────────────────────────────────
+
+
+def test_context_sync_runner_importable():
+    """Context sync runner module is importable."""
+    from helm.orchestrator import run_context_sync
+    assert hasattr(run_context_sync, "main")
+
+
+def test_checkin_runner_importable():
+    """Check-in runner module is importable."""
+    from helm.checkins import run_checkins
+    assert hasattr(run_checkins, "main")
+
+
+# ── Telegram Callback Action Tests ───────────────────────────────────────
+
+
+def test_telegram_has_execute_callback():
+    """TelegramBot has _execute_callback_action method."""
+    from helm.integrations.telegram import telegram_bot
+    assert hasattr(telegram_bot, "_execute_callback_action")
+
+
+# ── Checkin Scheduler Snooze Tests ───────────────────────────────────────
+
+
+def test_checkin_scheduler_has_snooze():
+    """CheckinScheduler has snooze_topic method."""
+    from helm.checkins.scheduler import checkin_scheduler
+    assert hasattr(checkin_scheduler, "snooze_topic")

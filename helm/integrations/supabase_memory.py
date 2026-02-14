@@ -24,6 +24,7 @@ from datetime import datetime
 import httpx
 
 from helm.config import get_settings
+from helm.reliability.breakers import supabase_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -102,7 +103,7 @@ class SupabaseMemory:
         if embedding:
             payload["embedding"] = embedding
 
-        try:
+        async def _do_store() -> dict:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     f"{self._url}/rest/v1/memories",
@@ -111,9 +112,14 @@ class SupabaseMemory:
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                logger.info("Memory stored: %s...", content[:60])
                 return data[0] if isinstance(data, list) else data
-        except httpx.HTTPError as exc:
+
+        try:
+            result = await supabase_breaker.call(_do_store)
+            if result:
+                logger.info("Memory stored: %s...", content[:60])
+            return result
+        except Exception as exc:
             logger.error("Failed to store memory: %s", exc)
             return None
 
@@ -132,7 +138,7 @@ class SupabaseMemory:
         if not embedding:
             return []
 
-        try:
+        async def _do_search() -> list[dict]:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     f"{self._url}/rest/v1/rpc/search_memories",
@@ -145,10 +151,15 @@ class SupabaseMemory:
                     },
                 )
                 resp.raise_for_status()
-                results = resp.json()
-                logger.info("Memory search for '%s...' → %d results", query[:40], len(results))
-                return results
-        except httpx.HTTPError as exc:
+                return resp.json()
+
+        try:
+            results = await supabase_breaker.call(_do_search)
+            if results is None:
+                return []
+            logger.info("Memory search for '%s...' → %d results", query[:40], len(results))
+            return results
+        except Exception as exc:
             logger.error("Memory search failed: %s", exc)
             return []
 
@@ -175,7 +186,7 @@ class SupabaseMemory:
         if tenant_id:
             payload["tenant_id"] = tenant_id
 
-        try:
+        async def _do_log() -> dict:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     f"{self._url}/rest/v1/conversation_logs",
@@ -184,7 +195,10 @@ class SupabaseMemory:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await supabase_breaker.call(_do_log)
+        except Exception as exc:
             logger.error("Failed to log conversation: %s", exc)
             return None
 
@@ -201,7 +215,7 @@ class SupabaseMemory:
         if tenant_id:
             params["tenant_id"] = f"eq.{tenant_id}"
 
-        try:
+        async def _do_get_goals() -> list[dict]:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(
                     f"{self._url}/rest/v1/goals",
@@ -210,7 +224,11 @@ class SupabaseMemory:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            result = await supabase_breaker.call(_do_get_goals)
+            return result if result is not None else []
+        except Exception as exc:
             logger.error("Failed to fetch goals: %s", exc)
             return []
 
@@ -227,7 +245,7 @@ class SupabaseMemory:
         if tenant_id:
             payload["tenant_id"] = tenant_id
 
-        try:
+        async def _do_create_goal() -> dict:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     f"{self._url}/rest/v1/goals",
@@ -237,7 +255,10 @@ class SupabaseMemory:
                 resp.raise_for_status()
                 data = resp.json()
                 return data[0] if isinstance(data, list) else data
-        except httpx.HTTPError as exc:
+
+        try:
+            return await supabase_breaker.call(_do_create_goal)
+        except Exception as exc:
             logger.error("Failed to create goal: %s", exc)
             return None
 

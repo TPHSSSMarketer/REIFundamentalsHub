@@ -448,6 +448,32 @@ class CheckinScheduler:
         }
 
     # ==================================================================
+    #  TOPIC SNOOZING
+    # ==================================================================
+
+    async def snooze_topic(self, tenant_id: str, topic: str, hours: int) -> None:
+        """Suppress a topic for the given number of hours."""
+        try:
+            async with async_session() as session:
+                result = await session.execute(
+                    select(CheckinState).where(CheckinState.tenant_id == tenant_id)
+                )
+                state = result.scalar_one_or_none()
+                if state:
+                    suppressed = state.suppressed_items or []
+                    suppressed.append({
+                        "topic": topic,
+                        "snoozed_until": (
+                            datetime.now(timezone.utc) + timedelta(hours=hours)
+                        ).isoformat(),
+                    })
+                    state.suppressed_items = suppressed
+                    await session.commit()
+                    logger.info("Topic '%s' snoozed for %dh for tenant %s", topic, hours, tenant_id)
+        except Exception as exc:
+            logger.error("Failed to snooze topic: %s", exc)
+
+    # ==================================================================
     #  DATA COLLECTION
     # ==================================================================
 

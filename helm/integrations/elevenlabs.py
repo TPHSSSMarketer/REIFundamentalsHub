@@ -21,6 +21,7 @@ import logging
 import httpx
 
 from helm.config import get_settings
+from helm.reliability.breakers import elevenlabs_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -72,7 +73,7 @@ class ElevenLabsClient:
             logger.warning("No voice_id set for ElevenLabs TTS.")
             return None
 
-        try:
+        async def _do_synthesize() -> bytes:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     f"{self.API_BASE}/text-to-speech/{vid}",
@@ -88,13 +89,17 @@ class ElevenLabsClient:
                     },
                 )
                 resp.raise_for_status()
-                audio = resp.content
+                return resp.content
+
+        try:
+            audio = await elevenlabs_breaker.call(_do_synthesize)
+            if audio:
                 logger.info(
                     "ElevenLabs TTS: %d chars → %d bytes (%s)",
                     len(text), len(audio), output_format,
                 )
-                return audio
-        except httpx.HTTPError as exc:
+            return audio
+        except Exception as exc:
             logger.error("ElevenLabs TTS failed: %s", exc)
             return None
 
@@ -104,7 +109,7 @@ class ElevenLabsClient:
         """List available voices."""
         if not self.is_configured:
             return []
-        try:
+        async def _do_list_voices() -> list[dict]:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(
                     f"{self.API_BASE}/voices",
@@ -121,7 +126,11 @@ class ElevenLabsClient:
                     }
                     for v in data.get("voices", [])
                 ]
-        except httpx.HTTPError as exc:
+
+        try:
+            result = await elevenlabs_breaker.call(_do_list_voices)
+            return result if result is not None else []
+        except Exception as exc:
             logger.error("Failed to list ElevenLabs voices: %s", exc)
             return []
 

@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 import httpx
 
 from helm.config import get_settings
+from helm.reliability.breakers import openrouter_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -75,46 +76,44 @@ class OpenRouterClient:
             "temperature": temperature,
         }
 
-        try:
+        async def _do_call() -> dict:
             async with httpx.AsyncClient(timeout=120) as client:
                 resp = await client.post(
                     OPENROUTER_API,
                     headers=self._headers,
                     json=payload,
                 )
-
-                # Read the response body before checking status
                 data = resp.json()
-
                 if resp.status_code != 200:
                     error_detail = data.get("error", {})
                     if isinstance(error_detail, dict):
                         error_msg = error_detail.get("message", resp.text[:500])
                     else:
                         error_msg = str(error_detail) or resp.text[:500]
-                    logger.error(
-                        "OpenRouter %d error (model=%s): %s",
-                        resp.status_code, model, error_msg,
+                    raise httpx.HTTPStatusError(
+                        f"OpenRouter {resp.status_code}: {error_msg}",
+                        request=resp.request,
+                        response=resp,
                     )
-                    return {"error": f"OpenRouter {resp.status_code}: {error_msg}", "content": ""}
+                return data
 
-                # Extract the response
-                choices = data.get("choices", [])
-                if not choices:
-                    return {"error": "No response from model", "content": ""}
-
-                content = choices[0].get("message", {}).get("content", "")
-                usage = data.get("usage", {})
-
-                return {
-                    "content": content,
-                    "model": data.get("model", model),
-                    "tokens_used": usage.get("total_tokens", 0),
-                    "cost_usd": self._estimate_cost(model, usage),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-
-        except httpx.HTTPError as exc:
+        try:
+            data = await openrouter_breaker.call(_do_call)
+            if data is None:
+                return {"error": "OpenRouter circuit breaker is open", "content": ""}
+            choices = data.get("choices", [])
+            if not choices:
+                return {"error": "No response from model", "content": ""}
+            content = choices[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            return {
+                "content": content,
+                "model": data.get("model", model),
+                "tokens_used": usage.get("total_tokens", 0),
+                "cost_usd": self._estimate_cost(model, usage),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception as exc:
             logger.error("OpenRouter connection error: %s", exc)
             return {"error": str(exc), "content": ""}
 

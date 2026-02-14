@@ -13,13 +13,14 @@ from fastapi.staticfiles import StaticFiles
 
 from helm.api.routes import router
 from helm.config import get_settings
+from helm.logging_config import setup_logging
 from helm.models.database import init_db
 
 settings = get_settings()
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+setup_logging(
+    level=settings.log_level,
+    json_output=settings.is_production,
 )
 logger = logging.getLogger(__name__)
 

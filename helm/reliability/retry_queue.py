@@ -10,6 +10,7 @@ Swap to Redis or Supabase for production multi-process deployments.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -34,6 +35,7 @@ class QueuedAction:
     backoff_ms: int = 5000
     created_at: float = field(default_factory=time.time)
     last_error: str = ""
+    idempotency_key: str = ""
 
 
 class RetryQueue:
@@ -49,12 +51,24 @@ class RetryQueue:
         self._handlers[action_name] = handler
 
     def enqueue(self, action_name: str, payload: dict, max_attempts: int = 3) -> str:
-        """Add a failed action to the retry queue."""
+        """Add a failed action to the retry queue. Deduplicates by idempotency key."""
+        idem_key = self._generate_idempotency_key(action_name, payload)
+
+        # Check for existing action with same idempotency key
+        for existing in self._queue:
+            if existing.idempotency_key == idem_key:
+                logger.info(
+                    "Duplicate action skipped (idempotency key %s): %s",
+                    idem_key, action_name,
+                )
+                return existing.id
+
         action = QueuedAction(
             action_name=action_name,
             payload=payload,
             max_attempts=max_attempts,
-            next_retry_at=time.time() + 5,  # First retry in 5 seconds
+            next_retry_at=time.time() + 5,
+            idempotency_key=idem_key,
         )
         self._queue.append(action)
         self._persist()
@@ -65,6 +79,12 @@ class RetryQueue:
             max_attempts,
         )
         return action.id
+
+    @staticmethod
+    def _generate_idempotency_key(action_name: str, payload: dict) -> str:
+        """Generate a deterministic key from action name and payload."""
+        raw = f"{action_name}:{json.dumps(payload, sort_keys=True)}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     async def process(self) -> dict:
         """Process all due retries.  Returns a summary."""

@@ -21,6 +21,7 @@ import time
 import httpx
 
 from helm.config import get_settings
+from helm.reliability.breakers import ghl_breaker
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -89,7 +90,8 @@ class GHLClient:
         if not self.is_configured:
             return None
         await self._ensure_token()
-        try:
+
+        async def _do_get() -> dict:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(
                     f"{self.API_BASE}{path}",
@@ -98,7 +100,10 @@ class GHLClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await ghl_breaker.call(_do_get)
+        except Exception as exc:
             logger.error("GHL GET %s failed: %s", path, exc)
             return None
 
@@ -106,7 +111,8 @@ class GHLClient:
         if not self.is_configured:
             return None
         await self._ensure_token()
-        try:
+
+        async def _do_post() -> dict:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     f"{self.API_BASE}{path}",
@@ -115,7 +121,10 @@ class GHLClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await ghl_breaker.call(_do_post)
+        except Exception as exc:
             logger.error("GHL POST %s failed: %s", path, exc)
             return None
 
@@ -123,7 +132,8 @@ class GHLClient:
         if not self.is_configured:
             return None
         await self._ensure_token()
-        try:
+
+        async def _do_put() -> dict:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.put(
                     f"{self.API_BASE}{path}",
@@ -132,7 +142,10 @@ class GHLClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-        except httpx.HTTPError as exc:
+
+        try:
+            return await ghl_breaker.call(_do_put)
+        except Exception as exc:
             logger.error("GHL PUT %s failed: %s", path, exc)
             return None
 
