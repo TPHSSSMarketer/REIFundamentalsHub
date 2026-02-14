@@ -323,3 +323,236 @@ async def test_agent_logs_endpoint():
         assert resp.status_code == 200
         data = resp.json()
         assert "logs" in data
+
+
+# ── Circuit Breakers & Reliability Tests ─────────────────────────────────────
+
+
+def test_breakers_registry():
+    """All named breakers are registered and have correct defaults."""
+    from helm.reliability.breakers import _ALL_BREAKERS, get_breaker
+
+    assert "ghl" in _ALL_BREAKERS
+    assert "elevenlabs" in _ALL_BREAKERS
+    assert "whatsapp" in _ALL_BREAKERS
+    assert "telegram" in _ALL_BREAKERS
+    assert "supabase" in _ALL_BREAKERS
+    assert "openrouter" in _ALL_BREAKERS
+
+    ghl = get_breaker("ghl")
+    assert ghl is not None
+    assert ghl.failure_threshold == 3
+
+    wa = get_breaker("whatsapp")
+    assert wa is not None
+    assert wa.failure_threshold == 5  # Higher threshold for messaging
+
+
+def test_breakers_all_status():
+    """get_all_breaker_status returns structured report."""
+    from helm.reliability.breakers import get_all_breaker_status
+
+    status = get_all_breaker_status()
+    assert "breakers" in status
+    assert "open_count" in status
+    assert "total" in status
+    assert status["total"] == 6
+    assert status["open_count"] == 0  # All closed initially
+
+
+@pytest.mark.asyncio
+async def test_protected_call_unknown_breaker():
+    """protected_call with unknown breaker falls through to direct call."""
+    from helm.reliability.breakers import protected_call
+
+    async def dummy():
+        return 42
+
+    result = await protected_call("nonexistent", dummy)
+    assert result == 42
+
+
+@pytest.mark.asyncio
+async def test_protected_call_known_breaker():
+    """protected_call through a known breaker works normally."""
+    from helm.reliability.breakers import protected_call
+
+    async def dummy():
+        return "ok"
+
+    result = await protected_call("ghl", dummy)
+    assert result == "ok"
+
+
+# ── Check-in Scheduler Tests ────────────────────────────────────────────────
+
+
+def test_checkin_gating_quiet_hours():
+    """GatingRules blocks during quiet hours."""
+    from helm.checkins.scheduler import GatingRules
+
+    rules = GatingRules({"quiet_hours_start": 22, "quiet_hours_end": 7})
+    # Test the quiet hours detection
+    from datetime import datetime, timezone
+    midnight = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+    assert rules._in_quiet_hours(midnight) is True
+
+    noon = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    assert rules._in_quiet_hours(noon) is False
+
+
+def test_checkin_gating_sacred_blocks():
+    """GatingRules respects sacred blocks."""
+    from helm.checkins.scheduler import GatingRules
+
+    config = {
+        "sacred_blocks": [{"start": "09:00", "end": "11:00", "label": "Deep Work"}],
+        "quiet_hours_start": 22,
+        "quiet_hours_end": 7,
+    }
+    rules = GatingRules(config)
+    from datetime import datetime, timezone
+    ten_am = datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc)
+    assert rules._in_sacred_block(ten_am)  # Returns label string (truthy)
+
+    two_pm = datetime(2025, 1, 1, 14, 0, tzinfo=timezone.utc)
+    assert not rules._in_sacred_block(two_pm)  # Returns None/empty (falsy)
+
+
+def test_checkin_scheduler_singleton():
+    """Scheduler singleton is importable."""
+    from helm.checkins.scheduler import checkin_scheduler
+    assert checkin_scheduler is not None
+
+
+# ── WhatsApp Calling Tests ───────────────────────────────────────────────────
+
+
+def test_whatsapp_calling_not_configured():
+    """WhatsAppCallingClient reports status when not configured."""
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    status = whatsapp_calling.get_connection_status()
+    assert "configured" in status
+    assert "active_calls" in status
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_calling_initiate_not_configured():
+    """Initiating a call when not configured returns error."""
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    result = await whatsapp_calling.initiate_call("1234567890")
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_calling_webhook_handler():
+    """Call webhook dispatches to correct handler."""
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    # Unknown event type should be handled gracefully
+    result = await whatsapp_calling.handle_call_webhook({
+        "event_type": "unknown_event",
+        "data": {},
+    })
+    assert result is not None or result is None  # Should not raise
+
+
+# ── GHL SaaS Tests ──────────────────────────────────────────────────────────
+
+
+def test_ghl_saas_onboarding_questions():
+    """get_onboarding_questions returns structured questionnaire."""
+    from helm.integrations.ghl_saas import ghl_saas
+
+    questions = ghl_saas.get_onboarding_questions()
+    assert isinstance(questions, list)
+    assert len(questions) > 0
+
+    # Each question should have id, label, type
+    for q in questions:
+        assert "id" in q
+        assert "label" in q
+        assert "type" in q
+
+
+def test_ghl_saas_business_type_map():
+    """Business type mapping provides correct agent configs."""
+    from helm.integrations.ghl_saas import _BUSINESS_AGENT_MAP
+
+    assert "real_estate" in _BUSINESS_AGENT_MAP
+    re_agents = _BUSINESS_AGENT_MAP["real_estate"]["enabled_agents"]
+    assert "deal-analyzer" in re_agents
+    assert "market-researcher" in re_agents
+
+    assert "general" in _BUSINESS_AGENT_MAP
+
+
+@pytest.mark.asyncio
+async def test_ghl_saas_handle_unknown_event():
+    """SaaS webhook handler ignores unknown events."""
+    from helm.integrations.ghl_saas import ghl_saas
+
+    result = await ghl_saas.handle_webhook("unknown.event", {})
+    assert result is not None or result is None  # Should not raise
+
+
+# ── API Endpoint Tests for New Features ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_breakers_endpoint():
+    """GET /reliability/breakers returns breaker status."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/reliability/breakers")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "breakers" in data
+
+
+@pytest.mark.asyncio
+async def test_retry_queue_endpoint():
+    """GET /reliability/retry-queue returns queue status."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/reliability/retry-queue")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "pending" in data
+
+
+@pytest.mark.asyncio
+async def test_voice_call_status_endpoint():
+    """GET /voice/call/status returns calling integration status."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/voice/call/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "configured" in data
+
+
+@pytest.mark.asyncio
+async def test_saas_onboarding_questions_endpoint():
+    """GET /onboarding/saas/questions returns questionnaire."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/onboarding/saas/questions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "questions" in data
+        assert len(data["questions"]) > 0

@@ -26,7 +26,9 @@ from helm.models.schemas import (
     ChatRequest,
     ChatResponse,
 )
+from helm.reliability.breakers import get_all_breaker_status
 from helm.reliability.health_check import health_checker
+from helm.reliability.retry_queue import retry_queue as _retry_queue
 
 router = APIRouter()
 
@@ -1065,6 +1067,48 @@ async def elevenlabs_voices():
     return {"voices": voices}
 
 
+@router.post("/voice/call/initiate")
+async def voice_call_initiate(request: Request):
+    """Initiate an outbound WhatsApp VoIP call.
+
+    Sends a permission request to the recipient first. The actual call
+    begins only after the user taps [Accept Call].
+
+    Body: ``{"to": "+1234567890", "tenant_id": "optional-tenant-id"}``
+    """
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    data = await request.json()
+    to = data.get("to", "")
+    if not to:
+        return {"error": "Recipient phone number ('to') is required"}
+    return await whatsapp_calling.initiate_call(
+        to=to,
+        tenant_id=data.get("tenant_id"),
+    )
+
+
+@router.post("/voice/call/webhook")
+async def voice_call_webhook(request: Request):
+    """Receive WhatsApp Business Calling API webhook events.
+
+    Dispatches incoming, ended, and failed call events to the
+    appropriate handlers.
+    """
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    payload = await request.json()
+    return await whatsapp_calling.handle_call_webhook(payload)
+
+
+@router.get("/voice/call/status")
+async def voice_call_status():
+    """Check WhatsApp calling integration status and active calls."""
+    from helm.integrations.whatsapp_calling import whatsapp_calling
+
+    return whatsapp_calling.get_connection_status()
+
+
 @router.post("/voice/elevenlabs/synthesize")
 async def elevenlabs_synthesize(request: Request):
     """Synthesize text using ElevenLabs TTS."""
@@ -1177,3 +1221,63 @@ async def update_goal(goal_id: str, request: Request):
             return {"id": goal.id, "status": goal.status}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+# ── Reliability ──────────────────────────────────────────────────────────────
+
+
+@router.get("/reliability/breakers")
+async def circuit_breaker_status():
+    """Return the status of all circuit breakers."""
+    return get_all_breaker_status()
+
+
+@router.get("/reliability/retry-queue")
+async def retry_queue_status():
+    """Return the current retry queue status."""
+    return _retry_queue.get_status()
+
+
+@router.post("/reliability/retry-queue/process")
+async def process_retry_queue():
+    """Manually trigger processing of the retry queue."""
+    result = await _retry_queue.process()
+    return result
+
+
+# ── GHL SaaS Webhooks ────────────────────────────────────────────────────────
+
+
+@router.post("/ghl/saas/webhook")
+async def ghl_saas_webhook(request: Request):
+    """Handle GHL SaaS Mode webhooks (app install / uninstall)."""
+    from helm.integrations.ghl_saas import ghl_saas
+
+    payload = await request.json()
+    event_type = payload.get("event") or payload.get("type", "")
+    if not event_type:
+        return {"error": "Missing event type in webhook payload"}
+    return await ghl_saas.handle_webhook(event_type, payload)
+
+
+# ── SaaS Onboarding ─────────────────────────────────────────────────────────
+
+
+@router.get("/onboarding/saas/questions")
+async def saas_onboarding_questions():
+    """Return the SaaS onboarding questionnaire for new tenants."""
+    from helm.integrations.ghl_saas import ghl_saas
+
+    return {"questions": ghl_saas.get_onboarding_questions()}
+
+
+@router.post("/onboarding/saas/process/{tenant_id}")
+async def process_saas_onboarding(tenant_id: str, request: Request):
+    """Process SaaS onboarding questionnaire answers for a tenant."""
+    from helm.integrations.ghl_saas import ghl_saas
+
+    data = await request.json()
+    answers = data.get("answers", {})
+    if not answers:
+        return {"error": "No answers provided. Send {\"answers\": {...}}"}
+    return await ghl_saas.process_onboarding_answers(tenant_id, answers)

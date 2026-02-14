@@ -14,6 +14,7 @@ import httpx
 
 from helm.config import get_settings
 from helm.integrations.registry import registry
+from helm.reliability.breakers import get_all_breaker_status
 from helm.reliability.retry_queue import retry_queue
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class HealthChecker:
             "helm_core": await self._check_core(),
             "plugins": registry.get_status_report(),
             "retry_queue": retry_queue.get_status(),
+            "circuit_breakers": self._check_breakers(),
         }
 
         # Check each active integration
@@ -64,6 +66,24 @@ class HealthChecker:
             "app_name": settings.app_name,
             "env": settings.app_env,
             "ai_configured": bool(settings.anthropic_api_key),
+        }
+
+    def _check_breakers(self) -> dict:
+        """Check all circuit breaker states and flag any that are open."""
+        breaker_status = get_all_breaker_status()
+        open_count = breaker_status["open_count"]
+        if open_count > 0:
+            return {
+                "status": "degraded",
+                "open_count": open_count,
+                "total": breaker_status["total"],
+                "breakers": breaker_status["breakers"],
+            }
+        return {
+            "status": "ok",
+            "open_count": 0,
+            "total": breaker_status["total"],
+            "breakers": breaker_status["breakers"],
         }
 
     async def _check_supabase(self) -> dict:
