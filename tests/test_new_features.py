@@ -239,7 +239,7 @@ async def test_ghl_status_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/ghl/status")
         assert resp.status_code == 200
         data = resp.json()
@@ -252,7 +252,7 @@ async def test_ghl_tools_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/ghl/tools")
         assert resp.status_code == 200
         data = resp.json()
@@ -266,7 +266,7 @@ async def test_goals_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/goals")
         assert resp.status_code == 200
         data = resp.json()
@@ -279,7 +279,7 @@ async def test_agents_run_requires_params():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.post("/api/agents/run", json={})
         assert resp.status_code == 200
         data = resp.json()
@@ -292,7 +292,7 @@ async def test_elevenlabs_status_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/voice/elevenlabs/status")
         assert resp.status_code == 200
         data = resp.json()
@@ -305,7 +305,7 @@ async def test_tenants_list_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/tenants")
         assert resp.status_code == 200
         data = resp.json()
@@ -318,7 +318,7 @@ async def test_agent_logs_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/agents/logs")
         assert resp.status_code == 200
         data = resp.json()
@@ -508,7 +508,7 @@ async def test_breakers_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/reliability/breakers")
         assert resp.status_code == 200
         data = resp.json()
@@ -522,7 +522,7 @@ async def test_retry_queue_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/reliability/retry-queue")
         assert resp.status_code == 200
         data = resp.json()
@@ -536,7 +536,7 @@ async def test_voice_call_status_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/voice/call/status")
         assert resp.status_code == 200
         data = resp.json()
@@ -550,7 +550,7 @@ async def test_saas_onboarding_questions_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/onboarding/saas/questions")
         assert resp.status_code == 200
         data = resp.json()
@@ -714,3 +714,209 @@ def test_checkin_scheduler_has_snooze():
     """CheckinScheduler has snooze_topic method."""
     from helm.checkins.scheduler import checkin_scheduler
     assert hasattr(checkin_scheduler, "snooze_topic")
+
+
+# ── Auth Middleware Tests ──────────────────────────────────────────────────
+
+
+def test_rate_limiter_allows():
+    """RateLimiter allows requests within limit."""
+    from helm.api.middleware import RateLimiter
+    limiter = RateLimiter(max_requests=5, window_seconds=60)
+    for _ in range(5):
+        assert limiter.is_allowed("test-ip") is True
+    assert limiter.is_allowed("test-ip") is False
+
+
+def test_rate_limiter_different_keys():
+    """RateLimiter tracks keys independently."""
+    from helm.api.middleware import RateLimiter
+    limiter = RateLimiter(max_requests=2, window_seconds=60)
+    assert limiter.is_allowed("ip-a") is True
+    assert limiter.is_allowed("ip-a") is True
+    assert limiter.is_allowed("ip-a") is False
+    assert limiter.is_allowed("ip-b") is True  # Different key still allowed
+
+
+@pytest.mark.asyncio
+async def test_auth_required_endpoint_rejects_no_auth():
+    """Authenticated endpoints reject requests without credentials."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/integrations")
+        assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_auth_with_api_key():
+    """Authenticated endpoints accept valid API key."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
+        resp = await client.get("/api/integrations")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_webhooks_dont_require_auth():
+    """Webhook endpoints are public (no auth required)."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/telegram/webhook", json={})
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_health_endpoints_public():
+    """Health endpoints are public."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/health")
+        assert resp.status_code == 200
+
+
+# ── Permission System Tests ──────────────────────────────────────────────
+
+
+def test_permissions_module_importable():
+    """Permissions module is importable."""
+    from helm.api.permissions import check_tool_permission, check_action_permission, GHL_TOOL_PERMISSIONS
+    assert len(GHL_TOOL_PERMISSIONS) >= 16
+
+
+def test_read_tool_auto_approved():
+    """Read-only GHL tools are auto-approved."""
+    from helm.api.permissions import check_tool_permission
+    allowed, reason = check_tool_permission("ghl_search_contacts")
+    assert allowed is True
+    assert reason == "auto_approved"
+
+
+def test_write_tool_requires_confirmation():
+    """Write GHL tools require confirmation for non-admin users."""
+    from helm.api.permissions import check_tool_permission
+    allowed, reason = check_tool_permission("ghl_create_task", user={"is_admin": False})
+    assert allowed is False
+    assert "confirmation" in reason
+
+
+def test_write_tool_admin_override():
+    """Admin users bypass confirmation for write tools."""
+    from helm.api.permissions import check_tool_permission
+    allowed, reason = check_tool_permission("ghl_create_task", user={"is_admin": True})
+    assert allowed is True
+    assert reason == "admin_override"
+
+
+def test_engine_permission_check():
+    """Engine has _check_and_enforce_permission method."""
+    from helm.assistant.engine import helm_engine
+    assert hasattr(helm_engine, "_check_and_enforce_permission")
+
+
+def test_engine_detect_write_action():
+    """Engine correctly maps tool names to permission actions."""
+    from helm.assistant.engine import HelmEngine
+    assert HelmEngine._detect_write_action("ghl_create_task") == "create_task"
+    assert HelmEngine._detect_write_action("ghl_search_contacts") is None
+
+
+# ── Tenant Isolation Tests ───────────────────────────────────────────────
+
+
+def test_tenant_scoped_query():
+    """tenant_scoped_query adds WHERE clause for tenant_id."""
+    from helm.models.database import tenant_scoped_query, Memory
+    query = tenant_scoped_query(Memory, "test-tenant")
+    compiled = str(query)
+    assert "tenant_id" in compiled
+
+
+def test_tenant_scoped_query_no_tenant():
+    """tenant_scoped_query without tenant_id returns unscoped query."""
+    from helm.models.database import tenant_scoped_query, Memory
+    query = tenant_scoped_query(Memory, None)
+    compiled = str(query)
+    # Should still be a valid query, just not scoped
+    assert "memories" in compiled.lower()
+
+
+# ── Health Alerting Tests ────────────────────────────────────────────────
+
+
+def test_health_checker_has_alert():
+    """HealthChecker has alert_on_failure and run_and_alert methods."""
+    from helm.reliability.health_check import health_checker
+    assert hasattr(health_checker, "alert_on_failure")
+    assert hasattr(health_checker, "run_and_alert")
+
+
+# ── Anti-Spam Gating Tests ──────────────────────────────────────────────
+
+
+def test_gating_check_sent_folder():
+    """GatingRules has check_sent_folder config."""
+    from helm.checkins.scheduler import GatingRules
+    rules = GatingRules({"check_sent_folder": True, "quiet_hours_start": 22, "quiet_hours_end": 7})
+    assert rules.check_sent_folder is True
+
+
+def test_gating_contact_frequency_aware():
+    """GatingRules has contact_frequency_aware config."""
+    from helm.checkins.scheduler import GatingRules
+    rules = GatingRules({"contact_frequency_aware": True, "quiet_hours_start": 22, "quiet_hours_end": 7})
+    assert rules.contact_frequency_aware is True
+    assert rules.max_surfaces_before_suppress == 3
+
+
+def test_gating_filter_already_handled():
+    """filter_already_handled removes items for recently-contacted people."""
+    from helm.checkins.scheduler import GatingRules
+    from datetime import datetime, timezone
+
+    rules = GatingRules({"check_sent_folder": True, "quiet_hours_start": 22, "quiet_hours_end": 7})
+
+    class FakeDecision:
+        def __init__(self, topic, details=""):
+            self.topic = topic
+            self.details = details
+
+    decisions = [FakeDecision("contact-123", "Follow up with contact-123")]
+    outbound = [{"contact_id": "contact-123", "sent_at": datetime.now(timezone.utc).isoformat()}]
+
+    filtered = rules.filter_already_handled(decisions, outbound)
+    assert len(filtered) == 0  # Should be filtered out
+
+
+def test_gating_track_surface_count():
+    """track_surface_count increments topic counters."""
+    from helm.checkins.scheduler import GatingRules
+    rules = GatingRules({"contact_frequency_aware": True, "quiet_hours_start": 22, "quiet_hours_end": 7})
+
+    pending = []
+    pending = rules.track_surface_count("deal-review", pending)
+    assert len(pending) == 1
+    assert pending[0]["surface_count"] == 1
+
+    pending = rules.track_surface_count("deal-review", pending)
+    assert pending[0]["surface_count"] == 2
+
+
+# ── GHL Custom Fields Tests ─────────────────────────────────────────────
+
+
+def test_ghl_has_create_custom_fields():
+    """GHL client has create_custom_fields method."""
+    from helm.integrations.ghl import ghl_client
+    assert hasattr(ghl_client, "create_custom_fields")

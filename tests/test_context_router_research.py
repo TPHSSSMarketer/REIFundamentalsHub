@@ -246,7 +246,7 @@ async def test_context_templates_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/context/templates")
         assert resp.status_code == 200
         data = resp.json()
@@ -261,7 +261,7 @@ async def test_router_classify_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.post("/api/router/classify", json={
             "message": "analyze this deal at 123 Oak St",
             "mode": "real_estate",
@@ -279,7 +279,7 @@ async def test_router_classify_sonnet_default():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.post("/api/router/classify", json={
             "message": "summarize my emails today",
         })
@@ -295,7 +295,7 @@ async def test_research_endpoint_rejects_unconfigured():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.post("/api/research/search", json={
             "query": "comparable sales Atlanta 30318",
         })

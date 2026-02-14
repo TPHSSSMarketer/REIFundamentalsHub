@@ -8,7 +8,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+
+from helm.api.middleware import (
+    get_current_user,
+    optional_auth,
+    rate_limit,
+    rate_limit_strict,
+    rate_limit_webhook,
+    get_tenant_scope,
+)
 
 from helm.agents.definitions import list_agents
 from helm.assistant.engine import helm_engine
@@ -51,7 +60,7 @@ async def health_detailed():
 
 
 @router.get("/integrations")
-async def list_integrations():
+async def list_integrations(user: dict = Depends(get_current_user)):
     """List all registered integrations and their status."""
     return registry.get_status_report()
 
@@ -60,7 +69,7 @@ async def list_integrations():
 
 
 @router.get("/plugins")
-async def list_plugins():
+async def list_plugins(user: dict = Depends(get_current_user)):
     """List all loaded plugins."""
     from helm.plugins import plugin_manager
 
@@ -71,7 +80,7 @@ async def list_plugins():
 
 
 @router.get("/agents")
-async def list_available_agents(scope: str | None = None):
+async def list_available_agents(scope: str | None = None, user: dict = Depends(get_current_user)):
     """List all available sub-agents (core + plugin-provided)."""
     agents = list_agents(scope)
     return {
@@ -91,7 +100,7 @@ async def list_available_agents(scope: str | None = None):
 
 
 @router.post("/checkin/trigger")
-async def trigger_checkin():
+async def trigger_checkin(user: dict = Depends(get_current_user)):
     """Manually trigger a smart check-in cycle."""
     result = await checkin_scheduler.run_cycle()
     return result
@@ -101,20 +110,20 @@ async def trigger_checkin():
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     """Send a message to Helm and receive a response."""
     return await helm_engine.chat(request)
 
 
 @router.delete("/chat/{conversation_id}")
-async def clear_conversation(conversation_id: str):
+async def clear_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
     """Clear a conversation's history."""
     memory.clear(conversation_id)
     return {"status": "cleared", "conversation_id": conversation_id}
 
 
 @router.get("/chat/history")
-async def list_conversations_route():
+async def list_conversations_route(user: dict = Depends(get_current_user)):
     """List all conversations with metadata for the sidebar."""
     convos = memory.list_conversations_meta()
     return {
@@ -133,7 +142,7 @@ async def list_conversations_route():
 
 
 @router.get("/chat/{conversation_id}")
-async def get_conversation(conversation_id: str):
+async def get_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
     """Load a conversation's full message history."""
     messages = memory.get_full_history(conversation_id)
     if not messages:
@@ -145,7 +154,7 @@ async def get_conversation(conversation_id: str):
 
 
 @router.get("/briefing")
-async def daily_briefing():
+async def daily_briefing(user: dict = Depends(get_current_user)):
     """Generate the daily briefing."""
     text = await helm_engine.daily_briefing()
     return {"briefing": text}
@@ -190,7 +199,7 @@ async def websocket_chat(ws: WebSocket):
 
 
 @router.post("/telegram/webhook")
-async def telegram_webhook(request: Request):
+async def telegram_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive inbound updates from Telegram."""
     update = await request.json()
     await telegram_bot.handle_update(update)
@@ -214,7 +223,7 @@ async def whatsapp_verify(
 
 
 @router.post("/whatsapp/webhook")
-async def whatsapp_webhook(request: Request):
+async def whatsapp_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive inbound messages from WhatsApp."""
     payload = await request.json()
     await whatsapp_client.handle_webhook(payload)
@@ -225,7 +234,7 @@ async def whatsapp_webhook(request: Request):
 
 
 @router.post("/slack/webhook")
-async def slack_webhook(request: Request):
+async def slack_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive events from Slack Events API."""
     from helm.integrations.slack import slack_client
 
@@ -238,7 +247,7 @@ async def slack_webhook(request: Request):
 
 
 @router.post("/teams/webhook")
-async def teams_webhook(request: Request):
+async def teams_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive activities from Microsoft Teams Bot Framework."""
     from helm.integrations.teams import teams_client
 
@@ -251,7 +260,7 @@ async def teams_webhook(request: Request):
 
 
 @router.post("/google-chat/webhook")
-async def google_chat_webhook(request: Request):
+async def google_chat_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive events from Google Chat."""
     from helm.integrations.google_chat import google_chat_client
 
@@ -264,7 +273,7 @@ async def google_chat_webhook(request: Request):
 
 
 @router.post("/voice/transcribe")
-async def voice_transcribe(file: UploadFile):
+async def voice_transcribe(file: UploadFile, user: dict = Depends(get_current_user)):
     """Upload an audio file and get a text transcription."""
     audio_bytes = await file.read()
     text = await voice_processor.transcribe(audio_bytes, filename=file.filename or "audio.ogg")
@@ -274,7 +283,7 @@ async def voice_transcribe(file: UploadFile):
 
 
 @router.post("/voice/synthesize")
-async def voice_synthesize(request: Request):
+async def voice_synthesize(request: Request, user: dict = Depends(get_current_user)):
     """Convert text to speech. Returns audio bytes."""
     data = await request.json()
     text = data.get("text", "")
@@ -294,7 +303,7 @@ async def voice_synthesize(request: Request):
 
 
 @router.post("/voice/chat")
-async def voice_chat(file: UploadFile):
+async def voice_chat(file: UploadFile, user: dict = Depends(get_current_user)):
     """Full voice round-trip: upload audio → transcribe → AI reply → synthesize."""
     audio_bytes = await file.read()
     reply_text, reply_audio = await voice_processor.voice_chat(
@@ -319,7 +328,7 @@ async def voice_chat(file: UploadFile):
 
 
 @router.get("/files")
-async def list_files(path: str = "/"):
+async def list_files(path: str = "/", user: dict = Depends(get_current_user)):
     """List files at a path. Supports prefixes: drive://, ws://, or default."""
     if not file_manager.active_backends:
         return {"path": path, "files": [], "note": "No file backends configured"}
@@ -342,7 +351,7 @@ async def list_files(path: str = "/"):
 
 
 @router.get("/files/read")
-async def read_file(path: str):
+async def read_file(path: str, user: dict = Depends(get_current_user)):
     """Read a file's contents. Returns base64-encoded data."""
     import base64
 
@@ -359,7 +368,7 @@ async def read_file(path: str):
 
 
 @router.post("/files/write")
-async def write_file(request: Request):
+async def write_file(request: Request, user: dict = Depends(get_current_user)):
     """Write content to a file."""
     import base64
 
@@ -388,7 +397,7 @@ async def write_file(request: Request):
 
 
 @router.post("/files/folder")
-async def create_folder(request: Request):
+async def create_folder(request: Request, user: dict = Depends(get_current_user)):
     """Create a folder at the given path."""
     data = await request.json()
     path = data.get("path", "")
@@ -401,14 +410,14 @@ async def create_folder(request: Request):
 
 
 @router.delete("/files")
-async def delete_file(path: str):
+async def delete_file(path: str, user: dict = Depends(get_current_user)):
     """Delete a file or folder."""
     success = await file_manager.delete_file(path)
     return {"status": "deleted" if success else "not_found", "path": path}
 
 
 @router.post("/files/move")
-async def move_file(request: Request):
+async def move_file(request: Request, user: dict = Depends(get_current_user)):
     """Move or rename a file."""
     data = await request.json()
     src = data.get("src", "")
@@ -422,7 +431,7 @@ async def move_file(request: Request):
 
 
 @router.get("/files/search")
-async def search_files(q: str, backend: str | None = None):
+async def search_files(q: str, backend: str | None = None, user: dict = Depends(get_current_user)):
     """Search for files by name across backends."""
     results = await file_manager.search_files(q, backend=backend)
     return {
@@ -435,7 +444,7 @@ async def search_files(q: str, backend: str | None = None):
 
 
 @router.get("/files/backends")
-async def list_file_backends():
+async def list_file_backends(user: dict = Depends(get_current_user)):
     """List active file storage backends."""
     return {"backends": file_manager.active_backends}
 
@@ -444,7 +453,7 @@ async def list_file_backends():
 
 
 @router.post("/workspace/execute")
-async def workspace_execute(request: Request):
+async def workspace_execute(request: Request, user: dict = Depends(get_current_user)):
     """Execute code in the virtual workspace sandbox."""
     data = await request.json()
     language = data.get("language", "python")
@@ -465,7 +474,7 @@ async def workspace_execute(request: Request):
 
 
 @router.get("/workspace/usage")
-async def workspace_usage():
+async def workspace_usage(user: dict = Depends(get_current_user)):
     """Get workspace disk usage stats."""
     return default_workspace.get_usage()
 
@@ -474,7 +483,7 @@ async def workspace_usage():
 
 
 @router.get("/drive/auth/url")
-async def drive_auth_url():
+async def drive_auth_url(user: dict = Depends(get_current_user)):
     """Get the Google Drive OAuth consent URL."""
     if not google_drive_client.is_configured:
         return {"error": "Google Drive not configured (missing client_id/secret)"}
@@ -494,7 +503,7 @@ async def drive_auth_callback(code: str = ""):
 
 
 @router.get("/context/templates")
-async def list_context_templates():
+async def list_context_templates(user: dict = Depends(get_current_user)):
     """List all available context file templates (core + plugins)."""
     from helm.context.templates import list_context_templates as _list
 
@@ -502,7 +511,7 @@ async def list_context_templates():
 
 
 @router.post("/context/provision")
-async def provision_context():
+async def provision_context(user: dict = Depends(get_current_user)):
     """Create context files for the default tenant workspace."""
     from helm.context.templates import provision_tenant_context
 
@@ -514,7 +523,7 @@ async def provision_context():
 
 
 @router.get("/onboarding/questions")
-async def onboarding_questions():
+async def onboarding_questions(user: dict = Depends(get_current_user)):
     """Return the onboarding questionnaire for new users."""
     from helm.context.templates import get_onboarding_questions
 
@@ -522,7 +531,7 @@ async def onboarding_questions():
 
 
 @router.post("/onboarding/complete")
-async def onboarding_complete(request: Request):
+async def onboarding_complete(request: Request, user: dict = Depends(get_current_user), _: None = Depends(rate_limit_strict)):
     """Submit onboarding answers and provision personalised context files.
 
     Body: ``{"answers": {"name": "Alex", "role": "Entrepreneur", ...}}``
@@ -541,7 +550,7 @@ async def onboarding_complete(request: Request):
 
 
 @router.get("/onboarding/status")
-async def onboarding_status():
+async def onboarding_status(user: dict = Depends(get_current_user)):
     """Check whether the user has completed onboarding."""
     content = await default_workspace.read_file("USER.md")
     if content is None:
@@ -556,7 +565,7 @@ async def onboarding_status():
 
 
 @router.get("/context/{filename:path}")
-async def read_context_file(filename: str):
+async def read_context_file(filename: str, user: dict = Depends(get_current_user)):
     """Read a specific context file from the workspace."""
     content = await default_workspace.read_file(filename)
     if content is None:
@@ -565,7 +574,7 @@ async def read_context_file(filename: str):
 
 
 @router.put("/context/{filename:path}")
-async def update_context_file(filename: str, request: Request):
+async def update_context_file(filename: str, request: Request, user: dict = Depends(get_current_user)):
     """Update a context file in the workspace."""
     data = await request.json()
     content = data.get("content", "")
@@ -581,7 +590,7 @@ async def update_context_file(filename: str, request: Request):
 
 
 @router.post("/research/search")
-async def web_research(request: Request):
+async def web_research(request: Request, user: dict = Depends(get_current_user)):
     """Quick web research via Perplexity Sonar Pro Search."""
     from helm.integrations.openrouter import openrouter_client
 
@@ -596,7 +605,7 @@ async def web_research(request: Request):
 
 
 @router.post("/research/deep")
-async def deep_research(request: Request):
+async def deep_research(request: Request, user: dict = Depends(get_current_user)):
     """Deep research via Perplexity Deep Research."""
     from helm.integrations.openrouter import openrouter_client
 
@@ -614,7 +623,7 @@ async def deep_research(request: Request):
 
 
 @router.post("/router/classify")
-async def classify_message(request: Request):
+async def classify_message(request: Request, user: dict = Depends(get_current_user)):
     """Classify which model tier should handle a message."""
     from helm.orchestrator.multi_ai_router import classify_task, get_model_info
 
@@ -631,7 +640,7 @@ async def classify_message(request: Request):
 
 
 @router.get("/modes")
-async def list_modes(source: str | None = None):
+async def list_modes(source: str | None = None, user: dict = Depends(get_current_user)):
     """List available assistant modes. Use ?source=core to exclude plugin modes."""
     from helm.assistant.prompts import MODE_PROMPTS, _plugin_mode_prompts
 
@@ -658,7 +667,7 @@ async def list_modes(source: str | None = None):
 
 
 @router.get("/output-styles")
-async def list_output_styles(source: str | None = None):
+async def list_output_styles(source: str | None = None, user: dict = Depends(get_current_user)):
     """List available output styles. Use ?source=core to exclude plugin styles."""
     from helm.assistant.output_styles import STYLES, _plugin_styles
 
@@ -689,7 +698,7 @@ async def list_output_styles(source: str | None = None):
 
 
 @router.get("/account")
-async def account_info():
+async def account_info(user: dict = Depends(get_current_user)):
     """Account profile and plan information."""
     content = await default_workspace.read_file("USER.md")
     user_name = ""
@@ -716,7 +725,7 @@ async def account_info():
 
 
 @router.get("/account/plugins/available")
-async def available_plugins():
+async def available_plugins(user: dict = Depends(get_current_user)):
     """List plugins available for purchase / activation."""
     from helm.plugins import plugin_manager
 
@@ -786,7 +795,7 @@ async def available_plugins():
 
 
 @router.get("/system/info")
-async def system_info():
+async def system_info(user: dict = Depends(get_current_user)):
     """Return system-level info for the settings dashboard."""
     from helm.config import get_settings
     from helm.integrations.claude_cli import claude_cli_client
@@ -821,7 +830,7 @@ async def system_info():
 
 
 @router.get("/ghl/auth/url")
-async def ghl_auth_url():
+async def ghl_auth_url(user: dict = Depends(get_current_user)):
     """Get the GHL OAuth authorization URL."""
     from helm.integrations.ghl import ghl_client
 
@@ -845,7 +854,7 @@ async def ghl_auth_callback(code: str = ""):
 
 
 @router.get("/ghl/status")
-async def ghl_status():
+async def ghl_status(user: dict = Depends(get_current_user)):
     """Check GHL connection status."""
     from helm.integrations.ghl import ghl_client
 
@@ -853,7 +862,7 @@ async def ghl_status():
 
 
 @router.get("/ghl/tools")
-async def ghl_tools():
+async def ghl_tools(user: dict = Depends(get_current_user)):
     """List available GHL MCP tools."""
     from helm.integrations.ghl import ghl_client
 
@@ -861,20 +870,41 @@ async def ghl_tools():
 
 
 @router.post("/ghl/tools/execute")
-async def execute_ghl_tool(request: Request):
-    """Execute a GHL MCP tool call."""
+async def execute_ghl_tool(request: Request, user: dict = Depends(get_current_user)):
+    """Execute a GHL MCP tool call.
+
+    Write operations require explicit confirmation. Pass ``confirmed=true``
+    in the JSON body to bypass the confirmation prompt (the caller is
+    responsible for having obtained the user's consent).
+    """
+    from helm.api.permissions import check_tool_permission
     from helm.integrations.ghl import ghl_client
 
     data = await request.json()
     tool_name = data.get("tool", "")
     params = data.get("params", {})
+    confirmed = data.get("confirmed", False)
     if not tool_name:
         return {"error": "No tool name provided"}
+
+    # Permission check -- read-only tools pass through; write tools need
+    # either admin privileges or an explicit confirmed flag.
+    user = data.get("user")  # optional caller identity
+    allowed, reason = check_tool_permission(tool_name, user=user)
+
+    if not allowed and not confirmed:
+        return {
+            "error": "permission_required",
+            "message": reason,
+            "tool": tool_name,
+            "requires_confirmation": True,
+        }
+
     return await ghl_client.execute_tool(tool_name, params)
 
 
 @router.get("/ghl/pipelines")
-async def ghl_pipelines():
+async def ghl_pipelines(user: dict = Depends(get_current_user)):
     """List GHL pipelines."""
     from helm.integrations.ghl import ghl_client
 
@@ -883,7 +913,7 @@ async def ghl_pipelines():
 
 
 @router.get("/ghl/contacts")
-async def ghl_contacts(q: str = ""):
+async def ghl_contacts(q: str = "", user: dict = Depends(get_current_user)):
     """Search GHL contacts."""
     from helm.integrations.ghl import ghl_client
 
@@ -897,7 +927,7 @@ async def ghl_contacts(q: str = ""):
 
 
 @router.post("/agents/run")
-async def run_agent(request: Request):
+async def run_agent(request: Request, user: dict = Depends(get_current_user)):
     """Run a specific sub-agent on a task."""
     from helm.orchestrator.agent_spawner import agent_spawner
 
@@ -922,7 +952,7 @@ async def run_agent(request: Request):
 
 
 @router.post("/agents/run-parallel")
-async def run_agents_parallel(request: Request):
+async def run_agents_parallel(request: Request, user: dict = Depends(get_current_user)):
     """Run multiple agents in parallel."""
     from helm.orchestrator.agent_spawner import agent_spawner
 
@@ -949,7 +979,7 @@ async def run_agents_parallel(request: Request):
 
 
 @router.get("/agents/logs")
-async def agent_logs(limit: int = 50):
+async def agent_logs(limit: int = 50, user: dict = Depends(get_current_user)):
     """Get recent agent execution logs."""
     try:
         from helm.models.database import AgentLog, async_session
@@ -982,7 +1012,7 @@ async def agent_logs(limit: int = 50):
 
 
 @router.get("/tenants")
-async def list_tenants():
+async def list_tenants(user: dict = Depends(get_current_user)):
     """List all tenants."""
     from helm.integrations.tenant_manager import tenant_manager
 
@@ -991,7 +1021,7 @@ async def list_tenants():
 
 
 @router.post("/tenants")
-async def create_tenant(request: Request):
+async def create_tenant(request: Request, user: dict = Depends(get_current_user), _: None = Depends(rate_limit_strict)):
     """Create a new tenant."""
     from helm.integrations.tenant_manager import tenant_manager
 
@@ -1008,7 +1038,7 @@ async def create_tenant(request: Request):
 
 
 @router.get("/tenants/{tenant_id}")
-async def get_tenant(tenant_id: str):
+async def get_tenant(tenant_id: str, user: dict = Depends(get_current_user)):
     """Get tenant details."""
     from helm.integrations.tenant_manager import tenant_manager
 
@@ -1019,7 +1049,7 @@ async def get_tenant(tenant_id: str):
 
 
 @router.put("/tenants/{tenant_id}")
-async def update_tenant(tenant_id: str, request: Request):
+async def update_tenant(tenant_id: str, request: Request, user: dict = Depends(get_current_user)):
     """Update tenant configuration."""
     from helm.integrations.tenant_manager import tenant_manager
 
@@ -1031,7 +1061,7 @@ async def update_tenant(tenant_id: str, request: Request):
 
 
 @router.post("/tenants/onboard")
-async def onboard_tenant(request: Request):
+async def onboard_tenant(request: Request, user: dict = Depends(get_current_user)):
     """Full tenant onboarding flow."""
     from helm.integrations.tenant_manager import tenant_manager
 
@@ -1051,7 +1081,7 @@ async def onboard_tenant(request: Request):
 
 
 @router.get("/voice/elevenlabs/status")
-async def elevenlabs_status():
+async def elevenlabs_status(user: dict = Depends(get_current_user)):
     """Check ElevenLabs connection status."""
     from helm.integrations.elevenlabs import elevenlabs_client
 
@@ -1059,7 +1089,7 @@ async def elevenlabs_status():
 
 
 @router.get("/voice/elevenlabs/voices")
-async def elevenlabs_voices():
+async def elevenlabs_voices(user: dict = Depends(get_current_user)):
     """List available ElevenLabs voices."""
     from helm.integrations.elevenlabs import elevenlabs_client
 
@@ -1068,7 +1098,7 @@ async def elevenlabs_voices():
 
 
 @router.post("/voice/call/initiate")
-async def voice_call_initiate(request: Request):
+async def voice_call_initiate(request: Request, user: dict = Depends(get_current_user), _: None = Depends(rate_limit_strict)):
     """Initiate an outbound WhatsApp VoIP call.
 
     Sends a permission request to the recipient first. The actual call
@@ -1089,7 +1119,7 @@ async def voice_call_initiate(request: Request):
 
 
 @router.post("/voice/call/webhook")
-async def voice_call_webhook(request: Request):
+async def voice_call_webhook(request: Request, _rl: None = Depends(rate_limit_webhook)):
     """Receive WhatsApp Business Calling API webhook events.
 
     Dispatches incoming, ended, and failed call events to the
@@ -1102,7 +1132,7 @@ async def voice_call_webhook(request: Request):
 
 
 @router.get("/voice/call/status")
-async def voice_call_status():
+async def voice_call_status(user: dict = Depends(get_current_user)):
     """Check WhatsApp calling integration status and active calls."""
     from helm.integrations.whatsapp_calling import whatsapp_calling
 
@@ -1110,7 +1140,7 @@ async def voice_call_status():
 
 
 @router.post("/voice/elevenlabs/synthesize")
-async def elevenlabs_synthesize(request: Request):
+async def elevenlabs_synthesize(request: Request, user: dict = Depends(get_current_user)):
     """Synthesize text using ElevenLabs TTS."""
     from helm.integrations.elevenlabs import elevenlabs_client
 
@@ -1139,7 +1169,7 @@ async def elevenlabs_synthesize(request: Request):
 
 
 @router.get("/goals")
-async def list_goals(status: str = "active"):
+async def list_goals(status: str = "active", user: dict = Depends(get_current_user)):
     """List goals."""
     try:
         from helm.models.database import Goal, async_session
@@ -1169,7 +1199,7 @@ async def list_goals(status: str = "active"):
 
 
 @router.post("/goals")
-async def create_goal(request: Request):
+async def create_goal(request: Request, user: dict = Depends(get_current_user), _: None = Depends(rate_limit_strict)):
     """Create a new goal."""
     try:
         from helm.models.database import Goal, async_session
@@ -1195,7 +1225,7 @@ async def create_goal(request: Request):
 
 
 @router.put("/goals/{goal_id}")
-async def update_goal(goal_id: str, request: Request):
+async def update_goal(goal_id: str, request: Request, user: dict = Depends(get_current_user)):
     """Update a goal's status or notes."""
     try:
         from helm.models.database import Goal, async_session
@@ -1227,19 +1257,19 @@ async def update_goal(goal_id: str, request: Request):
 
 
 @router.get("/reliability/breakers")
-async def circuit_breaker_status():
+async def circuit_breaker_status(user: dict = Depends(get_current_user)):
     """Return the status of all circuit breakers."""
     return get_all_breaker_status()
 
 
 @router.get("/reliability/retry-queue")
-async def retry_queue_status():
+async def retry_queue_status(user: dict = Depends(get_current_user)):
     """Return the current retry queue status."""
     return _retry_queue.get_status()
 
 
 @router.post("/reliability/retry-queue/process")
-async def process_retry_queue():
+async def process_retry_queue(user: dict = Depends(get_current_user)):
     """Manually trigger processing of the retry queue."""
     result = await _retry_queue.process()
     return result
@@ -1249,7 +1279,7 @@ async def process_retry_queue():
 
 
 @router.post("/ghl/saas/webhook")
-async def ghl_saas_webhook(request: Request):
+async def ghl_saas_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Handle GHL SaaS Mode webhooks (app install / uninstall)."""
     from helm.integrations.ghl_saas import ghl_saas
 
@@ -1264,7 +1294,7 @@ async def ghl_saas_webhook(request: Request):
 
 
 @router.get("/onboarding/saas/questions")
-async def saas_onboarding_questions():
+async def saas_onboarding_questions(user: dict = Depends(get_current_user)):
     """Return the SaaS onboarding questionnaire for new tenants."""
     from helm.integrations.ghl_saas import ghl_saas
 
@@ -1272,7 +1302,7 @@ async def saas_onboarding_questions():
 
 
 @router.post("/onboarding/saas/process/{tenant_id}")
-async def process_saas_onboarding(tenant_id: str, request: Request):
+async def process_saas_onboarding(tenant_id: str, request: Request, user: dict = Depends(get_current_user)):
     """Process SaaS onboarding questionnaire answers for a tenant."""
     from helm.integrations.ghl_saas import ghl_saas
 

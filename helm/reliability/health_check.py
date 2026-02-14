@@ -100,6 +100,48 @@ class HealthChecker:
         except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
+    async def alert_on_failure(self, report: dict) -> None:
+        """Send an alert to the admin's Telegram if any checks failed."""
+        failed = report.get("failed_checks", [])
+        if not failed:
+            return
+
+        # Only alert if Telegram is configured
+        if not settings.telegram_bot_token or not settings.telegram_admin_user_id:
+            logger.warning("Health check failures but Telegram alerting not configured: %s", failed)
+            return
+
+        try:
+            from helm.integrations.telegram import telegram_bot
+
+            status = report.get("status", "unknown")
+            message = (
+                f"*Helm Health Alert*\n\n"
+                f"Status: {status.upper()}\n"
+                f"Failed checks: {len(failed)}\n\n"
+            )
+            for check_name in failed:
+                check_data = report.get("checks", {}).get(check_name, {})
+                error = check_data.get("error", "unknown error")
+                message += f"- `{check_name}`: {error}\n"
+
+            message += f"\nTimestamp: {report.get('timestamp', 'unknown')}"
+
+            await telegram_bot.send_message(
+                int(settings.telegram_admin_user_id),
+                message,
+                parse_mode="Markdown",
+            )
+            logger.info("Health alert sent to Telegram admin")
+        except Exception as exc:
+            logger.error("Failed to send health alert via Telegram: %s", exc)
+
+    async def run_and_alert(self) -> dict:
+        """Run full health check and alert on failures. Used by PM2 cron."""
+        report = await self.full_check()
+        await self.alert_on_failure(report)
+        return report
+
 
 # Singleton
 health_checker = HealthChecker()

@@ -80,6 +80,9 @@ class GatingRules:
         self.same_topic_cooldown_hours: float = cfg.get(
             "same_topic_cooldown_hours", 4
         )
+        self.check_sent_folder: bool = cfg.get("check_sent_folder", True)
+        self.contact_frequency_aware: bool = cfg.get("contact_frequency_aware", True)
+        self.max_surfaces_before_suppress: int = cfg.get("max_surfaces_before_suppress", 3)
 
     # ------------------------------------------------------------------
     # Public API
@@ -137,6 +140,114 @@ class GatingRules:
                 except (KeyError, ValueError):
                     continue
         return False
+
+    def filter_already_handled(
+        self,
+        decisions: list,
+        recent_outbound: list[dict] | None = None,
+    ) -> list:
+        """Filter out items that appear to be already handled.
+
+        If check_sent_folder is enabled, removes items about contacts
+        we've already messaged recently.
+
+        recent_outbound: list of {"contact_id": str, "sent_at": str} dicts
+        """
+        if not self.check_sent_folder or not recent_outbound:
+            return decisions
+
+        # Build a set of recently contacted IDs
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=24)
+        recent_contact_ids = set()
+        for msg in recent_outbound:
+            try:
+                sent_at = datetime.fromisoformat(msg.get("sent_at", ""))
+                if sent_at.tzinfo is None:
+                    sent_at = sent_at.replace(tzinfo=timezone.utc)
+                if sent_at > cutoff:
+                    recent_contact_ids.add(msg.get("contact_id", ""))
+            except (ValueError, TypeError):
+                continue
+
+        if not recent_contact_ids:
+            return decisions
+
+        filtered = []
+        for decision in decisions:
+            # Check if this decision's details reference a recently-contacted person
+            details = getattr(decision, "details", "") or ""
+            topic = getattr(decision, "topic", "") or ""
+            # Simple heuristic: if topic contains a contact ID we recently messaged, skip
+            is_handled = any(cid in details or cid in topic for cid in recent_contact_ids if cid)
+            if is_handled:
+                logger.debug("Filtered already-handled item: %s", topic)
+            else:
+                filtered.append(decision)
+
+        return filtered
+
+    def track_surface_count(
+        self,
+        topic: str,
+        pending_items: list[dict],
+    ) -> list[dict]:
+        """Increment the surface count for a topic in pending_items.
+
+        Returns the updated pending_items list.
+        """
+        if not self.contact_frequency_aware:
+            return pending_items
+
+        found = False
+        for item in pending_items:
+            if item.get("topic") == topic:
+                item["surface_count"] = item.get("surface_count", 0) + 1
+                found = True
+                break
+
+        if not found:
+            pending_items.append({
+                "topic": topic,
+                "surface_count": 1,
+                "first_surfaced_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        return pending_items
+
+    def filter_over_surfaced(
+        self,
+        decisions: list,
+        pending_items: list[dict],
+    ) -> list:
+        """Filter out items that have been surfaced too many times without action.
+
+        If an item has been surfaced max_surfaces_before_suppress+ times,
+        demote it to low priority instead of removing completely.
+        """
+        if not self.contact_frequency_aware:
+            return decisions
+
+        # Build lookup of surface counts
+        surface_counts = {
+            item.get("topic", ""): item.get("surface_count", 0)
+            for item in pending_items
+        }
+
+        filtered = []
+        for decision in decisions:
+            topic = getattr(decision, "topic", "") or ""
+            count = surface_counts.get(topic, 0)
+
+            if count >= self.max_surfaces_before_suppress:
+                # Demote to low priority instead of blocking entirely
+                decision.priority = "low"
+                decision.summary = f"[Repeated {count}x] {decision.summary}"
+                logger.debug("Demoted over-surfaced item (%dx): %s", count, topic)
+
+            filtered.append(decision)
+
+        return filtered
 
     def is_anti_spam_blocked(
         self,
@@ -397,6 +508,18 @@ class CheckinScheduler:
                 continue
 
             deliverable.append(decision)
+
+        # Anti-spam: filter already-handled items
+        deliverable = gating.filter_already_handled(deliverable, data.get("recent_outbound"))
+
+        # Anti-spam: demote over-surfaced items
+        deliverable = gating.filter_over_surfaced(deliverable, pending)
+
+        # Track surface counts for remaining items
+        for d in deliverable:
+            pending = gating.track_surface_count(
+                getattr(d, "topic", "unknown"), pending
+            )
 
         if not deliverable:
             return {**base_result, "status": "all_gated", "reason": block_reason}

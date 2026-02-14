@@ -259,6 +259,70 @@ class GHLClient:
         data = await self._get("/locations/custom-fields", params={"locationId": loc})
         return data.get("customFields", []) if data else []
 
+    async def create_custom_fields(self, location_id: str | None = None) -> dict:
+        """Create the standard Helm custom fields in a GHL location.
+
+        Creates custom fields for both the Deal Tracker and Life Manager pipelines.
+        Skips fields that already exist.
+        """
+        loc = location_id or self._location_id
+        if not loc or not self.is_configured:
+            return {"error": "GHL not configured or no location_id"}
+
+        # Define all custom fields per the spec
+        deal_fields = [
+            {"name": "ARV", "dataType": "MONETARY", "placeholder": "After Repair Value"},
+            {"name": "Purchase Price", "dataType": "MONETARY", "placeholder": "Agreed purchase price"},
+            {"name": "Rehab Budget", "dataType": "MONETARY", "placeholder": "Estimated rehab cost"},
+            {"name": "Rent Estimate", "dataType": "MONETARY", "placeholder": "Monthly rent estimate"},
+            {"name": "Cap Rate", "dataType": "TEXT", "placeholder": "e.g. 8.5%"},
+            {"name": "Cash on Cash", "dataType": "TEXT", "placeholder": "e.g. 12%"},
+            {"name": "LTV", "dataType": "TEXT", "placeholder": "Loan-to-Value ratio"},
+            {"name": "Strategy", "dataType": "TEXT", "placeholder": "BRRRR / Flip / Hold"},
+            {"name": "Agent Name", "dataType": "TEXT", "placeholder": "Real estate agent"},
+            {"name": "Lender", "dataType": "TEXT", "placeholder": "Lending institution"},
+            {"name": "Closing Date", "dataType": "DATE", "placeholder": "Expected closing date"},
+            {"name": "Inspection Date", "dataType": "DATE", "placeholder": "Inspection date"},
+        ]
+
+        life_fields = [
+            {"name": "Category", "dataType": "TEXT", "placeholder": "Health/Family/Finance/Home/Learning/Social"},
+            {"name": "Priority", "dataType": "TEXT", "placeholder": "P1/P2/P3"},
+            {"name": "Energy Level", "dataType": "TEXT", "placeholder": "High/Low"},
+            {"name": "Time Estimate", "dataType": "TEXT", "placeholder": "e.g. 30min, 2hr"},
+        ]
+
+        all_fields = deal_fields + life_fields
+        results = {"created": [], "skipped": [], "errors": []}
+
+        # Get existing fields to avoid duplicates
+        existing = await self.get_custom_fields(loc)
+        existing_names = {f.get("name", "").lower() for f in existing} if existing else set()
+
+        for field_def in all_fields:
+            if field_def["name"].lower() in existing_names:
+                results["skipped"].append(field_def["name"])
+                continue
+
+            payload = {
+                "name": field_def["name"],
+                "dataType": field_def["dataType"],
+                "placeholder": field_def.get("placeholder", ""),
+            }
+
+            result = await self._post(
+                f"/locations/{loc}/customFields",
+                payload,
+            )
+            if result and "error" not in str(result).lower():
+                results["created"].append(field_def["name"])
+            else:
+                results["errors"].append(f"{field_def['name']}: {result}")
+
+        logger.info("GHL custom fields: created=%d skipped=%d errors=%d",
+                     len(results["created"]), len(results["skipped"]), len(results["errors"]))
+        return results
+
     # ── OAuth Flow ────────────────────────────────────────────────────────
 
     def get_auth_url(self, scopes: str = "contacts.readonly contacts.write opportunities.readonly opportunities.write calendars.readonly calendars.write conversations.readonly conversations.write") -> str | None:

@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 1440
+    api_keys: str = ""  # Comma-separated list of valid API keys
+    admin_password: str = ""  # bcrypt-hashed admin password
 
     # ── Telegram ─────────────────────────────────────────────────────────
     telegram_bot_token: str = ""

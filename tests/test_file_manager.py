@@ -281,7 +281,7 @@ async def test_files_list_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/files?path=/")
         assert resp.status_code == 200
         data = resp.json()
@@ -298,7 +298,7 @@ async def test_files_backends_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/files/backends")
         assert resp.status_code == 200
         data = resp.json()
@@ -312,7 +312,7 @@ async def test_workspace_usage_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.get("/api/workspace/usage")
         assert resp.status_code == 200
         data = resp.json()
@@ -326,7 +326,7 @@ async def test_workspace_execute_endpoint():
     from helm.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         resp = await client.post("/api/workspace/execute", json={
             "language": "python",
             "code": "print('hello from helm')",
@@ -351,7 +351,7 @@ async def test_write_and_read_file_endpoint():
         file_manager.register_backend(default_workspace, default=True)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
         # Write a text file through the default workspace backend
         resp = await client.post("/api/files/write", json={
             "path": "test_endpoint_file.txt",

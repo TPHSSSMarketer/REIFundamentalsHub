@@ -408,6 +408,52 @@ class HelmEngine:
             ModelTier.SONNET, system_prompt, messages,
         )
 
+    async def _check_and_enforce_permission(
+        self,
+        action: str,
+        details: str = "",
+    ) -> tuple[bool, str | None]:
+        """Check if an action is allowed. Returns (allowed, message_if_blocked).
+
+        AUTO actions proceed immediately.
+        CONFIRM actions return a confirmation prompt.
+        ADMIN actions are always blocked.
+        """
+        tier = check_permission(action)
+
+        if tier == PermissionTier.AUTO:
+            return True, None
+
+        if tier == PermissionTier.ADMIN:
+            return False, (
+                f"This action ({action}) requires admin access and cannot be "
+                "executed through the chat interface."
+            )
+
+        # CONFIRM tier — return a message that includes confirmation buttons
+        return False, (
+            f"This action requires your confirmation before I proceed:\n\n"
+            f"**Action:** {action}\n"
+            f"**Details:** {details}\n\n"
+            f"Please confirm using the button below or reply 'yes' to proceed."
+        )
+
+    @staticmethod
+    def _detect_write_action(tool_name: str) -> str | None:
+        """Map a GHL tool name to a permission action. Returns None for read-only tools."""
+        write_tools = {
+            "ghl_create_contact": "create_contact",
+            "ghl_update_contact": "update_contact",
+            "ghl_create_opportunity": "create_deal",
+            "ghl_update_opportunity": "update_deal",
+            "ghl_create_task": "create_task",
+            "ghl_complete_task": "complete_task",
+            "ghl_create_calendar_event": "schedule_event",
+            "ghl_send_message": "send_message",
+            "ghl_add_note": "create_contact",  # grouped with contact writes
+        }
+        return write_tools.get(tool_name)
+
     async def _load_user_context(self) -> str:
         """Load user context files (profile, rules, memory) for the system prompt."""
         from helm.context.templates import read_context_for_prompt

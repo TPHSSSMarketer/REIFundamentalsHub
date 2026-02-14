@@ -8,10 +8,13 @@ from httpx import ASGITransport, AsyncClient
 from helm.main import app
 
 
+AUTH_HEADERS = {"X-API-Key": "test-api-key-for-tests"}
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=AUTH_HEADERS) as ac:
         yield ac
 
 

@@ -189,3 +189,22 @@ async def get_db() -> AsyncSession:
     """Yield a database session for dependency injection."""
     async with async_session() as session:
         yield session
+
+
+# ── Tenant Isolation Helpers ───────────────────────────────────────────────
+
+
+def tenant_scoped_query(model_class, tenant_id: str | None = None):
+    """Create a query scoped to a specific tenant.
+
+    Usage::
+
+        query = tenant_scoped_query(Memory, tenant_id="abc123")
+        result = await session.execute(query)
+    """
+    from sqlalchemy import select
+
+    query = select(model_class)
+    if tenant_id and hasattr(model_class, "tenant_id"):
+        query = query.where(model_class.tenant_id == tenant_id)
+    return query
