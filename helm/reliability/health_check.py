@@ -51,11 +51,20 @@ class HealthChecker:
         failed = [k for k, v in checks.items() if isinstance(v, dict) and v.get("error")]
         status = "healthy" if not failed else "degraded"
 
+        # Build integrations summary for the frontend dashboard
+        plugins_report = checks.get("plugins", {})
+        integrations_summary = {
+            "active": plugins_report.get("total_active", 0),
+            "total": plugins_report.get("total_registered", 0),
+            "plugins": plugins_report.get("plugins", {}),
+        }
+
         return {
             "status": status,
             "timestamp": time.time(),
             "duration_ms": round((time.time() - start) * 1000),
             "checks": checks,
+            "integrations": integrations_summary,
             "failed_checks": failed,
         }
 

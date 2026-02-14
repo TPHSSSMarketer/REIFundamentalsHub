@@ -8,6 +8,70 @@
     // ── Configuration ───────────────────────────────────────────────────
     const API_BASE = "/api";
 
+    // ── Auth ─────────────────────────────────────────────────────────────
+    function getApiKey() {
+        return localStorage.getItem("helm-api-key") || "";
+    }
+
+    function setApiKey(key) {
+        localStorage.setItem("helm-api-key", key);
+    }
+
+    function authHeaders() {
+        const key = getApiKey();
+        return key ? { "X-API-Key": key } : {};
+    }
+
+    /**
+     * Wrapper around fetch that injects auth headers automatically.
+     * If a 401 is returned, prompts for an API key and retries once.
+     */
+    async function apiFetch(url, options = {}) {
+        const headers = { ...authHeaders(), ...(options.headers || {}) };
+        const res = await fetch(url, { ...options, headers });
+
+        if (res.status === 401) {
+            const key = promptApiKey();
+            if (key) {
+                setApiKey(key);
+                const retryHeaders = { ...authHeaders(), ...(options.headers || {}) };
+                return fetch(url, { ...options, headers: retryHeaders });
+            }
+        }
+        return res;
+    }
+
+    function promptApiKey() {
+        const key = prompt(
+            "Enter your Helm API Key to continue.\n\n" +
+            "This is the API_KEYS value from your .env file."
+        );
+        if (key && key.trim()) {
+            setApiKey(key.trim());
+            return key.trim();
+        }
+        return null;
+    }
+
+    // Check auth on page load — attempt a lightweight call
+    async function checkAuth() {
+        const key = getApiKey();
+        if (!key) {
+            promptApiKey();
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/modes`, { headers: authHeaders() });
+            if (res.status === 401) {
+                promptApiKey();
+            }
+        } catch {
+            // Server may not be running — don't block the UI
+        }
+    }
+
+    checkAuth();
+
     // ── State ───────────────────────────────────────────────────────────
     const state = {
         conversationId: null,
@@ -112,7 +176,7 @@
     // ── Dynamic Mode Loading ────────────────────────────────────────────
     async function loadModes() {
         try {
-            const res = await fetch(`${API_BASE}/modes`);
+            const res = await apiFetch(`${API_BASE}/modes`);
             const data = await res.json();
             const modes = data.modes || [];
 
@@ -206,9 +270,9 @@
         const typingEl = showTyping();
 
         try {
-            const res = await fetch(`${API_BASE}/chat`, {
+            const res = await apiFetch(`${API_BASE}/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({
                     message: text,
                     mode: state.mode,
@@ -278,7 +342,7 @@
         if (!chatHistoryList) return;
 
         try {
-            const res = await fetch(`${API_BASE}/chat/history`);
+            const res = await apiFetch(`${API_BASE}/chat/history`);
             const data = await res.json();
             const convos = data.conversations || [];
 
@@ -319,7 +383,7 @@
         if (state.isLoading) return;
 
         try {
-            const res = await fetch(`${API_BASE}/chat/${conversationId}`);
+            const res = await apiFetch(`${API_BASE}/chat/${conversationId}`);
             const data = await res.json();
 
             state.conversationId = conversationId;
@@ -374,7 +438,7 @@
         if (!grid) return;
 
         try {
-            const res = await fetch(`${API_BASE}/agents`);
+            const res = await apiFetch(`${API_BASE}/agents`);
             const data = await res.json();
             const agents = data.agents || [];
 
@@ -417,7 +481,7 @@
 
         // AI Backends
         try {
-            const res = await fetch(`${API_BASE}/system/info`);
+            const res = await apiFetch(`${API_BASE}/system/info`);
             const data = await res.json();
             const backends = data.backends || {};
             const activeBackend = data.ai_backend || "";
@@ -448,7 +512,7 @@
 
         // Service Integrations
         try {
-            const res = await fetch(`${API_BASE}/integrations`);
+            const res = await apiFetch(`${API_BASE}/integrations`);
             const data = await res.json();
             const integrations = data.integrations || data.active || [];
 
@@ -512,7 +576,7 @@
 
         try {
             // Fetch all modes — installed plugins contribute theirs
-            const res = await fetch(`${API_BASE}/modes`);
+            const res = await apiFetch(`${API_BASE}/modes`);
             const data = await res.json();
             const modes = data.modes || [];
 
@@ -550,7 +614,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/output-styles`);
+            const res = await apiFetch(`${API_BASE}/output-styles`);
             const data = await res.json();
             const styles = data.styles || [];
 
@@ -587,7 +651,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/system/info`);
+            const res = await apiFetch(`${API_BASE}/system/info`);
             const data = await res.json();
 
             const rows = [
@@ -622,7 +686,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/account`);
+            const res = await apiFetch(`${API_BASE}/account`);
             const data = await res.json();
 
             const planLabels = { base: "Base", pro: "Pro", enterprise: "Enterprise" };
@@ -655,7 +719,7 @@
         const softwareGrid = $("#softwarePlugins");
 
         try {
-            const res = await fetch(`${API_BASE}/account/plugins/available`);
+            const res = await apiFetch(`${API_BASE}/account/plugins/available`);
             const data = await res.json();
             const plugins = data.plugins || [];
 
@@ -749,7 +813,7 @@
 
         // Health
         try {
-            const res = await fetch(`${API_BASE}/health/detailed`);
+            const res = await apiFetch(`${API_BASE}/health/detailed`);
             const data = await res.json();
             if (statHealth) {
                 statHealth.textContent = data.status === "healthy" ? "Healthy" : data.status || "Unknown";
@@ -766,7 +830,7 @@
 
         // Tenants
         try {
-            const res = await fetch(`${API_BASE}/tenants`);
+            const res = await apiFetch(`${API_BASE}/tenants`);
             const data = await res.json();
             const tenants = data.tenants || [];
             if (statTenants) statTenants.textContent = String(tenants.length);
@@ -776,7 +840,7 @@
 
         // Agent runs
         try {
-            const res = await fetch(`${API_BASE}/agents/logs`);
+            const res = await apiFetch(`${API_BASE}/agents/logs`);
             const data = await res.json();
             const logs = data.logs || [];
             if (statAgentRuns) statAgentRuns.textContent = String(logs.length);
@@ -790,7 +854,7 @@
         if (!grid) return;
 
         try {
-            const res = await fetch(`${API_BASE}/health/detailed`);
+            const res = await apiFetch(`${API_BASE}/health/detailed`);
             const data = await res.json();
             const plugins = data.integrations?.plugins || {};
 
@@ -828,7 +892,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/ghl/status`);
+            const res = await apiFetch(`${API_BASE}/ghl/status`);
             const data = await res.json();
 
             const isConfigured = data.configured;
@@ -868,7 +932,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/tenants`);
+            const res = await apiFetch(`${API_BASE}/tenants`);
             const data = await res.json();
             const tenants = data.tenants || [];
 
@@ -909,7 +973,7 @@
         if (!container) return;
 
         try {
-            const res = await fetch(`${API_BASE}/agents/logs`);
+            const res = await apiFetch(`${API_BASE}/agents/logs`);
             const data = await res.json();
             const logs = data.logs || [];
 
@@ -964,9 +1028,9 @@
                     strategy: $("#dealStrategy").value,
                 };
 
-                const res = await fetch(`${API_BASE}/deal/analyze`, {
+                const res = await apiFetch(`${API_BASE}/deal/analyze`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
                     body: JSON.stringify(payload),
                 });
 

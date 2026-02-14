@@ -165,7 +165,20 @@ async def daily_briefing(user: dict = Depends(get_current_user)):
 
 @router.websocket("/ws/chat")
 async def websocket_chat(ws: WebSocket):
-    """Real-time chat over WebSocket for the frontend dashboard."""
+    """Real-time chat over WebSocket for the frontend dashboard.
+
+    Authentication: pass ``api_key`` as a query parameter, e.g.
+    ``ws://host/api/ws/chat?api_key=YOUR_KEY``
+    """
+    from helm.api.middleware import _valid_api_keys
+
+    # Verify API key from query params before accepting the connection
+    api_key = ws.query_params.get("api_key", "")
+    valid_keys = _valid_api_keys()
+    if valid_keys and api_key not in valid_keys:
+        await ws.close(code=4001, reason="Invalid or missing API key")
+        return
+
     await ws.accept()
     conversation_id: str | None = None
     mode = AssistantMode.BUSINESS
@@ -889,7 +902,6 @@ async def execute_ghl_tool(request: Request, user: dict = Depends(get_current_us
 
     # Permission check -- read-only tools pass through; write tools need
     # either admin privileges or an explicit confirmed flag.
-    user = data.get("user")  # optional caller identity
     allowed, reason = check_tool_permission(tool_name, user=user)
 
     if not allowed and not confirmed:
