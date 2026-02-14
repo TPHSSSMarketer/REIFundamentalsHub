@@ -85,6 +85,7 @@ class WhatsAppClient:
         """Process a single inbound WhatsApp message."""
         sender = message.get("from", "")  # Phone number
         msg_type = message.get("type", "")
+        msg_id = message.get("id", "")
 
         text = ""
 
@@ -92,7 +93,6 @@ class WhatsAppClient:
             text = message.get("text", {}).get("body", "")
 
         elif msg_type == "audio":
-            # Voice message — download and transcribe
             audio_id = message.get("audio", {}).get("id", "")
             if audio_id:
                 text = await self._transcribe_audio(audio_id)
@@ -105,7 +105,6 @@ class WhatsAppClient:
                     return
 
         elif msg_type == "interactive":
-            # Button/list replies
             interactive = message.get("interactive", {})
             if "button_reply" in interactive:
                 text = interactive["button_reply"].get("title", "")
@@ -115,11 +114,19 @@ class WhatsAppClient:
         if not text:
             return
 
+        # Mark as read
+        if msg_id:
+            await self.mark_read(msg_id)
+
+        # ── Tenant resolution: map phone → tenant ─────────────────────
+        tenant = await self._resolve_tenant(sender)
+        tenant_prefix = f"t{tenant['id'][:8]}_" if tenant else ""
+
         # Detect mode from prefix keywords
         mode, text = self._detect_mode(text)
 
-        # Use phone number as conversation identifier
-        conversation_id = f"wa_{sender}"
+        # Tenant-scoped conversation ID
+        conversation_id = f"wa_{tenant_prefix}{sender}"
 
         request = ChatRequest(
             message=text,
@@ -129,7 +136,6 @@ class WhatsAppClient:
 
         response = await helm_engine.chat(request)
 
-        # WhatsApp max text length is 4096
         await self.send_long_text(sender, response.reply)
 
     def _detect_mode(self, text: str) -> tuple[AssistantMode, str]:
@@ -145,6 +151,47 @@ class WhatsAppClient:
             if lower.startswith(prefix):
                 return mode, text[len(prefix):].strip()
         return AssistantMode.BUSINESS, text
+
+    # ── Tenant Resolution ────────────────────────────────────────────────
+
+    async def _resolve_tenant(self, phone: str) -> dict | None:
+        """Look up a tenant by their WhatsApp phone number."""
+        try:
+            from helm.integrations.tenant_manager import tenant_manager
+            return await tenant_manager.get_tenant_by_phone(phone)
+        except Exception:
+            return None
+
+    # ── Interactive Messages (for confirmation flows) ─────────────────
+
+    async def send_with_buttons(
+        self,
+        to: str,
+        body: str,
+        buttons: list[dict],
+    ) -> dict | None:
+        """Send an interactive button message.
+
+        buttons format: [{"id": "action_id", "title": "Button Label"}]
+        Max 3 buttons per message.
+        """
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": body},
+                "action": {
+                    "buttons": [
+                        {"type": "reply", "reply": {"id": b["id"], "title": b["title"][:20]}}
+                        for b in buttons[:3]
+                    ]
+                },
+            },
+        }
+        return await self._api_post("/messages", payload)
 
     # ── Voice Transcription ──────────────────────────────────────────────
 

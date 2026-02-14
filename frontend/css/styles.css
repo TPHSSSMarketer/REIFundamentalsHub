@@ -1098,6 +1098,181 @@ a:hover { color: var(--accent-hover); }
     font-weight: 500;
 }
 
+/* ── Monitoring Dashboard ──────────────────────────────────────────────── */
+.monitoring-integrations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+}
+
+.monitoring-integration-item {
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition);
+}
+
+.monitoring-integration-item:hover {
+    border-color: var(--text-muted);
+}
+
+.monitoring-integration-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.monitoring-integration-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.monitoring-integration-detail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.monitoring-integration-category {
+    text-transform: capitalize;
+}
+
+.monitoring-integration-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Monitoring Tenants Table */
+.monitoring-tenants-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.monitoring-table-header {
+    display: grid;
+    grid-template-columns: 2fr 0.5fr 1.5fr 1fr;
+    gap: 12px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.monitoring-table-row {
+    display: grid;
+    grid-template-columns: 2fr 0.5fr 1.5fr 1fr;
+    gap: 12px;
+    padding: 10px 12px;
+    align-items: center;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.85rem;
+}
+
+.monitoring-table-row:last-child {
+    border-bottom: none;
+}
+
+.monitoring-tenant-name {
+    font-weight: 500;
+}
+
+.monitoring-tenant-channels {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.monitoring-tenant-date {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+/* Agent Logs */
+.agent-logs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.agent-log-item {
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--text-muted);
+}
+
+.agent-log-item.log-success {
+    border-left-color: var(--success);
+}
+
+.agent-log-item.log-error {
+    border-left-color: var(--danger);
+}
+
+.agent-log-item.log-pending {
+    border-left-color: var(--warning);
+}
+
+.agent-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.agent-log-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.agent-log-task {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.agent-log-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.agent-log-error {
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: var(--danger);
+    font-family: var(--font-mono);
+    word-break: break-word;
+}
+
+.badge-error {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+}
+
+.badge-pending {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

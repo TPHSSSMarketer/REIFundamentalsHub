@@ -1,10 +1,11 @@
 """Core AI engine — the brain behind Helm.
 
-Uses the multi-model router to send each message to the right AI model:
-  - Opus for complex analysis (deal evaluation, strategy, portfolio review)
-  - Sonnet for routine tasks (summaries, reminders, simple Q&A)
-  - Perplexity Sonar Pro for web research (comps, market data, news)
-  - Perplexity Deep Research for comprehensive reports
+Orchestration flow for every message:
+  1. Check for sub-agent routing (@mention or intent detection)
+  2. Check permission tier (auto-approved / confirmation-required / admin-only)
+  3. Smart-route to the right model tier (Opus/Sonnet/Perplexity)
+  4. Apply output style based on mode
+  5. Persist to database
 
 Supports three AI backends (configured via AI_BACKEND env var):
   - "anthropic" — direct Anthropic API (requires API credits)
@@ -29,9 +30,53 @@ from helm.orchestrator.multi_ai_router import (
     get_model_info,
     strip_command,
 )
+from helm.orchestrator.agent_spawner import agent_spawner
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+# ── Permission Tiers ────────────────────────────────────────────────────────
+
+class PermissionTier:
+    AUTO = "auto"           # No confirmation needed
+    CONFIRM = "confirm"     # Needs user button-press before executing
+    ADMIN = "admin"         # Never automated
+
+# Actions and their required permission tier
+PERMISSION_MAP = {
+    # Auto-approved (read-only)
+    "read_contacts": PermissionTier.AUTO,
+    "read_deals": PermissionTier.AUTO,
+    "read_calendar": PermissionTier.AUTO,
+    "read_tasks": PermissionTier.AUTO,
+    "search_memory": PermissionTier.AUTO,
+    "generate_summary": PermissionTier.AUTO,
+    "transcribe_voice": PermissionTier.AUTO,
+    "run_research": PermissionTier.AUTO,
+    "spawn_readonly_agent": PermissionTier.AUTO,
+    # Confirmation required (write operations)
+    "send_message": PermissionTier.CONFIRM,
+    "create_contact": PermissionTier.CONFIRM,
+    "update_contact": PermissionTier.CONFIRM,
+    "create_deal": PermissionTier.CONFIRM,
+    "update_deal": PermissionTier.CONFIRM,
+    "create_task": PermissionTier.CONFIRM,
+    "complete_task": PermissionTier.CONFIRM,
+    "schedule_event": PermissionTier.CONFIRM,
+    "move_pipeline_stage": PermissionTier.CONFIRM,
+    "make_voice_call": PermissionTier.CONFIRM,
+    # Admin only
+    "delete_data": PermissionTier.ADMIN,
+    "modify_pipeline": PermissionTier.ADMIN,
+    "change_tenant_config": PermissionTier.ADMIN,
+    "access_other_tenant": PermissionTier.ADMIN,
+}
+
+
+def check_permission(action: str) -> str:
+    """Return the permission tier for an action."""
+    return PERMISSION_MAP.get(action, PermissionTier.AUTO)
 
 
 class HelmEngine:
@@ -71,18 +116,54 @@ class HelmEngine:
         return self._backend == "claude_cli"
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
-        """Process a user message and return Helm's response.
+        """Process a user message through the full orchestration pipeline.
 
-        Uses the smart router to classify intent and pick the right model:
-          - Opus / Sonnet → Anthropic API, OpenRouter, or Claude CLI
-          - Perplexity tiers → OpenRouter, then synthesised by the active backend
+        Pipeline:
+          1. Agent detection — route to sub-agent if message matches
+          2. Smart routing — classify intent → pick model tier
+          3. Output styling — apply mode-appropriate style
+          4. Backend fallback — try all backends until one works
+          5. Persist — save to in-memory cache + database
         """
         conversation_id = request.conversation_id or uuid.uuid4().hex
 
         # Store the user message (in-memory + persist to DB)
         await memory.add_and_persist(conversation_id, "user", request.message)
 
-        # ── Smart routing ────────────────────────────────────────────────
+        # ── Step 1: Agent routing ─────────────────────────────────────────
+        agent_name = agent_spawner.detect_agent(request.message)
+        if agent_name:
+            logger.info("Agent route: '%s' → @%s", request.message[:60], agent_name)
+            try:
+                # Strip the @agent-name prefix if present
+                task = request.message
+                if task.lower().startswith(f"@{agent_name}"):
+                    task = task[len(agent_name) + 1:].strip()
+
+                user_context = await self._load_user_context()
+                result = await agent_spawner.run_agent(
+                    agent_name, task, context=user_context,
+                )
+
+                if result.status == "completed" and result.output:
+                    reply_text = result.output
+                    model_used = f"agent:{agent_name}({result.model_used})"
+                    tier = result.model_used or "sonnet"
+
+                    await memory.add_and_persist(conversation_id, "assistant", reply_text)
+                    return ChatResponse(
+                        conversation_id=conversation_id,
+                        reply=reply_text,
+                        mode=request.mode,
+                        model_tier=tier,
+                        model_used=model_used,
+                    )
+                else:
+                    logger.warning("Agent %s failed: %s — falling through to default", agent_name, result.error)
+            except Exception as exc:
+                logger.warning("Agent routing failed for %s: %s — falling through", agent_name, exc)
+
+        # ── Step 2: Smart routing ─────────────────────────────────────────
         tier = await classify_task_smart(request.message, mode=request.mode.value)
         clean_message = strip_command(request.message)
         model_used = ""
@@ -94,7 +175,7 @@ class HelmEngine:
             settings.ai_backend,
         )
 
-        # Build context — inject user profile, rules, and memory
+        # ── Step 3: Build context + output style ─────────────────────────
         user_context = await self._load_user_context()
         system_prompt = build_system_prompt(
             request.mode.value, user_context=user_context,
@@ -102,14 +183,13 @@ class HelmEngine:
         messages = memory.get_history(conversation_id)
 
         try:
-            # ── Perplexity tiers: research first, then synthesise ────────
+            # ── Step 4: Execute ──────────────────────────────────────────
             if tier in (ModelTier.PERPLEXITY_SEARCH, ModelTier.PERPLEXITY_DEEP):
                 reply_text, model_used = await self._research_and_synthesise(
                     clean_message, tier, system_prompt, messages,
                 )
 
             else:
-                # Use the configured backend with automatic fallback
                 reply_text, model_used = await self._chat_with_fallback(
                     tier, system_prompt, messages,
                 )
@@ -127,7 +207,7 @@ class HelmEngine:
                 "Please try again."
             )
 
-        # Store assistant reply (in-memory + persist to DB)
+        # ── Step 5: Persist ──────────────────────────────────────────────
         await memory.add_and_persist(conversation_id, "assistant", reply_text)
 
         return ChatResponse(

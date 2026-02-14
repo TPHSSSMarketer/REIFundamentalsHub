@@ -132,7 +132,9 @@ async def test_chat_routes_opus_for_deal_analysis():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="analyze this deal at 123 Oak St", mode=AssistantMode.REAL_ESTATE)
-    with _force_anthropic(engine):
+    with _force_anthropic(engine), \
+         patch("helm.assistant.engine.agent_spawner") as mock_spawner:
+        mock_spawner.detect_agent.return_value = None
         response = await engine.chat(request)
 
     assert response.model_tier == "opus"
@@ -154,7 +156,9 @@ async def test_chat_routes_sonnet_for_simple_message():
     engine._client.messages.create = mock_create
 
     request = ChatRequest(message="hello, how are you?")
-    with _force_anthropic(engine):
+    with _force_anthropic(engine), \
+         patch("helm.assistant.engine.agent_spawner") as mock_spawner:
+        mock_spawner.detect_agent.return_value = None
         response = await engine.chat(request)
 
     assert response.model_tier == "sonnet"
@@ -172,7 +176,9 @@ async def test_chat_routes_research_to_openrouter():
     engine._client.messages.create = mock_create
 
     with patch("helm.integrations.openrouter.openrouter_client") as mock_or, \
-         _force_anthropic(engine):
+         _force_anthropic(engine), \
+         patch("helm.assistant.engine.agent_spawner") as mock_spawner:
+        mock_spawner.detect_agent.return_value = None
         mock_or.search = AsyncMock(return_value={"content": "Median price is $350k..."})
 
         request = ChatRequest(message="look up comparable sales near 30318")
@@ -194,7 +200,9 @@ async def test_chat_research_fallback_when_openrouter_unconfigured():
     engine._client.messages.create = mock_create
 
     with patch("helm.integrations.openrouter.openrouter_client") as mock_or, \
-         _force_anthropic(engine):
+         _force_anthropic(engine), \
+         patch("helm.assistant.engine.agent_spawner") as mock_spawner:
+        mock_spawner.detect_agent.return_value = None
         mock_or.search = AsyncMock(return_value={"error": "OpenRouter not configured", "content": ""})
 
         request = ChatRequest(message="look up comparable sales near 30318")

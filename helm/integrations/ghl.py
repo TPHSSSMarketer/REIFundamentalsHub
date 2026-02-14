@@ -161,6 +161,10 @@ class GHLClient:
         data = await self._get(f"/opportunities/pipelines", params={"locationId": loc})
         return data.get("pipelines", []) if data else []
 
+    async def create_pipeline(self, pipeline_data: dict) -> dict | None:
+        pipeline_data.setdefault("locationId", self._location_id)
+        return await self._post("/opportunities/pipelines", pipeline_data)
+
     async def get_opportunities(
         self,
         pipeline_id: str,

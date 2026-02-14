@@ -37,6 +37,7 @@
         chat: "Chat with Grace",
         agents: "AI Agents",
         integrations: "Integrations",
+        monitoring: "System Monitoring",
         settings: "Settings",
         account: "Account",
     };
@@ -58,6 +59,7 @@
             // Load data for the view
             if (view === "agents") loadAgents();
             if (view === "integrations") loadIntegrations();
+            if (view === "monitoring") loadMonitoring();
             if (view === "settings") loadSettings();
             if (view === "account") loadAccount();
 
@@ -689,6 +691,235 @@
                     </div>`;
             })
             .join("");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ── Monitoring Page ──────────────────────────────────────────────────
+    // ═════════════════════════════════════════════════════════════════════
+
+    async function loadMonitoring() {
+        loadMonitoringStats();
+        loadMonitoringIntegrations();
+        loadMonitoringGHL();
+        loadMonitoringTenants();
+        loadMonitoringAgentLogs();
+
+        // Wire refresh buttons
+        const refreshInt = $("#monRefreshIntegrations");
+        if (refreshInt) {
+            refreshInt.onclick = () => {
+                loadMonitoringStats();
+                loadMonitoringIntegrations();
+            };
+        }
+        const refreshLogs = $("#monRefreshLogs");
+        if (refreshLogs) {
+            refreshLogs.onclick = () => loadMonitoringAgentLogs();
+        }
+    }
+
+    async function loadMonitoringStats() {
+        const statHealth = $("#monStatHealth");
+        const statIntegrations = $("#monStatIntegrations");
+        const statTenants = $("#monStatTenants");
+        const statAgentRuns = $("#monStatAgentRuns");
+
+        // Health
+        try {
+            const res = await fetch(`${API_BASE}/health/detailed`);
+            const data = await res.json();
+            if (statHealth) {
+                statHealth.textContent = data.status === "healthy" ? "Healthy" : data.status || "Unknown";
+                statHealth.style.color = data.status === "healthy" ? "var(--success)" : "var(--warning)";
+            }
+            if (statIntegrations && data.integrations) {
+                const activeCount = data.integrations.active || 0;
+                statIntegrations.textContent = String(activeCount);
+            }
+        } catch {
+            if (statHealth) statHealth.textContent = "Offline";
+            if (statHealth) statHealth.style.color = "var(--danger)";
+        }
+
+        // Tenants
+        try {
+            const res = await fetch(`${API_BASE}/tenants`);
+            const data = await res.json();
+            const tenants = data.tenants || [];
+            if (statTenants) statTenants.textContent = String(tenants.length);
+        } catch {
+            if (statTenants) statTenants.textContent = "0";
+        }
+
+        // Agent runs
+        try {
+            const res = await fetch(`${API_BASE}/agents/logs`);
+            const data = await res.json();
+            const logs = data.logs || [];
+            if (statAgentRuns) statAgentRuns.textContent = String(logs.length);
+        } catch {
+            if (statAgentRuns) statAgentRuns.textContent = "0";
+        }
+    }
+
+    async function loadMonitoringIntegrations() {
+        const grid = $("#monIntegrationsGrid");
+        if (!grid) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/health/detailed`);
+            const data = await res.json();
+            const plugins = data.integrations?.plugins || {};
+
+            if (Object.keys(plugins).length === 0) {
+                grid.innerHTML = `<div class="empty-state">No integrations registered.</div>`;
+                return;
+            }
+
+            grid.innerHTML = Object.entries(plugins)
+                .map(([name, info]) => {
+                    const isActive = info.active;
+                    const statusClass = isActive ? "status-ok" : "status-off";
+                    const statusText = isActive ? "Active" : "Inactive";
+                    return `
+                        <div class="monitoring-integration-item">
+                            <div class="monitoring-integration-header">
+                                <span class="status-dot ${statusClass}"></span>
+                                <span class="monitoring-integration-name">${escapeHtml(name)}</span>
+                            </div>
+                            <div class="monitoring-integration-detail">
+                                <span class="monitoring-integration-category">${escapeHtml(info.category || "integration")}</span>
+                                <span class="monitoring-integration-status">${statusText}</span>
+                            </div>
+                            ${info.description ? `<div class="monitoring-integration-desc">${escapeHtml(info.description)}</div>` : ""}
+                        </div>`;
+                })
+                .join("");
+        } catch {
+            grid.innerHTML = `<div class="empty-state">Could not load integration health.</div>`;
+        }
+    }
+
+    async function loadMonitoringGHL() {
+        const container = $("#monGHLStatus");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/ghl/status`);
+            const data = await res.json();
+
+            const isConfigured = data.configured;
+            const isConnected = data.connected;
+
+            container.innerHTML = `
+                <div class="monitoring-ghl-grid">
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-row-label">Configuration</div>
+                            <div class="settings-row-desc">API credentials and client setup</div>
+                        </div>
+                        <span class="status-dot ${isConfigured ? "status-ok" : "status-off"}"></span>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-row-label">Connection</div>
+                            <div class="settings-row-desc">Active OAuth session with GHL</div>
+                        </div>
+                        <span class="status-dot ${isConnected ? "status-ok" : "status-off"}"></span>
+                    </div>
+                    ${data.location_id ? `
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-row-label">Location ID</div>
+                        </div>
+                        <div class="settings-row-value">${escapeHtml(data.location_id)}</div>
+                    </div>` : ""}
+                </div>`;
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load GHL status.</div>`;
+        }
+    }
+
+    async function loadMonitoringTenants() {
+        const container = $("#monTenantsList");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/tenants`);
+            const data = await res.json();
+            const tenants = data.tenants || [];
+
+            if (tenants.length === 0) {
+                container.innerHTML = `<div class="empty-state">No tenants registered. The system is running in standalone mode.</div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="monitoring-tenants-table">
+                    <div class="monitoring-table-header">
+                        <span>Name</span>
+                        <span>Status</span>
+                        <span>Channels</span>
+                        <span>Created</span>
+                    </div>
+                    ${tenants.map((t) => {
+                        const channels = [];
+                        if (t.telegram_chat_id) channels.push("Telegram");
+                        if (t.whatsapp_phone) channels.push("WhatsApp");
+                        if (t.ghl_location_id) channels.push("GHL");
+                        return `
+                            <div class="monitoring-table-row">
+                                <span class="monitoring-tenant-name">${escapeHtml(t.name)}</span>
+                                <span><span class="status-dot ${t.is_active ? "status-ok" : "status-off"}"></span></span>
+                                <span class="monitoring-tenant-channels">${channels.length > 0 ? channels.join(", ") : "None"}</span>
+                                <span class="monitoring-tenant-date">${t.created_at ? formatRelativeTime(t.created_at) : "--"}</span>
+                            </div>`;
+                    }).join("")}
+                </div>`;
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load tenants.</div>`;
+        }
+    }
+
+    async function loadMonitoringAgentLogs() {
+        const container = $("#monAgentLogs");
+        if (!container) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/agents/logs`);
+            const data = await res.json();
+            const logs = data.logs || [];
+
+            if (logs.length === 0) {
+                container.innerHTML = `<div class="empty-state">No agent activity recorded yet.</div>`;
+                return;
+            }
+
+            container.innerHTML = logs
+                .slice(0, 50)
+                .map((log) => {
+                    const statusClass = log.status === "completed" ? "log-success"
+                        : log.status === "failed" ? "log-error"
+                        : "log-pending";
+                    const duration = log.duration_ms ? `${(log.duration_ms / 1000).toFixed(1)}s` : "--";
+                    return `
+                        <div class="agent-log-item ${statusClass}">
+                            <div class="agent-log-header">
+                                <span class="agent-log-name">${escapeHtml(log.agent_name || "unknown")}</span>
+                                <span class="agent-log-status badge badge-${log.status === "completed" ? "active" : log.status === "failed" ? "error" : "pending"}">${escapeHtml(log.status)}</span>
+                            </div>
+                            <div class="agent-log-task">${escapeHtml(log.task || "")}</div>
+                            <div class="agent-log-meta">
+                                <span>${duration}</span>
+                                ${log.created_at ? `<span>${formatRelativeTime(log.created_at)}</span>` : ""}
+                            </div>
+                            ${log.error ? `<div class="agent-log-error">${escapeHtml(log.error)}</div>` : ""}
+                        </div>`;
+                })
+                .join("");
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load agent logs.</div>`;
+        }
     }
 
     // ── Deal Analyzer (only when RE plugin is loaded) ──────────────────

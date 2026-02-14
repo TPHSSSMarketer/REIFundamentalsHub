@@ -259,6 +259,55 @@ class TenantManager:
 
         return {**result, "agent_config": agent_config}
 
+    # ── GHL Pipeline Setup ─────────────────────────────────────────────
+
+    async def setup_ghl_pipelines(self, tenant_id: str, business_type: str = "") -> dict:
+        """Create default GHL pipelines for a tenant based on business type."""
+        tenant = await self.get_tenant(tenant_id)
+        if not tenant or not tenant.get("ghl_location_id"):
+            return {"error": "Tenant not found or GHL not connected"}
+
+        from helm.integrations.ghl import ghl_client
+
+        created = []
+
+        # Real Estate pipeline — "Deal Tracker"
+        if business_type.lower() in ("real_estate", "real estate", "rei", ""):
+            deal_pipeline = await ghl_client.create_pipeline({
+                "name": "Deal Tracker",
+                "locationId": tenant["ghl_location_id"],
+                "stages": [
+                    {"name": "Lead", "position": 0},
+                    {"name": "Analysis", "position": 1},
+                    {"name": "Offer Sent", "position": 2},
+                    {"name": "Under Contract", "position": 3},
+                    {"name": "Due Diligence", "position": 4},
+                    {"name": "Rehab", "position": 5},
+                    {"name": "Rented/Listed", "position": 6},
+                    {"name": "Sold/Held", "position": 7},
+                    {"name": "Dead", "position": 8},
+                ],
+            })
+            if deal_pipeline:
+                created.append("Deal Tracker")
+
+        # Personal pipeline — "Life Manager" (always created)
+        life_pipeline = await ghl_client.create_pipeline({
+            "name": "Life Manager",
+            "locationId": tenant["ghl_location_id"],
+            "stages": [
+                {"name": "Inbox", "position": 0},
+                {"name": "This Week", "position": 1},
+                {"name": "In Progress", "position": 2},
+                {"name": "Waiting On", "position": 3},
+                {"name": "Done", "position": 4},
+            ],
+        })
+        if life_pipeline:
+            created.append("Life Manager")
+
+        return {"pipelines_created": created}
+
     # ── Helpers ───────────────────────────────────────────────────────────
 
     def _generate_default_prompt(self, name: str) -> str:

@@ -92,6 +92,17 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str = ""       # Your preferred voice
     elevenlabs_agent_id: str = ""       # Conversational AI agent ID
 
+    # ── Slack ──────────────────────────────────────────────────────────
+    slack_bot_token: str = ""
+    slack_signing_secret: str = ""
+
+    # ── Microsoft Teams ────────────────────────────────────────────────
+    teams_app_id: str = ""
+    teams_app_password: str = ""
+
+    # ── Google Chat ────────────────────────────────────────────────────
+    google_chat_service_account_key: str = ""
+
     # ── Smart Check-ins ─────────────────────────────────────────────────
     checkin_enabled: bool = False
     checkin_interval_minutes: int = 30

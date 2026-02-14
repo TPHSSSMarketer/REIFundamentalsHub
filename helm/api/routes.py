@@ -219,6 +219,45 @@ async def whatsapp_webhook(request: Request):
     return {"status": "ok"}
 
 
+# ── Slack ────────────────────────────────────────────────────────────────────
+
+
+@router.post("/slack/webhook")
+async def slack_webhook(request: Request):
+    """Receive events from Slack Events API."""
+    from helm.integrations.slack import slack_client
+
+    payload = await request.json()
+    result = await slack_client.handle_event(payload)
+    return result
+
+
+# ── Microsoft Teams ──────────────────────────────────────────────────────────
+
+
+@router.post("/teams/webhook")
+async def teams_webhook(request: Request):
+    """Receive activities from Microsoft Teams Bot Framework."""
+    from helm.integrations.teams import teams_client
+
+    activity = await request.json()
+    result = await teams_client.handle_activity(activity)
+    return result
+
+
+# ── Google Chat ──────────────────────────────────────────────────────────────
+
+
+@router.post("/google-chat/webhook")
+async def google_chat_webhook(request: Request):
+    """Receive events from Google Chat."""
+    from helm.integrations.google_chat import google_chat_client
+
+    event = await request.json()
+    result = await google_chat_client.handle_event(event)
+    return result
+
+
 # ── Voice ───────────────────────────────────────────────────────────────────
 
 

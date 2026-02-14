@@ -138,6 +138,36 @@ def register_all_plugins() -> None:
         category="voice",
     )
 
+    # Slack
+    from helm.integrations.slack import slack_client
+
+    registry.register(
+        "slack",
+        slack_client,
+        description="Slack Bot — team messaging channel",
+        category="messaging",
+    )
+
+    # Microsoft Teams
+    from helm.integrations.teams import teams_client
+
+    registry.register(
+        "teams",
+        teams_client,
+        description="Microsoft Teams Bot — enterprise messaging channel",
+        category="messaging",
+    )
+
+    # Google Chat
+    from helm.integrations.google_chat import google_chat_client
+
+    registry.register(
+        "google_chat",
+        google_chat_client,
+        description="Google Chat Bot — Google Workspace messaging",
+        category="messaging",
+    )
+
     # Google Drive
     from helm.integrations.google_drive import google_drive_client
 

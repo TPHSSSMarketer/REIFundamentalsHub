@@ -52,12 +52,27 @@ class TelegramBot:
             logger.warning("Telegram bot token not configured — ignoring update.")
             return
 
+        # Handle inline keyboard callbacks (button presses)
+        callback_query = update.get("callback_query")
+        if callback_query:
+            await self.handle_callback(callback_query)
+            return
+
         message = update.get("message") or update.get("edited_message")
         if not message:
             return
 
         chat_id = message["chat"]["id"]
+        user_id = str(message.get("from", {}).get("id", ""))
         text = message.get("text", "")
+
+        # ── Auth: restrict to admin user ID if configured ─────────────
+        if settings.telegram_admin_user_id and user_id != settings.telegram_admin_user_id:
+            # Check if this is a known tenant
+            tenant = await self._resolve_tenant(str(chat_id))
+            if not tenant:
+                logger.warning("Unauthorized Telegram user: %s", user_id)
+                return
 
         # Handle voice messages → transcribe first via voice module
         voice = message.get("voice")
@@ -87,8 +102,10 @@ class TelegramBot:
             await self._handle_command(chat_id, message.get("text", ""))
             return
 
-        # Use Telegram chat_id as the conversation identifier
-        conversation_id = f"tg_{chat_id}"
+        # ── Tenant-scoped conversation ID ─────────────────────────────
+        tenant = await self._resolve_tenant(str(chat_id))
+        tenant_prefix = f"t{tenant['id'][:8]}_" if tenant else ""
+        conversation_id = f"tg_{tenant_prefix}{chat_id}"
 
         request = ChatRequest(
             message=text,
@@ -132,6 +149,58 @@ class TelegramBot:
         elif lower == "/briefing":
             briefing = await helm_engine.daily_briefing()
             await self.send_long_message(chat_id, briefing)
+
+    # ── Tenant Resolution ────────────────────────────────────────────────
+
+    async def _resolve_tenant(self, chat_id: str) -> dict | None:
+        """Look up a tenant by their Telegram chat ID."""
+        try:
+            from helm.integrations.tenant_manager import tenant_manager
+            return await tenant_manager.get_tenant_by_telegram(chat_id)
+        except Exception:
+            return None
+
+    # ── Inline Keyboards (for confirmation flows) ─────────────────────
+
+    async def send_with_buttons(
+        self,
+        chat_id: int,
+        text: str,
+        buttons: list[list[dict]],
+    ) -> dict | None:
+        """Send a message with inline keyboard buttons.
+
+        buttons format: [[{"text": "Label", "callback_data": "action_id"}]]
+        """
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "reply_markup": {"inline_keyboard": buttons},
+        }
+        return await self._api_post("/sendMessage", payload)
+
+    async def handle_callback(self, callback_query: dict) -> None:
+        """Handle an inline keyboard button press."""
+        callback_id = callback_query.get("id", "")
+        data = callback_query.get("data", "")
+        chat_id = callback_query.get("message", {}).get("chat", {}).get("id")
+
+        if not chat_id or not data:
+            return
+
+        # Acknowledge the callback
+        await self._api_post("/answerCallbackQuery", {"callback_query_id": callback_id})
+
+        # Route based on callback data
+        if data.startswith("confirm:"):
+            action = data[len("confirm:"):]
+            await self.send_message(chat_id, f"Confirmed: {action}. Executing...")
+            # TODO: Execute the confirmed action via the permission system
+        elif data.startswith("snooze:"):
+            hours = data[len("snooze:"):]
+            await self.send_message(chat_id, f"Snoozed for {hours} hours.")
+        elif data == "dismiss":
+            await self.send_message(chat_id, "Dismissed.")
 
     # ── Voice Transcription ──────────────────────────────────────────────
 
