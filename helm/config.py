@@ -115,6 +115,9 @@ class Settings(BaseSettings):
     admin_tenant_id: str = ""           # Your personal tenant ID
     telegram_admin_user_id: str = ""    # Telegram user ID whitelist
 
+    # ── CORS ──────────────────────────────────────────────────────────────
+    cors_origins: str = ""  # Comma-separated origins (e.g. "https://hub.reifundamentals.com,http://localhost:5173")
+
     # ── Logging ──────────────────────────────────────────────────────────
     log_level: str = "INFO"
 

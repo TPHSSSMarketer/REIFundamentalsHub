@@ -920,3 +920,105 @@ def test_ghl_has_create_custom_fields():
     """GHL client has create_custom_fields method."""
     from helm.integrations.ghl import ghl_client
     assert hasattr(ghl_client, "create_custom_fields")
+
+
+# ── Hub Integration Tests ──────────────────────────────────────────────────
+
+
+def test_hub_routes_importable():
+    """Hub routes module is importable and has endpoints."""
+    from helm.plugins.rei.hub_routes import router
+    assert len(router.routes) >= 9
+
+
+def test_hub_middleware_importable():
+    """Hub middleware module is importable."""
+    from helm.plugins.rei.hub_middleware import require_rei_plugin
+    assert callable(require_rei_plugin)
+
+
+def test_reifundamentals_client_properties():
+    """REIFundamentals client has Hub-aware properties."""
+    from helm.integrations.reifundamentals import reifundamentals_client
+
+    assert hasattr(reifundamentals_client, "is_configured")
+    assert hasattr(reifundamentals_client, "hub_connected")
+    assert hasattr(reifundamentals_client, "notify_hub")
+    assert hasattr(reifundamentals_client, "verify_webhook")
+    assert hasattr(reifundamentals_client, "_portfolio_from_ghl")
+
+
+def test_reifundamentals_client_not_connected():
+    """REIFundamentals client reports not connected without API key."""
+    from helm.integrations.reifundamentals import reifundamentals_client
+
+    assert reifundamentals_client.hub_connected is False
+
+
+@pytest.mark.asyncio
+async def test_reifundamentals_portfolio_fallback():
+    """Portfolio returns empty overview when nothing configured."""
+    from helm.integrations.reifundamentals import reifundamentals_client
+
+    portfolio = await reifundamentals_client.get_portfolio()
+    assert portfolio.total_properties == 0
+    assert portfolio.total_value == 0.0
+
+
+def test_hub_event_summarizer():
+    """Hub event summarizer creates readable summaries."""
+    from helm.plugins.rei.hub_routes import _summarize_event
+
+    # Deal created
+    summary = _summarize_event("deal.created", {"title": "123 Oak St", "value": 250000})
+    assert "123 Oak St" in summary
+    assert "$250,000" in summary
+
+    # Contact added
+    summary = _summarize_event("contact.added", {"firstName": "John", "lastName": "Doe"})
+    assert "John Doe" in summary
+
+    # Task completed
+    summary = _summarize_event("task.completed", {"title": "Call seller"})
+    assert "Call seller" in summary
+
+    # Stage change
+    summary = _summarize_event("deal.stage_changed", {"title": "456 Elm", "stageName": "Under Contract"})
+    assert "Under Contract" in summary
+
+
+def test_hub_webhook_signature_verification():
+    """Webhook signature verification works correctly."""
+    import hashlib
+    import hmac as hmac_mod
+
+    from helm.integrations.reifundamentals import REIFundamentalsClient
+
+    client = REIFundamentalsClient.__new__(REIFundamentalsClient)
+    client._webhook_secret = "test-secret"
+
+    payload = b'{"event": "test"}'
+    valid_sig = hmac_mod.new(b"test-secret", payload, hashlib.sha256).hexdigest()
+    assert client.verify_webhook(payload, valid_sig) is True
+    assert client.verify_webhook(payload, "invalid-signature") is False
+
+
+def test_hub_webhook_no_secret_accepts_all():
+    """Webhook verification accepts all when no secret configured."""
+    from helm.integrations.reifundamentals import REIFundamentalsClient
+
+    client = REIFundamentalsClient.__new__(REIFundamentalsClient)
+    client._webhook_secret = ""
+
+    assert client.verify_webhook(b"anything", "any-sig") is True
+
+
+def test_cors_origins_config():
+    """CORS origins can be configured via settings."""
+    from helm.config import Settings
+
+    s = Settings(cors_origins="https://hub.example.com,http://localhost:5173")
+    origins = [o.strip() for o in s.cors_origins.split(",") if o.strip()]
+    assert len(origins) == 2
+    assert "https://hub.example.com" in origins
+    assert "http://localhost:5173" in origins

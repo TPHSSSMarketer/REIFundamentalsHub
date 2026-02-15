@@ -44,6 +44,11 @@ class REIPlugin(HelmPlugin):
         for route in rei_router.routes:
             router.routes.append(route)
 
+        # Mount Hub-facing API routes (AI endpoints for the React dashboard)
+        from helm.plugins.rei.hub_routes import router as hub_router
+
+        router.include_router(hub_router)
+
     # ── Agents ────────────────────────────────────────────────────────────
 
     def register_agents(self) -> dict[str, AgentDefinition]:

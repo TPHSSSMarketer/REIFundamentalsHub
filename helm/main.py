@@ -103,10 +103,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS (dev-friendly, tighten for production) ─────────────────────────────
+# ── CORS ─────────────────────────────────────────────────────────────────────
+_cors_origins: list[str] = ["*"] if not settings.is_production else []
+if settings.cors_origins:
+    _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if not settings.is_production else [],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
