@@ -1022,3 +1022,164 @@ def test_cors_origins_config():
     assert len(origins) == 2
     assert "https://hub.example.com" in origins
     assert "http://localhost:5173" in origins
+
+
+# ── Stripe Integration Tests ──────────────────────────────────────────────
+
+
+def test_stripe_client_importable():
+    """Stripe client module is importable."""
+    from helm.integrations.stripe_client import stripe_client
+    assert hasattr(stripe_client, "is_configured")
+    assert hasattr(stripe_client, "create_checkout_session")
+    assert hasattr(stripe_client, "create_portal_session")
+    assert hasattr(stripe_client, "verify_webhook")
+
+
+def test_stripe_not_configured():
+    """Stripe reports not configured without API key."""
+    from helm.integrations.stripe_client import stripe_client
+    assert stripe_client.is_configured is False
+
+
+def test_stripe_webhook_verification_no_secret():
+    """Stripe webhook verification works without secret (accepts all)."""
+    import json
+    from helm.integrations.stripe_client import StripeClient
+
+    client = StripeClient.__new__(StripeClient)
+    client._secret_key = ""
+    client._webhook_secret = ""
+
+    payload = json.dumps({"type": "test.event"}).encode()
+    result = client.verify_webhook(payload, "")
+    assert result is not None
+    assert result["type"] == "test.event"
+
+
+# ── PayPal Integration Tests ─────────────────────────────────────────────
+
+
+def test_paypal_client_importable():
+    """PayPal client module is importable."""
+    from helm.integrations.paypal_client import paypal_client
+    assert hasattr(paypal_client, "is_configured")
+    assert hasattr(paypal_client, "create_subscription")
+    assert hasattr(paypal_client, "cancel_subscription")
+    assert hasattr(paypal_client, "verify_webhook")
+
+
+def test_paypal_not_configured():
+    """PayPal reports not configured without credentials."""
+    from helm.integrations.paypal_client import paypal_client
+    assert paypal_client.is_configured is False
+
+
+def test_paypal_api_base_sandbox():
+    """PayPal uses sandbox URL by default."""
+    from helm.integrations.paypal_client import _paypal_api_base
+    assert "sandbox" in _paypal_api_base()
+
+
+# ── Billing Routes Tests ─────────────────────────────────────────────────
+
+
+def test_billing_routes_importable():
+    """Billing routes module is importable with all endpoints."""
+    from helm.api.billing_routes import billing_router
+    assert len(billing_router.routes) >= 7
+
+
+@pytest.mark.asyncio
+async def test_billing_status_endpoint():
+    """GET /billing/status returns billing configuration."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
+        resp = await client.get("/api/billing/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "stripe_configured" in data
+        assert "paypal_configured" in data
+        assert "plans" in data
+        assert "base" in data["plans"]
+        assert "rei_plugin" in data["plans"]
+
+
+@pytest.mark.asyncio
+async def test_stripe_checkout_unconfigured():
+    """Stripe checkout returns 503 when not configured."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
+        resp = await client.post("/api/billing/stripe/checkout", json={
+            "plan": "base", "email": "test@example.com", "tenant_id": "t-1"
+        })
+        assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_paypal_subscribe_unconfigured():
+    """PayPal subscribe returns 503 when not configured."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
+        resp = await client.post("/api/billing/paypal/subscribe", json={
+            "plan": "base", "email": "test@example.com", "tenant_id": "t-1"
+        })
+        assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_billing_activate_plugin_admin_access():
+    """Admin (API key user) can access plugin activation — gets 404 for missing tenant."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-api-key-for-tests"}) as client:
+        resp = await client.post("/api/billing/activate-plugin", json={
+            "tenant_id": "nonexistent", "plugin": "rei", "active": True
+        })
+        # API key users are admin — passes gate, 404 because tenant doesn't exist
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_billing_activate_plugin_no_auth():
+    """Plugin activation rejects unauthenticated requests."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/billing/activate-plugin", json={
+            "tenant_id": "t-1", "plugin": "rei", "active": True
+        })
+        assert resp.status_code == 401
+
+
+def test_billing_toggle_plugin_helper():
+    """_toggle_plugin function exists and is async."""
+    import inspect
+    from helm.api.billing_routes import _toggle_plugin
+    assert inspect.iscoroutinefunction(_toggle_plugin)
+
+
+def test_billing_config_fields():
+    """Billing config fields exist in settings."""
+    from helm.config import Settings
+    s = Settings()
+    assert hasattr(s, "stripe_secret_key")
+    assert hasattr(s, "stripe_publishable_key")
+    assert hasattr(s, "stripe_webhook_secret")
+    assert hasattr(s, "paypal_client_id")
+    assert hasattr(s, "paypal_client_secret")
+    assert hasattr(s, "paypal_mode")
+    assert s.paypal_mode == "sandbox"

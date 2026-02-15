@@ -115,6 +115,25 @@ class Settings(BaseSettings):
     admin_tenant_id: str = ""           # Your personal tenant ID
     telegram_admin_user_id: str = ""    # Telegram user ID whitelist
 
+    # ── Stripe ────────────────────────────────────────────────────────────
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""   # whsec_... from Stripe Dashboard
+    stripe_base_plan_price_id: str = ""  # price_... for the Helm base subscription
+    stripe_rei_plugin_price_id: str = ""  # price_... for the REI plugin add-on
+
+    # ── PayPal ────────────────────────────────────────────────────────────
+    paypal_client_id: str = ""
+    paypal_client_secret: str = ""
+    paypal_webhook_id: str = ""       # Webhook ID from PayPal Dashboard
+    paypal_base_plan_id: str = ""     # Plan ID for the Helm base subscription
+    paypal_rei_plugin_plan_id: str = ""  # Plan ID for the REI plugin add-on
+    paypal_mode: str = "sandbox"      # "sandbox" or "live"
+
+    # ── Billing ──────────────────────────────────────────────────────────
+    billing_success_url: str = "https://your-domain.com/billing/success"
+    billing_cancel_url: str = "https://your-domain.com/billing/cancel"
+
     # ── CORS ──────────────────────────────────────────────────────────────
     cors_origins: str = ""  # Comma-separated origins (e.g. "https://hub.reifundamentals.com,http://localhost:5173")
 

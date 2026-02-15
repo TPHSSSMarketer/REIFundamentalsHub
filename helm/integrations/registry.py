@@ -249,6 +249,26 @@ def register_all_plugins() -> None:
     except ImportError:
         logger.debug("Supabase memory integration not available.")
 
+    # Stripe billing
+    from helm.integrations.stripe_client import stripe_client
+
+    registry.register(
+        "stripe",
+        stripe_client,
+        description="Stripe — subscription billing and payment processing",
+        category="billing",
+    )
+
+    # PayPal billing
+    from helm.integrations.paypal_client import paypal_client
+
+    registry.register(
+        "paypal",
+        paypal_client,
+        description="PayPal — subscription billing and payment processing",
+        category="billing",
+    )
+
     # Let Helm plugins register their domain-specific integrations
     from helm.plugins import plugin_manager
 

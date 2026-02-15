@@ -121,6 +121,9 @@ app.include_router(router, prefix="/api")
 from helm.api.auth_routes import auth_router
 app.include_router(auth_router, prefix="/api")
 
+from helm.api.billing_routes import billing_router
+app.include_router(billing_router, prefix="/api")
+
 # ── Static frontend ─────────────────────────────────────────────────────────
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
