@@ -1098,6 +1098,88 @@ a:hover { color: var(--accent-hover); }
     font-weight: 500;
 }
 
+.plugin-card-actions {
+    margin-top: 8px;
+}
+
+/* ── Billing Section ──────────────────────────────────────────────────── */
+.billing-plans {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.billing-plan-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    transition: border-color var(--transition);
+}
+
+.billing-plan-card:hover {
+    border-color: var(--accent);
+}
+
+.billing-plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.billing-plan-name {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.billing-plan-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.billing-plan-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-billing {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-stripe {
+    background: #635bff;
+    color: white;
+}
+
+.btn-stripe:hover {
+    background: #7a73ff;
+}
+
+.btn-paypal {
+    background: #0070ba;
+    color: white;
+}
+
+.btn-paypal:hover {
+    background: #008ee0;
+}
+
+.billing-manage {
+    padding-top: 4px;
+}
+
 /* ── Monitoring Dashboard ──────────────────────────────────────────────── */
 .monitoring-integrations-grid {
     display: grid;

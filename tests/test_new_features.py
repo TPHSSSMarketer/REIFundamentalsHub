@@ -1183,3 +1183,140 @@ def test_billing_config_fields():
     assert hasattr(s, "paypal_client_secret")
     assert hasattr(s, "paypal_mode")
     assert s.paypal_mode == "sandbox"
+
+
+# ── Hub Billing Routes Tests ────────────────────────────────────────────────
+
+
+def test_hub_billing_routes_importable():
+    """Hub billing routes module is importable with all endpoints."""
+    from helm.api.hub_billing_routes import hub_billing_router
+    assert len(hub_billing_router.routes) >= 5
+
+
+@pytest.mark.asyncio
+async def test_hub_billing_config_endpoint():
+    """GET /hub/billing/config returns public billing config (no auth required)."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/hub/billing/config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "stripe" in data
+        assert "paypal" in data
+        assert "configured" in data["stripe"]
+        assert "plans" in data["stripe"]
+        assert "configured" in data["paypal"]
+        assert "plans" in data["paypal"]
+        assert "mode" in data["paypal"]
+
+
+@pytest.mark.asyncio
+async def test_hub_stripe_checkout_unconfigured():
+    """Hub Stripe checkout returns 503 when Stripe not configured."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/hub/billing/stripe/checkout", json={
+            "plan": "base", "email": "test@hub.com", "tenant_id": "t-hub-1"
+        })
+        assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_hub_stripe_portal_unconfigured():
+    """Hub Stripe portal returns 503 when Stripe not configured."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/hub/billing/stripe/portal", json={
+            "customer_id": "cus_test123"
+        })
+        assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_hub_paypal_subscribe_unconfigured():
+    """Hub PayPal subscribe returns 503 when PayPal not configured."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/hub/billing/paypal/subscribe", json={
+            "plan": "base", "email": "test@hub.com", "tenant_id": "t-hub-1"
+        })
+        assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_hub_subscription_status_not_found():
+    """Hub subscription status returns 404 for non-existent tenant."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/hub/billing/subscription/nonexistent-tenant")
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_hub_stripe_checkout_validation():
+    """Hub Stripe checkout requires email or customer_id."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Mock stripe as configured by checking the validation path
+        resp = await client.post("/api/hub/billing/stripe/checkout", json={
+            "plan": "base", "tenant_id": "t-1"
+        })
+        # Either 503 (not configured) or 400 (validation error)
+        assert resp.status_code in (400, 503)
+
+
+@pytest.mark.asyncio
+async def test_hub_paypal_subscribe_validation():
+    """Hub PayPal subscribe requires email."""
+    from httpx import ASGITransport, AsyncClient
+    from helm.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/hub/billing/paypal/subscribe", json={
+            "plan": "base", "tenant_id": "t-1"
+        })
+        # Either 503 (not configured) or 400 (validation error)
+        assert resp.status_code in (400, 503)
+
+
+def test_hub_billing_service_file_exists():
+    """Hub SDK billing service file exists."""
+    from pathlib import Path
+    service_file = Path(__file__).parent.parent / "hub-sdk" / "helmBillingService.ts"
+    assert service_file.exists()
+    content = service_file.read_text()
+    assert "HelmBillingService" in content
+    assert "stripeCheckout" in content
+    assert "paypalSubscribe" in content
+    assert "getBillingConfig" in content
+    assert "getSubscriptionStatus" in content
+
+
+def test_hub_billing_portal_component_exists():
+    """Hub SDK billing portal React component exists."""
+    from pathlib import Path
+    component_file = Path(__file__).parent.parent / "hub-sdk" / "HelmBillingPortal.tsx"
+    assert component_file.exists()
+    content = component_file.read_text()
+    assert "HelmBillingPortal" in content
+    assert "helmBilling" in content

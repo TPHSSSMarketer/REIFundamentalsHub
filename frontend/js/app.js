@@ -678,6 +678,7 @@
 
     async function loadAccount() {
         loadAccountPlan();
+        loadBillingSection();
         loadPluginMarketplace();
     }
 
@@ -711,6 +712,134 @@
                 </div>`;
         } catch {
             container.innerHTML = `<div class="empty-state">Could not load account info.</div>`;
+        }
+    }
+
+    // ── Billing Section ─────────────────────────────────────────────────
+
+    async function loadBillingSection() {
+        const container = $("#billingSection");
+        if (!container) return;
+
+        try {
+            const res = await apiFetch(`${API_BASE}/billing/status`);
+            const data = await res.json();
+
+            const stripeReady = data.stripe_configured;
+            const paypalReady = data.paypal_configured;
+
+            if (!stripeReady && !paypalReady) {
+                container.innerHTML = `
+                    <div class="empty-state">Payment processing is not yet configured. Contact your administrator.</div>`;
+                return;
+            }
+
+            const basePlan = data.plans?.base || {};
+            const reiPlugin = data.plans?.rei_plugin || {};
+
+            container.innerHTML = `
+                <div class="billing-plans">
+                    <div class="billing-plan-card">
+                        <div class="billing-plan-header">
+                            <div class="billing-plan-name">Helm Base Plan</div>
+                            <span class="badge badge-plan">Subscription</span>
+                        </div>
+                        <p class="billing-plan-desc">Full access to Grace AI assistant, chat, agents, voice, and integrations.</p>
+                        <div class="billing-plan-actions">
+                            ${stripeReady && basePlan.stripe_price_id ? `<button class="btn-billing btn-stripe" data-plan="base" data-provider="stripe">Subscribe with Stripe</button>` : ""}
+                            ${paypalReady && basePlan.paypal_plan_id ? `<button class="btn-billing btn-paypal" data-plan="base" data-provider="paypal">Subscribe with PayPal</button>` : ""}
+                        </div>
+                    </div>
+
+                    <div class="billing-plan-card">
+                        <div class="billing-plan-header">
+                            <div class="billing-plan-name">REI Plugin</div>
+                            <span class="badge badge-plugin">Add-on</span>
+                        </div>
+                        <p class="billing-plan-desc">Deal analysis, comps, portfolio tracking, BRRRR calculator. Adds Real Estate mode.</p>
+                        <div class="billing-plan-actions">
+                            ${stripeReady && reiPlugin.stripe_price_id ? `<button class="btn-billing btn-stripe" data-plan="rei_plugin" data-provider="stripe">Add with Stripe</button>` : ""}
+                            ${paypalReady && reiPlugin.paypal_plan_id ? `<button class="btn-billing btn-paypal" data-plan="rei_plugin" data-provider="paypal">Add with PayPal</button>` : ""}
+                        </div>
+                    </div>
+                </div>
+
+                ${stripeReady ? `
+                <div class="billing-manage">
+                    <button class="btn-small" id="billingManageBtn">Manage Subscription (Stripe Portal)</button>
+                </div>` : ""}`;
+
+            // Bind billing buttons
+            container.querySelectorAll(".btn-billing").forEach((btn) => {
+                btn.addEventListener("click", () => handleBillingClick(btn.dataset.plan, btn.dataset.provider));
+            });
+
+            const manageBtn = $("#billingManageBtn");
+            if (manageBtn) {
+                manageBtn.addEventListener("click", handleManageSubscription);
+            }
+        } catch {
+            container.innerHTML = `<div class="empty-state">Could not load billing info.</div>`;
+        }
+    }
+
+    async function handleBillingClick(plan, provider) {
+        const email = prompt("Enter your email address for billing:");
+        if (!email || !email.includes("@")) return;
+
+        try {
+            if (provider === "stripe") {
+                const res = await apiFetch(`${API_BASE}/billing/stripe/checkout`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    body: JSON.stringify({ plan, email }),
+                });
+                const data = await res.json();
+                if (data.checkout_url) {
+                    window.open(data.checkout_url, "_blank");
+                } else {
+                    alert(data.detail || "Failed to create checkout session.");
+                }
+            } else if (provider === "paypal") {
+                const name = prompt("Enter your full name:") || "";
+                const res = await apiFetch(`${API_BASE}/billing/paypal/subscribe`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    body: JSON.stringify({ plan, email, name }),
+                });
+                const data = await res.json();
+                if (data.approve_url) {
+                    window.open(data.approve_url, "_blank");
+                } else {
+                    alert(data.detail || "Failed to create subscription.");
+                }
+            }
+        } catch {
+            alert("Could not connect to billing service. Please try again.");
+        }
+    }
+
+    async function handleManageSubscription() {
+        const customerId = prompt("Enter your Stripe Customer ID (cus_...):");
+        if (!customerId) return;
+
+        try {
+            const res = await apiFetch(`${API_BASE}/billing/stripe/portal`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({
+                    customer_id: customerId,
+                    return_url: window.location.href,
+                }),
+            });
+            const data = await res.json();
+            if (data.portal_url) {
+                window.open(data.portal_url, "_blank");
+            } else {
+                alert(data.detail || "Failed to open billing portal.");
+            }
+        } catch {
+            alert("Could not connect to billing service.");
         }
     }
 
@@ -748,6 +877,12 @@
                     ? '<span class="badge badge-soon">Coming Soon</span>'
                     : '<span class="badge badge-upgrade">Pro</span>';
 
+                const purchaseBtn = !p.installed && !p.coming_soon && p.purchasable
+                    ? `<div class="plugin-card-actions">
+                           <button class="btn-small plugin-buy-btn" data-plugin-id="${escapeHtml(p.id)}">Purchase</button>
+                       </div>`
+                    : "";
+
                 return `
                     <div class="plugin-card${p.installed ? " plugin-installed" : ""}${p.coming_soon ? " plugin-soon" : ""}">
                         <div class="plugin-card-header">
@@ -756,9 +891,18 @@
                         </div>
                         <p class="plugin-card-desc">${escapeHtml(p.description)}</p>
                         <div class="plugin-card-price">${escapeHtml(p.price)}</div>
+                        ${purchaseBtn}
                     </div>`;
             })
             .join("");
+
+        // Bind purchase buttons
+        container.querySelectorAll(".plugin-buy-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const pluginId = btn.dataset.pluginId;
+                handleBillingClick(pluginId === "rei" ? "rei_plugin" : pluginId, "stripe");
+            });
+        });
     }
 
     // ═════════════════════════════════════════════════════════════════════
