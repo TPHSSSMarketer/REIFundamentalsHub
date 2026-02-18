@@ -1,5 +1,6 @@
 import { Phone, Mail, DollarSign, Calendar, Trash2 } from 'lucide-react'
 import Modal from '../Common/Modal'
+import DealAnalysisPanel from './DealAnalysisPanel'
 import { formatCurrency, formatDate } from '@/utils/helpers'
 import { useDeleteDeal } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
@@ -101,6 +102,12 @@ export default function DealDetailModal({ deal, onClose }: DealDetailModalProps)
             Delete Deal
           </button>
         </div>
+
+        {/* AI Deal Analysis */}
+        <DealAnalysisPanel
+          address={deal.title}
+          askingPrice={deal.value}
+        />
       </div>
     </Modal>
   )
