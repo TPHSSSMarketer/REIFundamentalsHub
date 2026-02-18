@@ -15,6 +15,7 @@ from helm.api.routes import router
 from helm.config import get_settings
 from helm.logging_config import setup_logging
 from helm.models.database import init_db
+from helm.models.supabase_client import init_supabase
 
 settings = get_settings()
 
@@ -32,10 +33,12 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     logger.info("Starting Helm AI Assistant v0.3.0")
     await init_db()
+    await init_supabase()
     logger.info("Database initialized")
 
     # Load persisted conversations into memory
     from helm.assistant.memory import memory
+    from helm.models.supabase_client import init_supabase
 
     loaded = await memory.load_from_db()
     if loaded:
