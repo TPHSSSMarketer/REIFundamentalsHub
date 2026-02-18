@@ -1,0 +1,1 @@
+-- Initial schema (applied directly in Supabase dashboard — see REIFundamentalsHub repo for original)
