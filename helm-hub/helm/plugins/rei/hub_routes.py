@@ -299,6 +299,16 @@ async def hub_webhook_events(request: Request):
             content=f"[Hub Event] {summary}",
         )
 
+    # Sync living files from hub event data
+    if event_type.startswith(("deal.", "contact.")) or event_type in ("portfolio.updated", "market.updated"):
+        try:
+            import asyncio
+            from helm.context.sync import living_file_sync
+            tenant_id = getattr(request.state, "tenant_id", "default")
+            await asyncio.to_thread(living_file_sync.sync_from_hub, tenant_id, event_data)
+        except Exception as exc:
+            logger.warning("Living file sync failed: %s", exc)
+
     return {"status": "received", "event": event_type}
 
 
@@ -370,3 +380,10 @@ def _summarize_event(event_type: str, data: dict) -> str | None:
 
 
 router.include_router(ai_proxy_router, prefix="/ai")
+@router.get("/context/files", dependencies=[Depends(get_current_user)])
+async def hub_list_context_files(request: Request):
+    """List all living context files for this tenant."""
+    from helm.context.living_files import list_living_files
+    tenant_id = getattr(request.state, "tenant_id", "default")
+    files = list_living_files(tenant_id)
+    return {"tenant_id": tenant_id, "files": files}
