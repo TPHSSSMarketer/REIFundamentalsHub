@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Save, Key, MapPin, Check, AlertTriangle } from 'lucide-react'
 import { getConfigStatus } from '@/services/auth'
 import { toast } from 'sonner'
+import HelmHubConnect from './HelmHubConnect'
 
 export default function Settings() {
   const config = getConfigStatus()
@@ -46,9 +47,7 @@ export default function Settings() {
                 config.isFullyConfigured ? 'text-success-800' : 'text-warning-800'
               }`}
             >
-              {config.isFullyConfigured
-                ? 'API Connected'
-                : 'Configuration incomplete'}
+              {config.isFullyConfigured ? 'API Connected' : 'Configuration incomplete'}
             </p>
             <p
               className={`text-sm ${
@@ -122,6 +121,9 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Helm Hub AI Connection */}
+      <HelmHubConnect />
+
       {/* Environment Variables Help */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
         <h3 className="font-semibold text-slate-800 mb-3">
@@ -133,9 +135,10 @@ export default function Settings() {
           project root:
         </p>
         <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
-          {`VITE_API_KEY=your_api_key_here
+{`VITE_API_KEY=your_api_key_here
 VITE_API_LOCATION_ID=your_location_id_here
-VITE_API_BASE_URL=https://services.leadconnectorhq.com`}
+VITE_API_BASE_URL=https://services.leadconnectorhq.com
+VITE_HELM_HUB_URL=http://localhost:8000`}
         </pre>
       </div>
     </div>
