@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from helm.api.middleware import get_current_user, rate_limit, rate_limit_strict
 from helm.plugins.rei.hub_middleware import require_rei_plugin
+from helm.plugins.rei.ai_proxy import ai_proxy_router
 
 router = APIRouter(
     prefix="/hub",
@@ -363,3 +364,9 @@ def _summarize_event(event_type: str, data: dict) -> str | None:
 
     # Generic fallback
     return f"{event_type}: {str(data)[:200]}" if data else None
+
+    # Generic fallback
+    return f"{event_type}: {str(data)[:200]}" if data else None
+
+
+router.include_router(ai_proxy_router, prefix="/ai")
