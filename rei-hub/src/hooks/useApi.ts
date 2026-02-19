@@ -407,3 +407,25 @@ export function useTasks() {
     },
   })
 }
+
+// ============ DEAL NOTES HOOKS ============
+
+export function useUpdateDealNotes() {
+  const { isDemoMode } = useDemoMode()
+
+  return useMutation({
+    mutationFn: async ({ dealId, notes }: { dealId: string; notes: string }) => {
+      if (isDemoMode) {
+        await new Promise((r) => setTimeout(r, 500))
+        return { id: dealId, notes }
+      }
+      return apiService.updateDeal(dealId, { notes } as any)
+    },
+    onSuccess: () => {
+      toast.success('Deal analysis saved to GHL')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to save to GHL')
+    },
+  })
+}
