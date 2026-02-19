@@ -73,10 +73,11 @@ export default function AssistantHub() {
     const [emailSearch, setEmailSearch] = useState('')
 
   // Voice AI conversation state
-  const [conversationMessages, setConversationMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+  const [conversations, setConversations] = useState<Record<string, Array<{ role: 'user' | 'assistant', content: string }>>>({})
     const [chatInput, setChatInput] = useState('')
     const [isChatLoading, setIsChatLoading] = useState(false)
     const [activeLead, setActiveLead] = useState<Contact | null>(null)
+  const conversationMessages = activeLead ? (conversations[activeLead.id] ?? []) : []
 
   useEffect(() => {
         const email = localStorage.getItem('helmHub_linkedEmail')
@@ -120,13 +121,19 @@ export default function AssistantHub() {
         if (!chatInput.trim() || isChatLoading) return
         const userMessage = { role: 'user' as const, content: chatInput.trim() }
         const updatedMessages = [...conversationMessages, userMessage]
-        setConversationMessages(updatedMessages)
+        setConversations(prev => ({
+            ...prev,
+            [activeLead!.id]: [...(prev[activeLead!.id] ?? []), userMessage],
+        }))
         setChatInput('')
         setIsChatLoading(true)
         try {
             const persona = personas.find(p => p.id === activePersona) ?? personas[0]
             const response = await helmChat(updatedMessages, persona.systemPrompt)
-            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+            setConversations(prev => ({
+                ...prev,
+                [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
+            }))
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
                 toast.error('Helm Hub subscription required to use CallCommander AI.')
@@ -147,7 +154,10 @@ export default function AssistantHub() {
         try {
             const persona = personas.find(p => p.id === activePersona) ?? personas[0]
             const response = await helmChat(openerMessages, persona.systemPrompt)
-            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+            setConversations(prev => ({
+                ...prev,
+                [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
+            }))
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
                 toast.error('Helm Hub subscription required to use CallCommander AI.')
@@ -257,7 +267,7 @@ export default function AssistantHub() {
                                 {personas.map((p) => (
                                     <button
                                         key={p.id}
-                                        onClick={() => { setActivePersona(p.id); setConversationMessages([]) }}
+                                        onClick={() => { setActivePersona(p.id) }}
                                         className={`p-3 rounded-lg text-left transition-all ${
                                             activePersona === p.id
                                                 ? 'ring-2 ring-primary-500 bg-primary-50'
@@ -296,7 +306,7 @@ export default function AssistantHub() {
                                     contactsData.contacts.map((contact) => (
                                         <button
                                             key={contact.id}
-                                            onClick={() => { setActiveLead(contact); setConversationMessages([]) }}
+                                            onClick={() => { setActiveLead(contact) }}
                                             className={`w-full p-4 text-left transition-colors hover:bg-slate-50 ${
                                                 activeLead?.id === contact.id ? 'bg-primary-50 border-l-2 border-primary-600' : ''
                                             }`}
