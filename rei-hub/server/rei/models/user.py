@@ -44,6 +44,7 @@ class Subscription(Base):
     stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
     paypal_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
     helm_addon: Mapped[bool] = mapped_column(Boolean, default=False)
+    billing_cycle: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

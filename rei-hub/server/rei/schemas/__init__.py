@@ -5,6 +5,13 @@ from rei.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from rei.schemas.billing import (
+    CancelSubscriptionResponse,
+    CreatePayPalSubscriptionRequest,
+    CreateStripeSubscriptionRequest,
+    SubscriptionStatusResponse,
+    WebhookResponse,
+)
 
 __all__ = [
     "RegisterRequest",
@@ -12,4 +19,9 @@ __all__ = [
     "TokenResponse",
     "UserResponse",
     "RefreshRequest",
+    "CreateStripeSubscriptionRequest",
+    "CreatePayPalSubscriptionRequest",
+    "SubscriptionStatusResponse",
+    "CancelSubscriptionResponse",
+    "WebhookResponse",
 ]
