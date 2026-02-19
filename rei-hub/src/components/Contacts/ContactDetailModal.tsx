@@ -1,8 +1,7 @@
-import { Phone, Mail, MessageSquare, Tag, Calendar, Trash2 } from 'lucide-react'
-import Modal from '../Common/Modal'
-import { formatPhone, formatDate, getInitials } from '@/utils/helpers'
-import { useDeleteContact } from '@/hooks/useApi'
-import { useStore } from '@/hooks/useStore'
+import { useNavigate } from 'react-router-dom'
+import { X, Phone, Mail, MapPin, Copy, MessageSquare, Send, BarChart2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { formatPhone } from '@/utils/helpers'
 import type { Contact } from '@/types'
 
 interface ContactDetailModalProps {
@@ -10,136 +9,145 @@ interface ContactDetailModalProps {
   onClose: () => void
 }
 
-export default function ContactDetailModal({
-  contact,
-  onClose,
-}: ContactDetailModalProps) {
-  const deleteContact = useDeleteContact()
-  const { setSMSModalOpen, setSMSTargetContact } = useStore()
+function getTagColor(tag: string) {
+  const lower = tag.toLowerCase()
+  if (lower === 'urgent' || lower === 'pre-foreclosure') {
+    return 'bg-red-100 text-red-700'
+  }
+  if (lower === 'motivated') {
+    return 'bg-yellow-100 text-yellow-700'
+  }
+  return 'bg-blue-100 text-blue-700'
+}
+
+export default function ContactDetailModal({ contact, onClose }: ContactDetailModalProps) {
+  const navigate = useNavigate()
 
   if (!contact) return null
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this contact?')) return
-    await deleteContact.mutateAsync(contact.id)
-    onClose()
-  }
-
-  const handleSendSMS = () => {
-    setSMSTargetContact(contact)
-    setSMSModalOpen(true)
-    onClose()
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied!`)
   }
 
   return (
-    <Modal isOpen={!!contact} onClose={onClose} title="Contact Details" size="md">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
-            <span className="text-xl font-bold text-primary-600">
-              {getInitials(contact.name)}
-            </span>
-          </div>
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="relative w-[380px] h-full bg-white shadow-xl overflow-y-auto">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+        >
+          <X className="w-5 h-5 text-slate-500" />
+        </button>
+
+        <div className="p-6 space-y-6">
+          {/* Header */}
           <div>
-            <h3 className="text-xl font-bold text-slate-800">{contact.name}</h3>
-            {contact.source && (
-              <p className="text-sm text-slate-500">Source: {contact.source}</p>
+            <h2 className="text-xl font-bold text-slate-800 pr-8">{contact.name}</h2>
+            {contact.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {contact.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${getTagColor(tag)}`}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Contact Info */}
-        <div className="space-y-3">
-          {contact.phone && (
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-              <Phone className="w-5 h-5 text-slate-400" />
-              <div className="flex-1">
-                <p className="text-sm text-slate-500">Phone</p>
-                <p className="font-medium text-slate-800">
-                  {formatPhone(contact.phone)}
-                </p>
-              </div>
-              <a
-                href={`tel:${contact.phone}`}
-                className="px-3 py-1.5 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Call
-              </a>
-            </div>
-          )}
-
-          {contact.email && (
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-              <Mail className="w-5 h-5 text-slate-400" />
-              <div className="flex-1">
-                <p className="text-sm text-slate-500">Email</p>
-                <p className="font-medium text-slate-800">{contact.email}</p>
-              </div>
-              <a
-                href={`mailto:${contact.email}`}
-                className="px-3 py-1.5 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Email
-              </a>
-            </div>
-          )}
-
-          {contact.dateAdded && (
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-              <Calendar className="w-5 h-5 text-slate-400" />
-              <div>
-                <p className="text-sm text-slate-500">Added</p>
-                <p className="font-medium text-slate-800">
-                  {formatDate(contact.dateAdded)}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Tags */}
-        {contact.tags?.length > 0 && (
+          {/* Contact Info */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Tag className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-600">Tags</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {contact.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1 text-sm bg-primary-50 text-primary-700 rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Contact Info
+            </h3>
+            <div className="space-y-3">
+              {contact.phone && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <Phone className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm">{formatPhone(contact.phone)}</span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(contact.phone, 'Phone')}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <Copy className="w-4 h-4 text-slate-400" />
+                  </button>
+                </div>
+              )}
+
+              {contact.email && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-700 min-w-0">
+                    <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-sm truncate">{contact.email}</span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(contact.email, 'Email')}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+                  >
+                    <Copy className="w-4 h-4 text-slate-400" />
+                  </button>
+                </div>
+              )}
+
+              {(contact as any).address && (
+                <div className="flex items-center gap-2 text-slate-700">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm">{(contact as any).address}</span>
+                </div>
+              )}
+
+              {contact.dateAdded && (
+                <div className="flex items-center gap-2 text-slate-700">
+                  <span className="text-xs text-slate-400 uppercase font-medium">Added</span>
+                  <span className="text-sm">
+                    {new Date(contact.dateAdded).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2 pt-4 border-t border-slate-200">
-          {contact.phone && (
-            <button
-              onClick={handleSendSMS}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-warning-500 text-white rounded-lg hover:bg-warning-600 transition-colors"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Send SMS
-            </button>
-          )}
-
-          <button
-            onClick={handleDelete}
-            disabled={deleteContact.isPending}
-            className="flex items-center justify-center gap-2 px-4 py-2 text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete Contact
-          </button>
+          {/* Quick Actions */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Quick Actions
+            </h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => { onClose(); navigate('/assistanthub') }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4 text-slate-500" />
+                Send SMS
+              </button>
+              <button
+                onClick={() => { onClose(); navigate('/assistanthub') }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <Send className="w-4 h-4 text-slate-500" />
+                Send Email
+              </button>
+              <button
+                onClick={() => { onClose(); navigate('/pipeline') }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <BarChart2 className="w-4 h-4 text-slate-500" />
+                Analyze Deal
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </Modal>
+    </div>
   )
 }
