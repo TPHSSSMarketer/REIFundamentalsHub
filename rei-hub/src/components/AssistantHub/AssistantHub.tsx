@@ -24,23 +24,41 @@ import type { Contact } from '@/types'
 
 type ActiveTab = 'voice' | 'sms' | 'email'
 
-interface VoiceAgent {
-    id: string
-    name: string
-    status: 'active' | 'inactive' | 'busy'
-    callsToday: number
-    avgDuration: string
+interface Persona {
+  id: string
+  name: string
+  role: string
+  tone: string
+  systemPrompt: string
 }
 
-const mockAgents: VoiceAgent[] = [
-  { id: '1', name: 'Lead Qualifier', status: 'active', callsToday: 23, avgDuration: '2:45' },
-  { id: '2', name: 'Appointment Setter', status: 'inactive', callsToday: 0, avgDuration: '4:12' },
-  { id: '3', name: 'Follow-up Agent', status: 'busy', callsToday: 15, avgDuration: '1:30' },
-  ]
+const personas: Persona[] = [
+  {
+    id: 'lead-qualifier',
+    name: 'Maya',
+    role: 'Lead Qualifier',
+    tone: 'Warm & empathetic',
+    systemPrompt: 'You are Maya, a warm and empathetic AI assistant for a real estate investor. Your job is to qualify motivated seller leads — understand their situation, timeline, and motivation. Ask one question at a time. Be conversational, not salesy. Always end your response with a soft follow-up question.',
+  },
+  {
+    id: 'appointment-setter',
+    name: 'Marcus',
+    role: 'Appointment Setter',
+    tone: 'Direct & confident',
+    systemPrompt: 'You are Marcus, a direct and confident AI assistant for a real estate investor. Your job is to move qualified leads toward booking a call or walkthrough appointment. Be clear, concise, and action-oriented. Guide every conversation toward a specific next step.',
+  },
+  {
+    id: 'followup-agent',
+    name: 'Sofia',
+    role: 'Follow-up Agent',
+    tone: 'Friendly & persistent',
+    systemPrompt: 'You are Sofia, a friendly and persistent AI assistant for a real estate investor. Your job is to re-engage leads who went quiet — check in naturally, remind them of the investor\'s value, and gently re-open the conversation. Never be pushy. Build rapport first.',
+  },
+]
 
 export default function AssistantHub() {
     const [activeTab, setActiveTab] = useState<ActiveTab>('voice')
-    const [agents, setAgents] = useState(mockAgents)
+    const [activePersona, setActivePersona] = useState('lead-qualifier')
     const [isHelmConnected, setIsHelmConnected] = useState(false)
 
   // SMS state
@@ -81,17 +99,6 @@ export default function AssistantHub() {
                 c.email.toLowerCase().includes(emailSearch.toLowerCase())
       )
 
-  const toggleAgent = (agentId: string) => {
-        setAgents((prev) =>
-                prev.map((agent) =>
-                          agent.id === agentId
-                                   ? { ...agent, status: agent.status === 'active' ? 'inactive' : 'active' }
-                            : agent
-                               )
-                      )
-        toast.success('Agent status updated')
-  }
-
   const handleSendSMS = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!smsContactId || !smsMessage.trim()) return
@@ -117,7 +124,8 @@ export default function AssistantHub() {
         setChatInput('')
         setIsChatLoading(true)
         try {
-            const response = await helmChat(updatedMessages)
+            const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+            const response = await helmChat(updatedMessages, persona.systemPrompt)
             setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
@@ -137,7 +145,8 @@ export default function AssistantHub() {
             { role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead?.name}. Keep it under 3 sentences.` },
         ]
         try {
-            const response = await helmChat(openerMessages)
+            const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+            const response = await helmChat(openerMessages, persona.systemPrompt)
             setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
@@ -151,8 +160,8 @@ export default function AssistantHub() {
   }
 
   const stats = {
-        totalCalls: agents.reduce((acc, a) => acc + a.callsToday, 0),
-        activeAgents: agents.filter((a) => a.status === 'active').length,
+        totalCalls: 38,
+        activeAgents: personas.length,
                                                    avgDuration: '2:49',
   }
 
@@ -241,7 +250,30 @@ export default function AssistantHub() {
               
                 {/* Voice Agents Tab */}
                 {activeTab === 'voice' && (
-                    <div className="flex">
+                    <div>
+                        {/* Persona Selector */}
+                        <div className="p-4 border-b border-slate-200">
+                            <div className="grid grid-cols-3 gap-3">
+                                {personas.map((p) => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => { setActivePersona(p.id); setConversationMessages([]) }}
+                                        className={`p-3 rounded-lg text-left transition-all ${
+                                            activePersona === p.id
+                                                ? 'ring-2 ring-primary-500 bg-primary-50'
+                                                : 'border border-slate-200 bg-white'
+                                        }`}
+                                    >
+                                        <p className="font-semibold text-slate-800">{p.name}</p>
+                                        <p className="text-sm text-slate-500">{p.role}</p>
+                                        <span className="inline-block mt-1 text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
+                                            {p.tone}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex">
                         {/* Left Panel - Lead Queue */}
                         <div className="w-1/3 border-r border-slate-200">
                             <div className="p-4 border-b border-slate-200">
@@ -303,6 +335,7 @@ export default function AssistantHub() {
                                         <div>
                                             <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead?.name}</h2>
                                             <p className="text-sm text-slate-500">{formatPhone(activeLead?.phone ?? '')}</p>
+                                            <span className="text-xs text-slate-400">AI Persona: {personas.find(p => p.id === activePersona)?.name} — {personas.find(p => p.id === activePersona)?.role}</span>
                                         </div>
                                     </div>
                                     <div className="max-h-96 overflow-y-auto space-y-3 mb-4">
@@ -364,8 +397,9 @@ export default function AssistantHub() {
                             )}
                         </div>
                     </div>
+                    </div>
                 )}
-              
+
                 {/* SMS Tab */}
                 {activeTab === 'sms' && (
                     <div className="p-6">
