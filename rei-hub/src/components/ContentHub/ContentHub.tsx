@@ -39,6 +39,7 @@ export default function ContentHub() {
     JSON.parse(localStorage.getItem('content_library') || '[]')
   )
   const [publishHistory, setPublishHistory] = useState<PublishEntry[]>([])
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const handleScrapeUrl = useCallback(async () => {
     setIsScraping(true)
@@ -363,6 +364,26 @@ export default function ContentHub() {
             ))}
           </div>
 
+          <div className="flex items-center justify-end gap-2 mb-1">
+            <span className="text-xs text-slate-400">
+              {waterfall[activeTab].length} chars
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(waterfall[activeTab])
+                setCopiedField('waterfall')
+                setTimeout(() => setCopiedField(null), 1500)
+              }}
+              className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {copiedField === 'waterfall' ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+
           <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
             {activeTab === 'blog_post' ? (
               <div
@@ -421,15 +442,23 @@ export default function ContentHub() {
                 <p className="text-sm text-slate-700">
                   <span className="font-medium text-slate-800">{i + 1}.</span> {prompt}
                 </p>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(prompt)
-                    toast.success('Prompt copied!')
-                  }}
-                  className="shrink-0 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-slate-400">{prompt.length} chars</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(prompt)
+                      setCopiedField(`prompt-${i}`)
+                      setTimeout(() => setCopiedField(null), 1500)
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {copiedField === `prompt-${i}` ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
