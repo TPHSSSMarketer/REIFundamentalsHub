@@ -13,6 +13,8 @@ import {
     Send,
     Search,
     Loader2,
+    Bot,
+    Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
@@ -51,6 +53,12 @@ export default function AssistantHub() {
     const [emailSubject, setEmailSubject] = useState('')
     const [emailBody, setEmailBody] = useState('')
     const [emailSearch, setEmailSearch] = useState('')
+
+  // Voice AI conversation state
+  const [conversationMessages, setConversationMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+    const [chatInput, setChatInput] = useState('')
+    const [isChatLoading, setIsChatLoading] = useState(false)
+    const [activeLead, setActiveLead] = useState<string | null>(null)
 
   useEffect(() => {
         const email = localStorage.getItem('helmHub_linkedEmail')
@@ -99,6 +107,47 @@ export default function AssistantHub() {
         setEmailSubject('')
         setEmailBody('')
         setEmailContactId('')
+  }
+
+  const handleSendChat = async () => {
+        if (!chatInput.trim() || isChatLoading) return
+        const userMessage = { role: 'user' as const, content: chatInput.trim() }
+        const updatedMessages = [...conversationMessages, userMessage]
+        setConversationMessages(updatedMessages)
+        setChatInput('')
+        setIsChatLoading(true)
+        try {
+            const response = await helmChat(updatedMessages)
+            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+        } catch (err) {
+            if (err instanceof HelmProxyError && err.status === 403) {
+                toast.error('Helm Hub subscription required to use CallCommander AI.')
+            } else if (err instanceof Error) {
+                toast.error(err.message)
+            }
+        } finally {
+            setIsChatLoading(false)
+        }
+  }
+
+  const handleGenerateOpener = async () => {
+        if (!activeLead || isChatLoading) return
+        setIsChatLoading(true)
+        const openerMessages: Array<{ role: 'user' | 'assistant', content: string }> = [
+            { role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead}. Keep it under 3 sentences.` },
+        ]
+        try {
+            const response = await helmChat(openerMessages)
+            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+        } catch (err) {
+            if (err instanceof HelmProxyError && err.status === 403) {
+                toast.error('Helm Hub subscription required to use CallCommander AI.')
+            } else if (err instanceof Error) {
+                toast.error(err.message)
+            }
+        } finally {
+            setIsChatLoading(false)
+        }
   }
 
   const stats = {
@@ -192,113 +241,114 @@ export default function AssistantHub() {
               
                 {/* Voice Agents Tab */}
                 {activeTab === 'voice' && (
-                    <div>
-                                <div className="p-4 border-b border-slate-200">
-                                              <h2 className="text-lg font-semibold text-slate-800">CallCommander AI Agents</h2>h2>
-                                </div>div>
-                                <div className="divide-y divide-slate-200">
-                                  {agents.map((agent) => (
-                                      <div
-                                                          key={agent.id}
-                                                          className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                                                        >
-                                                        <div className="flex items-center gap-4">
-                                                                            <div
-                                                                                                    className={`p-3 rounded-full ${
-                                                                                                                              agent.status === 'active'
-                                                                                                                                ? 'bg-success-100'
-                                                                                                                                : agent.status === 'busy'
-                                                                                                                                ? 'bg-warning-100'
-                                                                                                                                : 'bg-slate-100'
-                                                                                                      }`}
-                                                                                                  >
-                                                                                                  <Mic
-                                                                                                                            className={`w-5 h-5 ${
-                                                                                                                                                        agent.status === 'active'
-                                                                                                                                                          ? 'text-success-600'
-                                                                                                                                                          : agent.status === 'busy'
-                                                                                                                                                          ? 'text-warning-600'
-                                                                                                                                                          : 'text-slate-400'
-                                                                                                                              }`}
-                                                                                                                          />
-                                                                            </div>div>
-                                                                            <div>
-                                                                                                  <h3 className="font-medium text-slate-800">{agent.name}</h3>h3>
-                                                                                                  <div className="flex items-center gap-3 text-sm text-slate-500">
-                                                                                                                          <span className="flex items-center gap-1">
-                                                                                                                                                    <Phone className="w-3 h-3" />
-                                                                                                                            {agent.callsToday} calls today
-                                                                                                                            </span>span>
-                                                                                                                          <span className="flex items-center gap-1">
-                                                                                                                                                    <Clock className="w-3 h-3" />
-                                                                                                                                                    Avg: {agent.avgDuration}
-                                                                                                                            </span>span>
-                                                                                                    </div>div>
-                                                                            </div>div>
-                                                        </div>div>
-                                                        <div className="flex items-center gap-3">
-                                                                            <span
-                                                                                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                                                                                              agent.status === 'active'
-                                                                                                                                ? 'bg-success-100 text-success-700'
-                                                                                                                                : agent.status === 'busy'
-                                                                                                                                ? 'bg-warning-100 text-warning-700'
-                                                                                                                                : 'bg-slate-100 text-slate-600'
-                                                                                                      }`}
-                                                                                                  >
-                                                                              {agent.status}
-                                                                            </span>span>
-                                                                            <button
-                                                                                                    onClick={() => toggleAgent(agent.id)}
-                                                                                                    disabled={agent.status === 'busy'}
-                                                                                                    className={`p-2 rounded-lg transition-colors ${
-                                                                                                                              agent.status === 'active'
-                                                                                                                                ? 'bg-danger-100 text-danger-600 hover:bg-danger-200'
-                                                                                                                                : 'bg-success-100 text-success-600 hover:bg-success-200'
-                                                                                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                                                                                  >
-                                                                              {agent.status === 'active' ? (
-                                                                                                                            <StopCircle className="w-5 h-5" />
-                                                                                                                          ) : (
-                                                                                                                            <PlayCircle className="w-5 h-5" />
-                                                                                                                          )}
-                                                                            </button>button>
-                                                        </div>div>
-                                      </div>div>
-                                    ))}
-                                </div>div>
-                    
-                      {/* Voice Quick Actions */}
-                                <div className="p-4 border-t border-slate-200">
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                              <button
-                                                                                  onClick={() => toast.info('Call queue feature coming soon')}
-                                                                                  className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"
-                                                                                >
-                                                                                <div className="p-2 bg-primary-100 rounded-lg">
-                                                                                                    <Phone className="w-5 h-5 text-primary-600" />
-                                                                                </div>div>
-                                                                                <div>
-                                                                                                    <h3 className="font-medium text-slate-800">Start Call Queue</h3>h3>
-                                                                                                    <p className="text-sm text-slate-500">Begin automated outbound calls</p>p>
-                                                                                </div>div>
-                                                              </button>button>
-                                                              <button
-                                                                                  onClick={() => toast.info('Agent settings coming soon')}
-                                                                                  className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"
-                                                                                >
-                                                                                <div className="p-2 bg-slate-100 rounded-lg">
-                                                                                                    <Settings className="w-5 h-5 text-slate-600" />
-                                                                                </div>div>
-                                                                                <div>
-                                                                                                    <h3 className="font-medium text-slate-800">Agent Settings</h3>h3>
-                                                                                                    <p className="text-sm text-slate-500">Configure voice agent behavior</p>p>
-                                                                                </div>div>
-                                                              </button>button>
-                                              </div>div>
-                                </div>div>
-                    </div>div>
-                      )}
+                    <div className="flex">
+                        {/* Left Panel - Lead Queue */}
+                        <div className="w-1/3 border-r border-slate-200">
+                            <div className="p-4 border-b border-slate-200">
+                                <div className="flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-slate-600" />
+                                    <h2 className="text-lg font-semibold text-slate-800">Lead Queue</h2>
+                                </div>
+                            </div>
+                            <div className="divide-y divide-slate-200">
+                                {[
+                                    { name: 'Maria Santos', status: 'New', phone: '(555) 234-5678' },
+                                    { name: 'Derek Williams', status: 'In Progress', phone: '(555) 876-4321' },
+                                    { name: 'Tamara Collins', status: 'Scheduled', phone: '(555) 391-0022' },
+                                ].map((lead) => (
+                                    <button
+                                        key={lead.name}
+                                        onClick={() => { setActiveLead(lead.name); setConversationMessages([]) }}
+                                        className={`w-full p-4 text-left transition-colors hover:bg-slate-50 ${
+                                            activeLead === lead.name ? 'bg-primary-50 border-l-2 border-primary-600' : ''
+                                        }`}
+                                    >
+                                        <p className="font-medium text-slate-800">{lead.name}</p>
+                                        <p className="text-sm text-slate-500">{lead.phone}</p>
+                                        <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                                            lead.status === 'New' ? 'bg-blue-100 text-blue-700' :
+                                            lead.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-green-100 text-green-700'
+                                        }`}>
+                                            {lead.status}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Right Panel - AI Conversation */}
+                        <div className="w-2/3 p-4">
+                            {!activeLead ? (
+                                <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                                    <MessageSquare className="w-10 h-10 mb-3" />
+                                    <p className="text-sm">Select a lead to begin qualification</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Bot className="w-5 h-5 text-primary-600" />
+                                        <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead}</h2>
+                                    </div>
+                                    <div className="max-h-96 overflow-y-auto space-y-3 mb-4">
+                                        {conversationMessages.length === 0 && (
+                                            <div className="flex justify-center">
+                                                <button
+                                                    onClick={handleGenerateOpener}
+                                                    disabled={isChatLoading || !isHelmConnected}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    <Sparkles className="w-4 h-4" />
+                                                    Generate AI opener for {activeLead}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {conversationMessages.map((msg, i) => (
+                                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                {msg.role === 'assistant' && (
+                                                    <div className="shrink-0 mr-2 mt-1">
+                                                        <Bot className="w-4 h-4 text-slate-400" />
+                                                    </div>
+                                                )}
+                                                <div className={`max-w-[75%] rounded-lg px-4 py-2 ${
+                                                    msg.role === 'user'
+                                                        ? 'bg-primary-600 text-white'
+                                                        : 'bg-white border border-slate-200 text-slate-800'
+                                                }`}>
+                                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat() } }}
+                                            disabled={isChatLoading || !isHelmConnected}
+                                            placeholder="Type a message or question..."
+                                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        />
+                                        <button
+                                            onClick={handleSendChat}
+                                            disabled={isChatLoading || !chatInput.trim() || !isHelmConnected}
+                                            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isChatLoading ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Send className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    {!isHelmConnected && (
+                                        <p className="text-xs text-slate-400 mt-2">Connect Helm Hub in Settings to enable AI</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
               
                 {/* SMS Tab */}
                 {activeTab === 'sms' && (
