@@ -1,13 +1,15 @@
+import { useMemo } from 'react'
 import { Target, DollarSign, CheckCircle, Clock } from 'lucide-react'
 import MetricCard from './MetricCard'
 import ActivityFeed from './ActivityFeed'
-import { useDeals, useTasks } from '@/hooks/useApi'
+import { useDeals, useTasks, useContacts } from '@/hooks/useApi'
 import { formatCurrency } from '@/utils/helpers'
 import type { Activity } from '@/types'
 
 export default function Dashboard() {
   const { data: deals, isLoading: dealsLoading } = useDeals()
   const { data: tasks } = useTasks()
+  const { data: contactsData } = useContacts({ limit: 20 })
 
   // Calculate metrics from deals
   const totalOpportunities = deals?.length || 0
@@ -16,48 +18,39 @@ export default function Dashboard() {
   const pendingTasks = tasks?.filter((t: any) => !t.completed).length || 0
   const pipelineValue = deals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0
 
-  // Mock activity data (would come from API in production)
-  const activities: Activity[] = [
-    {
-      id: '1',
-      type: 'deal_created',
-      title: 'New deal created',
-      description: 'Main St Property - $185,000',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      entityType: 'deal',
-    },
-    {
-      id: '2',
-      type: 'contact_added',
-      title: 'Contact added',
-      description: 'John Smith - Motivated Seller',
-      timestamp: new Date(Date.now() - 7200000).toISOString(),
-      entityType: 'contact',
-    },
-    {
-      id: '3',
-      type: 'deal_updated',
-      title: 'Deal moved to Qualified',
-      description: 'Oak Ave Property',
-      timestamp: new Date(Date.now() - 14400000).toISOString(),
-      entityType: 'deal',
-    },
-    {
-      id: '4',
-      type: 'message_sent',
-      title: 'SMS sent',
-      description: 'Follow-up to Sarah Johnson',
-      timestamp: new Date(Date.now() - 28800000).toISOString(),
-    },
-    {
-      id: '5',
-      type: 'task_completed',
-      title: 'Task completed',
-      description: 'Call back Mike Williams',
-      timestamp: new Date(Date.now() - 43200000).toISOString(),
-      entityType: 'task',
-    },
-  ]
+  const activities = useMemo(() => {
+    const items: Activity[] = []
+    // Add most recent deals as activity items
+    if (deals) {
+      deals.slice(0, 5).forEach((deal) => {
+        items.push({
+          id: `deal-${deal.id}`,
+          type: deal.status === 'won' ? 'deal_updated' : 'deal_created',
+          title: deal.status === 'won' ? 'Deal closed won' : 'Deal in pipeline',
+          description: `${deal.title || 'Unnamed deal'} — ${formatCurrency(deal.value || 0)}`,
+          timestamp: deal.updatedAt || deal.createdAt || new Date().toISOString(),
+          entityType: 'deal',
+        })
+      })
+    }
+    // Add most recent contacts as activity items
+    if (contactsData?.contacts) {
+      contactsData.contacts.slice(0, 5).forEach((contact) => {
+        items.push({
+          id: `contact-${contact.id}`,
+          type: 'contact_added',
+          title: 'Contact in CRM',
+          description: `${contact.name}${contact.tags?.length ? ' — ' + contact.tags.slice(0, 2).join(', ') : ''}`,
+          timestamp: contact.dateAdded || new Date().toISOString(),
+          entityType: 'contact',
+        })
+      })
+    }
+    // Sort by timestamp descending, cap at 10
+    return items
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10)
+  }, [deals, contactsData])
 
   return (
     <div className="space-y-6">
