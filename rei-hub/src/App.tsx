@@ -6,6 +6,7 @@ import Pipeline from './components/Pipeline/Pipeline'
 import Contacts from './components/Contacts/Contacts'
 import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
+import Portfolio from './components/Portfolio/Portfolio'
 import Settings from './components/Settings/Settings'
 import LandingPage from './components/LandingPage/LandingPage'
 import ConnectionTest from './components/Common/ConnectionTest'
@@ -60,6 +61,7 @@ function AppLayout() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
+        <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/settings" element={<Settings />} />

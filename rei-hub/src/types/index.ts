@@ -102,3 +102,24 @@ export interface Activity {
   entityId?: string
   entityType?: 'deal' | 'contact' | 'task'
 }
+
+// Portfolio property types
+export interface PortfolioProperty {
+  id: string
+  address: string
+  city?: string
+  state?: string
+  zip?: string
+  propertyType: 'single_family' | 'multi_family' | 'condo' | 'townhouse' | 'commercial' | 'land'
+  units: number
+  purchaseDate?: string
+  purchasePrice?: number
+  rehabCost?: number
+  currentValue?: number
+  loanBalance?: number
+  monthlyMortgage?: number
+  monthlyRent?: number
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
