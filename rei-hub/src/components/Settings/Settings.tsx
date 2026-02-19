@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Save, Key, MapPin, Check, AlertTriangle } from 'lucide-react'
+import { Save, Key, MapPin, Check, AlertTriangle, Globe } from 'lucide-react'
 import { getConfigStatus } from '@/services/auth'
 import { toast } from 'sonner'
 import HelmHubConnect from './HelmHubConnect'
@@ -10,7 +10,19 @@ export default function Settings() {
   const [settings, setSettings] = useState({
     apiKey: import.meta.env.VITE_API_KEY ? '••••••••••••••••' : '',
     locationId: import.meta.env.VITE_API_LOCATION_ID || '',
+    wpUrl: localStorage.getItem('wp_url') || '',
+    wpUsername: localStorage.getItem('wp_username') || '',
+    wpAppPassword: localStorage.getItem('wp_app_password') || '',
   })
+
+  const handleSaveWordPress = () => {
+    localStorage.setItem('wp_url', settings.wpUrl)
+    localStorage.setItem('wp_username', settings.wpUsername)
+    localStorage.setItem('wp_app_password', settings.wpAppPassword)
+    toast.success('WordPress connection saved.')
+  }
+
+  const wpConnected = !!(settings.wpUrl && settings.wpUsername && settings.wpAppPassword)
 
   const handleSave = () => {
     // In production, this would update server-side env vars
@@ -123,6 +135,87 @@ export default function Settings() {
 
       {/* Helm Hub AI Connection */}
       <HelmHubConnect />
+
+      {/* WordPress Publishing */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-lg font-semibold text-slate-800">
+            WordPress Publishing
+          </h2>
+          {wpConnected && (
+            <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Connect your WordPress site to publish blog posts directly from ContentHub.
+        </p>
+
+        <div className="space-y-4">
+          {/* WordPress Site URL */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+              <Globe className="w-4 h-4" />
+              WordPress Site URL
+            </label>
+            <input
+              type="url"
+              value={settings.wpUrl}
+              onChange={(e) =>
+                setSettings({ ...settings, wpUrl: e.target.value })
+              }
+              placeholder="https://yoursite.com"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Username */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+              Username
+            </label>
+            <input
+              type="text"
+              value={settings.wpUsername}
+              onChange={(e) =>
+                setSettings({ ...settings, wpUsername: e.target.value })
+              }
+              placeholder="your-wp-username"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Application Password */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+              Application Password
+            </label>
+            <input
+              type="password"
+              value={settings.wpAppPassword}
+              onChange={(e) =>
+                setSettings({ ...settings, wpAppPassword: e.target.value })
+              }
+              placeholder="xxxx xxxx xxxx xxxx"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Generate in WordPress → Users → Your Profile → Application Passwords
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-slate-200">
+          <button
+            onClick={handleSaveWordPress}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            Save WordPress Settings
+          </button>
+        </div>
+      </div>
 
       {/* Environment Variables Help */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
