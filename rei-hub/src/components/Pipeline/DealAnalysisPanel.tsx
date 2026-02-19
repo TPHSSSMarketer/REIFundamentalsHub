@@ -36,13 +36,13 @@ export default function DealAnalysisPanel({
           <h2 className="text-lg font-semibold text-slate-800">AI Deal Analysis</h2>
         </div>
         <p className="text-sm text-slate-600 mb-4">
-          Connect Helm Hub in Settings to unlock AI-powered deal analysis.
+          Helm Hub is an optional AI assistant add-on. Connect it in Settings to unlock AI-powered deal analysis — or use REI Hub without it.
         </p>
         <Link
           to="/settings"
           className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm"
         >
-          Go to Settings →
+          Connect Helm Hub (Optional) →
         </Link>
       </div>
     )

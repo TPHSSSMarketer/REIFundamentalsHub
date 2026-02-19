@@ -37,25 +37,41 @@ async def hub_ai_chat(request: Request):
     from helm.models.schemas import AssistantMode, ChatRequest
 
     data = await request.json()
-    message = data.get("message", "")
-    conversation_id = data.get("conversation_id")
+    messages = data.get("messages", [])
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required")
+    if not messages:
+        raise HTTPException(status_code=400, detail="Messages are required")
+
+    system_prompt = (
+        "You are Helm, an AI assistant specialized in real estate investing. "
+        "You help investors analyze deals, qualify leads, and make smarter decisions."
+    )
+
+    # Build conversation context: system prompt + full messages array
+    context_parts = [system_prompt]
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        context_parts.append(f"[{role}]: {content}")
+
+    combined_message = "\n\n".join(context_parts)
 
     chat_request = ChatRequest(
-        message=message,
+        message=combined_message,
         mode=AssistantMode.REAL_ESTATE,
-        conversation_id=conversation_id,
     )
     response = await helm_engine.chat(chat_request)
-    return response.model_dump(mode="json")
+    return {
+        "content": response.reply,
+        "model": response.model_used,
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
 
 
 # ── Deal Analysis ────────────────────────────────────────────────────────────
 
 
-@router.post("/ai/analyze", dependencies=[Depends(get_current_user), Depends(rate_limit)])
+@router.post("/ai/analyze-deal", dependencies=[Depends(get_current_user), Depends(rate_limit)])
 async def hub_analyze_deal(request: Request):
     """AI-powered deal analysis — returns verdict, metrics, and reasoning."""
     from helm.assistant.engine import helm_engine
