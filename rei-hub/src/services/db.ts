@@ -1,4 +1,4 @@
-import type { Deal, Contact } from '@/types'
+import type { Deal, Contact, PortfolioProperty } from '@/types'
 import { mockDeals, mockContacts } from '@/data/mockData'
 
 const DEALS_KEY = 'rei_deals'
@@ -129,4 +129,89 @@ export async function deleteContact(id: string): Promise<void> {
   const contacts = await getContacts('local-user')
   const filtered = contacts.filter((c) => c.id !== id)
   localStorage.setItem(CONTACTS_KEY, JSON.stringify(filtered))
+}
+
+// ============ PORTFOLIO ============
+
+const PORTFOLIO_KEY = 'rei_portfolio'
+
+const PORTFOLIO_SEED: PortfolioProperty[] = [
+  {
+    id: 'prop-1',
+    address: '1842 Ridgewood Dr',
+    city: 'San Antonio',
+    state: 'TX',
+    zip: '78201',
+    propertyType: 'single_family',
+    units: 1,
+    purchaseDate: new Date(Date.now() - 86400000 * 365).toISOString(),
+    purchasePrice: 185000,
+    rehabCost: 22000,
+    currentValue: 235000,
+    loanBalance: 148000,
+    monthlyMortgage: 1100,
+    monthlyRent: 1750,
+    notes: 'Section 8 approved. Long-term tenant in place.',
+    createdAt: new Date(Date.now() - 86400000 * 365).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'prop-2',
+    address: '504 Oak Street',
+    city: 'Birmingham',
+    state: 'AL',
+    zip: '35201',
+    propertyType: 'single_family',
+    units: 1,
+    purchaseDate: new Date(Date.now() - 86400000 * 180).toISOString(),
+    purchasePrice: 132000,
+    rehabCost: 18000,
+    currentValue: 175000,
+    loanBalance: 108000,
+    monthlyMortgage: 820,
+    monthlyRent: 1350,
+    notes: 'Month-to-month lease. Considering refinance.',
+    createdAt: new Date(Date.now() - 86400000 * 180).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+]
+
+export async function getPortfolioProperties(): Promise<PortfolioProperty[]> {
+  const stored = localStorage.getItem(PORTFOLIO_KEY)
+  if (stored) return JSON.parse(stored)
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(PORTFOLIO_SEED))
+  return PORTFOLIO_SEED
+}
+
+export async function createPortfolioProperty(
+  data: Omit<PortfolioProperty, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<PortfolioProperty> {
+  const properties = await getPortfolioProperties()
+  const newProp: PortfolioProperty = {
+    ...data,
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+  const updated = [newProp, ...properties]
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(updated))
+  return newProp
+}
+
+export async function updatePortfolioProperty(
+  id: string,
+  updates: Partial<PortfolioProperty>
+): Promise<PortfolioProperty> {
+  const properties = await getPortfolioProperties()
+  const updated = properties.map(p =>
+    p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+  )
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(updated))
+  return updated.find(p => p.id === id)!
+}
+
+export async function deletePortfolioProperty(id: string): Promise<void> {
+  const properties = await getPortfolioProperties()
+  const updated = properties.filter(p => p.id !== id)
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(updated))
 }
