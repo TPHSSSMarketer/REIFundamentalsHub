@@ -130,6 +130,9 @@ app.include_router(billing_router, prefix="/api")
 from helm.api.hub_billing_routes import hub_billing_router
 app.include_router(hub_billing_router, prefix="/api")
 
+from helm.api.cloud_storage_routes import cloud_storage_router
+app.include_router(cloud_storage_router, prefix="/api")
+
 # ── Static frontend ─────────────────────────────────────────────────────────
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
