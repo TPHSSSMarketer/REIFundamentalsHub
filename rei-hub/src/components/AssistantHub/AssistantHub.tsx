@@ -192,9 +192,13 @@ export default function AssistantHub() {
   }
 
   const stats = {
-        totalCalls: 38,
-        activeAgents: personas.length,
-                                                   avgDuration: '2:49',
+        totalContacts: contactsData?.total ?? 0,
+        hotLeads: contactsData?.contacts.filter(c =>
+            c.tags.includes('urgent') || c.tags.includes('pre-foreclosure')
+        ).length ?? 0,
+        motivatedLeads: contactsData?.contacts.filter(c =>
+            c.tags.includes('motivated')
+        ).length ?? 0,
   }
 
   const tabs = [
@@ -229,33 +233,33 @@ export default function AssistantHub() {
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-primary-100 rounded-lg">
-                                                          <PhoneCall className="w-5 h-5 text-primary-600" />
+                                                          <Users className="w-5 h-5 text-primary-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Calls Today</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalCalls}</p>p>
+                                                          <p className="text-sm text-slate-500">Total Contacts</p>p>
+                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalContacts}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-success-100 rounded-lg">
-                                                          <Users className="w-5 h-5 text-success-600" />
+                                                          <PhoneCall className="w-5 h-5 text-success-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Active Agents</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.activeAgents}</p>p>
+                                                          <p className="text-sm text-slate-500">Hot Leads</p>p>
+                                                          <p className={`text-2xl font-bold ${stats.hotLeads > 0 ? 'text-red-600' : 'text-slate-800'}`}>{stats.hotLeads}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-warning-100 rounded-lg">
-                                                          <Clock className="w-5 h-5 text-warning-600" />
+                                                          <Sparkles className="w-5 h-5 text-warning-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Avg Call Duration</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.avgDuration}</p>p>
+                                                          <p className="text-sm text-slate-500">Motivated</p>p>
+                                                          <p className={`text-2xl font-bold ${stats.motivatedLeads > 0 ? 'text-yellow-600' : 'text-slate-800'}`}>{stats.motivatedLeads}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
