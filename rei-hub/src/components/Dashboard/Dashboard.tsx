@@ -6,17 +6,28 @@ import { useDeals, useTasks, useContacts } from '@/hooks/useApi'
 import { formatCurrency } from '@/utils/helpers'
 import type { Activity } from '@/types'
 
+const STAGE_LABELS: Record<string, string> = {
+  lead: 'New Lead',
+  analysis: 'Analysis',
+  offer: 'Offer Made',
+  under_contract: 'Under Contract',
+  due_diligence: 'Due Diligence',
+  closing: 'Closing',
+  closed_won: 'Closed Won',
+  closed_lost: 'Closed Lost',
+}
+
 export default function Dashboard() {
   const { data: deals, isLoading: dealsLoading } = useDeals()
   const { data: tasks } = useTasks()
-  const { data: contactsData } = useContacts({ limit: 20 })
+  const { data: contacts } = useContacts()
 
   // Calculate metrics from deals
   const totalOpportunities = deals?.length || 0
-  const activeDeals = deals?.filter((d) => d.status === 'open').length || 0
-  const closedDeals = deals?.filter((d) => d.status === 'won').length || 0
-  const pendingTasks = tasks?.filter((t: any) => !t.completed).length || 0
-  const pipelineValue = deals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0
+  const activeDeals = deals?.filter((d) => d.stage !== 'closed_won' && d.stage !== 'closed_lost').length || 0
+  const closedDeals = deals?.filter((d) => d.stage === 'closed_won').length || 0
+  const pendingTasks = tasks?.tasks?.filter((t: any) => !t.completed).length || 0
+  const pipelineValue = deals?.reduce((sum, d) => sum + (d.purchasePrice || 0), 0) || 0
 
   const activities = useMemo(() => {
     const items: Activity[] = []
@@ -25,23 +36,23 @@ export default function Dashboard() {
       deals.slice(0, 5).forEach((deal) => {
         items.push({
           id: `deal-${deal.id}`,
-          type: deal.status === 'won' ? 'deal_updated' : 'deal_created',
-          title: deal.status === 'won' ? 'Deal closed won' : 'Deal in pipeline',
-          description: `${deal.title || 'Unnamed deal'} — ${formatCurrency(deal.value || 0)}`,
-          timestamp: deal.updatedAt || deal.createdAt || new Date().toISOString(),
+          type: deal.stage === 'closed_won' ? 'deal_updated' : 'deal_created',
+          title: deal.stage === 'closed_won' ? 'Deal closed won' : `Deal in ${STAGE_LABELS[deal.stage] || deal.stage}`,
+          description: `${deal.address || deal.title} — ${formatCurrency(deal.purchasePrice || 0)}`,
+          timestamp: deal.updatedAt || deal.createdAt,
           entityType: 'deal',
         })
       })
     }
     // Add most recent contacts as activity items
-    if (contactsData?.contacts) {
-      contactsData.contacts.slice(0, 5).forEach((contact) => {
+    if (contacts) {
+      contacts.slice(0, 5).forEach((contact) => {
         items.push({
           id: `contact-${contact.id}`,
           type: 'contact_added',
           title: 'Contact in CRM',
           description: `${contact.name}${contact.tags?.length ? ' — ' + contact.tags.slice(0, 2).join(', ') : ''}`,
-          timestamp: contact.dateAdded || new Date().toISOString(),
+          timestamp: contact.dateAdded,
           entityType: 'contact',
         })
       })
@@ -50,7 +61,7 @@ export default function Dashboard() {
     return items
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10)
-  }, [deals, contactsData])
+  }, [deals, contacts])
 
   return (
     <div className="space-y-6">
@@ -77,7 +88,7 @@ export default function Dashboard() {
           loading={dealsLoading}
         />
         <MetricCard
-          title="Closed This Month"
+          title="Closed Won"
           value={closedDeals}
           icon={CheckCircle}
           color="warning"
@@ -128,9 +139,9 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Tasks Due Today</span>
+              <span className="text-slate-600">Total Contacts</span>
               <span className="font-semibold text-slate-800">
-                {pendingTasks}
+                {contacts?.length || 0}
               </span>
             </div>
           </div>

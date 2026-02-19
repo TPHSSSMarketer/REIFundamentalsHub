@@ -33,12 +33,12 @@ export default function Pipeline() {
     return pipelines?.[0]
   }, [pipelines, selectedPipelineId])
 
-  const { data: deals, isLoading: dealsLoading } = useDeals(activePipeline?.id)
+  const { data: deals, isLoading: dealsLoading } = useDeals()
   const updateDealStage = useUpdateDealStage()
 
   const [activeDragDeal, setActiveDragDeal] = useState<Deal | null>(null)
   const [showNewDealModal, setShowNewDealModal] = useState(false)
-  const { data: contactsData } = useContacts({ limit: 100 })
+  const { data: contacts } = useContacts()
 
   // DnD sensors
   const sensors = useSensors(
@@ -54,7 +54,7 @@ export default function Pipeline() {
   const dealsByStage = useMemo(() => {
     const grouped: Record<string, Deal[]> = {}
     activePipeline?.stages.forEach((stage) => {
-      grouped[stage.id] = deals?.filter((d) => d.stageId === stage.id) || []
+      grouped[stage.id] = deals?.filter((d) => d.stage === stage.id) || []
     })
     return grouped
   }, [deals, activePipeline])
@@ -75,7 +75,7 @@ export default function Pipeline() {
 
     // Find the deal being moved
     const deal = deals?.find((d) => d.id === dealId)
-    if (!deal || deal.stageId === newStageId) return
+    if (!deal || deal.stage === newStageId) return
 
     // Update the deal's stage
     updateDealStage.mutate({ dealId, stageId: newStageId })
@@ -102,6 +102,8 @@ export default function Pipeline() {
       </div>
     )
   }
+
+  const pipelineValue = deals?.reduce((sum, d) => sum + (d.purchasePrice || 0), 0) || 0
 
   return (
     <div className="space-y-4">
@@ -148,7 +150,7 @@ export default function Pipeline() {
         <div>
           <p className="text-sm text-slate-500">Pipeline Value</p>
           <p className="text-xl font-bold text-primary-600">
-            {formatCurrency(deals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0)}
+            {formatCurrency(pipelineValue)}
           </p>
         </div>
       </div>
@@ -192,8 +194,7 @@ export default function Pipeline() {
       <NewDealModal
         isOpen={showNewDealModal}
         onClose={() => setShowNewDealModal(false)}
-        stages={activePipeline?.stages || []}
-        contacts={contactsData?.contacts || []}
+        contacts={contacts || []}
       />
     </div>
   )

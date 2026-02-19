@@ -1,14 +1,22 @@
 // Contact types
 export interface Contact {
   id: string
-  firstName: string
-  lastName: string
   name: string
-  email: string
-  phone: string
-  tags: string[]
+  firstName?: string
+  lastName?: string
+  role: 'agent' | 'broker' | 'lender' | 'contractor' | 'wholesaler' | 'property_manager' | 'attorney' | 'cpa' | 'seller' | 'buyer' | 'partner'
+  company?: string
+  phone?: string
+  email?: string
+  tags?: string[]
   source?: string
-  dateAdded?: string
+  preferredChannel?: 'email' | 'phone' | 'sms' | 'telegram' | 'whatsapp'
+  markets?: string[]
+  notes?: string
+  rating?: number
+  lastContactedAt?: string
+  interactionCount: number
+  dateAdded: string
   lastActivity?: string
 }
 
@@ -16,14 +24,30 @@ export interface Contact {
 export interface Deal {
   id: string
   title: string
-  value: number
-  stageId: string
-  pipelineId: string
+  address: string
+  city?: string
+  state?: string
+  zip?: string
+  stage: 'lead' | 'analysis' | 'offer' | 'under_contract' | 'due_diligence' | 'closing' | 'closed_won' | 'closed_lost'
+  listPrice?: number
+  purchasePrice?: number
+  arv?: number
+  rehabEstimate?: number
+  allInCost?: number
+  monthlyRent?: number
+  cashOnCash?: number
+  capRate?: number
   contactId?: string
   contactName?: string
-  status: 'open' | 'won' | 'lost' | 'abandoned'
-  createdAt?: string
-  updatedAt?: string
+  offerExpiresAt?: string
+  inspectionDeadline?: string
+  closingDate?: string
+  source?: string
+  notes?: string
+  isUrgent: boolean
+  passedReason?: string
+  createdAt: string
+  updatedAt: string
 }
 
 // Pipeline types
