@@ -65,6 +65,7 @@ export default function AssistantHub() {
   const [smsContactId, setSmsContactId] = useState('')
     const [smsMessage, setSmsMessage] = useState('')
     const [smsSearch, setSmsSearch] = useState('')
+    const [isSmsAiLoading, setIsSmsAiLoading] = useState(false)
 
   // Email state
   const [emailContactId, setEmailContactId] = useState('')
@@ -106,6 +107,27 @@ export default function AssistantHub() {
         await sendSMS.mutateAsync({ contactId: smsContactId, message: smsMessage })
         setSmsMessage('')
         setSmsContactId('')
+  }
+
+  const handleSmsDraft = async () => {
+        if (!smsContactId || !isHelmConnected) return
+        const contact = contactsData?.contacts.find(c => c.id === smsContactId)
+        if (!contact) return
+        setIsSmsAiLoading(true)
+        try {
+            const result = await helmChat([
+                { role: 'user', content: `Write a short, friendly SMS message (under 160 characters) to a motivated seller lead named ${contact.name}. The message should re-engage them and invite a quick reply. Do not include any explanation — just the SMS text itself.` },
+            ])
+            setSmsMessage(result.content)
+        } catch (error) {
+            if (error instanceof HelmProxyError && error.status === 403) {
+                toast.error('Helm Hub subscription required to use AI drafting.')
+            } else {
+                toast.error(error instanceof Error ? error.message : 'Failed to generate draft')
+            }
+        } finally {
+            setIsSmsAiLoading(false)
+        }
   }
 
   const handleSendEmail = async (e: React.FormEvent) => {
@@ -452,6 +474,24 @@ export default function AssistantHub() {
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Message *
                                                               </label>label>
+                                                              <div className="flex items-center gap-2 mb-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleSmsDraft}
+                                                                    disabled={!smsContactId || !isHelmConnected || isSmsAiLoading}
+                                                                    className="text-sm px-3 py-1.5 rounded-lg border border-primary-300 text-primary-600 hover:bg-primary-50 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isSmsAiLoading ? (
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                                    )}
+                                                                    Draft with AI
+                                                                </button>
+                                                                {!isHelmConnected && (
+                                                                    <span className="text-xs text-slate-400">Connect Helm Hub to enable</span>
+                                                                )}
+                                                              </div>
                                                               <textarea
                                                                                   required
                                                                                   rows={4}
