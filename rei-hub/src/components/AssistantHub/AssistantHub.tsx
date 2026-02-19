@@ -24,29 +24,48 @@ import type { Contact } from '@/types'
 
 type ActiveTab = 'voice' | 'sms' | 'email'
 
-interface VoiceAgent {
-    id: string
-    name: string
-    status: 'active' | 'inactive' | 'busy'
-    callsToday: number
-    avgDuration: string
+interface Persona {
+  id: string
+  name: string
+  role: string
+  tone: string
+  systemPrompt: string
 }
 
-const mockAgents: VoiceAgent[] = [
-  { id: '1', name: 'Lead Qualifier', status: 'active', callsToday: 23, avgDuration: '2:45' },
-  { id: '2', name: 'Appointment Setter', status: 'inactive', callsToday: 0, avgDuration: '4:12' },
-  { id: '3', name: 'Follow-up Agent', status: 'busy', callsToday: 15, avgDuration: '1:30' },
-  ]
+const personas: Persona[] = [
+  {
+    id: 'lead-qualifier',
+    name: 'Maya',
+    role: 'Lead Qualifier',
+    tone: 'Warm & empathetic',
+    systemPrompt: 'You are Maya, a warm and empathetic AI assistant for a real estate investor. Your job is to qualify motivated seller leads — understand their situation, timeline, and motivation. Ask one question at a time. Be conversational, not salesy. Always end your response with a soft follow-up question.',
+  },
+  {
+    id: 'appointment-setter',
+    name: 'Marcus',
+    role: 'Appointment Setter',
+    tone: 'Direct & confident',
+    systemPrompt: 'You are Marcus, a direct and confident AI assistant for a real estate investor. Your job is to move qualified leads toward booking a call or walkthrough appointment. Be clear, concise, and action-oriented. Guide every conversation toward a specific next step.',
+  },
+  {
+    id: 'followup-agent',
+    name: 'Sofia',
+    role: 'Follow-up Agent',
+    tone: 'Friendly & persistent',
+    systemPrompt: 'You are Sofia, a friendly and persistent AI assistant for a real estate investor. Your job is to re-engage leads who went quiet — check in naturally, remind them of the investor\'s value, and gently re-open the conversation. Never be pushy. Build rapport first.',
+  },
+]
 
 export default function AssistantHub() {
     const [activeTab, setActiveTab] = useState<ActiveTab>('voice')
-    const [agents, setAgents] = useState(mockAgents)
+    const [activePersona, setActivePersona] = useState('lead-qualifier')
     const [isHelmConnected, setIsHelmConnected] = useState(false)
 
   // SMS state
   const [smsContactId, setSmsContactId] = useState('')
     const [smsMessage, setSmsMessage] = useState('')
     const [smsSearch, setSmsSearch] = useState('')
+    const [isSmsAiLoading, setIsSmsAiLoading] = useState(false)
 
   // Email state
   const [emailContactId, setEmailContactId] = useState('')
@@ -55,10 +74,11 @@ export default function AssistantHub() {
     const [emailSearch, setEmailSearch] = useState('')
 
   // Voice AI conversation state
-  const [conversationMessages, setConversationMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+  const [conversations, setConversations] = useState<Record<string, Array<{ role: 'user' | 'assistant', content: string }>>>({})
     const [chatInput, setChatInput] = useState('')
     const [isChatLoading, setIsChatLoading] = useState(false)
     const [activeLead, setActiveLead] = useState<Contact | null>(null)
+  const conversationMessages = activeLead ? (conversations[activeLead.id] ?? []) : []
 
   useEffect(() => {
         const email = localStorage.getItem('helmHub_linkedEmail')
@@ -81,23 +101,33 @@ export default function AssistantHub() {
                 c.email.toLowerCase().includes(emailSearch.toLowerCase())
       )
 
-  const toggleAgent = (agentId: string) => {
-        setAgents((prev) =>
-                prev.map((agent) =>
-                          agent.id === agentId
-                                   ? { ...agent, status: agent.status === 'active' ? 'inactive' : 'active' }
-                            : agent
-                               )
-                      )
-        toast.success('Agent status updated')
-  }
-
   const handleSendSMS = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!smsContactId || !smsMessage.trim()) return
         await sendSMS.mutateAsync({ contactId: smsContactId, message: smsMessage })
         setSmsMessage('')
         setSmsContactId('')
+  }
+
+  const handleSmsDraft = async () => {
+        if (!smsContactId || !isHelmConnected) return
+        const contact = contactsData?.contacts.find(c => c.id === smsContactId)
+        if (!contact) return
+        setIsSmsAiLoading(true)
+        try {
+            const result = await helmChat([
+                { role: 'user', content: `Write a short, friendly SMS message (under 160 characters) to a motivated seller lead named ${contact.name}. The message should re-engage them and invite a quick reply. Do not include any explanation — just the SMS text itself.` },
+            ])
+            setSmsMessage(result.content)
+        } catch (error) {
+            if (error instanceof HelmProxyError && error.status === 403) {
+                toast.error('Helm Hub subscription required to use AI drafting.')
+            } else {
+                toast.error(error instanceof Error ? error.message : 'Failed to generate draft')
+            }
+        } finally {
+            setIsSmsAiLoading(false)
+        }
   }
 
   const handleSendEmail = async (e: React.FormEvent) => {
@@ -113,12 +143,19 @@ export default function AssistantHub() {
         if (!chatInput.trim() || isChatLoading) return
         const userMessage = { role: 'user' as const, content: chatInput.trim() }
         const updatedMessages = [...conversationMessages, userMessage]
-        setConversationMessages(updatedMessages)
+        setConversations(prev => ({
+            ...prev,
+            [activeLead!.id]: [...(prev[activeLead!.id] ?? []), userMessage],
+        }))
         setChatInput('')
         setIsChatLoading(true)
         try {
-            const response = await helmChat(updatedMessages)
-            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+            const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+            const response = await helmChat(updatedMessages, persona.systemPrompt)
+            setConversations(prev => ({
+                ...prev,
+                [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
+            }))
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
                 toast.error('Helm Hub subscription required to use CallCommander AI.')
@@ -137,8 +174,12 @@ export default function AssistantHub() {
             { role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead?.name}. Keep it under 3 sentences.` },
         ]
         try {
-            const response = await helmChat(openerMessages)
-            setConversationMessages((prev) => [...prev, { role: 'assistant', content: response.content }])
+            const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+            const response = await helmChat(openerMessages, persona.systemPrompt)
+            setConversations(prev => ({
+                ...prev,
+                [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
+            }))
         } catch (err) {
             if (err instanceof HelmProxyError && err.status === 403) {
                 toast.error('Helm Hub subscription required to use CallCommander AI.')
@@ -151,9 +192,13 @@ export default function AssistantHub() {
   }
 
   const stats = {
-        totalCalls: agents.reduce((acc, a) => acc + a.callsToday, 0),
-        activeAgents: agents.filter((a) => a.status === 'active').length,
-                                                   avgDuration: '2:49',
+        totalContacts: contactsData?.total ?? 0,
+        hotLeads: contactsData?.contacts.filter(c =>
+            c.tags.includes('urgent') || c.tags.includes('pre-foreclosure')
+        ).length ?? 0,
+        motivatedLeads: contactsData?.contacts.filter(c =>
+            c.tags.includes('motivated')
+        ).length ?? 0,
   }
 
   const tabs = [
@@ -188,33 +233,33 @@ export default function AssistantHub() {
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-primary-100 rounded-lg">
-                                                          <PhoneCall className="w-5 h-5 text-primary-600" />
+                                                          <Users className="w-5 h-5 text-primary-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Calls Today</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalCalls}</p>p>
+                                                          <p className="text-sm text-slate-500">Total Contacts</p>p>
+                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalContacts}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-success-100 rounded-lg">
-                                                          <Users className="w-5 h-5 text-success-600" />
+                                                          <PhoneCall className="w-5 h-5 text-success-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Active Agents</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.activeAgents}</p>p>
+                                                          <p className="text-sm text-slate-500">Hot Leads</p>p>
+                                                          <p className={`text-2xl font-bold ${stats.hotLeads > 0 ? 'text-red-600' : 'text-slate-800'}`}>{stats.hotLeads}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-warning-100 rounded-lg">
-                                                          <Clock className="w-5 h-5 text-warning-600" />
+                                                          <Sparkles className="w-5 h-5 text-warning-600" />
                                             </div>div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Avg Call Duration</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.avgDuration}</p>p>
+                                                          <p className="text-sm text-slate-500">Motivated</p>p>
+                                                          <p className={`text-2xl font-bold ${stats.motivatedLeads > 0 ? 'text-yellow-600' : 'text-slate-800'}`}>{stats.motivatedLeads}</p>p>
                                             </div>div>
                                 </div>div>
                       </div>div>
@@ -241,7 +286,30 @@ export default function AssistantHub() {
               
                 {/* Voice Agents Tab */}
                 {activeTab === 'voice' && (
-                    <div className="flex">
+                    <div>
+                        {/* Persona Selector */}
+                        <div className="p-4 border-b border-slate-200">
+                            <div className="grid grid-cols-3 gap-3">
+                                {personas.map((p) => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => { setActivePersona(p.id) }}
+                                        className={`p-3 rounded-lg text-left transition-all ${
+                                            activePersona === p.id
+                                                ? 'ring-2 ring-primary-500 bg-primary-50'
+                                                : 'border border-slate-200 bg-white'
+                                        }`}
+                                    >
+                                        <p className="font-semibold text-slate-800">{p.name}</p>
+                                        <p className="text-sm text-slate-500">{p.role}</p>
+                                        <span className="inline-block mt-1 text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
+                                            {p.tone}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex">
                         {/* Left Panel - Lead Queue */}
                         <div className="w-1/3 border-r border-slate-200">
                             <div className="p-4 border-b border-slate-200">
@@ -264,7 +332,7 @@ export default function AssistantHub() {
                                     contactsData.contacts.map((contact) => (
                                         <button
                                             key={contact.id}
-                                            onClick={() => { setActiveLead(contact); setConversationMessages([]) }}
+                                            onClick={() => { setActiveLead(contact) }}
                                             className={`w-full p-4 text-left transition-colors hover:bg-slate-50 ${
                                                 activeLead?.id === contact.id ? 'bg-primary-50 border-l-2 border-primary-600' : ''
                                             }`}
@@ -303,6 +371,7 @@ export default function AssistantHub() {
                                         <div>
                                             <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead?.name}</h2>
                                             <p className="text-sm text-slate-500">{formatPhone(activeLead?.phone ?? '')}</p>
+                                            <span className="text-xs text-slate-400">AI Persona: {personas.find(p => p.id === activePersona)?.name} — {personas.find(p => p.id === activePersona)?.role}</span>
                                         </div>
                                     </div>
                                     <div className="max-h-96 overflow-y-auto space-y-3 mb-4">
@@ -364,8 +433,9 @@ export default function AssistantHub() {
                             )}
                         </div>
                     </div>
+                    </div>
                 )}
-              
+
                 {/* SMS Tab */}
                 {activeTab === 'sms' && (
                     <div className="p-6">
@@ -408,6 +478,24 @@ export default function AssistantHub() {
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Message *
                                                               </label>label>
+                                                              <div className="flex items-center gap-2 mb-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleSmsDraft}
+                                                                    disabled={!smsContactId || !isHelmConnected || isSmsAiLoading}
+                                                                    className="text-sm px-3 py-1.5 rounded-lg border border-primary-300 text-primary-600 hover:bg-primary-50 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isSmsAiLoading ? (
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                                    )}
+                                                                    Draft with AI
+                                                                </button>
+                                                                {!isHelmConnected && (
+                                                                    <span className="text-xs text-slate-400">Connect Helm Hub to enable</span>
+                                                                )}
+                                                              </div>
                                                               <textarea
                                                                                   required
                                                                                   rows={4}
