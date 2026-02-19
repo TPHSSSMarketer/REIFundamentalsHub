@@ -65,3 +65,67 @@ export async function helmAnalyzeDeal(
   })
   return handleResponse<HelmDealAnalysisResponse>(res)
 }
+
+export type ContentWaterfallRequest = {
+  source_text: string
+  topic?: string
+  investor_name?: string
+}
+
+export type ContentWaterfallOutput = {
+  facebook: string
+  instagram: string
+  linkedin: string
+  youtube_script: string
+  youtube_short: string
+  blog_post: string
+}
+
+export type ContentWaterfallResponse = {
+  content: ContentWaterfallOutput
+  topic: string
+  model: string
+}
+
+export type ImagePromptsResponse = {
+  prompts: [string, string, string]
+  platform: string
+}
+
+export type ScrapeUrlResponse = {
+  text: string
+  url: string
+  char_count: number
+}
+
+export async function helmGenerateWaterfall(
+  req: ContentWaterfallRequest,
+): Promise<ContentWaterfallResponse> {
+  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/content-waterfall`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  return handleResponse<ContentWaterfallResponse>(res)
+}
+
+export async function helmGenerateImagePrompts(
+  topic: string,
+  platform: string,
+): Promise<ImagePromptsResponse> {
+  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/image-prompts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, platform }),
+  })
+  return handleResponse<ImagePromptsResponse>(res)
+}
+
+export async function helmScrapeUrl(url: string): Promise<ScrapeUrlResponse> {
+  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/scrape-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  return handleResponse<ScrapeUrlResponse>(res)
+}

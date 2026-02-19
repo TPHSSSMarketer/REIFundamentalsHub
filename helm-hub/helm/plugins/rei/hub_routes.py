@@ -352,6 +352,187 @@ async def hub_status():
     }
 
 
+# ── Content Waterfall ───────────────────────────────────────────────────────
+
+
+@router.post("/ai/content-waterfall", dependencies=[Depends(get_current_user), Depends(rate_limit)])
+async def hub_content_waterfall(request: Request):
+    """Generate 6 platform-specific content pieces from a single source text."""
+    import json as _json
+    import re as _re
+
+    from helm.assistant.engine import helm_engine
+    from helm.models.schemas import AssistantMode, ChatRequest
+
+    data = await request.json()
+    source_text = data.get("source_text", "")
+    if not source_text:
+        raise HTTPException(status_code=400, detail="source_text is required")
+
+    topic = data.get("topic") or source_text[:60]
+    investor_name = data.get("investor_name", "a local real estate investor")
+
+    system_prompt = (
+        "You are a content strategist specializing in real estate investing content. "
+        "You write in a direct, authentic voice for real estate investors who buy houses "
+        "from motivated sellers. Never use corporate jargon. Write like a human being."
+    )
+
+    prompt = (
+        f"{system_prompt}\n\n"
+        f"Source material from {investor_name}:\n\n{source_text}\n\n"
+        f"Topic: {topic}\n\n"
+        "Generate 6 platform-specific pieces of content from the source text above. "
+        "Return ONLY a valid JSON object with exactly these keys:\n\n"
+        '- "facebook": 150-300 word emotional story-driven post, ends with a soft CTA '
+        "to motivated sellers\n"
+        '- "instagram": hook line, line breaks for readability, 5-8 relevant hashtags '
+        "at the end\n"
+        '- "linkedin": 200-350 words, authority/expertise angle, professional but '
+        "personal, no hashtag spam\n"
+        '- "youtube_script": full script with sections: Hook [0-5s], Problem [5-30s], '
+        "Story [30-90s], Solution [90-120s], CTA [final 10s]\n"
+        '- "youtube_short": 15-30 second hook script — one punchy opening line + the '
+        "core insight + CTA\n"
+        '- "blog_post": 600-900 words, SEO-structured with H2 subheadings, as an HTML '
+        "string with <h2>, <p>, <ul> tags\n\n"
+        "Return ONLY the JSON object. No markdown fencing, no explanation."
+    )
+
+    chat_request = ChatRequest(message=prompt, mode=AssistantMode.REAL_ESTATE)
+    response = await helm_engine.chat(chat_request)
+
+    # Parse AI response as JSON
+    try:
+        content = _json.loads(response.reply)
+    except _json.JSONDecodeError:
+        match = _re.search(r"\{.*\}", response.reply, _re.DOTALL)
+        if match:
+            try:
+                content = _json.loads(match.group())
+            except _json.JSONDecodeError:
+                content = {"raw": response.reply}
+        else:
+            content = {"raw": response.reply}
+
+    return {
+        "content": content,
+        "topic": topic,
+        "model": response.model_used,
+    }
+
+
+# ── Image Prompts ───────────────────────────────────────────────────────────
+
+
+@router.post("/ai/image-prompts", dependencies=[Depends(get_current_user), Depends(rate_limit)])
+async def hub_image_prompts(request: Request):
+    """Generate 3 AI image prompts optimized for a specific platform."""
+    import json as _json
+    import re as _re
+
+    from helm.assistant.engine import helm_engine
+    from helm.models.schemas import AssistantMode, ChatRequest
+
+    data = await request.json()
+    topic = data.get("topic", "")
+    platform = data.get("platform", "")
+
+    if not topic:
+        raise HTTPException(status_code=400, detail="topic is required")
+    if not platform:
+        raise HTTPException(status_code=400, detail="platform is required")
+
+    valid_platforms = {"facebook", "instagram", "linkedin", "youtube_thumbnail"}
+    if platform not in valid_platforms:
+        raise HTTPException(
+            status_code=400,
+            detail=f"platform must be one of: {', '.join(sorted(valid_platforms))}",
+        )
+
+    prompt = (
+        f"Generate exactly 3 AI image generation prompts for a {platform} post about "
+        f"the following real estate investing topic: {topic}\n\n"
+        "Each prompt should describe a photo-realistic scene relevant to real estate "
+        "investing — motivated sellers, house walkthroughs, cash offers, neighborhood "
+        "scenes. No generic stock photo feel. Make each prompt vivid and specific.\n\n"
+        f"Optimize dimensions and composition for {platform}.\n\n"
+        'Return ONLY a JSON object with a single key "prompts" containing an array of '
+        "exactly 3 strings. No markdown fencing, no explanation."
+    )
+
+    chat_request = ChatRequest(message=prompt, mode=AssistantMode.REAL_ESTATE)
+    response = await helm_engine.chat(chat_request)
+
+    try:
+        parsed = _json.loads(response.reply)
+        prompts = parsed.get("prompts", [])
+    except _json.JSONDecodeError:
+        match = _re.search(r"\{.*\}", response.reply, _re.DOTALL)
+        if match:
+            try:
+                parsed = _json.loads(match.group())
+                prompts = parsed.get("prompts", [])
+            except _json.JSONDecodeError:
+                prompts = [response.reply]
+        else:
+            prompts = [response.reply]
+
+    return {
+        "prompts": prompts[:3],
+        "platform": platform,
+    }
+
+
+# ── URL Scraper ─────────────────────────────────────────────────────────────
+
+
+@router.post("/ai/scrape-url", dependencies=[Depends(get_current_user), Depends(rate_limit)])
+async def hub_scrape_url(request: Request):
+    """Fetch a URL and return cleaned text content (first 4000 chars)."""
+    from html.parser import HTMLParser
+
+    import httpx
+
+    data = await request.json()
+    url = data.get("url", "")
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "HelmHub/1.0"})
+            resp.raise_for_status()
+            raw_html = resp.text
+    except Exception:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not fetch URL. Please paste the content directly.",
+        )
+
+    # Strip HTML tags using stdlib HTMLParser
+    class _Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._parts: list[str] = []
+
+        def handle_data(self, data: str):
+            self._parts.append(data)
+
+        def get_text(self) -> str:
+            return " ".join(self._parts)
+
+    stripper = _Stripper()
+    stripper.feed(raw_html)
+    clean = " ".join(stripper.get_text().split())[:4000]
+
+    return {
+        "text": clean,
+        "url": url,
+        "char_count": len(clean),
+    }
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
