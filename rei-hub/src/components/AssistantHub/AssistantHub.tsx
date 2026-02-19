@@ -58,14 +58,14 @@ export default function AssistantHub() {
   const [conversationMessages, setConversationMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
     const [chatInput, setChatInput] = useState('')
     const [isChatLoading, setIsChatLoading] = useState(false)
-    const [activeLead, setActiveLead] = useState<string | null>(null)
+    const [activeLead, setActiveLead] = useState<Contact | null>(null)
 
   useEffect(() => {
         const email = localStorage.getItem('helmHub_linkedEmail')
         setIsHelmConnected(!!email)
   }, [])
 
-  const { data: contactsData } = useContacts({ limit: 100 })
+  const { data: contactsData, isLoading: contactsLoading } = useContacts({ limit: 50 })
     const sendSMS = useSendSMS()
     const sendEmail = useSendEmail()
 
@@ -134,7 +134,7 @@ export default function AssistantHub() {
         if (!activeLead || isChatLoading) return
         setIsChatLoading(true)
         const openerMessages: Array<{ role: 'user' | 'assistant', content: string }> = [
-            { role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead}. Keep it under 3 sentences.` },
+            { role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead?.name}. Keep it under 3 sentences.` },
         ]
         try {
             const response = await helmChat(openerMessages)
@@ -251,29 +251,42 @@ export default function AssistantHub() {
                                 </div>
                             </div>
                             <div className="divide-y divide-slate-200">
-                                {[
-                                    { name: 'Maria Santos', status: 'New', phone: '(555) 234-5678' },
-                                    { name: 'Derek Williams', status: 'In Progress', phone: '(555) 876-4321' },
-                                    { name: 'Tamara Collins', status: 'Scheduled', phone: '(555) 391-0022' },
-                                ].map((lead) => (
-                                    <button
-                                        key={lead.name}
-                                        onClick={() => { setActiveLead(lead.name); setConversationMessages([]) }}
-                                        className={`w-full p-4 text-left transition-colors hover:bg-slate-50 ${
-                                            activeLead === lead.name ? 'bg-primary-50 border-l-2 border-primary-600' : ''
-                                        }`}
-                                    >
-                                        <p className="font-medium text-slate-800">{lead.name}</p>
-                                        <p className="text-sm text-slate-500">{lead.phone}</p>
-                                        <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
-                                            lead.status === 'New' ? 'bg-blue-100 text-blue-700' :
-                                            lead.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-green-100 text-green-700'
-                                        }`}>
-                                            {lead.status}
-                                        </span>
-                                    </button>
-                                ))}
+                                {contactsLoading ? (
+                                    <div className="flex items-center gap-3 p-4 text-slate-500">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="text-sm">Loading leads...</span>
+                                    </div>
+                                ) : !contactsData?.contacts?.length ? (
+                                    <div className="p-4 text-sm text-slate-500">
+                                        No contacts found. Add contacts to get started.
+                                    </div>
+                                ) : (
+                                    contactsData.contacts.map((contact) => (
+                                        <button
+                                            key={contact.id}
+                                            onClick={() => { setActiveLead(contact); setConversationMessages([]) }}
+                                            className={`w-full p-4 text-left transition-colors hover:bg-slate-50 ${
+                                                activeLead?.id === contact.id ? 'bg-primary-50 border-l-2 border-primary-600' : ''
+                                            }`}
+                                        >
+                                            <p className="font-medium text-slate-800">{contact.name}</p>
+                                            <p className="text-sm text-slate-500">{formatPhone(contact.phone)}</p>
+                                            <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                                                contact.tags?.includes('urgent') || contact.tags?.includes('pre-foreclosure')
+                                                    ? 'bg-red-100 text-red-700'
+                                                    : contact.tags?.includes('motivated')
+                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                    : 'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {contact.tags?.includes('urgent') || contact.tags?.includes('pre-foreclosure')
+                                                    ? 'Hot'
+                                                    : contact.tags?.includes('motivated')
+                                                    ? 'Motivated'
+                                                    : 'New'}
+                                            </span>
+                                        </button>
+                                    ))
+                                )}
                             </div>
                         </div>
                         {/* Right Panel - AI Conversation */}
@@ -287,7 +300,10 @@ export default function AssistantHub() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-4">
                                         <Bot className="w-5 h-5 text-primary-600" />
-                                        <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead}</h2>
+                                        <div>
+                                            <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead?.name}</h2>
+                                            <p className="text-sm text-slate-500">{formatPhone(activeLead?.phone ?? '')}</p>
+                                        </div>
                                     </div>
                                     <div className="max-h-96 overflow-y-auto space-y-3 mb-4">
                                         {conversationMessages.length === 0 && (
@@ -298,7 +314,7 @@ export default function AssistantHub() {
                                                     className="flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <Sparkles className="w-4 h-4" />
-                                                    Generate AI opener for {activeLead}
+                                                    Generate AI opener for {activeLead?.name}
                                                 </button>
                                             </div>
                                         )}
