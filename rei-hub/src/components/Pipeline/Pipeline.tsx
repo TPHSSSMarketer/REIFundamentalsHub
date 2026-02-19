@@ -11,11 +11,12 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus } from 'lucide-react'
 import PipelineColumn from './PipelineColumn'
 import DealCard from './DealCard'
 import DealDetailModal from './DealDetailModal'
-import { usePipelines, useDeals, useUpdateDealStage } from '@/hooks/useApi'
+import NewDealModal from './NewDealModal'
+import { usePipelines, useDeals, useUpdateDealStage, useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import { formatCurrency, getStageColor } from '@/utils/helpers'
 import type { Deal, Pipeline as PipelineType } from '@/types'
@@ -36,6 +37,8 @@ export default function Pipeline() {
   const updateDealStage = useUpdateDealStage()
 
   const [activeDragDeal, setActiveDragDeal] = useState<Deal | null>(null)
+  const [showNewDealModal, setShowNewDealModal] = useState(false)
+  const { data: contactsData } = useContacts({ limit: 100 })
 
   // DnD sensors
   const sensors = useSensors(
@@ -109,20 +112,30 @@ export default function Pipeline() {
           <p className="text-slate-600">Drag and drop deals between stages</p>
         </div>
 
-        {/* Pipeline Selector */}
-        {pipelines.length > 1 && (
-          <select
-            value={activePipeline?.id || ''}
-            onChange={(e) => setSelectedPipelineId(e.target.value)}
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+        <div className="flex items-center gap-3">
+          {/* Pipeline Selector */}
+          {pipelines.length > 1 && (
+            <select
+              value={activePipeline?.id || ''}
+              onChange={(e) => setSelectedPipelineId(e.target.value)}
+              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {pipelines.map((pipeline) => (
+                <option key={pipeline.id} value={pipeline.id}>
+                  {pipeline.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            onClick={() => setShowNewDealModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
           >
-            {pipelines.map((pipeline) => (
-              <option key={pipeline.id} value={pipeline.id}>
-                {pipeline.name}
-              </option>
-            ))}
-          </select>
-        )}
+            <Plus className="w-4 h-4" />
+            Add Deal
+          </button>
+        </div>
       </div>
 
       {/* Pipeline Summary */}
@@ -173,6 +186,14 @@ export default function Pipeline() {
       <DealDetailModal
         deal={selectedDeal}
         onClose={() => setSelectedDeal(null)}
+      />
+
+      {/* New Deal Modal */}
+      <NewDealModal
+        isOpen={showNewDealModal}
+        onClose={() => setShowNewDealModal(false)}
+        stages={activePipeline?.stages || []}
+        contacts={contactsData?.contacts || []}
       />
     </div>
   )
