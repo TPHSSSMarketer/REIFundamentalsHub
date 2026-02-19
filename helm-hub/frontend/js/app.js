@@ -72,6 +72,17 @@
 
     checkAuth();
 
+    // ── Toast Utility ─────────────────────────────────────────────────
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
     // ── State ───────────────────────────────────────────────────────────
     const state = {
         conversationId: null,
@@ -88,7 +99,7 @@
     const chatInput = $("#chatInput");
     const sendBtn = $("#sendBtn");
     const modeSelect = $("#modeSelect");
-    const viewTitle = $("#viewTitle");
+    const viewTitle = $("#topbar-title");
     const sidebar = $("#sidebar");
     const menuToggle = $("#menuToggle");
     const themeToggle = $("#themeToggle");
@@ -99,10 +110,12 @@
 
     // ── View Titles ─────────────────────────────────────────────────────
     const VIEW_TITLES = {
-        chat: "Chat with Grace",
-        agents: "AI Agents",
+        chat: "Chat",
+        deal: "Deal Analyzer",
+        briefing: "Daily Briefing",
+        agents: "Agents",
         integrations: "Integrations",
-        monitoring: "System Monitoring",
+        monitoring: "Monitoring",
         settings: "Settings",
         account: "Account",
     };
@@ -212,8 +225,8 @@
                 <div class="welcome-icon">
                     <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/><path d="M16 6 L16 26 M10 12 L16 6 L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
-                <h2>Hey, I'm Grace</h2>
-                <p>Your AI-powered command center for business and life.</p>
+                <h2>Your AI Command Center</h2>
+                <p>Ask Helm anything — business strategy, deal analysis, daily briefings, or real estate decisions.</p>
                 <div class="quick-actions">
                     <button class="quick-action" data-prompt="Give me my daily briefing">Daily Briefing</button>
                     <button class="quick-action" data-prompt="What are my priorities today?">Today's Priorities</button>
@@ -798,7 +811,7 @@
                 if (data.checkout_url) {
                     window.open(data.checkout_url, "_blank");
                 } else {
-                    alert(data.detail || "Failed to create checkout session.");
+                    showToast(data.detail || "Failed to create checkout session.", 'error');
                 }
             } else if (provider === "paypal") {
                 const name = prompt("Enter your full name:") || "";
@@ -811,11 +824,11 @@
                 if (data.approve_url) {
                     window.open(data.approve_url, "_blank");
                 } else {
-                    alert(data.detail || "Failed to create subscription.");
+                    showToast(data.detail || "Failed to create subscription.", 'error');
                 }
             }
         } catch {
-            alert("Could not connect to billing service. Please try again.");
+            showToast("Could not connect to billing service. Please try again.", 'error');
         }
     }
 
@@ -836,10 +849,10 @@
             if (data.portal_url) {
                 window.open(data.portal_url, "_blank");
             } else {
-                alert(data.detail || "Failed to open billing portal.");
+                showToast(data.detail || "Failed to open billing portal.", 'error');
             }
         } catch {
-            alert("Could not connect to billing service.");
+            showToast("Could not connect to billing service.", 'error');
         }
     }
 
@@ -950,8 +963,9 @@
     }
 
     async function loadMonitoringStats() {
-        const statHealth = $("#monStatHealth");
-        const statIntegrations = $("#monStatIntegrations");
+        const statHealth = $("#stat-system-status");
+        const statIntegrations = $("#stat-active-integrations");
+        const statTotalIntegrations = $("#stat-total-integrations");
         const statTenants = $("#monStatTenants");
         const statAgentRuns = $("#monStatAgentRuns");
 
@@ -964,8 +978,10 @@
                 statHealth.style.color = data.status === "healthy" ? "var(--success)" : "var(--warning)";
             }
             if (statIntegrations && data.integrations) {
-                const activeCount = data.integrations.active || 0;
-                statIntegrations.textContent = String(activeCount);
+                statIntegrations.textContent = data.integrations?.active ?? '—';
+            }
+            if (statTotalIntegrations && data.integrations) {
+                statTotalIntegrations.textContent = data.integrations?.total ?? '—';
             }
         } catch {
             if (statHealth) statHealth.textContent = "Offline";
