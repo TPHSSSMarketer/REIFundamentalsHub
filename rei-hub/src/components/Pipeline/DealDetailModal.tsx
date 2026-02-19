@@ -1,6 +1,8 @@
-import { Phone, Mail, DollarSign, Calendar, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Phone, Mail, DollarSign, Calendar, Trash2, Calculator } from 'lucide-react'
 import Modal from '../Common/Modal'
 import DealAnalysisPanel from './DealAnalysisPanel'
+import DealAnalyzerModal from './DealAnalyzerModal'
 import { formatCurrency, formatDate } from '@/utils/helpers'
 import { useDeleteDeal } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
@@ -14,6 +16,7 @@ interface DealDetailModalProps {
 export default function DealDetailModal({ deal, onClose }: DealDetailModalProps) {
   const deleteDeal = useDeleteDeal()
   const { setSMSModalOpen, setSMSTargetContact } = useStore()
+  const [showAnalyzer, setShowAnalyzer] = useState(false)
 
   if (!deal) return null
 
@@ -76,6 +79,14 @@ export default function DealDetailModal({ deal, onClose }: DealDetailModalProps)
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setShowAnalyzer(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-300 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
+          >
+            <Calculator className="w-4 h-4" />
+            Analyze Deal
+          </button>
+
           <div className="flex gap-2">
             <button
               onClick={handleSendSMS}
@@ -107,6 +118,15 @@ export default function DealDetailModal({ deal, onClose }: DealDetailModalProps)
         <DealAnalysisPanel
           address={deal.title}
           askingPrice={deal.value}
+        />
+
+        {/* Deal Analyzer Calculator */}
+        <DealAnalyzerModal
+          isOpen={showAnalyzer}
+          onClose={() => setShowAnalyzer(false)}
+          dealId={deal.id}
+          dealTitle={deal.title}
+          defaultAskingPrice={deal.value ?? undefined}
         />
       </div>
     </Modal>
