@@ -32,7 +32,7 @@ export default function HelmHubConnect() {
 
       if (res.status === 403) {
         setLinkState('not_authorized')
-        setErrorMessage('No active REIFundamentals Hub subscription found.')
+        setErrorMessage('No active Helm Hub subscription found. Visit helmhub.io to sign up.')
         return
       }
 
@@ -66,13 +66,11 @@ export default function HelmHubConnect() {
     <div className="bg-white rounded-xl border border-slate-200 p-6">
       <div className="flex items-center gap-3 mb-4">
         <PlugZap className="w-5 h-5 text-primary-600" />
-        <h2 className="text-lg font-semibold text-slate-800">Helm Hub AI Assistant</h2>
+        <h2 className="text-lg font-semibold text-slate-800">Helm Hub — Optional AI Add-on</h2>
       </div>
 
       <p className="text-sm text-slate-600 mb-6">
-        Connect your Helm Hub account to unlock AI-powered REI skills — deal analysis,
-        market research, motivated seller scripts, and more. Requires an active
-        REIFundamentals Hub subscription.
+        Optionally connect your Helm Hub AI assistant to unlock AI-powered REI skills inside REI Hub — deal analysis, market research, and motivated seller scripts. Helm Hub is a separate product and not required to use REIFundamentals Hub.
       </p>
 
       {/* Status area */}
@@ -91,7 +89,7 @@ export default function HelmHubConnect() {
           <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium text-red-800">
-              {linkState === 'not_authorized' ? 'Subscription Required' : 'Connection Failed'}
+              {linkState === 'not_authorized' ? 'Helm Hub Subscription Required' : 'Connection Failed'}
             </p>
             <p className="text-sm text-red-700">{errorMessage}</p>
           </div>
