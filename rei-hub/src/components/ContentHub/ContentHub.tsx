@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, helmSaveContentToCloud, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
+import PublishHistory, { PublishEntry } from './PublishHistory'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -37,6 +38,7 @@ export default function ContentHub() {
   const [library, setLibrary] = useState<SavedContent[]>(
     JSON.parse(localStorage.getItem('content_library') || '[]')
   )
+  const [publishHistory, setPublishHistory] = useState<PublishEntry[]>([])
 
   const handleScrapeUrl = useCallback(async () => {
     setIsScraping(true)
@@ -71,6 +73,24 @@ export default function ContentHub() {
       })
       setWaterfall(result.content)
       setActiveTab('facebook')
+
+      // Append entries to publish history
+      const platformTypeMap: Record<PlatformKey, PublishEntry['type']> = {
+        facebook: 'social',
+        instagram: 'social',
+        linkedin: 'social',
+        youtube_script: 'script',
+        youtube_short: 'script',
+        blog_post: 'blog',
+      }
+      const newEntries: PublishEntry[] = PLATFORMS.map((p) => ({
+        id: crypto.randomUUID(),
+        type: platformTypeMap[p.key],
+        label: (result.content[p.key] || '').slice(0, 60),
+        content: result.content[p.key] || '',
+        createdAt: new Date().toISOString(),
+      }))
+      setPublishHistory((prev) => [...newEntries, ...prev].slice(0, 50))
     } catch (err) {
       if (err instanceof HelmProxyError && err.status === 403) {
         toast.error('Helm Hub subscription required for content generation.')
@@ -415,6 +435,12 @@ export default function ContentHub() {
           </div>
         </div>
       )}
+
+      {/* Publish History */}
+      <PublishHistory
+        entries={publishHistory}
+        onClear={() => setPublishHistory([])}
+      />
 
       {/* Content Library Section */}
       {library.length > 0 && (
