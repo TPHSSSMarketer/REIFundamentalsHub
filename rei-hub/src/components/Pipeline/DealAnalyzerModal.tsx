@@ -55,6 +55,7 @@ export default function DealAnalyzerModal({
   const [downPayment, setDownPayment] = useState('20')
   const [interestRate, setInterestRate] = useState('7')
   const [loanTermYears, setLoanTermYears] = useState('30')
+  const [units, setUnits] = useState('1')
   const [results, setResults] = useState<AnalysisResults | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
@@ -64,11 +65,15 @@ export default function DealAnalyzerModal({
     }
   }, [defaultAskingPrice])
 
-  if (!isOpen) return null
-
-  const calculateResults = () => {
+  useEffect(() => {
     const arvNum = parseFloat(arv) || 0
     const ppNum = parseFloat(purchasePrice) || 0
+
+    if (!arvNum || !ppNum) {
+      setResults(null)
+      return
+    }
+
     const repairNum = parseFloat(repairEstimate) || 0
     const rentNum = parseFloat(rentEstimate) || 0
     const dpPct = parseFloat(downPayment) || 0
@@ -101,7 +106,9 @@ export default function DealAnalyzerModal({
       brrrrEquity,
     })
     setSaveState('idle')
-  }
+  }, [arv, purchasePrice, repairEstimate, rentEstimate, downPayment, interestRate, loanTermYears])
+
+  if (!isOpen) return null
 
   const handleSaveNotes = async () => {
     if (!results) return
@@ -238,7 +245,7 @@ export default function DealAnalyzerModal({
               />
             </div>
 
-            <div className="col-span-2">
+            <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Loan Term (years)</label>
               <input
                 type="number"
@@ -249,14 +256,20 @@ export default function DealAnalyzerModal({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
               />
             </div>
-          </div>
 
-          <button
-            onClick={calculateResults}
-            className="w-full px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
-          >
-            Run Analysis
-          </button>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Units</label>
+              <input
+                type="number"
+                value={units}
+                onChange={(e) => setUnits(e.target.value)}
+                placeholder="1"
+                min="1"
+                step="1"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+          </div>
 
           {/* Results */}
           {results && (
@@ -281,11 +294,13 @@ export default function DealAnalyzerModal({
                   </span>
                 </div>
 
-                {/* Cap Rate */}
-                <div className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
-                  <p className="text-sm font-medium text-slate-700">Cap Rate</p>
-                  <p className="text-sm font-semibold text-slate-800">{results.capRate.toFixed(2)}%</p>
-                </div>
+                {/* Cap Rate (5+ units only) */}
+                {parseInt(units) >= 5 && (
+                  <div className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
+                    <p className="text-sm font-medium text-slate-700">Cap Rate</p>
+                    <p className="text-sm font-semibold text-slate-800">{results.capRate.toFixed(2)}%</p>
+                  </div>
+                )}
 
                 {/* Cash-on-Cash */}
                 <div className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
