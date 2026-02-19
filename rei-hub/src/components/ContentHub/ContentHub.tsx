@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
+import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, helmSaveContentToCloud, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -119,7 +119,7 @@ export default function ContentHub() {
     }
   }, [waterfall, topic, activeTab])
 
-  const handleSaveToLibrary = useCallback(() => {
+  const handleSaveToLibrary = useCallback(async () => {
     if (!waterfall) return
     const newItem: SavedContent = {
       id: Date.now().toString(),
@@ -131,6 +131,40 @@ export default function ContentHub() {
     setLibrary(updated)
     localStorage.setItem('content_library', JSON.stringify(updated))
     toast.success('Saved to library.')
+    const helmUrl = localStorage.getItem('helm_hub_url')
+    if (helmUrl) {
+      const md = [
+        `# ${topic || 'Untitled'}`,
+        '',
+        '## Facebook',
+        waterfall.facebook,
+        '',
+        '## Instagram',
+        waterfall.instagram,
+        '',
+        '## LinkedIn',
+        waterfall.linkedin,
+        '',
+        '## YouTube Script',
+        waterfall.youtube_script,
+        '',
+        '## YouTube Short',
+        waterfall.youtube_short,
+        '',
+        '## Blog Post',
+        waterfall.blog_post,
+      ].join('\n')
+      try {
+        const result = await helmSaveContentToCloud(`${topic || 'content'}-${Date.now()}.md`, md)
+        if (result.errors && result.errors.length > 0) {
+          toast.warning('Cloud sync partial: ' + result.errors.join(', '))
+        } else if (result.google_drive || result.dropbox) {
+          toast.success('Synced to cloud ☁️')
+        }
+      } catch (err) {
+        // Silent fail — local save already succeeded
+      }
+    }
   }, [waterfall, topic, library])
 
   const handlePublishToWordPress = useCallback(async () => {

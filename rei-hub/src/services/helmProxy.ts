@@ -129,3 +129,16 @@ export async function helmScrapeUrl(url: string): Promise<ScrapeUrlResponse> {
   })
   return handleResponse<ScrapeUrlResponse>(res)
 }
+
+export async function helmSaveContentToCloud(
+  filename: string,
+  content: string,
+  mimeType: string = 'text/markdown'
+): Promise<{ google_drive: unknown; dropbox: unknown; errors: string[] }> {
+  const res = await fetch(`${HELM_HUB_URL}/api/cloud-storage/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, content, mime_type: mimeType }),
+  })
+  return handleResponse<{ google_drive: unknown; dropbox: unknown; errors: string[] }>(res)
+}
