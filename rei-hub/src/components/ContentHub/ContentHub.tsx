@@ -1,209 +1,422 @@
-import { useState } from 'react'
-import {
-  PenTool,
-  Globe,
-  Sparkles,
-  Copy,
-  Check,
-  RefreshCw,
-  Save,
-} from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
 
-type ContentType = 'social' | 'website'
+type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
-interface ContentTemplate {
+interface SavedContent {
   id: string
-  name: string
-  type: ContentType
-  content: string
+  topic: string
+  generatedAt: string
+  content: ContentWaterfallOutput
 }
 
-const contentTypes = [
-  { id: 'social', label: 'Social Post', icon: PenTool, color: 'bg-purple-100 text-purple-600' },
-  { id: 'website', label: 'Website Post', icon: Globe, color: 'bg-primary-100 text-primary-600' },
-]
-
-const savedTemplates: ContentTemplate[] = [
-  { id: '1', name: 'We Buy Houses Post', type: 'social', content: 'Looking to sell your property FAST? We buy houses in ANY condition...' },
-  { id: '2', name: 'Blog: Selling Tips', type: 'website', content: '5 Tips for Selling Your Home Fast in Today\'s Market...' },
-  { id: '3', name: 'Cash Offer Promo', type: 'social', content: 'Get a fair cash offer for your home in 24 hours...' },
+const PLATFORMS: { key: PlatformKey; label: string; emoji: string }[] = [
+  { key: 'facebook', label: 'Facebook', emoji: '📘' },
+  { key: 'instagram', label: 'Instagram', emoji: '📸' },
+  { key: 'linkedin', label: 'LinkedIn', emoji: '💼' },
+  { key: 'youtube_script', label: 'YT Script', emoji: '🎬' },
+  { key: 'youtube_short', label: 'YT Short', emoji: '⚡' },
+  { key: 'blog_post', label: 'Blog Post', emoji: '✍️' },
 ]
 
 export default function ContentHub() {
-  const [selectedType, setSelectedType] = useState<ContentType>('social')
-  const [prompt, setPrompt] = useState('')
-  const [generatedContent, setGeneratedContent] = useState('')
+  const [sourceMode, setSourceMode] = useState<'text' | 'url'>('text')
+  const [sourceText, setSourceText] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [topic, setTopic] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [isScraping, setIsScraping] = useState(false)
+  const [waterfall, setWaterfall] = useState<ContentWaterfallOutput | null>(null)
+  const [activeTab, setActiveTab] = useState<PlatformKey>('facebook')
+  const [copiedTab, setCopiedTab] = useState<PlatformKey | null>(null)
+  const [imagePrompts, setImagePrompts] = useState<string[]>([])
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [library, setLibrary] = useState<SavedContent[]>(
+    JSON.parse(localStorage.getItem('content_library') || '[]')
+  )
 
-  const generateContent = async () => {
-    if (!prompt.trim()) {
-      toast.error('Please enter a prompt')
+  const handleScrapeUrl = useCallback(async () => {
+    setIsScraping(true)
+    try {
+      const result = await helmScrapeUrl(sourceUrl)
+      setSourceText(result.text)
+      setSourceMode('text')
+      toast.success('URL scraped — content loaded as text.')
+    } catch (err) {
+      if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('Helm Hub subscription required for URL scraping.')
+      } else {
+        toast.error('Could not fetch that URL. Paste the content manually.')
+      }
+    } finally {
+      setIsScraping(false)
+    }
+  }, [sourceUrl])
+
+  const handleGenerate = useCallback(async () => {
+    if (sourceMode === 'text' && !sourceText.trim()) {
+      toast.error('Add source content first.')
       return
     }
-
     setIsGenerating(true)
-
-    // Simulate AI generation
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    const templates: Record<ContentType, string> = {
-      social: `🏠 Attention Homeowners!\n\nLooking to sell your property FAST?\n\nI'm a local investor buying homes in ANY condition:\n\n✅ Cash offers in 24 hours\n✅ Close in as little as 7 days\n✅ No repairs needed\n✅ No agent fees or commissions\n✅ We handle ALL paperwork\n\nWhether you're facing foreclosure, inherited a property, or just need to move quickly - I can help!\n\nDM me "CASH" or comment below to learn more! 👇\n\n#RealEstate #WeBuyHouses #CashOffer #HomeSeller`,
-      website: `<h2>Sell Your Home Fast for Cash - No Repairs, No Hassle</h2>\n\n<p>Are you a homeowner looking to sell quickly? Whether you're dealing with an inherited property, facing foreclosure, going through a divorce, or simply need to relocate fast, we can help.</p>\n\n<h3>Why Choose Us?</h3>\n<ul>\n<li><strong>Fair Cash Offers</strong> - We provide competitive cash offers within 24 hours of viewing your property.</li>\n<li><strong>Close on Your Timeline</strong> - Need to close in 7 days? 30 days? We work around YOUR schedule.</li>\n<li><strong>No Repairs Needed</strong> - We buy houses as-is. Don't spend a dime on repairs or renovations.</li>\n<li><strong>Zero Fees</strong> - No agent commissions, no closing costs, no hidden fees.</li>\n</ul>\n\n<h3>How It Works</h3>\n<ol>\n<li>Contact us with your property details</li>\n<li>We schedule a quick walkthrough</li>\n<li>Receive a fair, no-obligation cash offer</li>\n<li>Close on your timeline and get paid</li>\n</ol>\n\n<p><strong>Ready to get started?</strong> Fill out our form or call us today for your free, no-obligation cash offer.</p>`,
+    setWaterfall(null)
+    setImagePrompts([])
+    try {
+      const result = await helmGenerateWaterfall({
+        source_text: sourceText,
+        topic: topic || sourceText.slice(0, 60),
+      })
+      setWaterfall(result.content)
+      setActiveTab('facebook')
+    } catch (err) {
+      if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('Helm Hub subscription required for content generation.')
+      } else {
+        toast.error('Generation failed. Check Helm Hub connection.')
+      }
+    } finally {
+      setIsGenerating(false)
     }
+  }, [sourceMode, sourceText, topic])
 
-    setGeneratedContent(templates[selectedType])
-    setIsGenerating(false)
-  }
+  const handleCopy = useCallback(async (key: PlatformKey) => {
+    if (!waterfall) return
+    await navigator.clipboard.writeText(waterfall[key])
+    setCopiedTab(key)
+    setTimeout(() => setCopiedTab(null), 2000)
+  }, [waterfall])
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedContent)
-    setCopied(true)
-    toast.success('Copied to clipboard!')
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const handleGenerateImages = useCallback(async () => {
+    if (!waterfall || !topic) {
+      toast.error('Generate content first.')
+      return
+    }
+    setIsGeneratingImages(true)
+    setImagePrompts([])
+    const platformMap: Record<PlatformKey, string> = {
+      facebook: 'facebook',
+      instagram: 'instagram',
+      linkedin: 'linkedin',
+      youtube_script: 'youtube_thumbnail',
+      youtube_short: 'youtube_thumbnail',
+      blog_post: 'facebook',
+    }
+    const imagePlatform = platformMap[activeTab]
+    try {
+      const result = await helmGenerateImagePrompts(topic || 'real estate investing', imagePlatform)
+      setImagePrompts(result.prompts)
+    } catch (err) {
+      if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('Helm Hub subscription required for image prompts.')
+      } else {
+        toast.error('Image prompt generation failed.')
+      }
+    } finally {
+      setIsGeneratingImages(false)
+    }
+  }, [waterfall, topic, activeTab])
 
-  const saveTemplate = () => {
-    toast.success('Template saved!')
-  }
+  const handleSaveToLibrary = useCallback(() => {
+    if (!waterfall) return
+    const newItem: SavedContent = {
+      id: Date.now().toString(),
+      topic: topic || 'Untitled',
+      generatedAt: new Date().toISOString(),
+      content: waterfall,
+    }
+    const updated = [newItem, ...library]
+    setLibrary(updated)
+    localStorage.setItem('content_library', JSON.stringify(updated))
+    toast.success('Saved to library.')
+  }, [waterfall, topic, library])
+
+  const handlePublishToWordPress = useCallback(async () => {
+    if (!waterfall) return
+    const wpUrl = localStorage.getItem('wp_url')
+    const wpUsername = localStorage.getItem('wp_username')
+    const wpAppPassword = localStorage.getItem('wp_app_password')
+    if (!wpUrl || !wpUsername || !wpAppPassword) {
+      toast.error('Configure WordPress in Settings first.')
+      return
+    }
+    setIsPublishing(true)
+    try {
+      const token = btoa(wpUsername + ':' + wpAppPassword)
+      const res = await fetch(wpUrl.replace(/\/$/, '') + '/wp-json/wp/v2/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Basic ' + token,
+        },
+        body: JSON.stringify({
+          title: topic || 'New Post',
+          content: waterfall.blog_post,
+          status: 'draft',
+        }),
+      })
+      if (res.ok) {
+        toast.success('Draft published to WordPress!')
+      } else {
+        toast.error('WordPress publish failed. Check your credentials in Settings.')
+      }
+    } catch {
+      toast.error('WordPress publish failed. Check your credentials in Settings.')
+    } finally {
+      setIsPublishing(false)
+    }
+  }, [waterfall, topic])
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">ContentHub</h1>
-        <p className="text-slate-600">
-          Powered by <span className="font-semibold text-primary-700">AdFuel</span> — Generate social media and website content with AI
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Content Hub</h1>
+          <p className="text-slate-600">Generate a content waterfall for all your platforms</p>
+        </div>
+        <button
+          onClick={() => {
+            const el = document.getElementById('content-library')
+            if (el) el.scrollIntoView({ behavior: 'smooth' })
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+        >
+          <BookOpen className="w-4 h-4" />
+          Library ({library.length})
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Content Generator */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Content Type Selection */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <h2 className="text-sm font-medium text-slate-700 mb-3">Content Type</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {contentTypes.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => setSelectedType(type.id as ContentType)}
-                  className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                    selectedType === type.id
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className={`p-1.5 rounded ${type.color}`}>
-                    <type.icon className="w-4 h-4" />
-                  </div>
-                  <span className="font-medium text-sm text-slate-700">{type.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Source Input Card */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setSourceMode('text')}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              sourceMode === 'text'
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            Paste Text
+          </button>
+          <button
+            onClick={() => setSourceMode('url')}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              sourceMode === 'url'
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Link className="w-4 h-4" />
+            Paste URL
+          </button>
+        </div>
 
-          {/* Prompt Input */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <h2 className="text-sm font-medium text-slate-700 mb-3">What do you want to create?</h2>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={
-                selectedType === 'social'
-                  ? 'e.g., Write a Facebook post targeting motivated sellers in the Dallas area...'
-                  : 'e.g., Write a landing page section about our cash home buying process...'
-              }
-              className="w-full h-24 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+        {sourceMode === 'text' ? (
+          <textarea
+            rows={5}
+            placeholder="Paste your source content here — a blog post, a story about a deal, notes from a seller call..."
+            value={sourceText}
+            onChange={(e) => setSourceText(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+          />
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="url"
+              placeholder="https://..."
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <div className="flex justify-end mt-3">
-              <button
-                onClick={generateContent}
-                disabled={isGenerating}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Content
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Generated Content */}
-          {generatedContent && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium text-slate-700">Generated Content</h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={copyToClipboard}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                  >
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
-                  <button
-                    onClick={saveTemplate}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
-                  >
-                    <Save className="w-4 h-4" />
-                    Save
-                  </button>
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-4">
-                <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans">
-                  {generatedContent}
-                </pre>
-              </div>
-              {selectedType === 'website' && (
-                <p className="text-xs text-slate-500 mt-2">
-                  HTML content can be pasted directly into your website editor.
-                </p>
+            <button
+              onClick={handleScrapeUrl}
+              disabled={isScraping}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {isScraping ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Globe className="w-4 h-4" />
+                  Fetch Content
+                </>
               )}
-            </div>
-          )}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <label className="text-sm font-medium text-slate-700 mb-1 block">Topic (optional)</label>
+          <input
+            type="text"
+            placeholder="e.g. How to sell your house fast in Houston"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
         </div>
 
-        {/* Saved Templates */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 h-fit">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Saved Templates</h2>
-          <div className="space-y-3">
-            {savedTemplates.map((template) => {
-              const typeInfo = contentTypes.find((t) => t.id === template.type)
-              return (
-                <button
-                  key={template.id}
-                  onClick={() => {
-                    setSelectedType(template.type)
-                    setGeneratedContent(template.content)
-                  }}
-                  className="w-full flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"
-                >
-                  {typeInfo && (
-                    <div className={`p-1.5 rounded shrink-0 ${typeInfo.color}`}>
-                      <typeInfo.icon className="w-4 h-4" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <h3 className="font-medium text-slate-800 text-sm">{template.name}</h3>
-                    <p className="text-xs text-slate-500 truncate">{template.content}</p>
-                  </div>
-                </button>
-              )
-            })}
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Generate Content Waterfall
+            </>
+          )}
+        </button>
+
+        {!localStorage.getItem('helm_hub_url') && (
+          <p className="text-xs text-slate-500 mt-2 text-center">
+            ⚡ Powered by Helm Hub AI — connect in Settings to enable
+          </p>
+        )}
+      </div>
+
+      {/* Waterfall Output Section */}
+      {waterfall && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex gap-1 border-b border-slate-200 mb-4 overflow-x-auto">
+            {PLATFORMS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setActiveTab(p.key)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition-colors ${
+                  activeTab === p.key
+                    ? 'border-b-2 border-primary-500 text-primary-600 font-medium'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <span>{p.emoji}</span>
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
+            {activeTab === 'blog_post' ? (
+              <div
+                dangerouslySetInnerHTML={{ __html: waterfall[activeTab] }}
+                className="prose prose-sm max-w-none"
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap text-sm text-slate-700">{waterfall[activeTab]}</pre>
+            )}
+          </div>
+
+          <div className="flex gap-2 flex-wrap mt-4">
+            <button
+              onClick={() => handleCopy(activeTab)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              {copiedTab === activeTab ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copiedTab === activeTab ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+              onClick={handleGenerateImages}
+              disabled={isGeneratingImages}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+            >
+              {isGeneratingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
+              Image Prompts
+            </button>
+            <button
+              onClick={handleSaveToLibrary}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              Save to Library
+            </button>
+            <button
+              onClick={handlePublishToWordPress}
+              disabled={isPublishing}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+            >
+              {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+              Publish to WordPress
+            </button>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Image Prompts Section */}
+      {imagePrompts.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">
+            Image Prompts for {PLATFORMS.find((p) => p.key === activeTab)?.label}
+          </h2>
+          <div className="space-y-3">
+            {imagePrompts.map((prompt, i) => (
+              <div key={i} className="bg-slate-50 rounded-lg p-3 flex justify-between items-start gap-3">
+                <p className="text-sm text-slate-700">
+                  <span className="font-medium text-slate-800">{i + 1}.</span> {prompt}
+                </p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(prompt)
+                    toast.success('Prompt copied!')
+                  }}
+                  className="shrink-0 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Content Library Section */}
+      {library.length > 0 && (
+        <div id="content-library" className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-slate-800">Content Library</h2>
+            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">
+              {library.length} saved
+            </span>
+          </div>
+          <div className="space-y-3">
+            {library.slice(0, 10).map((item) => (
+              <div key={item.id} className="bg-slate-50 rounded-lg p-3 flex justify-between items-start">
+                <div>
+                  <p className="font-medium text-slate-800 text-sm">{item.topic}</p>
+                  <p className="text-xs text-slate-500">{new Date(item.generatedAt).toLocaleDateString()}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setWaterfall(item.content)
+                    setTopic(item.topic)
+                    setActiveTab('facebook')
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Load
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-4">
+            💡 Connect Helm Hub to sync your library across devices
+          </p>
+        </div>
+      )}
     </div>
   )
 }
