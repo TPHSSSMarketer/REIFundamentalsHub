@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     google_drive_access_token: str = ""
     google_drive_refresh_token: str = ""
 
+    # ── Dropbox (cloud file management) ────────────────────────────────
+    dropbox_app_key: str = ""
+    dropbox_app_secret: str = ""
+    dropbox_redirect_uri: str = "http://localhost:8000/auth/dropbox/callback"
+
     # ── Virtual Workspace ──────────────────────────────────────────────────
     workspace_enabled: bool = True
     workspace_max_size_mb: int = 500   # Per-tenant limit
