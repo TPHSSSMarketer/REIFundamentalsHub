@@ -72,6 +72,16 @@ export async function createCheckout(
   return handleResponse<{ checkout_url: string | null; message: string }>(res)
 }
 
+export async function openBillingPortal(
+  token: string
+): Promise<{ portal_url: string | null }> {
+  const res = await fetch(`${BASE_URL}/api/billing/portal`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return handleResponse<{ portal_url: string | null }>(res)
+}
+
 export async function cancelSubscription(
   token: string
 ): Promise<{ message: string }> {
