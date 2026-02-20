@@ -12,6 +12,7 @@ import {
   Home,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
+import { useBilling } from '@/hooks/useBilling'
 import { cn } from '@/utils/helpers'
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
 
 export default function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useStore()
+  const { billingStatus } = useBilling()
 
   return (
     <aside
@@ -87,6 +89,9 @@ export default function Sidebar() {
       {/* Footer */}
       {!isSidebarCollapsed && (
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">
+          {billingStatus?.plan && (
+            <span className="block text-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 mb-1">{billingStatus.plan}</span>
+          )}
           <p className="text-xs text-primary-800 font-semibold text-center">
             REI Fundamentals Hub
           </p>
