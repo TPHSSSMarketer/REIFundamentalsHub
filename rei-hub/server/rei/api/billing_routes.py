@@ -231,8 +231,8 @@ async def _create_stripe_checkout(
         session = stripe.checkout.Session.create(
             mode="subscription",
             line_items=line_items,
-            success_url=f"{settings.rei_hub_url}/billing?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{settings.rei_hub_url}/billing",
+            success_url=f"{settings.hub_url}/billing?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.hub_url}/billing",
             customer_email=current_user.email,
             subscription_data={
                 "trial_period_days": TRIAL_DAYS,
@@ -273,11 +273,11 @@ async def _create_paypal_checkout(
         }
 
     return_url = (
-        f"{settings.rei_hub_url}/billing"
+        f"{settings.hub_url}/billing"
         f"?paypal=success&plan={body.plan}&interval={body.interval}"
         f"&helm_addon={str(body.helm_addon).lower()}"
     )
-    cancel_url = f"{settings.rei_hub_url}/billing?paypal=cancel"
+    cancel_url = f"{settings.hub_url}/billing?paypal=cancel"
 
     try:
         response = await paypal_service.create_subscription(
@@ -482,7 +482,7 @@ async def billing_portal(current_user: User = Depends(get_current_user)):
         stripe.api_key = settings.stripe_secret_key
         session = stripe.billing_portal.Session.create(
             customer=current_user.stripe_customer_id,
-            return_url=f"{settings.rei_hub_url}/billing",
+            return_url=f"{settings.hub_url}/billing",
         )
     except stripe.StripeError as e:
         logger.error("Stripe portal error: %s", e)
@@ -492,6 +492,52 @@ async def billing_portal(current_user: User = Depends(get_current_user)):
         ) from e
 
     return {"portal_url": session.url}
+
+
+# ═══════════════════════════════════════════════════════════════
+# POST /billing/cancel — authenticated
+# ═══════════════════════════════════════════════════════════════
+
+
+@billing_router.post("/cancel")
+async def cancel_subscription(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel the current user's subscription immediately."""
+    settings = get_settings()
+
+    current_user.subscription_status = "canceled"
+    current_user.subscription_ends_at = datetime.utcnow()
+
+    # Attempt to cancel Stripe subscription
+    if current_user.stripe_subscription_id and settings.stripe_secret_key:
+        try:
+            stripe.api_key = settings.stripe_secret_key
+            stripe.Subscription.cancel(current_user.stripe_subscription_id)
+        except Exception:
+            logger.exception(
+                "Failed to cancel Stripe subscription %s for user %s",
+                current_user.stripe_subscription_id,
+                current_user.id,
+            )
+
+    # Attempt to cancel PayPal subscription
+    if current_user.paypal_subscription_id and settings.paypal_client_id:
+        try:
+            await paypal_service.cancel_subscription(
+                current_user.paypal_subscription_id, settings
+            )
+        except Exception:
+            logger.exception(
+                "Failed to cancel PayPal subscription %s for user %s",
+                current_user.paypal_subscription_id,
+                current_user.id,
+            )
+
+    await db.commit()
+
+    return {"success": True}
 
 
 # ═══════════════════════════════════════════════════════════════
