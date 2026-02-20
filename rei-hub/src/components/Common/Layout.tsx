@@ -4,6 +4,7 @@ import QuickActions from './QuickActions'
 import NewDealModal from './NewDealModal'
 import NewContactModal from './NewContactModal'
 import SMSModal from './SMSModal'
+import TrialBanner from './TrialBanner'
 import { useStore } from '@/hooks/useStore'
 import { useDemoMode } from '@/hooks/useDemoMode'
 import { Beaker, X } from 'lucide-react'
@@ -25,6 +26,9 @@ export default function Layout({ children }: LayoutProps) {
           isSidebarCollapsed ? 'ml-16' : 'ml-64'
         }`}
       >
+        {/* Trial / Billing Banner */}
+        <TrialBanner />
+
         {/* Demo Mode Banner */}
         {isDemoMode && (
           <div className="bg-gradient-to-r from-purple-500 to-primary-500 text-white px-4 py-2 flex items-center justify-between">

@@ -14,6 +14,7 @@ import RegisterPage from './components/Auth/RegisterPage'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import PricingPage from './components/Billing/PricingPage'
 import BillingPage from './components/Billing/BillingPage'
+import UpgradeGate from './components/Common/UpgradeGate'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -25,8 +26,16 @@ function AppLayout() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/markets" element={<Markets />} />
-        <Route path="/assistanthub" element={<AssistantHub />} />
-        <Route path="/contenthub" element={<ContentHub />} />
+        <Route path="/assistanthub" element={
+          <UpgradeGate feature="assistant_hub" requiredPlan="Pro">
+            <AssistantHub />
+          </UpgradeGate>
+        } />
+        <Route path="/contenthub" element={
+          <UpgradeGate feature="content_hub" requiredPlan="Pro">
+            <ContentHub />
+          </UpgradeGate>
+        } />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<BillingPage />} />
       </Routes>
