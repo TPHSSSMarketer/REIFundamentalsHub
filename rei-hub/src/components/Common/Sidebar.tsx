@@ -7,6 +7,7 @@ import {
   Building2,
   Headphones,
   PenTool,
+  CreditCard,
   Settings,
   ChevronLeft,
   Home,
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
+  { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
