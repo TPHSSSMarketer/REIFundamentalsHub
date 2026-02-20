@@ -13,6 +13,8 @@ from fastapi import Depends, HTTPException, Request
 from helm.api.middleware import optional_auth
 from helm.config import get_settings
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,14 +22,8 @@ async def require_rei_plugin(
     request: Request,
     user: dict | None = Depends(optional_auth),
 ) -> None:
-    """Gate access to Hub endpoints — only tenants with REI plugin activated.
-
-    Checks:
-    1. Admin users always have access (personal use / development).
-    2. If a tenant_id is present in the auth context, check the DB for
-       ``agent_config.enabled_plugins`` containing ``"rei"``.
-    3. If no auth and no tenant context, allow access only in dev mode
-       (so the Hub can connect during local development).
+    """Gate access to Hub endpoints — verify active REI Hub subscription via
+    machine-to-machine call to the REI Hub validation endpoint.
     """
     settings = get_settings()
 
@@ -35,44 +31,61 @@ async def require_rei_plugin(
     if user and user.get("is_admin"):
         return
 
-    # Authenticated user with tenant_id — check plugin entitlement
-    if user and user.get("tenant_id"):
-        tenant_id = user["tenant_id"]
-        try:
-            from helm.models.database import Tenant, async_session
-            from sqlalchemy import select
-
-            async with async_session() as session:
-                result = await session.execute(
-                    select(Tenant).where(Tenant.id == tenant_id)
-                )
-                tenant = result.scalar_one_or_none()
-
-                if tenant is None:
-                    raise HTTPException(status_code=404, detail="Tenant not found")
-
-                agent_config = tenant.agent_config or {}
-                enabled_plugins = agent_config.get("enabled_plugins", [])
-
-                if "rei" not in enabled_plugins:
-                    raise HTTPException(
-                        status_code=403,
-                        detail=(
-                            "REI plugin not activated for this account. "
-                            "Upgrade your plan to access real estate AI features."
-                        ),
-                    )
-                return  # Plugin is enabled for this tenant
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.warning("Plugin gating check failed: %s — allowing access", exc)
-            return  # Fail open to avoid blocking if DB is down
-
-    # No tenant context — allow in dev mode, block in production
-    if not settings.is_production:
+    # In dev mode with no auth context, allow through
+    if not settings.is_production and user is None:
         return
 
-    # In production with no auth context, require authentication
+    # Require auth in all other cases
     if user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Get the user's REI Hub email from their auth context
+    email = user.get("email")
+    if not email:
+        raise HTTPException(status_code=403, detail="No email in auth context")
+
+    # Call REI Hub validation endpoint (machine-to-machine)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{settings.rei_hub_url}/api/plugin/validate",
+                params={"email": email},
+                headers={"X-Plugin-Secret": settings.rei_plugin_secret},
+            )
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("active"):
+                return  # Active REI Hub subscription confirmed
+            raise HTTPException(
+                status_code=403,
+                detail="Active REI Hub subscription required to use REI AI features.",
+            )
+        elif response.status_code == 404:
+            raise HTTPException(
+                status_code=403,
+                detail="No REI Hub account found for this email.",
+            )
+        else:
+            if settings.is_production:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Unable to verify REI Hub subscription.",
+                )
+            logger.warning(
+                "REI Hub validation returned %s — allowing in dev mode",
+                response.status_code,
+            )
+            return
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if settings.is_production:
+            raise HTTPException(
+                status_code=503,
+                detail="REI Hub validation service unavailable.",
+            )
+        logger.warning(
+            "REI Hub validation call failed: %s — allowing in dev mode", exc
+        )
+        return

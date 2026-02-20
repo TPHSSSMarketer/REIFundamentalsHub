@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     reifundamentals_api_url: str = "https://api.reifundamentals.com/v1"
     reifundamentals_api_key: str = ""
     reifundamentals_webhook_secret: str = ""
+    rei_hub_url: str = "http://localhost:8001"
+    rei_plugin_secret: str = "change-me-in-production"
 
     # ── Auth ─────────────────────────────────────────────────────────────
     jwt_secret_key: str = "change-me"
