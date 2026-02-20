@@ -7,6 +7,38 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class Settings(BaseSettings):
+    database_url: str = "sqlite+aiosqlite:///./rei_hub.db"
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_minutes: int = 1440
+    cors_origins: str = "http://localhost:3000"
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_starter_monthly_price_id: str = ""
+    stripe_starter_annual_price_id: str = ""
+    stripe_pro_monthly_price_id: str = ""
+    stripe_pro_annual_price_id: str = ""
+    stripe_team_monthly_price_id: str = ""
+    stripe_team_annual_price_id: str = ""
+    stripe_starter_addon_monthly_price_id: str = ""
+    stripe_starter_addon_annual_price_id: str = ""
+    stripe_pro_addon_monthly_price_id: str = ""
+    stripe_pro_addon_annual_price_id: str = ""
+    paypal_client_id: str = ""
+    paypal_client_secret: str = ""
+    paypal_base_url: str = "https://api-m.sandbox.paypal.com"
+    plugin_shared_secret: str = "change-me-in-production"
+    rei_hub_url: str = "http://localhost:5173"
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
 # ── Plan catalog (module-level constant, not a settings field) ─────────
 PLANS: dict[str, dict] = {
     "starter": {
@@ -61,22 +93,16 @@ PLANS: dict[str, dict] = {
 TRIAL_DAYS = 7
 
 
-class Settings(BaseSettings):
-    database_url: str = "sqlite+aiosqlite:///./rei_hub.db"
-    jwt_secret: str = "change-me-in-production"
-    jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 1440
-    cors_origins: str = "http://localhost:3000"
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    paypal_client_id: str = ""
-    paypal_client_secret: str = ""
-    paypal_base_url: str = "https://api-m.sandbox.paypal.com"
-    plugin_shared_secret: str = "change-me-in-production"
-
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
+# ── Helpers to resolve Stripe price IDs from settings ──────────────────
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+def get_plan_price_id(plan: str, interval: str, settings: Settings) -> str:
+    """Return the Stripe price ID for a given plan + interval."""
+    key = f"stripe_{plan}_{interval}_price_id"
+    return getattr(settings, key, "")
+
+
+def get_addon_price_id(plan: str, interval: str, settings: Settings) -> str:
+    """Return the Stripe addon price ID for a given plan + interval."""
+    key = f"stripe_{plan}_addon_{interval}_price_id"
+    return getattr(settings, key, "")

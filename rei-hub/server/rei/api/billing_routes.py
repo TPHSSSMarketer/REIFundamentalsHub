@@ -1,16 +1,18 @@
-"""Billing routes — plan catalog, subscription status, checkout stubs, webhooks."""
+"""Billing routes — plan catalog, subscription status, Stripe checkout & webhooks."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
-from rei.config import PLANS, TRIAL_DAYS
+from rei.config import PLANS, TRIAL_DAYS, get_addon_price_id, get_plan_price_id, get_settings
 from rei.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -136,7 +138,7 @@ async def billing_status(current_user: User = Depends(get_current_user)):
 
 
 # ═══════════════════════════════════════════════════════════════
-# POST /billing/create-checkout — authenticated (stub)
+# POST /billing/create-checkout — authenticated
 # ═══════════════════════════════════════════════════════════════
 
 
@@ -145,7 +147,7 @@ async def create_checkout(
     body: CreateCheckoutRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Create a checkout session. Stub — returns null until price IDs are configured."""
+    """Create a Stripe checkout session for the requested plan."""
     if body.plan not in PLANS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -162,28 +164,227 @@ async def create_checkout(
             detail="payment_method must be 'stripe' or 'paypal'",
         )
 
-    return {
-        "checkout_url": None,
-        "message": "Stripe/PayPal not yet configured — price IDs pending",
-    }
+    settings = get_settings()
+
+    if not settings.stripe_secret_key:
+        return {
+            "checkout_url": None,
+            "message": "Stripe not yet configured — price IDs pending",
+        }
+
+    # Build line items
+    main_price_id = get_plan_price_id(body.plan, body.interval, settings)
+    if not main_price_id:
+        return {
+            "checkout_url": None,
+            "message": "Stripe not yet configured — price IDs pending",
+        }
+
+    line_items = [{"price": main_price_id, "quantity": 1}]
+
+    if body.helm_addon and body.plan != "team":
+        addon_price_id = get_addon_price_id(body.plan, body.interval, settings)
+        if addon_price_id:
+            line_items.append({"price": addon_price_id, "quantity": 1})
+
+    try:
+        stripe.api_key = settings.stripe_secret_key
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=line_items,
+            success_url=f"{settings.rei_hub_url}/billing?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.rei_hub_url}/billing",
+            customer_email=current_user.email,
+            subscription_data={
+                "trial_period_days": TRIAL_DAYS,
+                "metadata": {
+                    "user_id": str(current_user.id),
+                    "plan": body.plan,
+                    "interval": body.interval,
+                    "helm_addon": str(body.helm_addon),
+                },
+            },
+            metadata={"user_id": str(current_user.id)},
+        )
+    except stripe.StripeError as e:
+        logger.error("Stripe checkout error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stripe error: {e.user_message or str(e)}",
+        ) from e
+
+    return {"checkout_url": session.url, "message": "ok"}
 
 
 # ═══════════════════════════════════════════════════════════════
-# POST /billing/webhook/stripe — no auth (stub)
+# POST /billing/webhook/stripe — no auth
 # ═══════════════════════════════════════════════════════════════
 
 
 @billing_router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    """Handle Stripe webhook events. Stub — logs event type."""
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle Stripe webhook events."""
+    settings = get_settings()
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
 
-    event_type = body.get("type", "unknown")
+    if not settings.stripe_webhook_secret:
+        logger.info("Stripe webhook received (no secret configured, skipping verification)")
+        return {"received": True}
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, settings.stripe_webhook_secret
+        )
+    except ValueError:
+        logger.warning("Stripe webhook: invalid payload")
+        return {"received": True}
+    except stripe.SignatureVerificationError:
+        logger.warning("Stripe webhook: invalid signature")
+        return {"received": True}
+
+    event_type = event["type"]
+    data_object = event["data"]["object"]
     logger.info("Stripe webhook received: %s", event_type)
+
+    try:
+        if event_type == "checkout.session.completed":
+            await _handle_checkout_completed(data_object, db)
+        elif event_type == "customer.subscription.updated":
+            await _handle_subscription_updated(data_object, db)
+        elif event_type == "customer.subscription.deleted":
+            await _handle_subscription_deleted(data_object, db)
+        elif event_type == "invoice.payment_failed":
+            await _handle_payment_failed(data_object, db)
+        else:
+            logger.info("Unhandled Stripe event type: %s", event_type)
+    except Exception:
+        logger.exception("Error processing Stripe event %s", event_type)
+
     return {"received": True}
+
+
+async def _handle_checkout_completed(data_object: dict, db: AsyncSession) -> None:
+    metadata = data_object.get("metadata", {})
+    user_id = metadata.get("user_id")
+    subscription_id = data_object.get("subscription")
+    customer_id = data_object.get("customer")
+
+    if not user_id:
+        logger.warning("checkout.session.completed: no user_id in metadata")
+        return
+
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("checkout.session.completed: user %s not found", user_id)
+        return
+
+    # Read plan details from subscription metadata
+    sub_metadata = data_object.get("subscription_data", {}).get("metadata", metadata)
+    plan = sub_metadata.get("plan", user.plan)
+    interval = sub_metadata.get("interval", user.billing_interval)
+    helm_addon = sub_metadata.get("helm_addon", "False").lower() == "true"
+
+    user.subscription_status = "active"
+    user.stripe_subscription_id = subscription_id
+    user.stripe_customer_id = customer_id
+    user.plan = plan
+    user.billing_interval = interval
+    user.helm_addon_active = helm_addon
+    await db.commit()
+    logger.info("User %s activated: plan=%s interval=%s", user_id, plan, interval)
+
+
+async def _handle_subscription_updated(data_object: dict, db: AsyncSession) -> None:
+    sub_id = data_object.get("id")
+    new_status = data_object.get("status", "")
+
+    if not sub_id:
+        return
+
+    result = await db.execute(
+        select(User).where(User.stripe_subscription_id == sub_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("subscription.updated: no user with subscription %s", sub_id)
+        return
+
+    user.subscription_status = new_status
+    await db.commit()
+    logger.info("User %s subscription updated: status=%s", user.id, new_status)
+
+
+async def _handle_subscription_deleted(data_object: dict, db: AsyncSession) -> None:
+    sub_id = data_object.get("id")
+    if not sub_id:
+        return
+
+    result = await db.execute(
+        select(User).where(User.stripe_subscription_id == sub_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("subscription.deleted: no user with subscription %s", sub_id)
+        return
+
+    user.subscription_status = "canceled"
+    await db.commit()
+    logger.info("User %s subscription canceled", user.id)
+
+
+async def _handle_payment_failed(data_object: dict, db: AsyncSession) -> None:
+    customer_id = data_object.get("customer")
+    if not customer_id:
+        return
+
+    result = await db.execute(
+        select(User).where(User.stripe_customer_id == customer_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("invoice.payment_failed: no user with customer %s", customer_id)
+        return
+
+    user.subscription_status = "past_due"
+    await db.commit()
+    logger.info("User %s marked past_due", user.id)
+
+
+# ═══════════════════════════════════════════════════════════════
+# POST /billing/portal — authenticated
+# ═══════════════════════════════════════════════════════════════
+
+
+@billing_router.post("/portal")
+async def billing_portal(current_user: User = Depends(get_current_user)):
+    """Create a Stripe billing portal session."""
+    if not current_user.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No billing account found",
+        )
+
+    settings = get_settings()
+
+    if not settings.stripe_secret_key:
+        return {"portal_url": None}
+
+    try:
+        stripe.api_key = settings.stripe_secret_key
+        session = stripe.billing_portal.Session.create(
+            customer=current_user.stripe_customer_id,
+            return_url=f"{settings.rei_hub_url}/billing",
+        )
+    except stripe.StripeError as e:
+        logger.error("Stripe portal error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stripe error: {e.user_message or str(e)}",
+        ) from e
+
+    return {"portal_url": session.url}
 
 
 # ═══════════════════════════════════════════════════════════════
