@@ -28,9 +28,9 @@ GOOGLE_DRIVE_CLIENT_ID: str | None = getattr(settings, "google_drive_client_id",
 GOOGLE_DRIVE_CLIENT_SECRET: str | None = getattr(settings, "google_drive_client_secret", None) or os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET")
 GOOGLE_DRIVE_REDIRECT_URI: str | None = getattr(settings, "google_drive_redirect_uri", None) or os.environ.get("GOOGLE_DRIVE_REDIRECT_URI")
 
-DROPBOX_APP_KEY: str | None = os.environ.get("DROPBOX_APP_KEY")
-DROPBOX_APP_SECRET: str | None = os.environ.get("DROPBOX_APP_SECRET")
-DROPBOX_REDIRECT_URI: str | None = os.environ.get("DROPBOX_REDIRECT_URI")
+DROPBOX_APP_KEY: str | None = getattr(settings, "dropbox_app_key", None) or os.environ.get("DROPBOX_APP_KEY")
+DROPBOX_APP_SECRET: str | None = getattr(settings, "dropbox_app_secret", None) or os.environ.get("DROPBOX_APP_SECRET")
+DROPBOX_REDIRECT_URI: str | None = getattr(settings, "dropbox_redirect_uri", None) or os.environ.get("DROPBOX_REDIRECT_URI")
 
 # ── Token Storage ───────────────────────────────────────────────────────────
 

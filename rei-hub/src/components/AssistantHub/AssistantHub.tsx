@@ -212,21 +212,21 @@ export default function AssistantHub() {
           {/* Helm Hub connection banner */}
           {!isHelmConnected && (
                   <div className="flex items-center gap-3 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-                            <span>Connect Helm Hub in Settings to enable AI responses.</span>span>
+                            <span>Connect Helm Hub in Settings to enable AI responses.</span>
                             <a href="/settings" className="font-medium underline hover:text-yellow-900">
                                         Go to Settings
-                            </a>a>
-                  </div>div>
+                            </a>
+                  </div>
               )}
         
           {/* Header */}
               <div>
-                      <h1 className="text-2xl font-bold text-slate-800">AssistantHub</h1>h1>
+                      <h1 className="text-2xl font-bold text-slate-800">AssistantHub</h1>
                       <p className="text-slate-600">
-                                Powered by <span className="font-semibold text-primary-700">CallCommander AI</span>span> &{' '}
-                                <span className="font-semibold text-accent-600">DealCloser AI</span>span>
-                      </p>p>
-              </div>div>
+                                Powered by <span className="font-semibold text-primary-700">CallCommander AI</span> &{' '}
+                                <span className="font-semibold text-accent-600">DealCloser AI</span>
+                      </p>
+              </div>
         
           {/* Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -234,36 +234,36 @@ export default function AssistantHub() {
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-primary-100 rounded-lg">
                                                           <Users className="w-5 h-5 text-primary-600" />
-                                            </div>div>
+                                            </div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Total Contacts</p>p>
-                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalContacts}</p>p>
-                                            </div>div>
-                                </div>div>
-                      </div>div>
+                                                          <p className="text-sm text-slate-500">Total Contacts</p>
+                                                          <p className="text-2xl font-bold text-slate-800">{stats.totalContacts}</p>
+                                            </div>
+                                </div>
+                      </div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-success-100 rounded-lg">
                                                           <PhoneCall className="w-5 h-5 text-success-600" />
-                                            </div>div>
+                                            </div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Hot Leads</p>p>
-                                                          <p className={`text-2xl font-bold ${stats.hotLeads > 0 ? 'text-red-600' : 'text-slate-800'}`}>{stats.hotLeads}</p>p>
-                                            </div>div>
-                                </div>div>
-                      </div>div>
+                                                          <p className="text-sm text-slate-500">Hot Leads</p>
+                                                          <p className={`text-2xl font-bold ${stats.hotLeads > 0 ? 'text-red-600' : 'text-slate-800'}`}>{stats.hotLeads}</p>
+                                            </div>
+                                </div>
+                      </div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4">
                                 <div className="flex items-center gap-3">
                                             <div className="p-2 bg-warning-100 rounded-lg">
                                                           <Sparkles className="w-5 h-5 text-warning-600" />
-                                            </div>div>
+                                            </div>
                                             <div>
-                                                          <p className="text-sm text-slate-500">Motivated</p>p>
-                                                          <p className={`text-2xl font-bold ${stats.motivatedLeads > 0 ? 'text-yellow-600' : 'text-slate-800'}`}>{stats.motivatedLeads}</p>p>
-                                            </div>div>
-                                </div>div>
-                      </div>div>
-              </div>div>
+                                                          <p className="text-sm text-slate-500">Motivated</p>
+                                                          <p className={`text-2xl font-bold ${stats.motivatedLeads > 0 ? 'text-yellow-600' : 'text-slate-800'}`}>{stats.motivatedLeads}</p>
+                                            </div>
+                                </div>
+                      </div>
+              </div>
         
           {/* Tab Navigation */}
               <div className="bg-white rounded-xl border border-slate-200">
@@ -280,9 +280,9 @@ export default function AssistantHub() {
                                     >
                                     <tab.icon className="w-4 h-4" />
                         {tab.label}
-                      </button>button>
+                      </button>
                     ))}
-                      </div>div>
+                      </div>
               
                 {/* Voice Agents Tab */}
                 {activeTab === 'voice' && (
@@ -443,7 +443,7 @@ export default function AssistantHub() {
                                               <div>
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Select Contact *
-                                                              </label>label>
+                                                              </label>
                                                               <div className="relative mb-2">
                                                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                                                 <input
@@ -453,10 +453,10 @@ export default function AssistantHub() {
                                                                                                       className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                                                                       placeholder="Search contacts..."
                                                                                                     />
-                                                              </div>div>
+                                                              </div>
                                                               <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
                                                                 {filteredSmsContacts?.length === 0 ? (
-                                          <p className="p-3 text-sm text-slate-500 text-center">No contacts found</p>p>
+                                          <p className="p-3 text-sm text-slate-500 text-center">No contacts found</p>
                                         ) : (
                                           filteredSmsContacts?.map((contact) => (
                                                                   <button
@@ -467,17 +467,17 @@ export default function AssistantHub() {
                                                                                                                         smsContactId === contact.id ? 'bg-primary-50 border-l-2 border-primary-500' : ''
                                                                                               }`}
                                                                                           >
-                                                                                          <p className="font-medium text-slate-800">{contact.name}</p>p>
-                                                                                          <p className="text-sm text-slate-500">{formatPhone(contact.phone)}</p>p>
-                                                                  </button>button>
+                                                                                          <p className="font-medium text-slate-800">{contact.name}</p>
+                                                                                          <p className="text-sm text-slate-500">{formatPhone(contact.phone)}</p>
+                                                                  </button>
                                                                 ))
                                         )}
-                                                              </div>div>
-                                              </div>div>
+                                                              </div>
+                                              </div>
                                               <div>
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Message *
-                                                              </label>label>
+                                                              </label>
                                                               <div className="flex items-center gap-2 mb-2">
                                                                 <button
                                                                     type="button"
@@ -504,12 +504,12 @@ export default function AssistantHub() {
                                                                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                                                                                   placeholder="Type your message..."
                                                                                 />
-                                                              <p className="text-xs text-slate-500 mt-1">{smsMessage.length} / 160 characters</p>p>
-                                              </div>div>
+                                                              <p className="text-xs text-slate-500 mt-1">{smsMessage.length} / 160 characters</p>
+                                              </div>
                                 
                                   {/* Quick Templates */}
                                               <div>
-                                                              <p className="text-sm font-medium text-slate-700 mb-2">Quick Templates:</p>p>
+                                                              <p className="text-sm font-medium text-slate-700 mb-2">Quick Templates:</p>
                                                               <div className="flex flex-wrap gap-2">
                                                                 {[
                                           'Hi! Just following up on our conversation.',
@@ -523,10 +523,10 @@ export default function AssistantHub() {
                                                                                       className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
                                                                                     >
                                                                 {template.slice(0, 30)}...
-                                                              </button>button>
+                                                              </button>
                                                             ))}
-                                                              </div>div>
-                                              </div>div>
+                                                              </div>
+                                              </div>
                                 
                                               <button
                                                                 type="submit"
@@ -537,16 +537,16 @@ export default function AssistantHub() {
                                                                                   <>
                                                                                                       <Loader2 className="w-4 h-4 animate-spin" />
                                                                                                       Sending...
-                                                                                    </>>
+                                                                                    </>
                                                                                 ) : (
                                                                                   <>
                                                                                                       <Send className="w-4 h-4" />
                                                                                                       Send SMS
-                                                                                    </>>
+                                                                                    </>
                                                                                 )}
-                                              </button>button>
-                                </form>form>
-                    </div>div>
+                                              </button>
+                                </form>
+                    </div>
                       )}
               
                 {/* Email Tab */}
@@ -556,7 +556,7 @@ export default function AssistantHub() {
                                               <div>
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Select Contact *
-                                                              </label>label>
+                                                              </label>
                                                               <div className="relative mb-2">
                                                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                                                 <input
@@ -566,10 +566,10 @@ export default function AssistantHub() {
                                                                                                       className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                                                                       placeholder="Search contacts..."
                                                                                                     />
-                                                              </div>div>
+                                                              </div>
                                                               <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
                                                                 {filteredEmailContacts?.length === 0 ? (
-                                          <p className="p-3 text-sm text-slate-500 text-center">No contacts found</p>p>
+                                          <p className="p-3 text-sm text-slate-500 text-center">No contacts found</p>
                                         ) : (
                                           filteredEmailContacts?.map((contact) => (
                                                                   <button
@@ -580,17 +580,17 @@ export default function AssistantHub() {
                                                                                                                         emailContactId === contact.id ? 'bg-primary-50 border-l-2 border-primary-500' : ''
                                                                                               }`}
                                                                                           >
-                                                                                          <p className="font-medium text-slate-800">{contact.name}</p>p>
-                                                                                          <p className="text-sm text-slate-500">{contact.email}</p>p>
-                                                                  </button>button>
+                                                                                          <p className="font-medium text-slate-800">{contact.name}</p>
+                                                                                          <p className="text-sm text-slate-500">{contact.email}</p>
+                                                                  </button>
                                                                 ))
                                         )}
-                                                              </div>div>
-                                              </div>div>
+                                                              </div>
+                                              </div>
                                               <div>
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Subject *
-                                                              </label>label>
+                                                              </label>
                                                               <input
                                                                                   type="text"
                                                                                   required
@@ -599,11 +599,11 @@ export default function AssistantHub() {
                                                                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                                                   placeholder="Email subject..."
                                                                                 />
-                                              </div>div>
+                                              </div>
                                               <div>
                                                               <label className="block text-sm font-medium text-slate-700 mb-1">
                                                                                 Body *
-                                                              </label>label>
+                                                              </label>
                                                               <textarea
                                                                                   required
                                                                                   rows={8}
@@ -612,7 +612,7 @@ export default function AssistantHub() {
                                                                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                                                                                   placeholder="Write your email..."
                                                                                 />
-                                              </div>div>
+                                              </div>
                                               <button
                                                                 type="submit"
                                                                 disabled={sendEmail.isPending || !emailContactId || !emailSubject.trim() || !emailBody.trim()}
@@ -622,18 +622,18 @@ export default function AssistantHub() {
                                                                                   <>
                                                                                                       <Loader2 className="w-4 h-4 animate-spin" />
                                                                                                       Sending...
-                                                                                    </>>
+                                                                                    </>
                                                                                 ) : (
                                                                                   <>
                                                                                                       <Send className="w-4 h-4" />
                                                                                                       Send Email
-                                                                                    </>>
+                                                                                    </>
                                                                                 )}
-                                              </button>button>
-                                </form>form>
-                    </div>div>
+                                              </button>
+                                </form>
+                    </div>
                       )}
-              </div>div>
-        </div>div>
+              </div>
+        </div>
       )
-}</></></></></div>
+}
