@@ -94,6 +94,22 @@ export function getAuthHeader(): Record<string, string> {
   return { Authorization: `Bearer ${token}` }
 }
 
+// ── Current user ──────────────────────────────────────────────
+
+export async function getCurrentUser(): Promise<Record<string, unknown> | null> {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
 // ── Config utilities (kept for Settings/ConnectionTest) ────────
 
 export function isApiKeyConfigured(): boolean {

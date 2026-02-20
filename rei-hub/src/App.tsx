@@ -17,6 +17,7 @@ import ProtectedRoute from './components/Auth/ProtectedRoute'
 import PricingPage from './components/Billing/PricingPage'
 import BillingPage from './components/Billing/BillingPage'
 import UpgradeGate from './components/Common/UpgradeGate'
+import AdminPage from './components/Admin'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -40,6 +41,7 @@ function AppLayout() {
         } />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<BillingPage />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Layout>
