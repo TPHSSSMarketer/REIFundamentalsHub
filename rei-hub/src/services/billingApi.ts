@@ -2,10 +2,31 @@ const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 export interface BillingStatus {
   plan: string | null
-  status: string | null
+  billing_interval: string | null
+  subscription_status: string | null
   trial_ends_at: string | null
-  current_period_end: string | null
-  helm_addon: boolean
+  subscription_ends_at: string | null
+  helm_addon_active: boolean
+  seats_used: number
+  is_trial_active: boolean
+  days_remaining_in_trial: number | null
+  features: string[]
+  can_access: Record<string, boolean>
+}
+
+export interface PlanInfo {
+  name: string
+  monthly_price_cents: number
+  annual_price_cents: number
+  features: string[]
+  max_seats: number
+  helm_addon_monthly_cents: number
+  helm_addon_annual_cents: number
+}
+
+export interface PlansResponse {
+  plans: Record<string, PlanInfo>
+  trial_days: number
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -16,6 +37,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json()
 }
 
+export async function getPlans(): Promise<PlansResponse> {
+  const res = await fetch(`${BASE_URL}/api/billing/plans`)
+  return handleResponse<PlansResponse>(res)
+}
+
 export async function getBillingStatus(token: string): Promise<BillingStatus> {
   const res = await fetch(`${BASE_URL}/api/billing/status`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -23,36 +49,27 @@ export async function getBillingStatus(token: string): Promise<BillingStatus> {
   return handleResponse<BillingStatus>(res)
 }
 
-export async function createStripeSubscription(
+export async function createCheckout(
   token: string,
   plan: string,
-  interval: 'month' | 'year'
-): Promise<{ client_secret: string }> {
-  const res = await fetch(`${BASE_URL}/api/billing/stripe/subscribe`, {
+  interval: 'monthly' | 'annual',
+  paymentMethod: 'stripe' | 'paypal',
+  helmAddon: boolean = false
+): Promise<{ checkout_url: string | null; message: string }> {
+  const res = await fetch(`${BASE_URL}/api/billing/create-checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ plan, interval }),
+    body: JSON.stringify({
+      plan,
+      interval,
+      payment_method: paymentMethod,
+      helm_addon: helmAddon,
+    }),
   })
-  return handleResponse<{ client_secret: string }>(res)
-}
-
-export async function createPayPalSubscription(
-  token: string,
-  plan: string,
-  interval: 'month' | 'year'
-): Promise<{ approval_url: string }> {
-  const res = await fetch(`${BASE_URL}/api/billing/paypal/subscribe`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ plan, interval }),
-  })
-  return handleResponse<{ approval_url: string }>(res)
+  return handleResponse<{ checkout_url: string | null; message: string }>(res)
 }
 
 export async function cancelSubscription(
@@ -63,19 +80,4 @@ export async function cancelSubscription(
     headers: { Authorization: `Bearer ${token}` },
   })
   return handleResponse<{ message: string }>(res)
-}
-
-export async function addHelmAddon(
-  token: string,
-  interval: 'month' | 'year'
-): Promise<{ client_secret: string }> {
-  const res = await fetch(`${BASE_URL}/api/billing/stripe/addon/helm`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ interval }),
-  })
-  return handleResponse<{ client_secret: string }>(res)
 }

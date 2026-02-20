@@ -1,5 +1,14 @@
-import { Link } from 'react-router-dom'
-import { useBilling } from '@/hooks/useBilling'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import {
+  getBillingStatus,
+  getPlans,
+  createCheckout,
+  type BillingStatus,
+  type PlanInfo,
+} from '@/services/billingApi'
+
+/* ── Helpers ─────────────────────────────────────────────────── */
 
 function formatDate(iso: string | null): string {
   if (!iso) return '\u2014'
@@ -9,6 +18,29 @@ function formatDate(iso: string | null): string {
     day: 'numeric',
   })
 }
+
+function cents(amount: number): string {
+  return `$${(amount / 100).toLocaleString()}`
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  pipeline: 'Pipeline',
+  contacts: 'Contacts',
+  markets: 'Markets',
+  portfolio: 'Portfolio',
+  content_hub: 'ContentHub',
+  wordpress_publish: 'WordPress Publish',
+  cloud_sync: 'Cloud Sync',
+  assistant_hub: 'AssistantHub',
+  csv_export: 'CSV Export',
+  priority_support: 'Priority Support',
+  helm_hub: 'Helm Hub AI',
+}
+
+const PLAN_ORDER = ['starter', 'pro', 'team'] as const
+
+/* ── Sub-components ──────────────────────────────────────────── */
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -25,89 +57,322 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default function BillingPage() {
-  const { billingStatus, isLoadingBilling, billingError } = useBilling()
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 4000)
+    return () => clearTimeout(t)
+  }, [onClose])
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Your Plan</h1>
+    <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+      {message}
+      <button onClick={onClose} className="text-slate-300 hover:text-white">&times;</button>
+    </div>
+  )
+}
 
-      {/* Loading */}
-      {isLoadingBilling && (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+/* ── Main Component ──────────────────────────────────────────── */
+
+export default function BillingPage() {
+  const { token } = useAuth()
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
+  const [plans, setPlans] = useState<Record<string, PlanInfo> | null>(null)
+  const [trialDays, setTrialDays] = useState(7)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [annual, setAnnual] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [plansRes, statusRes] = await Promise.all([
+          getPlans(),
+          token ? getBillingStatus(token) : Promise.resolve(null),
+        ])
+        if (cancelled) return
+        setPlans(plansRes.plans)
+        setTrialDays(plansRes.trial_days)
+        if (statusRes) setBillingStatus(statusRes)
+      } catch (err: unknown) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load billing data')
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [token])
+
+  async function handleSelectPlan(planKey: string) {
+    if (!token) return
+    setCheckoutLoading(planKey)
+    try {
+      const res = await createCheckout(
+        token,
+        planKey,
+        annual ? 'annual' : 'monthly',
+        'stripe',
+        false,
+      )
+      if (res.checkout_url) {
+        window.location.href = res.checkout_url
+      } else {
+        setToast(res.message || 'Billing setup coming soon')
+      }
+    } catch (err: unknown) {
+      setToast(err instanceof Error ? err.message : 'Checkout failed')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  /* ── Loading state ───────────────────────────────────────── */
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  /* ── Error state ─────────────────────────────────────────── */
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+          {error}
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {/* Error */}
-      {billingError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 mb-6">
-          {billingError}
-        </div>
-      )}
+  const currentPlan = billingStatus?.plan ?? 'starter'
 
-      {/* Status Card */}
-      {!isLoadingBilling && !billingError && billingStatus && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
-          {/* Plan name */}
-          <div className="flex items-center justify-between">
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-10">
+
+      {/* ── Current Plan Banner ──────────────────────────────── */}
+      {billingStatus && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-sm text-slate-500">Current Plan</p>
-              <p className="text-lg font-semibold text-slate-900 capitalize">
-                {billingStatus.plan ?? 'None'}
-              </p>
+              <p className="text-xl font-bold text-slate-900 capitalize">{billingStatus.plan ?? 'None'}</p>
             </div>
-            {billingStatus.status && <StatusBadge status={billingStatus.status} />}
+
+            <div className="flex items-center gap-3">
+              {billingStatus.subscription_status && (
+                <StatusBadge status={billingStatus.subscription_status} />
+              )}
+              {billingStatus.billing_interval && (
+                <span className="text-xs text-slate-500 capitalize">
+                  {billingStatus.billing_interval}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Dates */}
-          {billingStatus.status === 'trialing' && billingStatus.trial_ends_at && (
-            <p className="text-sm text-slate-600">
-              Trial ends {formatDate(billingStatus.trial_ends_at)}
-            </p>
-          )}
-          {billingStatus.status === 'active' && billingStatus.current_period_end && (
-            <p className="text-sm text-slate-600">
-              Renews {formatDate(billingStatus.current_period_end)}
-            </p>
+          {/* Trial warning */}
+          {billingStatus.is_trial_active && billingStatus.days_remaining_in_trial !== null && (
+            <div className="mt-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-sm text-blue-700">
+              <span className="font-medium">Trial</span>
+              {billingStatus.days_remaining_in_trial} day{billingStatus.days_remaining_in_trial !== 1 ? 's' : ''} remaining
+              {billingStatus.trial_ends_at && (
+                <span className="text-blue-500 ml-1">(ends {formatDate(billingStatus.trial_ends_at)})</span>
+              )}
+            </div>
           )}
 
-          {/* Helm addon */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+          {/* Past due warning */}
+          {billingStatus.subscription_status === 'past_due' && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-700">
+              Your payment is past due. Please update your payment method to keep access.
+            </div>
+          )}
+
+          {/* Canceled warning */}
+          {billingStatus.subscription_status === 'canceled' && (
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-600">
+              Your subscription has been canceled.
+              {billingStatus.subscription_ends_at && (
+                <span> Access continues until {formatDate(billingStatus.subscription_ends_at)}.</span>
+              )}
+            </div>
+          )}
+
+          {/* Helm addon status */}
+          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
             <p className="text-sm text-slate-700">Helm Hub Add-on</p>
-            {billingStatus.helm_addon ? (
+            {billingStatus.helm_addon_active ? (
               <span className="text-sm font-medium text-green-700">Active</span>
             ) : (
-              <Link
-                to="/pricing"
-                className="text-sm font-medium text-primary-600 hover:text-primary-700"
-              >
-                Not active &mdash; View plans
-              </Link>
+              <span className="text-sm text-slate-400">Not active</span>
             )}
           </div>
         </div>
       )}
 
-      {/* No subscription state */}
-      {!isLoadingBilling && !billingError && billingStatus && !billingStatus.plan && (
-        <p className="mt-4 text-sm text-slate-500">
-          You don&apos;t have an active plan.{' '}
-          <Link to="/pricing" className="font-medium text-primary-600 hover:text-primary-700">
-            View plans
-          </Link>
-        </p>
+      {/* ── Pricing Section ──────────────────────────────────── */}
+      {plans && (
+        <>
+          {/* Header + Toggle */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-slate-900">
+              {billingStatus ? 'Change Your Plan' : 'Choose a Plan'}
+            </h2>
+
+            {/* Monthly / Annual toggle */}
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <span className={`text-sm font-medium ${!annual ? 'text-slate-900' : 'text-slate-400'}`}>
+                Monthly
+              </span>
+              <button
+                type="button"
+                onClick={() => setAnnual(!annual)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  annual ? 'bg-primary-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${
+                    annual ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium ${annual ? 'text-slate-900' : 'text-slate-400'}`}>
+                Annual{' '}
+                <span className="text-primary-600 font-semibold">(Save 2 months)</span>
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm text-slate-500">
+              {trialDays}-day free trial, no credit card required
+            </p>
+          </div>
+
+          {/* Plan Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {PLAN_ORDER.map((planKey) => {
+              const plan = plans[planKey]
+              if (!plan) return null
+
+              const isPopular = planKey === 'pro'
+              const isCurrent = planKey === currentPlan
+              const price = annual ? plan.annual_price_cents : plan.monthly_price_cents
+              const period = annual ? '/yr' : '/mo'
+              const helmPrice = annual ? plan.helm_addon_annual_cents : plan.helm_addon_monthly_cents
+              const helmIncluded = plan.features.includes('helm_hub')
+
+              return (
+                <div
+                  key={planKey}
+                  className={`relative bg-white rounded-xl shadow-sm border p-8 flex flex-col ${
+                    isPopular
+                      ? 'border-primary-500 ring-2 ring-primary-500'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  {isPopular && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                      Most Popular
+                    </span>
+                  )}
+
+                  <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
+
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-4xl font-extrabold text-slate-900">
+                      {cents(price)}
+                    </span>
+                    <span className="text-slate-500 text-sm">{period}</span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Up to {plan.max_seats === 999 ? 'unlimited' : plan.max_seats} user{plan.max_seats !== 1 ? 's' : ''}
+                  </p>
+
+                  {/* Features list */}
+                  <ul className="mt-6 space-y-3 flex-1">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="text-primary-600 mt-0.5">&#10003;</span>
+                        {FEATURE_LABELS[f] ?? f}
+                      </li>
+                    ))}
+
+                    {/* Helm addon line */}
+                    {helmIncluded ? (
+                      <li className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="text-primary-600 mt-0.5">&#10003;</span>
+                        Helm Hub AI{' '}
+                        <span className="inline-block bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                          Included
+                        </span>
+                      </li>
+                    ) : helmPrice > 0 ? (
+                      <li className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="text-primary-600 mt-0.5">+</span>
+                        Helm Hub add-on (+{cents(helmPrice)}{period})
+                      </li>
+                    ) : null}
+                  </ul>
+
+                  {/* CTA */}
+                  <button
+                    onClick={() => handleSelectPlan(planKey)}
+                    disabled={isCurrent || checkoutLoading === planKey}
+                    className={`mt-8 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isPopular
+                        ? 'bg-primary-600 text-white hover:bg-primary-700'
+                        : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    {checkoutLoading === planKey
+                      ? 'Processing...'
+                      : isCurrent
+                        ? 'Current Plan'
+                        : 'Select Plan'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Helm Hub Add-on Callout ───────────────────────── */}
+          <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-primary-900">Helm Hub AI Assistant</h3>
+              <p className="mt-1 text-sm text-primary-700">
+                Supercharge your real estate workflow with AI-powered deal analysis,
+                market insights, and automated follow-ups. Available as an add-on for
+                Starter and Pro plans, or included free with Team.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-semibold text-primary-900">Starting at</p>
+              <p className="text-2xl font-extrabold text-primary-900">
+                {cents(annual
+                  ? (plans.starter?.helm_addon_annual_cents ?? 49000)
+                  : (plans.starter?.helm_addon_monthly_cents ?? 4900)
+                )}
+                <span className="text-sm font-normal text-primary-600">{annual ? '/yr' : '/mo'}</span>
+              </p>
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Footer link */}
-      <div className="mt-6">
-        <Link
-          to="/pricing"
-          className="text-sm font-medium text-primary-600 hover:text-primary-700"
-        >
-          View all plans
-        </Link>
-      </div>
+      {/* Toast */}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   )
 }
