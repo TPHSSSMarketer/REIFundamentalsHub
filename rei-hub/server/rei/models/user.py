@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from rei.database import Base
+
+_TRIAL_DAYS = 7
 
 
 class User(Base):
@@ -24,6 +26,22 @@ class User(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+    # ── Subscription fields (inline on user) ──────────────────────────
+    plan: Mapped[str] = mapped_column(String, default="starter")
+    billing_interval: Mapped[str] = mapped_column(String, default="monthly")
+    subscription_status: Mapped[str] = mapped_column(String, default="trialing")
+    trial_ends_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=lambda: datetime.utcnow() + timedelta(days=_TRIAL_DAYS)
+    )
+    subscription_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    paypal_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    helm_addon_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    helm_addon_billing_interval: Mapped[str | None] = mapped_column(String, nullable=True)
+    seats_used: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
     )
