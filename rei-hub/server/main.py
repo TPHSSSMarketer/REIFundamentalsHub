@@ -54,7 +54,7 @@ app = FastAPI(
 if settings.environment == "development":
     _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 else:
-    _cors_origins = [settings.rei_hub_url]
+    _cors_origins = [settings.hub_url]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
