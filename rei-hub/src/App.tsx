@@ -7,6 +7,7 @@ import Contacts from './components/Contacts/Contacts'
 import AssistantHub from './components/AssistantHub/AssistantHub'
 import ContentHub from './components/ContentHub/ContentHub'
 import Portfolio from './components/Portfolio/Portfolio'
+import Markets from './components/Markets/Markets'
 import Settings from './components/Settings/Settings'
 import LandingPage from './components/LandingPage/LandingPage'
 import LoginPage from './components/Auth/LoginPage'
@@ -44,6 +45,7 @@ function AppLayout() {
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/settings" element={<Settings />} />

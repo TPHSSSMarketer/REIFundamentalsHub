@@ -133,3 +133,18 @@ export interface AuthUser {
   isVerified: boolean
   plan: string | null
 }
+
+// Market tracking
+export interface MarketData {
+  id: string
+  city: string
+  state: string
+  medianHomePrice: number
+  medianRent: number
+  rentToPriceRatio: number
+  avgDaysOnMarket: number
+  inventoryCount: number
+  priceChangePct: number
+  notes?: string
+  addedAt: string
+}
