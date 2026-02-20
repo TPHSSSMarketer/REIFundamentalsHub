@@ -85,17 +85,17 @@ export default function AssistantHub() {
         setIsHelmConnected(!!email)
   }, [])
 
-  const { data: contactsData, isLoading: contactsLoading } = useContacts({ limit: 50 })
+  const { data: contactsData, isLoading: contactsLoading } = useContacts()
     const sendSMS = useSendSMS()
     const sendEmail = useSendEmail()
 
-  const filteredSmsContacts = contactsData?.contacts.filter(
+  const filteredSmsContacts = contactsData?.filter(
         (c) =>
                 c.name.toLowerCase().includes(smsSearch.toLowerCase()) ||
                 c.phone.includes(smsSearch)
       )
 
-  const filteredEmailContacts = contactsData?.contacts.filter(
+  const filteredEmailContacts = contactsData?.filter(
         (c) =>
                 c.name.toLowerCase().includes(emailSearch.toLowerCase()) ||
                 c.email.toLowerCase().includes(emailSearch.toLowerCase())
@@ -111,7 +111,7 @@ export default function AssistantHub() {
 
   const handleSmsDraft = async () => {
         if (!smsContactId || !isHelmConnected) return
-        const contact = contactsData?.contacts.find(c => c.id === smsContactId)
+        const contact = contactsData?.find(c => c.id === smsContactId)
         if (!contact) return
         setIsSmsAiLoading(true)
         try {
@@ -192,11 +192,11 @@ export default function AssistantHub() {
   }
 
   const stats = {
-        totalContacts: contactsData?.total ?? 0,
-        hotLeads: contactsData?.contacts.filter(c =>
+        totalContacts: contactsData?.length ?? 0,
+        hotLeads: contactsData?.filter(c =>
             c.tags.includes('urgent') || c.tags.includes('pre-foreclosure')
         ).length ?? 0,
-        motivatedLeads: contactsData?.contacts.filter(c =>
+        motivatedLeads: contactsData?.filter(c =>
             c.tags.includes('motivated')
         ).length ?? 0,
   }
@@ -324,12 +324,12 @@ export default function AssistantHub() {
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         <span className="text-sm">Loading leads...</span>
                                     </div>
-                                ) : !contactsData?.contacts?.length ? (
+                                ) : !contactsData?.length ? (
                                     <div className="p-4 text-sm text-slate-500">
                                         No contacts found. Add contacts to get started.
                                     </div>
                                 ) : (
-                                    contactsData.contacts.map((contact) => (
+                                    contactsData.map((contact) => (
                                         <button
                                             key={contact.id}
                                             onClick={() => { setActiveLead(contact) }}

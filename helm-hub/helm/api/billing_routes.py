@@ -468,6 +468,8 @@ async def _activate_tenant(tenant_id: str, stripe_customer_id: str | None = None
                 return False
 
             tenant.is_active = True
+            if stripe_customer_id:
+                tenant.stripe_customer_id = stripe_customer_id
             await session.commit()
             return True
     except Exception as exc:

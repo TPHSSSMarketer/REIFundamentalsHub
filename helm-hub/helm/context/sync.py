@@ -151,3 +151,7 @@ class LivingFileSync:
             lines.append("")
 
         return "\n".join(lines)
+
+
+# Module-level singleton used by hub_routes.py
+living_file_sync = LivingFileSync()

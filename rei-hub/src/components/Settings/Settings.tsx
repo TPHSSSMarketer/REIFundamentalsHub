@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Save, Key, MapPin, Check, AlertTriangle, Globe } from 'lucide-react'
 import { getConfigStatus } from '@/services/auth'
 import { toast } from 'sonner'
-import HelmHubConnect from './HelmHubConnect'
+import HelmHubConnect from './helmhubconnect'
 
 export default function Settings() {
   const config = getConfigStatus()

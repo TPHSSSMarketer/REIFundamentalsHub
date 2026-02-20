@@ -1,7 +1,3 @@
-## Supabase Migration 002 — New Tables
-
-File: `rei-hub/supabase/migrations/002_rei_plugin_tables.sql`
-```sql
 -- ── rei_deals ─────────────────────────────────────────────────────────────────
 -- Written by REI Hub frontend, read by Helm Hub context-sync
 CREATE TABLE IF NOT EXISTS rei_deals (
@@ -182,6 +178,3 @@ CREATE TRIGGER set_updated_at_rei_market_data
 CREATE TRIGGER set_updated_at_rei_portfolio
     BEFORE UPDATE ON rei_portfolio
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-```
-
----
