@@ -11,6 +11,8 @@ import Settings from './components/Settings/Settings'
 import LandingPage from './components/LandingPage/LandingPage'
 import LoginPage from './components/Auth/LoginPage'
 import RegisterPage from './components/Auth/RegisterPage'
+import PricingPage from './components/Billing/PricingPage'
+import BillingPage from './components/Billing/BillingPage'
 import { useAuth } from './hooks/useAuth'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -45,6 +47,7 @@ function AppLayout() {
         <Route path="/assistanthub" element={<AssistantHub />} />
         <Route path="/contenthub" element={<ContentHub />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/billing" element={<BillingPage />} />
       </Routes>
     </Layout>
   )
@@ -56,6 +59,7 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route
         path="/*"
         element={
