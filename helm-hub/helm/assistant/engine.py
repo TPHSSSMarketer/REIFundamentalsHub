@@ -7,10 +7,11 @@ Orchestration flow for every message:
   4. Apply output style based on mode
   5. Persist to database
 
-Supports three AI backends (configured via AI_BACKEND env var):
+Supports four AI backends (configured via AI_BACKEND env var):
   - "anthropic" — direct Anthropic API (requires API credits)
   - "openrouter" — OpenRouter gateway (supports Claude + many other models)
   - "claude_cli" — Claude Code CLI headless mode (uses Max subscription)
+  - "nvidia" — NVIDIA NIM (OpenAI-compatible API, e.g. Nemotron)
 """
 
 from __future__ import annotations
@@ -114,6 +115,10 @@ class HelmEngine:
     @property
     def _use_claude_cli(self) -> bool:
         return self._backend == "claude_cli"
+
+    @property
+    def _use_nvidia(self) -> bool:
+        return self._backend == "nvidia"
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a user message through the full orchestration pipeline.
@@ -238,12 +243,14 @@ class HelmEngine:
             configured = "claude_cli"
         elif self._use_openrouter:
             configured = "openrouter"
+        elif self._use_nvidia:
+            configured = "nvidia"
         else:
             configured = "anthropic"
 
         # Build an ordered list of backends to try
         backends: list[str] = [configured]
-        for alt in ["claude_cli", "openrouter", "anthropic"]:
+        for alt in ["claude_cli", "openrouter", "nvidia", "anthropic"]:
             if alt not in backends:
                 backends.append(alt)
 
@@ -268,6 +275,15 @@ class HelmEngine:
                     if text and not text.startswith("I'm having trouble"):
                         return text, model
                     errors.append(f"openrouter: {text[:100]}")
+
+                elif backend == "nvidia":
+                    if not settings.nvidia_api_key:
+                        errors.append("nvidia: no API key set")
+                        continue
+                    text, model = await self._chat_via_nvidia(system_prompt, messages)
+                    if text and not text.startswith("I'm having trouble"):
+                        return text, model
+                    errors.append(f"nvidia: {text[:100]}")
 
                 elif backend == "anthropic":
                     if not settings.anthropic_api_key:
@@ -295,6 +311,7 @@ class HelmEngine:
             + "\n\nTo fix this, set up at least one backend in your .env file:\n"
             "- **Claude CLI**: Run `claude` once to log in (uses Max subscription)\n"
             "- **OpenRouter**: Set OPENROUTER_API_KEY in .env\n"
+            "- **NVIDIA NIM**: Set NVIDIA_API_KEY in .env\n"
             "- **Anthropic**: Set ANTHROPIC_API_KEY in .env"
         ), "none"
 
@@ -357,6 +374,52 @@ class HelmEngine:
         model_label = result.get("model", "claude-cli (Max)")
         logger.info("Claude CLI response (%d chars)", len(content))
         return content, model_label
+
+    async def _chat_via_nvidia(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+    ) -> tuple[str, str]:
+        """Route a chat request through NVIDIA NIM (OpenAI-compatible API)."""
+        import httpx
+
+        model_id = settings.nvidia_model
+        nim_messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        nim_messages.extend(messages)
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    f"{settings.nvidia_base_url.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.nvidia_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model_id,
+                        "messages": nim_messages,
+                        "max_tokens": 4096,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error("NVIDIA NIM HTTP error: %s", exc)
+            return (
+                f"I'm having trouble reaching the NVIDIA NIM backend. "
+                f"HTTP {exc.response.status_code}"
+            ), model_id
+        except Exception as exc:
+            logger.error("NVIDIA NIM request failed: %s", exc)
+            return (
+                f"I'm having trouble reaching the NVIDIA NIM backend. "
+                f"Error: {exc}"
+            ), model_id
+
+        content = data["choices"][0]["message"]["content"]
+        actual_model = data.get("model", model_id)
+        logger.info("NVIDIA NIM response via %s (%d chars)", actual_model, len(content))
+        return content, actual_model
 
     async def _research_and_synthesise(
         self,
