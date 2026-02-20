@@ -4,6 +4,7 @@ import {
   getBillingStatus,
   getPlans,
   createCheckout,
+  openBillingPortal,
   type BillingStatus,
   type PlanInfo,
 } from '@/services/billingApi'
@@ -83,6 +84,18 @@ export default function BillingPage() {
   const [annual, setAnnual] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [helmAddon, setHelmAddon] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+
+  // Check for ?session_id= on mount (Stripe checkout success redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('session_id')) {
+      setShowSuccess(true)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -111,7 +124,7 @@ export default function BillingPage() {
   }, [token])
 
   async function handleSelectPlan(planKey: string) {
-    if (!token) return
+    if (!token || checkoutLoading) return
     setCheckoutLoading(planKey)
     try {
       const res = await createCheckout(
@@ -119,17 +132,34 @@ export default function BillingPage() {
         planKey,
         annual ? 'annual' : 'monthly',
         'stripe',
-        false,
+        planKey === 'team' ? false : helmAddon,
       )
       if (res.checkout_url) {
         window.location.href = res.checkout_url
       } else {
-        setToast(res.message || 'Billing setup coming soon')
+        setToast('Billing setup coming soon — we\u2019ll notify you when payments are live')
       }
-    } catch (err: unknown) {
-      setToast(err instanceof Error ? err.message : 'Checkout failed')
+    } catch {
+      setToast('Something went wrong — please try again')
     } finally {
       setCheckoutLoading(null)
+    }
+  }
+
+  async function handleOpenPortal() {
+    if (!token || portalLoading) return
+    setPortalLoading(true)
+    try {
+      const res = await openBillingPortal(token)
+      if (res.portal_url) {
+        window.location.href = res.portal_url
+      } else {
+        setToast('Billing portal not yet configured')
+      }
+    } catch {
+      setToast('Something went wrong — please try again')
+    } finally {
+      setPortalLoading(false)
     }
   }
 
@@ -156,9 +186,25 @@ export default function BillingPage() {
   }
 
   const currentPlan = billingStatus?.plan ?? 'starter'
+  const anyCheckoutLoading = checkoutLoading !== null
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-10">
+
+      {/* ── Success Banner ─────────────────────────────────────── */}
+      {showSuccess && (
+        <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm text-green-800">
+            Welcome! Your subscription is now active.
+          </span>
+          <button
+            onClick={() => setShowSuccess(false)}
+            className="text-green-600 hover:text-green-800 text-sm font-medium"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* ── Current Plan Banner ──────────────────────────────── */}
       {billingStatus && (
@@ -254,6 +300,29 @@ export default function BillingPage() {
               </span>
             </div>
 
+            {/* Helm addon checkbox */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <input
+                type="checkbox"
+                id="helm-addon-toggle"
+                checked={helmAddon}
+                onChange={(e) => setHelmAddon(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label htmlFor="helm-addon-toggle" className="text-sm text-slate-700">
+                Add Helm Hub AI Assistant
+                {plans[currentPlan] && (
+                  <span className="ml-1 text-slate-500">
+                    (+{cents(
+                      annual
+                        ? (plans[currentPlan]?.helm_addon_annual_cents ?? 0)
+                        : (plans[currentPlan]?.helm_addon_monthly_cents ?? 0)
+                    )}{annual ? '/yr' : '/mo'})
+                  </span>
+                )}
+              </label>
+            </div>
+
             <p className="mt-3 text-sm text-slate-500">
               {trialDays}-day free trial, no credit card required
             </p>
@@ -271,6 +340,7 @@ export default function BillingPage() {
               const period = annual ? '/yr' : '/mo'
               const helmPrice = annual ? plan.helm_addon_annual_cents : plan.helm_addon_monthly_cents
               const helmIncluded = plan.features.includes('helm_hub')
+              const isTeam = planKey === 'team'
 
               return (
                 <div
@@ -326,16 +396,26 @@ export default function BillingPage() {
                     ) : null}
                   </ul>
 
+                  {/* Helm addon note for Team */}
+                  {isTeam && (
+                    <p className="mt-2 text-xs text-primary-600 font-medium">
+                      Helm Hub AI included free
+                    </p>
+                  )}
+
                   {/* CTA */}
                   <button
                     onClick={() => handleSelectPlan(planKey)}
-                    disabled={isCurrent || checkoutLoading === planKey}
-                    className={`mt-8 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    disabled={isCurrent || anyCheckoutLoading}
+                    className={`mt-8 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                       isPopular
                         ? 'bg-primary-600 text-white hover:bg-primary-700'
                         : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
                     }`}
                   >
+                    {checkoutLoading === planKey && (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    )}
                     {checkoutLoading === planKey
                       ? 'Processing...'
                       : isCurrent
@@ -369,6 +449,28 @@ export default function BillingPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Manage Billing Section ────────────────────────────── */}
+      {billingStatus && (billingStatus.subscription_status === 'active' || billingStatus.subscription_status === 'past_due') && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Manage Billing</h3>
+            <p className="text-sm text-slate-500">
+              View invoices, update payment method, or cancel your subscription.
+            </p>
+          </div>
+          <button
+            onClick={handleOpenPortal}
+            disabled={portalLoading}
+            className="shrink-0 rounded-lg bg-slate-100 text-slate-900 hover:bg-slate-200 px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {portalLoading && (
+              <span className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+            )}
+            {portalLoading ? 'Opening...' : 'Manage Billing & Invoices'}
+          </button>
+        </div>
       )}
 
       {/* Toast */}
