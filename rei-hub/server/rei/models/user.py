@@ -41,6 +41,7 @@ class User(Base):
     helm_addon_active: Mapped[bool] = mapped_column(Boolean, default=False)
     helm_addon_billing_interval: Mapped[str | None] = mapped_column(String, nullable=True)
     seats_used: Mapped[int] = mapped_column(Integer, default=1)
+    trial_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(

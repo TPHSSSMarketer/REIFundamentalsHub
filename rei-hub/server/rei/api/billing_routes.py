@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -23,6 +24,11 @@ from rei.config import (
 )
 from rei.models.user import User
 from rei.services import paypal as paypal_service
+from rei.services.email import (
+    send_payment_failed_email,
+    send_subscription_active_email,
+    send_subscription_canceled_email,
+)
 
 logger = logging.getLogger(__name__)
 billing_router = APIRouter(prefix="/billing", tags=["billing"])
@@ -390,6 +396,8 @@ async def _handle_stripe_checkout_completed(data_object: dict, db: AsyncSession)
     await db.commit()
     logger.info("User %s activated: plan=%s interval=%s", user_id, plan, interval)
 
+    asyncio.create_task(send_subscription_active_email(user, get_settings()))
+
 
 async def _handle_stripe_subscription_updated(data_object: dict, db: AsyncSession) -> None:
     sub_id = data_object.get("id")
@@ -428,6 +436,8 @@ async def _handle_stripe_subscription_deleted(data_object: dict, db: AsyncSessio
     await db.commit()
     logger.info("User %s subscription canceled", user.id)
 
+    asyncio.create_task(send_subscription_canceled_email(user, get_settings()))
+
 
 async def _handle_stripe_payment_failed(data_object: dict, db: AsyncSession) -> None:
     customer_id = data_object.get("customer")
@@ -445,6 +455,8 @@ async def _handle_stripe_payment_failed(data_object: dict, db: AsyncSession) -> 
     user.subscription_status = "past_due"
     await db.commit()
     logger.info("User %s marked past_due", user.id)
+
+    asyncio.create_task(send_payment_failed_email(user, get_settings()))
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -550,6 +562,8 @@ async def _handle_paypal_subscription_activated(resource: dict, db: AsyncSession
     await db.commit()
     logger.info("User %s activated via PayPal: plan=%s interval=%s", user_id, plan, interval)
 
+    asyncio.create_task(send_subscription_active_email(user, get_settings()))
+
 
 async def _handle_paypal_subscription_cancelled(resource: dict, db: AsyncSession) -> None:
     subscription_id = resource.get("id")
@@ -568,6 +582,8 @@ async def _handle_paypal_subscription_cancelled(resource: dict, db: AsyncSession
     await db.commit()
     logger.info("User %s PayPal subscription canceled", user.id)
 
+    asyncio.create_task(send_subscription_canceled_email(user, get_settings()))
+
 
 async def _handle_paypal_subscription_payment_failed(resource: dict, db: AsyncSession) -> None:
     subscription_id = resource.get("id")
@@ -585,3 +601,5 @@ async def _handle_paypal_subscription_payment_failed(resource: dict, db: AsyncSe
     user.subscription_status = "past_due"
     await db.commit()
     logger.info("User %s marked past_due via PayPal", user.id)
+
+    asyncio.create_task(send_payment_failed_email(user, get_settings()))
