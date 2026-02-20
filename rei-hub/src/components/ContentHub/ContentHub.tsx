@@ -3,8 +3,6 @@ import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload,
 import { toast } from 'sonner'
 import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, helmSaveContentToCloud, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
 import PublishHistory, { PublishEntry } from './PublishHistory'
-import { useBilling } from '@/hooks/useBilling'
-import UpgradePrompt from '@/components/Common/UpgradePrompt'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -25,10 +23,6 @@ const PLATFORMS: { key: PlatformKey; label: string; emoji: string }[] = [
 ]
 
 export default function ContentHub() {
-  const { billingStatus } = useBilling()
-  const planAllowed = !billingStatus || ['pro', 'team'].includes(billingStatus.plan?.toLowerCase() ?? '')
-  if (!planAllowed) return <UpgradePrompt featureName="ContentHub" requiredPlan="Pro" />
-
   const [sourceMode, setSourceMode] = useState<'text' | 'url'>('text')
   const [sourceText, setSourceText] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')

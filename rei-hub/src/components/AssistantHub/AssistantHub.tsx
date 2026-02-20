@@ -21,8 +21,6 @@ import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
 import { helmChat, HelmProxyError } from '../../services/helmProxy'
 import type { Contact } from '@/types'
-import { useBilling } from '@/hooks/useBilling'
-import UpgradePrompt from '@/components/Common/UpgradePrompt'
 
 type ActiveTab = 'voice' | 'sms' | 'email'
 
@@ -59,10 +57,6 @@ const personas: Persona[] = [
 ]
 
 export default function AssistantHub() {
-  const { billingStatus } = useBilling()
-  const planAllowed = !billingStatus || ['pro', 'team'].includes(billingStatus.plan?.toLowerCase() ?? '')
-  if (!planAllowed) return <UpgradePrompt featureName="AssistantHub" requiredPlan="Pro" />
-
     const [activeTab, setActiveTab] = useState<ActiveTab>('voice')
     const [activePersona, setActivePersona] = useState('lead-qualifier')
     const [isHelmConnected, setIsHelmConnected] = useState(false)
