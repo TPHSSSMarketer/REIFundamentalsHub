@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm Hub — Systems Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--card:#161b22;--card2:#1c2128;--border:#30363d;
+  --blue:#58a6ff;--blue-dim:#79c0ff;--green:#3fb950;--yellow:#d29922;
+  --red:#f85149;--gray:#8b949e;--text:#e6edf3;--text-dim:#8b949e;
+  --radius:12px;--radius-sm:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5}
+a{color:var(--blue);text-decoration:none}
+
+.wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+
+/* Header */
+.header{text-align:center;margin-bottom:8px}
+.header h1{font-size:2rem;font-weight:700;color:var(--blue)}
+.header .sub{color:var(--gray);font-size:.85rem;letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+.meta-row{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-size:.8rem;color:var(--gray)}
+.refresh-btn{background:var(--card2);color:var(--blue);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:.8rem;cursor:pointer;transition:border-color .15s}
+.refresh-btn:hover{border-color:var(--blue)}
+.divider{height:2px;margin:20px 0 28px;background:linear-gradient(90deg,transparent,var(--border),transparent);border:none}
+
+/* Stats row */
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:32px}
+.stat{flex:1;min-width:160px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;text-align:center}
+.stat .num{font-size:1.8rem;font-weight:700;color:var(--blue)}
+.stat .num.green{color:var(--green)}
+.stat .lbl{font-size:.7rem;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+
+/* Section titles */
+.section-title{font-size:.75rem;font-weight:600;color:var(--blue-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;margin-top:36px}
+
+/* Agent cards */
+.agent-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agent-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;display:flex;flex-direction:column}
+.agent-card.primary{grid-column:span 2}
+.agent-head{display:flex;align-items:center;justify-content:space-between}
+.agent-name{font-weight:600;font-size:1rem}
+.alias{display:inline-block;background:#21262d;border-radius:4px;padding:2px 8px;font-size:.7rem;color:var(--blue-dim);margin-left:8px}
+.tier{border-radius:4px;padding:2px 8px;font-size:.75rem;font-weight:600}
+.tier-paid{background:#4d2d00;color:#e3b341}
+.tier-free{background:#1b4332;color:var(--green)}
+.tier-unknown{background:#21262d;color:var(--gray)}
+.agent-role{color:var(--gray);font-size:.85rem;margin-top:4px}
+
+/* Plugin rows */
+.plugin-list{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.plugin-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.plugin-row:last-child{border-bottom:none}
+
+/* Badges */
+.badge{display:inline-block;font-size:.75rem;font-weight:600;padding:2px 10px;border-radius:4px}
+.badge-green{background:#1b4332;color:var(--green)}
+.badge-red{background:#3d1214;color:var(--red)}
+.badge-gray{background:#21262d;color:var(--gray);border:1px solid var(--border)}
+.badge-yellow{background:#3d2e00;color:var(--yellow)}
+
+/* Pipeline */
+.pipeline{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px}
+.pipe-node{padding:8px 14px;border-radius:20px;font-size:.85rem;font-weight:500;border-width:2px;border-style:solid}
+.pipe-ok{border-color:var(--green);background:rgba(63,185,80,.1);color:var(--green)}
+.pipe-warn{border-color:var(--yellow);background:rgba(210,153,34,.1);color:var(--yellow)}
+.pipe-unknown{border-color:var(--gray);background:rgba(139,148,158,.08);color:var(--gray)}
+.pipe-down{border-color:var(--red);background:rgba(248,81,73,.1);color:var(--red)}
+.pipe-arrow{color:var(--border);font-size:.9rem}
+
+/* Integration grid */
+.int-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.int-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+
+/* REI Hub */
+.rei-card{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;margin-top:12px;display:flex;align-items:center;justify-content:space-between}
+
+/* Health */
+.health-card{border-radius:var(--radius-sm);padding:20px;margin-top:12px}
+.health-ok{background:rgba(63,185,80,.08);border:1px solid var(--green)}
+.health-warn{background:rgba(210,153,34,.08);border:1px solid var(--yellow)}
+.health-down{background:rgba(248,81,73,.08);border:1px solid var(--red)}
+.health-label{font-weight:700;font-size:1rem}
+.health-reasons{list-style:none;margin-top:8px}
+.health-reasons li{font-size:.85rem;color:var(--text-dim);padding:2px 0}
+.health-reasons li::before{content:"\26A0\FE0F ";margin-right:4px}
+
+.empty{color:var(--gray);font-style:italic;padding:16px;text-align:center}
+
+@media(max-width:600px){
+  .agent-grid{grid-template-columns:1fr}
+  .agent-card.primary{grid-column:span 1}
+  .int-grid{grid-template-columns:1fr}
+  .stats .stat{min-width:120px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Helm Hub</h1>
+    <div class="sub">AI Assistant &mdash; Systems Overview</div>
+  </div>
+  <div class="meta-row">
+    <span id="updated">Last updated: &mdash;</span>
+    <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+  </div>
+  <hr class="divider">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="num" id="s-agents">-</div><div class="lbl">AI Agents</div></div>
+    <div class="stat"><div class="num" id="s-plugins">-</div><div class="lbl">Plugins</div></div>
+    <div class="stat"><div class="num" id="s-integrations">-</div><div class="lbl">Integrations</div></div>
+    <div class="stat"><div class="num green" id="s-api">-</div><div class="lbl">API Status</div></div>
+  </div>
+
+  <!-- Agents -->
+  <div class="section-title">&#129302;&ensp;AI Agent Stack</div>
+  <div class="agent-grid" id="agents"></div>
+
+  <!-- Plugins -->
+  <div class="section-title">&#128268;&ensp;Active Plugins</div>
+  <div class="plugin-list" id="plugins"></div>
+
+  <!-- Pipeline -->
+  <div class="section-title">&#9889;&ensp;Conversation Pipeline</div>
+  <div class="pipeline" id="pipeline"></div>
+
+  <!-- Integrations -->
+  <div class="section-title">&#128279;&ensp;Integrations</div>
+  <div class="int-grid" id="integrations"></div>
+
+  <!-- REI Hub -->
+  <div class="section-title">&#127968;&ensp;REI Hub Connection</div>
+  <div id="reihub"></div>
+
+  <!-- Health -->
+  <div class="section-title">&#128154;&ensp;System Health</div>
+  <div id="health"></div>
+
+</div>
+
+<script>
+const API = window.location.origin + '/api/dashboard/summary';
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+function tierCls(t){
+  if(t==='Paid')return 'tier-paid';
+  if(t==='Free')return 'tier-free';
+  return 'tier-unknown';
+}
+
+function pipeCls(s){
+  if(s==='ok')return 'pipe-ok';
+  if(s==='warn')return 'pipe-warn';
+  if(s==='down')return 'pipe-down';
+  return 'pipe-unknown';
+}
+
+function badgeCls(s){
+  const sl=s.toLowerCase();
+  if(sl==='loaded'||sl==='configured'||sl==='active')return 'badge-green';
+  if(sl==='failed')return 'badge-red';
+  if(sl==='not configured')return 'badge-gray';
+  return 'badge-gray';
+}
+
+function healthCls(s){
+  if(s==='ok')return 'health-ok';
+  if(s==='warn')return 'health-warn';
+  return 'health-down';
+}
+
+function render(d){
+  // Updated time
+  const t=new Date(d.generated_at);
+  document.getElementById('updated').textContent='Last updated: '+t.toLocaleTimeString();
+
+  // Stats
+  const configuredCount=d.integrations.filter(i=>i.status==='Configured').length;
+  document.getElementById('s-agents').textContent=d.agents.length;
+  document.getElementById('s-plugins').textContent=d.plugins.length;
+  document.getElementById('s-integrations').textContent=configuredCount;
+  document.getElementById('s-api').textContent=d.server.status==='ok'?'Online':'Down';
+
+  // Agents
+  const ag=document.getElementById('agents');
+  if(!d.agents.length){
+    ag.innerHTML='<div class="empty">No agents configured</div>';
+  }else{
+    ag.innerHTML=d.agents.map((a,i)=>`
+      <div class="agent-card${a.is_primary?' primary':''}">
+        <div class="agent-head">
+          <span>
+            <span class="agent-name">${esc(a.name)}</span>
+            <span class="alias">${esc(a.alias)}</span>
+          </span>
+          <span class="tier ${tierCls(a.tier)}">${esc(a.tier)}</span>
+        </div>
+        <div class="agent-role">${esc(a.role)}</div>
+      </div>
+    `).join('');
+  }
+
+  // Plugins
+  const pl=document.getElementById('plugins');
+  if(!d.plugins.length){
+    pl.innerHTML='<div class="plugin-row empty">No plugins loaded &mdash; Helm running in general-purpose mode</div>';
+  }else{
+    pl.innerHTML=d.plugins.map(p=>`
+      <div class="plugin-row">
+        <span>${esc(p.name)}</span>
+        <span class="badge ${badgeCls(p.status)}">${esc(p.status)}</span>
+      </div>
+    `).join('');
+  }
+
+  // Pipeline
+  const pp=document.getElementById('pipeline');
+  pp.innerHTML=d.pipeline.map((n,i)=>{
+    const arrow=i<d.pipeline.length-1?'<span class="pipe-arrow">&rarr;</span>':'';
+    return `<span class="pipe-node ${pipeCls(n.status)}">${esc(n.label)}</span>${arrow}`;
+  }).join('');
+
+  // Integrations
+  const ig=document.getElementById('integrations');
+  ig.innerHTML=d.integrations.map(n=>`
+    <div class="int-card">
+      <span>${esc(n.name)}</span>
+      <span class="badge ${badgeCls(n.status)}">${esc(n.status)}</span>
+    </div>
+  `).join('');
+
+  // REI Hub
+  const rh=document.getElementById('reihub');
+  if(d.rei_hub.connected){
+    rh.innerHTML=`<div class="rei-card">
+      <div>
+        <div style="font-weight:600">REI Fundamentals Hub</div>
+        <div style="color:var(--gray);font-size:.85rem;margin-top:2px">${esc(d.rei_hub.url_display)}</div>
+      </div>
+      <span class="badge badge-green">Connected</span>
+    </div>`;
+  }else{
+    rh.innerHTML=`<div class="rei-card">
+      <span>REI Fundamentals Hub</span>
+      <span class="badge badge-gray">Not Connected</span>
+    </div>`;
+  }
+
+  // Health
+  const hc=document.getElementById('health');
+  const state=d.health.state;
+  const label=state==='ok'?'All systems operational':state==='warn'?'Warnings detected':'System degraded';
+  let reasonsHtml='';
+  if(d.health.reasons.length){
+    reasonsHtml='<ul class="health-reasons">'+d.health.reasons.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul>';
+  }
+  hc.innerHTML=`<div class="health-card ${healthCls(state)}">
+    <div class="health-label">${label}</div>
+    ${reasonsHtml}
+  </div>`;
+}
+
+async function fetchData(){
+  try{
+    const r=await fetch(API);
+    const d=await r.json();
+    render(d);
+  }catch(e){
+    document.getElementById('health').innerHTML=`<div class="health-card health-down">
+      <div class="health-label">Cannot reach Helm Hub API</div>
+      <ul class="health-reasons"><li>${esc(e.message)}</li></ul>
+    </div>`;
+  }
+}
+
+fetchData();
+</script>
+</body>
+</html>
