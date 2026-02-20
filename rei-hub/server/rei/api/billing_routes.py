@@ -1,4 +1,4 @@
-"""Billing routes — plan catalog, subscription status, Stripe checkout & webhooks."""
+"""Billing routes — plan catalog, subscription status, Stripe/PayPal checkout & webhooks."""
 
 from __future__ import annotations
 
@@ -12,8 +12,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
-from rei.config import PLANS, TRIAL_DAYS, get_addon_price_id, get_plan_price_id, get_settings
+from rei.config import (
+    PLANS,
+    TRIAL_DAYS,
+    get_addon_price_id,
+    get_paypal_addon_plan_id,
+    get_paypal_plan_id,
+    get_plan_price_id,
+    get_settings,
+)
 from rei.models.user import User
+from rei.services import paypal as paypal_service
 
 logger = logging.getLogger(__name__)
 billing_router = APIRouter(prefix="/billing", tags=["billing"])
@@ -92,6 +101,21 @@ def _can_access(user: User) -> dict[str, bool]:
     return {f: True for f in features}
 
 
+def _resolve_plan_from_paypal_plan_id(paypal_plan_id: str) -> tuple[str, str] | None:
+    """Match a PayPal plan_id back to (plan_key, interval).
+
+    Returns None if the plan_id doesn't match any configured plan.
+    """
+    settings = get_settings()
+    for plan_key in PLANS:
+        for interval in ("monthly", "annual"):
+            if get_paypal_plan_id(plan_key, interval, settings) == paypal_plan_id:
+                return (plan_key, interval)
+            if get_paypal_addon_plan_id(plan_key, interval, settings) == paypal_plan_id:
+                return (plan_key, interval)
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════
 # GET /billing/plans — public
 # ═══════════════════════════════════════════════════════════════
@@ -147,7 +171,7 @@ async def create_checkout(
     body: CreateCheckoutRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Create a Stripe checkout session for the requested plan."""
+    """Create a Stripe or PayPal checkout session for the requested plan."""
     if body.plan not in PLANS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,13 +190,22 @@ async def create_checkout(
 
     settings = get_settings()
 
+    if body.payment_method == "paypal":
+        return await _create_paypal_checkout(body, current_user, settings)
+
+    return await _create_stripe_checkout(body, current_user, settings)
+
+
+async def _create_stripe_checkout(
+    body: CreateCheckoutRequest, current_user: User, settings
+) -> dict:
+    """Create a Stripe Checkout Session."""
     if not settings.stripe_secret_key:
         return {
             "checkout_url": None,
             "message": "Stripe not yet configured — price IDs pending",
         }
 
-    # Build line items
     main_price_id = get_plan_price_id(body.plan, body.interval, settings)
     if not main_price_id:
         return {
@@ -216,6 +249,68 @@ async def create_checkout(
     return {"checkout_url": session.url, "message": "ok"}
 
 
+async def _create_paypal_checkout(
+    body: CreateCheckoutRequest, current_user: User, settings
+) -> dict:
+    """Create a PayPal Subscription via the Subscriptions API."""
+    if not settings.paypal_client_id:
+        return {
+            "checkout_url": None,
+            "message": "PayPal not yet configured",
+        }
+
+    plan_id = get_paypal_plan_id(body.plan, body.interval, settings)
+    if not plan_id:
+        return {
+            "checkout_url": None,
+            "message": "PayPal not yet configured — plan IDs pending",
+        }
+
+    return_url = (
+        f"{settings.rei_hub_url}/billing"
+        f"?paypal=success&plan={body.plan}&interval={body.interval}"
+        f"&helm_addon={str(body.helm_addon).lower()}"
+    )
+    cancel_url = f"{settings.rei_hub_url}/billing?paypal=cancel"
+
+    try:
+        response = await paypal_service.create_subscription(
+            plan_id=plan_id,
+            user_email=current_user.email,
+            user_id=str(current_user.id),
+            return_url=return_url,
+            cancel_url=cancel_url,
+            settings=settings,
+        )
+    except Exception as e:
+        logger.error("PayPal subscription creation error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PayPal error: {e}",
+        ) from e
+
+    # Find the approval URL from response links
+    approval_url = None
+    for link in response.get("links", []):
+        if link.get("rel") == "approve":
+            approval_url = link.get("href")
+            break
+
+    if not approval_url:
+        logger.error("PayPal subscription response missing approval link: %s", response)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PayPal did not return an approval URL",
+        )
+
+    # NOTE: PayPal doesn't support multiple plans in one subscription.
+    # If helm_addon is true and plan != team, the addon would need to be
+    # a separate subscription. For now we handle only the main plan here.
+    # Addon billing for PayPal users will be handled in a future iteration.
+
+    return {"checkout_url": approval_url, "message": "ok"}
+
+
 # ═══════════════════════════════════════════════════════════════
 # POST /billing/webhook/stripe — no auth
 # ═══════════════════════════════════════════════════════════════
@@ -249,13 +344,13 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     try:
         if event_type == "checkout.session.completed":
-            await _handle_checkout_completed(data_object, db)
+            await _handle_stripe_checkout_completed(data_object, db)
         elif event_type == "customer.subscription.updated":
-            await _handle_subscription_updated(data_object, db)
+            await _handle_stripe_subscription_updated(data_object, db)
         elif event_type == "customer.subscription.deleted":
-            await _handle_subscription_deleted(data_object, db)
+            await _handle_stripe_subscription_deleted(data_object, db)
         elif event_type == "invoice.payment_failed":
-            await _handle_payment_failed(data_object, db)
+            await _handle_stripe_payment_failed(data_object, db)
         else:
             logger.info("Unhandled Stripe event type: %s", event_type)
     except Exception:
@@ -264,7 +359,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     return {"received": True}
 
 
-async def _handle_checkout_completed(data_object: dict, db: AsyncSession) -> None:
+async def _handle_stripe_checkout_completed(data_object: dict, db: AsyncSession) -> None:
     metadata = data_object.get("metadata", {})
     user_id = metadata.get("user_id")
     subscription_id = data_object.get("subscription")
@@ -296,7 +391,7 @@ async def _handle_checkout_completed(data_object: dict, db: AsyncSession) -> Non
     logger.info("User %s activated: plan=%s interval=%s", user_id, plan, interval)
 
 
-async def _handle_subscription_updated(data_object: dict, db: AsyncSession) -> None:
+async def _handle_stripe_subscription_updated(data_object: dict, db: AsyncSession) -> None:
     sub_id = data_object.get("id")
     new_status = data_object.get("status", "")
 
@@ -316,7 +411,7 @@ async def _handle_subscription_updated(data_object: dict, db: AsyncSession) -> N
     logger.info("User %s subscription updated: status=%s", user.id, new_status)
 
 
-async def _handle_subscription_deleted(data_object: dict, db: AsyncSession) -> None:
+async def _handle_stripe_subscription_deleted(data_object: dict, db: AsyncSession) -> None:
     sub_id = data_object.get("id")
     if not sub_id:
         return
@@ -334,7 +429,7 @@ async def _handle_subscription_deleted(data_object: dict, db: AsyncSession) -> N
     logger.info("User %s subscription canceled", user.id)
 
 
-async def _handle_payment_failed(data_object: dict, db: AsyncSession) -> None:
+async def _handle_stripe_payment_failed(data_object: dict, db: AsyncSession) -> None:
     customer_id = data_object.get("customer")
     if not customer_id:
         return
@@ -388,18 +483,105 @@ async def billing_portal(current_user: User = Depends(get_current_user)):
 
 
 # ═══════════════════════════════════════════════════════════════
-# POST /billing/webhook/paypal — no auth (stub)
+# POST /billing/webhook/paypal — no auth
 # ═══════════════════════════════════════════════════════════════
 
 
 @billing_router.post("/webhook/paypal")
-async def paypal_webhook(request: Request):
-    """Handle PayPal webhook events. Stub — logs event type."""
+async def paypal_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle PayPal webhook events."""
     try:
         body = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        return {"received": True}
 
     event_type = body.get("event_type", "unknown")
+    resource = body.get("resource", {})
     logger.info("PayPal webhook received: %s", event_type)
+
+    try:
+        if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+            await _handle_paypal_subscription_activated(resource, db)
+        elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
+            await _handle_paypal_subscription_cancelled(resource, db)
+        elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED":
+            await _handle_paypal_subscription_payment_failed(resource, db)
+        else:
+            logger.info("Unhandled PayPal event type: %s", event_type)
+    except Exception:
+        logger.exception("Error processing PayPal event %s", event_type)
+
     return {"received": True}
+
+
+async def _handle_paypal_subscription_activated(resource: dict, db: AsyncSession) -> None:
+    user_id = resource.get("custom_id")
+    subscription_id = resource.get("id")
+    paypal_plan_id = resource.get("plan_id", "")
+
+    if not user_id:
+        logger.warning("PayPal ACTIVATED: no custom_id (user_id) in resource")
+        return
+
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("PayPal ACTIVATED: user %s not found", user_id)
+        return
+
+    # Resolve plan + interval from the PayPal plan_id
+    resolved = _resolve_plan_from_paypal_plan_id(paypal_plan_id)
+    if resolved:
+        plan, interval = resolved
+    else:
+        # Fallback: keep the user's existing plan/interval
+        plan = user.plan
+        interval = user.billing_interval
+        logger.warning(
+            "PayPal ACTIVATED: could not resolve plan_id %s, keeping existing plan=%s",
+            paypal_plan_id,
+            plan,
+        )
+
+    user.subscription_status = "active"
+    user.paypal_subscription_id = subscription_id
+    user.plan = plan
+    user.billing_interval = interval
+    await db.commit()
+    logger.info("User %s activated via PayPal: plan=%s interval=%s", user_id, plan, interval)
+
+
+async def _handle_paypal_subscription_cancelled(resource: dict, db: AsyncSession) -> None:
+    subscription_id = resource.get("id")
+    if not subscription_id:
+        return
+
+    result = await db.execute(
+        select(User).where(User.paypal_subscription_id == subscription_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("PayPal CANCELLED: no user with subscription %s", subscription_id)
+        return
+
+    user.subscription_status = "canceled"
+    await db.commit()
+    logger.info("User %s PayPal subscription canceled", user.id)
+
+
+async def _handle_paypal_subscription_payment_failed(resource: dict, db: AsyncSession) -> None:
+    subscription_id = resource.get("id")
+    if not subscription_id:
+        return
+
+    result = await db.execute(
+        select(User).where(User.paypal_subscription_id == subscription_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("PayPal PAYMENT.FAILED: no user with subscription %s", subscription_id)
+        return
+
+    user.subscription_status = "past_due"
+    await db.commit()
+    logger.info("User %s marked past_due via PayPal", user.id)

@@ -87,11 +87,12 @@ export default function BillingPage() {
   const [helmAddon, setHelmAddon] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe')
 
-  // Check for ?session_id= on mount (Stripe checkout success redirect)
+  // Check for ?session_id= or ?paypal=success on mount (checkout success redirect)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('session_id')) {
+    if (params.get('session_id') || params.get('paypal') === 'success') {
       setShowSuccess(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -131,7 +132,7 @@ export default function BillingPage() {
         token,
         planKey,
         annual ? 'annual' : 'monthly',
-        'stripe',
+        paymentMethod,
         planKey === 'team' ? false : helmAddon,
       )
       if (res.checkout_url) {
@@ -321,6 +322,32 @@ export default function BillingPage() {
                   </span>
                 )}
               </label>
+            </div>
+
+            {/* Payment method selector */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('stripe')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  paymentMethod === 'stripe'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Pay with Stripe
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('paypal')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  paymentMethod === 'paypal'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Pay with PayPal
+              </button>
             </div>
 
             <p className="mt-3 text-sm text-slate-500">
