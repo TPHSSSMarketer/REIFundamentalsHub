@@ -1,237 +1,130 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Home,
-  Zap,
-  Phone,
-  Megaphone,
-  Search,
   Kanban,
-  Star,
-  CalendarCheck,
-  Smartphone,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle,
-  ArrowRight,
   Users,
+  Search,
   Building2,
-  Briefcase,
+  Megaphone,
+  Zap,
 } from 'lucide-react'
+import { getPlans, type PlanInfo } from '@/services/billingApi'
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+
+function cents(amount: number): string {
+  return `$${(amount / 100).toLocaleString()}`
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  pipeline: 'Pipeline',
+  contacts: 'Contacts',
+  markets: 'Markets',
+  portfolio: 'Portfolio',
+  content_hub: 'ContentHub',
+  wordpress_publish: 'WordPress Publish',
+  cloud_sync: 'Cloud Sync',
+  assistant_hub: 'AssistantHub',
+  csv_export: 'CSV Export',
+  priority_support: 'Priority Support',
+  helm_hub: 'Helm Hub AI',
+}
+
+const PLAN_ORDER = ['starter', 'pro', 'team'] as const
+
+/* ── Feature Cards Data ─────────────────────────────────────── */
 
 const features = [
   {
-    name: 'DealCloser AI',
-    tagline: 'Your 24/7 Follow-Up Machine',
-    description:
-      'Never lose a deal again. DealCloser AI keeps your leads warm with intelligent, real-time SMS, email, and DM follow-up — personalized to the conversation.',
-    icon: Zap,
-    color: 'bg-accent-100 text-accent-600',
-  },
-  {
-    name: 'CallCommander AI',
-    tagline: 'Your Inbound Call Assistant that Talks Like a Human',
-    description:
-      'CallCommander AI answers calls, qualifies sellers, captures property info, and schedules appointments — all while you\'re out closing deals or off the clock.',
-    icon: Phone,
-    color: 'bg-primary-100 text-primary-600',
-  },
-  {
-    name: 'AdFuel',
-    tagline: 'Launch High-Converting Real Estate Ads in Minutes',
-    description:
-      'Get motivated seller leads flowing with plug-and-play ad templates tailored for wholesaling, creative finance, and distressed properties.',
-    icon: Megaphone,
-    color: 'bg-orange-100 text-orange-600',
-  },
-  {
-    name: 'LeadGen AI',
-    tagline: 'Get More Motivated Sellers On Autopilot',
-    description:
-      'Tap into cutting-edge data tools and targeting strategies to identify off-market sellers ready to act — before your competition even knows they exist.',
-    icon: Search,
-    color: 'bg-emerald-100 text-emerald-600',
-  },
-  {
-    name: 'REI Pipeline Manager',
-    tagline: 'Track Every Lead, Deal, and Dollar with Ease',
-    description:
-      'Visually manage your deals from first contact to close with drag-and-drop simplicity. Perfect for keeping your follow-ups and profits on track.',
+    name: 'Deal Pipeline',
+    description: 'Track every deal from lead to close',
     icon: Kanban,
     color: 'bg-blue-100 text-blue-600',
+    badge: null as string | null,
   },
   {
-    name: 'Reputation Booster',
-    tagline: 'Dominate Local Search & Build Trust Fast',
-    description:
-      'Automate review requests, boost your Google profile, and build trust with sellers — even before they speak to you.',
-    icon: Star,
-    color: 'bg-yellow-100 text-yellow-600',
-  },
-  {
-    name: 'Smart Scheduler',
-    tagline: 'Let Leads Book Directly Into Your Calendar',
-    description:
-      'Ditch the back-and-forth. Let sellers and buyers book meetings with you in real time based on your actual availability.',
-    icon: CalendarCheck,
-    color: 'bg-purple-100 text-purple-600',
-  },
-  {
-    name: 'Mobile Command App',
-    tagline: 'Your Entire Real Estate Business In Your Pocket',
-    description:
-      'Access your CRM, follow-ups, leads, and call data from anywhere. Whether you\'re in the field or at a closing, you\'re always in control.',
-    icon: Smartphone,
-    color: 'bg-teal-100 text-teal-600',
-  },
-]
-
-const benefits = [
-  'Built specifically for wholesalers & creative dealmakers',
-  'Everything in one platform (no more duct-taped tools)',
-  'Automated follow-up and voice AI closes more deals',
-  'Simple enough to launch in 24–48 hours',
-  'Full onboarding, setup, and templates included',
-  'No long-term contracts',
-]
-
-const audiences = [
-  {
-    title: 'Do Wholesaling',
-    description: 'Need consistent motivated seller leads',
-    icon: Building2,
-  },
-  {
-    title: 'Work Subject-To / Creative Finance',
-    description: 'Want to close with less competition',
-    icon: Briefcase,
-  },
-  {
-    title: 'Are Solopreneurs',
-    description: 'Need systems without hiring a team',
+    name: 'Contact Management',
+    description: 'Keep all your sellers, buyers, and agents organized',
     icon: Users,
+    color: 'bg-emerald-100 text-emerald-600',
+    badge: null as string | null,
+  },
+  {
+    name: 'Market Analysis',
+    description: 'Analyze rent-to-price ratios and market trends',
+    icon: Search,
+    color: 'bg-orange-100 text-orange-600',
+    badge: null as string | null,
+  },
+  {
+    name: 'Portfolio Tracking',
+    description: 'Monitor equity, cash flow, and property performance',
+    icon: Building2,
+    color: 'bg-purple-100 text-purple-600',
+    badge: null as string | null,
+  },
+  {
+    name: 'Content Hub',
+    description: 'Generate investor content and publish to WordPress',
+    icon: Megaphone,
+    color: 'bg-yellow-100 text-yellow-600',
+    badge: 'Pro',
+  },
+  {
+    name: 'AI Assistant',
+    description: 'Connect Helm Hub for AI-powered deal insights',
+    icon: Zap,
+    color: 'bg-accent-100 text-accent-600',
+    badge: 'Add-on',
   },
 ]
 
-interface FaqItem {
-  category: string
-  question: string
-  answer: string
-}
+/* ── Testimonials Data ───────────────────────────────────────── */
 
-const faqItems: FaqItem[] = [
+const testimonials = [
   {
-    category: 'General',
-    question: 'What is REIFundamentalsHUB?',
-    answer:
-      'REIFundamentalsHUB is an all-in-one software suite built specifically for real estate investors. It helps you automate lead intake, manage contacts, launch marketing campaigns, generate contracts, and close deals — all from one centralized platform.',
+    quote: 'REI Hub replaced 3 separate tools for us.',
+    name: 'Sarah K.',
+    role: 'Wholesaler',
   },
   {
-    category: 'General',
-    question: 'Who is REIFundamentalsHUB for?',
-    answer:
-      "It's designed for real estate wholesalers, subject-to investors, lease option pros, and creative dealmakers who want to scale without hiring a big team. Whether you're brand new or experienced, the HUB acts like your full-time assistant.",
+    quote: 'The pipeline view alone is worth it.',
+    name: 'Marcus T.',
+    role: 'Buy & Hold Investor',
   },
   {
-    category: 'General',
-    question: 'Do I need to be tech-savvy to use the platform?',
-    answer:
-      'Nope. REIFundamentalsHUB is built with simplicity in mind. It comes with step-by-step tutorials, automations already set up, and our team is here to support you every step of the way.',
-  },
-  {
-    category: 'Features',
-    question: 'What tools are included in REIFundamentalsHUB?',
-    answer:
-      'The HUB includes tools for lead generation, follow-up automation, contract generation, pipeline management, SMS/email marketing, task reminders, and more. Every tool is designed to replace hours of manual work.',
-  },
-  {
-    category: 'Features',
-    question: 'Can I customize workflows and automations?',
-    answer:
-      'Yes! You can fully customize your follow-up sequences, pipelines, tags, triggers, and even how leads move through your system.',
-  },
-  {
-    category: 'Features',
-    question: 'Does the platform include built-in marketing tools?',
-    answer:
-      'Absolutely. You can launch SMS blasts, email campaigns, ringless voicemails, landing pages, and even track KPIs — all without needing third-party tools.',
-  },
-  {
-    category: 'Security',
-    question: 'Is my data secure?',
-    answer:
-      'Yes. REIFundamentalsHUB uses encrypted data storage, secure login protocols, and role-based access to protect your business and your leads.',
-  },
-  {
-    category: 'Security',
-    question: 'Can I add team members or VAs?',
-    answer:
-      'Yes — you can give team members access to specific areas like follow-up, CRM, or marketing without giving full admin access.',
-  },
-  {
-    category: 'Billing',
-    question: 'How much does REIFundamentalsHUB cost?',
-    answer:
-      'Pricing depends on your plan level and number of users. We offer flexible monthly and annual options.',
-  },
-  {
-    category: 'Billing',
-    question: 'Are there any hidden fees?',
-    answer:
-      'No hidden fees. Your subscription includes full access to the tools, automations, and training. SMS and call usage are pay-as-you-go and clearly itemized.',
-  },
-  {
-    category: 'Billing',
-    question: 'Can I cancel at any time?',
-    answer:
-      'Yes. There are no contracts or long-term commitments. Cancel anytime from your dashboard.',
-  },
-  {
-    category: 'Support',
-    question: 'Do you offer onboarding help?',
-    answer:
-      'Yes — every user gets access to a guided onboarding path, video tutorials, live Q&A calls, and support from real investors who use the platform.',
-  },
-  {
-    category: 'Support',
-    question: 'Is there live support available?',
-    answer:
-      'Yes, we offer chat support during business hours, a support ticket system, and optional 1-on-1 onboarding or tech help if needed.',
-  },
-  {
-    category: 'Support',
-    question: 'Will you help me get my first deal using the HUB?',
-    answer:
-      "100%. Our system is designed to guide you step-by-step — from launching your first campaign to closing your first deal. If you need accountability or deal coaching, that's available too.",
+    quote: 'Finally a CRM that speaks investor language.',
+    name: 'Diana R.',
+    role: 'Fix & Flip',
   },
 ]
 
-function FaqAccordion({ item }: { item: FaqItem }) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 transition-colors"
-      >
-        <span className="font-medium text-slate-800 pr-4">{item.question}</span>
-        {isOpen ? (
-          <ChevronUp className="w-5 h-5 text-slate-400 shrink-0" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />
-        )}
-      </button>
-      {isOpen && (
-        <div className="px-4 pb-4">
-          <p className="text-slate-600 leading-relaxed">{item.answer}</p>
-        </div>
-      )}
-    </div>
-  )
-}
+/* ── Main Component ──────────────────────────────────────────── */
 
 export default function LandingPage() {
+  const [plans, setPlans] = useState<Record<string, PlanInfo> | null>(null)
+  const [trialDays, setTrialDays] = useState(7)
+  const [annual, setAnnual] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    getPlans()
+      .then((res) => {
+        if (!cancelled) {
+          setPlans(res.plans)
+          setTrialDays(res.trial_days)
+        }
+      })
+      .catch(() => {
+        /* pricing section will simply not render */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -250,17 +143,17 @@ export default function LandingPage() {
               <a href="#features" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
                 Features
               </a>
-              <a href="#who-is-this-for" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
-                Who It's For
+              <a href="#pricing" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
+                Pricing
               </a>
-              <a href="#faq" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
-                FAQ
-              </a>
+              <Link to="/login" className="text-sm text-slate-600 hover:text-primary-700 transition-colors">
+                Login
+              </Link>
               <Link
-                to="/dashboard"
+                to="/register"
                 className="px-4 py-2 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 transition-colors"
               >
-                Get Started
+                Register
               </Link>
             </div>
           </div>
@@ -269,7 +162,7 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-72 h-72 bg-accent-500 rounded-full filter blur-3xl" />
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary-400 rounded-full filter blur-3xl" />
@@ -277,56 +170,28 @@ export default function LandingPage() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              Close More Real Estate Deals with{' '}
-              <span className="text-accent-400">Automation & AI</span>
+              The CRM Built for{' '}
+              <span className="text-accent-400">Real Estate Investors</span>
             </h1>
-            <p className="text-xl md:text-2xl text-primary-200 mb-4">
-              Built for Wholesalers + Subject-To Investors
-            </p>
-            <p className="text-lg text-primary-300 max-w-3xl mx-auto mb-10">
-              REIFundamentals Hub is your all-in-one marketing engine, lead manager, and virtual
-              acquisition assistant. Everything you need to find, follow up, and close deals —
-              without hiring a team.
+            <p className="text-xl md:text-2xl text-slate-300 mb-10 max-w-3xl mx-auto">
+              Track deals, manage contacts, analyze markets, and grow your portfolio
+              &mdash; all in one place.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                to="/dashboard"
+                to="/register"
                 className="px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
               >
-                Get Started Today
+                Start Free Trial
               </Link>
               <a
                 href="#features"
                 className="px-8 py-4 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors text-lg border border-white/20"
               >
-                See It In Action
+                See How It Works
               </a>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Social Proof Bar */}
-      <section className="bg-slate-50 border-b border-slate-200 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-slate-500 text-sm font-medium">
-            Trusted by real estate investors closing deals across the country
-          </p>
-        </div>
-      </section>
-
-      {/* Problem Statement */}
-      <section className="py-16 md:py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-6">
-            Are you tired of chasing dead leads, missing calls, and managing 10 different tools?
-          </h2>
-          <p className="text-lg text-slate-600 leading-relaxed">
-            Welcome to REIFundamentals Hub — the all-in-one software suite designed for real estate
-            investors by investors who actually do deals. From marketing automation to lead follow-up
-            to AI-powered voice calls, REIFundamentals Hub gives you every tool you need to
-            consistently find and close motivated sellers — all under one roof.
-          </p>
         </div>
       </section>
 
@@ -335,225 +200,257 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
-              Here's What You Get Inside REIFundamentals Hub
+              Everything You Need to Close More Deals
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Eight powerful tools working together to help you find, follow up, and close more deals.
+              Six powerful tools designed specifically for real estate investors.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
               <div
                 key={feature.name}
-                className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all group"
+                className="relative bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all group"
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}>
+                {feature.badge && (
+                  <span
+                    className={`absolute top-4 right-4 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+                      feature.badge === 'Pro'
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'bg-accent-100 text-accent-700'
+                    }`}
+                  >
+                    {feature.badge}
+                  </span>
+                )}
+                <div
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}
+                >
                   <feature.icon className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-primary-700 transition-colors">
+                <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-primary-700 transition-colors">
                   {feature.name}
                 </h3>
-                <p className="text-sm font-medium text-accent-600 mb-3">{feature.tagline}</p>
-                <p className="text-sm text-slate-600 leading-relaxed">{feature.description}</p>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {feature.description}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Who Is This For */}
-      <section id="who-is-this-for" className="py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
-              Designed for Real Estate Investors Who:
-            </h2>
-          </div>
+      {/* Pricing Section */}
+      {plans && (
+        <section id="pricing" className="py-16 md:py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
+                Simple, Transparent Pricing
+              </h2>
+              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                Choose the plan that fits your investing business.
+              </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {audiences.map((audience) => (
-              <div
-                key={audience.title}
-                className="text-center p-8 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-shadow"
-              >
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <audience.icon className="w-8 h-8 text-primary-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{audience.title}</h3>
-                <p className="text-slate-600">{audience.description}</p>
+              {/* Billing toggle */}
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <span
+                  className={`text-sm font-medium ${!annual ? 'text-slate-900' : 'text-slate-500'}`}
+                >
+                  Monthly
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAnnual(!annual)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    annual ? 'bg-primary-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      annual ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+                <span
+                  className={`text-sm font-medium ${annual ? 'text-slate-900' : 'text-slate-500'}`}
+                >
+                  Annual
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-16 md:py-20 bg-gradient-to-br from-primary-800 to-primary-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 text-center">
-              Why REIFundamentals Hub Beats Every Other CRM or Investor Tool Stack
-            </h2>
-            <p className="text-primary-300 text-center mb-10 text-lg">
-              Everything you need, nothing you don't.
-            </p>
-            <div className="space-y-4">
-              {benefits.map((benefit) => (
-                <div key={benefit} className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-accent-400 shrink-0 mt-0.5" />
-                  <span className="text-white text-lg">{benefit}</span>
-                </div>
-              ))}
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Testimonials Placeholder */}
-      <section className="py-16 md:py-20">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {PLAN_ORDER.map((planKey) => {
+                const plan = plans[planKey]
+                if (!plan) return null
+
+                const isPopular = planKey === 'pro'
+                const price = annual
+                  ? plan.annual_price_cents
+                  : plan.monthly_price_cents
+                const period = annual ? '/yr' : '/mo'
+                const helmPrice = annual
+                  ? plan.helm_addon_annual_cents
+                  : plan.helm_addon_monthly_cents
+                const helmIncluded = plan.features.includes('helm_hub')
+
+                return (
+                  <div
+                    key={planKey}
+                    className={`relative bg-white rounded-xl shadow-sm border p-8 flex flex-col ${
+                      isPopular
+                        ? 'border-primary-500 ring-2 ring-primary-500'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    {isPopular && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                        Most Popular
+                      </span>
+                    )}
+
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {plan.name}
+                    </h3>
+
+                    <div className="mt-4 flex items-baseline gap-1">
+                      <span className="text-4xl font-extrabold text-slate-900">
+                        {cents(price)}
+                      </span>
+                      <span className="text-slate-500 text-sm">{period}</span>
+                    </div>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      Up to{' '}
+                      {plan.max_seats === 999 ? 'unlimited' : plan.max_seats}{' '}
+                      user{plan.max_seats !== 1 ? 's' : ''}
+                    </p>
+
+                    <ul className="mt-6 space-y-3 flex-1">
+                      {plan.features.map((f) => (
+                        <li
+                          key={f}
+                          className="flex items-start gap-2 text-sm text-slate-700"
+                        >
+                          <span className="text-primary-600 mt-0.5">
+                            &#10003;
+                          </span>
+                          {FEATURE_LABELS[f] ?? f}
+                        </li>
+                      ))}
+
+                      {helmIncluded ? (
+                        <li className="flex items-start gap-2 text-sm text-slate-700">
+                          <span className="text-primary-600 mt-0.5">
+                            &#10003;
+                          </span>
+                          Helm Hub AI{' '}
+                          <span className="inline-block bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                            Included
+                          </span>
+                        </li>
+                      ) : helmPrice > 0 ? (
+                        <li className="flex items-start gap-2 text-sm text-slate-700">
+                          <span className="text-primary-600 mt-0.5">+</span>
+                          Helm Hub add-on (+{cents(helmPrice)}
+                          {period})
+                        </li>
+                      ) : null}
+                    </ul>
+
+                    <Link
+                      to="/register"
+                      className={`mt-8 w-full rounded-lg py-2.5 text-sm font-medium transition-colors flex items-center justify-center ${
+                        isPopular
+                          ? 'bg-primary-600 text-white hover:bg-primary-700'
+                          : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                      }`}
+                    >
+                      Start Free Trial
+                    </Link>
+                  </div>
+                )
+              })}
+            </div>
+
+            <p className="text-center text-sm text-slate-500 mt-8">
+              {trialDays}-day free trial, no credit card required
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Social Proof / Testimonials Section */}
+      <section className="py-16 md:py-20 bg-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
-              Investors Are Closing Deals in Weeks, Not Months
+              What Investors Are Saying
             </h2>
-            <p className="text-lg text-slate-600">
-              See what real estate investors are saying about REIFundamentals Hub.
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {testimonials.map((t) => (
               <div
-                key={i}
+                key={t.name}
                 className="bg-white rounded-xl border border-slate-200 p-6"
               >
-                <div className="flex items-center gap-1 mb-4">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-slate-600 italic mb-4">
-                  "REIFundamentals Hub completely transformed how I manage my deals. The AI follow-up alone has helped me close deals I would have lost."
+                <span className="text-4xl text-slate-300 leading-none">
+                  &ldquo;
+                </span>
+                <p className="text-slate-700 italic mt-2 mb-6">{t.quote}</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  &mdash; {t.name},{' '}
+                  <span className="font-normal text-slate-500">{t.role}</span>
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <span className="text-primary-700 font-bold text-sm">R{i}</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">REI Investor</p>
-                    <p className="text-sm text-slate-500">Wholesaler</p>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section id="faq" className="py-16 md:py-20 bg-slate-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-lg text-slate-600">
-              Everything you need to know about REIFundamentals Hub.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {faqItems.map((item, index) => (
-              <FaqAccordion key={index} item={item} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-16 md:py-24 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 right-20 w-64 h-64 bg-accent-500 rounded-full filter blur-3xl" />
-        </div>
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-            Ready to Ignite Your Deals?
-          </h2>
-          <p className="text-xl text-primary-200 mb-4">
-            Let us show you how it works — no pressure, no tech skills needed.
-          </p>
-          <p className="text-primary-300 mb-10">
-            We'll show you how investors are closing their first deals within 14–30 days
-            using our tools — even with ZERO tech experience.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2 px-8 py-4 bg-accent-600 text-white font-semibold rounded-xl hover:bg-accent-700 transition-colors text-lg shadow-lg shadow-accent-600/25"
-            >
-              Get Started Now
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <a
-              href="#features"
-              className="px-8 py-4 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors text-lg border border-white/20"
-            >
-              Book Your Free Demo
-            </a>
-          </div>
-          <p className="text-primary-400 text-sm mt-6">
-            No contracts. No tech headaches. Just more deals.
-          </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-primary-900 text-white py-12">
+      <footer className="bg-slate-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* Brand */}
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
-                  <Home className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-lg">REI Fundamentals Hub</span>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
+                <Home className="w-5 h-5 text-white" />
               </div>
-              <p className="text-primary-400 text-sm mb-1">
-                Power Up Your Real Estate Business
-              </p>
-              <p className="text-primary-400 text-sm max-w-md">
-                The all-in-one software suite designed for real estate investors
-                by investors who actually do deals.
-              </p>
+              <span className="font-bold text-lg">REI Fundamentals Hub</span>
             </div>
-
-            {/* Quick Links */}
-            <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-primary-400">
-                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#who-is-this-for" className="hover:text-white transition-colors">Who It's For</a></li>
-                <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
-                <li><Link to="/dashboard" className="hover:text-white transition-colors">Dashboard</Link></li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-primary-400">
-                <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Refund Policy</a></li>
-              </ul>
+            <div className="flex items-center gap-6 text-sm text-slate-400">
+              <a
+                href="#features"
+                className="hover:text-white transition-colors"
+              >
+                Features
+              </a>
+              <a
+                href="#pricing"
+                className="hover:text-white transition-colors"
+              >
+                Pricing
+              </a>
+              <Link
+                to="/login"
+                className="hover:text-white transition-colors"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="hover:text-white transition-colors"
+              >
+                Register
+              </Link>
             </div>
           </div>
-
-          <div className="border-t border-primary-800 mt-10 pt-6 text-center">
-            <p className="text-sm text-primary-500">
-              &copy; {new Date().getFullYear()} REI Fundamentals Hub. All rights reserved.
+          <div className="border-t border-slate-800 mt-8 pt-6 text-center">
+            <p className="text-sm text-slate-500">
+              &copy; 2025 REIFundamentals Hub. All rights reserved.
             </p>
           </div>
         </div>
