@@ -29,10 +29,15 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
 
     # ── AI Backend ──────────────────────────────────────────────────────
-    ai_backend: str = "anthropic"  # "anthropic", "openrouter", or "claude_cli"
+    ai_backend: str = "anthropic"  # "anthropic", "openrouter", "claude_cli", or "nvidia"
     openrouter_model: str = "anthropic/claude-sonnet-4-5-20250929"
     openrouter_model_opus: str = "anthropic/claude-opus-4-6"
     claude_cli_timeout: int = 120  # Seconds before CLI subprocess times out
+
+    # ── NVIDIA NIM (OpenAI-compatible API) ────────────────────────────
+    nvidia_api_key: str = ""
+    nvidia_model: str = "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./helm.db"
