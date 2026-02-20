@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm Hub — Billing &amp; Subscription</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--card:#161b22;--card2:#1c2128;--border:#30363d;
+  --blue:#58a6ff;--blue-dim:#79c0ff;--green:#3fb950;--yellow:#d29922;
+  --red:#f85149;--gray:#8b949e;--text:#e6edf3;--text-dim:#8b949e;
+  --radius:12px;--radius-sm:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.5}
+a{color:var(--blue);text-decoration:none}
+
+.wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+
+/* Header */
+.header{text-align:center;margin-bottom:8px}
+.header h1{font-size:2rem;font-weight:700;color:var(--blue)}
+.header .sub{color:var(--gray);font-size:.85rem;letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+.divider{height:2px;margin:20px 0 28px;background:linear-gradient(90deg,transparent,var(--border),transparent);border:none}
+
+/* Section titles */
+.section-title{font-size:.75rem;font-weight:600;color:var(--blue-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;margin-top:36px}
+
+/* Banners */
+.banner{border-radius:var(--radius-sm);padding:14px 20px;margin-bottom:20px;font-size:.9rem;font-weight:500;display:none}
+.banner-success{background:rgba(63,185,80,.12);border:1px solid var(--green);color:var(--green)}
+.banner-warning{background:rgba(210,153,34,.12);border:1px solid var(--yellow);color:var(--yellow)}
+.banner-error{background:rgba(248,81,73,.12);border:1px solid var(--red);color:var(--red)}
+
+/* Current plan card */
+.plan-status{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:8px}
+.plan-status-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.plan-name{font-size:1.3rem;font-weight:700}
+.badge{display:inline-block;font-size:.75rem;font-weight:600;padding:2px 10px;border-radius:4px}
+.badge-green{background:#1b4332;color:var(--green)}
+.badge-yellow{background:#3d2e00;color:var(--yellow)}
+.badge-red{background:#3d1214;color:var(--red)}
+.badge-gray{background:#21262d;color:var(--gray);border:1px solid var(--border)}
+.plan-features{margin-top:12px;color:var(--text-dim);font-size:.85rem}
+.plan-features span{display:inline-block;background:#21262d;border-radius:4px;padding:2px 8px;margin:3px 4px 3px 0;font-size:.75rem}
+
+/* Toggle */
+.toggle-row{display:flex;justify-content:center;align-items:center;gap:12px;margin-bottom:20px}
+.toggle-label{font-size:.85rem;color:var(--gray);cursor:pointer}
+.toggle-label.active{color:var(--text);font-weight:600}
+.toggle-switch{position:relative;width:44px;height:24px;background:var(--border);border-radius:12px;cursor:pointer;transition:background .2s}
+.toggle-switch.on{background:var(--blue)}
+.toggle-switch::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;background:var(--text);border-radius:50%;transition:transform .2s}
+.toggle-switch.on::after{transform:translateX(20px)}
+.savings-note{font-size:.75rem;color:var(--green);margin-left:8px}
+
+/* Pricing cards */
+.pricing-grid{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.pricing-card{flex:1;min-width:240px;max-width:300px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:28px 24px;display:flex;flex-direction:column;position:relative;transition:border-color .2s}
+.pricing-card:hover{border-color:var(--blue)}
+.pricing-card.popular{border-color:var(--blue)}
+.popular-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--blue);color:#0d1117;font-size:.7rem;font-weight:700;padding:3px 12px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em}
+.pricing-card h3{font-size:1.2rem;font-weight:700;margin-bottom:4px}
+.pricing-price{font-size:2rem;font-weight:700;color:var(--blue);margin:8px 0 4px}
+.pricing-price span{font-size:.85rem;font-weight:400;color:var(--gray)}
+.pricing-annual{font-size:.8rem;color:var(--gray);margin-bottom:16px;min-height:1.2em}
+.pricing-features{list-style:none;flex:1;margin-bottom:20px}
+.pricing-features li{font-size:.85rem;color:var(--text-dim);padding:4px 0}
+.pricing-features li::before{content:"\2713 ";color:var(--green);font-weight:700;margin-right:6px}
+.btn{display:block;width:100%;padding:10px 16px;border:none;border-radius:var(--radius-sm);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:opacity .15s}
+.btn-primary{background:var(--blue);color:#0d1117}
+.btn-primary:hover{opacity:.85}
+.btn-outline{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.btn-outline:hover{background:rgba(88,166,255,.1)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.current-tag{display:block;width:100%;padding:10px 16px;text-align:center;font-size:.85rem;font-weight:600;color:var(--green);background:rgba(63,185,80,.1);border:1px solid var(--green);border-radius:var(--radius-sm)}
+
+/* Manage billing */
+.manage-section{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-top:8px;display:none}
+.manage-section p{color:var(--text-dim);font-size:.85rem;margin-bottom:14px}
+
+/* Footer */
+.footer{text-align:center;color:var(--gray);font-size:.75rem;margin-top:48px;padding-top:20px;border-top:1px solid var(--border)}
+
+/* Loading */
+.loading{text-align:center;color:var(--gray);padding:40px;font-size:.9rem}
+
+@media(max-width:600px){
+  .pricing-grid{flex-direction:column;align-items:center}
+  .pricing-card{max-width:100%;min-width:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Helm Hub</h1>
+    <div class="sub">Billing &amp; Subscription</div>
+  </div>
+  <hr class="divider">
+
+  <!-- Success banner (shown when redirected from checkout) -->
+  <div class="banner banner-success" id="success-banner">Subscription activated! You now have full access.</div>
+
+  <!-- Trial warning banner -->
+  <div class="banner banner-warning" id="trial-banner"></div>
+
+  <!-- Past-due banner -->
+  <div class="banner banner-error" id="pastdue-banner">Payment failed — please update your billing information.</div>
+
+  <!-- Current plan status -->
+  <div class="section-title">Current Plan</div>
+  <div class="plan-status" id="plan-status">
+    <div class="loading">Loading billing status&hellip;</div>
+  </div>
+
+  <!-- Pricing -->
+  <div class="section-title">Plans &amp; Pricing</div>
+
+  <div class="toggle-row">
+    <span class="toggle-label active" id="lbl-monthly">Monthly</span>
+    <div class="toggle-switch" id="interval-toggle" role="button" tabindex="0" aria-label="Toggle annual billing"></div>
+    <span class="toggle-label" id="lbl-annual">Annual</span>
+    <span class="savings-note" id="savings-note" style="display:none">Save ~16%</span>
+  </div>
+
+  <div class="pricing-grid" id="pricing-grid">
+    <div class="loading">Loading plans&hellip;</div>
+  </div>
+
+  <!-- Manage billing -->
+  <div class="section-title" id="manage-title" style="display:none">Manage Subscription</div>
+  <div class="manage-section" id="manage-section">
+    <p>View invoices, update payment method, or cancel your subscription through the Stripe billing portal.</p>
+    <button class="btn btn-outline" id="manage-btn" onclick="openPortal()">Manage Billing &amp; Invoices</button>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">Helm Hub &middot; AI Assistant Platform</div>
+
+</div>
+
+<script>
+var BASE = window.location.origin;
+var currentStatus = null;
+var plansData = null;
+var isAnnual = false;
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function statusBadge(status) {
+  if (status === 'active') return '<span class="badge badge-green">Active</span>';
+  if (status === 'trialing') return '<span class="badge badge-yellow">Trial</span>';
+  if (status === 'past_due') return '<span class="badge badge-red">Past Due</span>';
+  if (status === 'canceled') return '<span class="badge badge-gray">Canceled</span>';
+  return '<span class="badge badge-gray">' + esc(status || 'Unknown') + '</span>';
+}
+
+/* ── Check for success redirect ───────────────────────────────────────── */
+(function checkSuccess() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.has('session_id')) {
+    document.getElementById('success-banner').style.display = 'block';
+    // Remove query param without reload
+    var url = window.location.pathname;
+    window.history.replaceState({}, document.title, url);
+  }
+})();
+
+/* ── Fetch billing status ─────────────────────────────────────────────── */
+async function fetchStatus() {
+  try {
+    var r = await fetch(BASE + '/api/billing/helm/status');
+    if (!r.ok) {
+      // User might not be logged in or no tenant
+      renderStatusFallback('No active subscription found. Choose a plan below to get started.');
+      return;
+    }
+    currentStatus = await r.json();
+    renderStatus(currentStatus);
+  } catch (e) {
+    renderStatusFallback('Unable to load billing status. You can still browse plans below.');
+  }
+}
+
+function renderStatusFallback(msg) {
+  document.getElementById('plan-status').innerHTML =
+    '<div style="color:var(--gray);font-size:.9rem">' + esc(msg) + '</div>';
+}
+
+function renderStatus(s) {
+  var planName = s.plan ? s.plan.charAt(0).toUpperCase() + s.plan.slice(1) : 'None';
+  var interval = s.billing_interval || '';
+  var intervalLabel = interval === 'annual' ? ' (Annual)' : interval === 'monthly' ? ' (Monthly)' : '';
+
+  var featuresHtml = '';
+  if (s.features && s.features.length) {
+    featuresHtml = '<div class="plan-features">Features: ';
+    s.features.forEach(function(f) {
+      featuresHtml += '<span>' + esc(f.replace(/_/g, ' ')) + '</span>';
+    });
+    featuresHtml += '</div>';
+  }
+
+  document.getElementById('plan-status').innerHTML =
+    '<div class="plan-status-row">' +
+      '<span class="plan-name">' + esc(planName + intervalLabel) + '</span>' +
+      statusBadge(s.subscription_status) +
+    '</div>' +
+    featuresHtml;
+
+  // Trial banner
+  if (s.subscription_status === 'trialing' && s.days_remaining_in_trial !== null) {
+    var tb = document.getElementById('trial-banner');
+    tb.textContent = 'Trial ends in ' + s.days_remaining_in_trial + ' day' +
+      (s.days_remaining_in_trial !== 1 ? 's' : '') + ' — upgrade to keep access.';
+    tb.style.display = 'block';
+  }
+
+  // Past due banner
+  if (s.subscription_status === 'past_due') {
+    document.getElementById('pastdue-banner').style.display = 'block';
+  }
+
+  // Show manage section for active/past_due
+  if (s.subscription_status === 'active' || s.subscription_status === 'past_due') {
+    document.getElementById('manage-section').style.display = 'block';
+    document.getElementById('manage-title').style.display = 'block';
+  }
+}
+
+/* ── Fetch plans ──────────────────────────────────────────────────────── */
+async function fetchPlans() {
+  try {
+    var r = await fetch(BASE + '/api/billing/helm/plans');
+    if (!r.ok) throw new Error('Failed to load plans');
+    plansData = await r.json();
+    renderPlans();
+  } catch (e) {
+    document.getElementById('pricing-grid').innerHTML =
+      '<div class="loading" style="color:var(--red)">Unable to load plans.</div>';
+  }
+}
+
+function renderPlans() {
+  if (!plansData || !plansData.plans) return;
+  var plans = plansData.plans;
+  var grid = document.getElementById('pricing-grid');
+
+  var soloFeatures = [
+    'AI Personas',
+    'SMS Drafting',
+    'Content Assist',
+    'Telegram Integration',
+    'WhatsApp Integration',
+    'Memory System',
+    'Heartbeat Check-ins',
+    '1 Seat'
+  ];
+
+  var proFeatures = [
+    'Everything in Solo',
+    'Full Assistant Hub',
+    'Content Hub AI',
+    'Priority Support',
+    'Up to 3 Seats'
+  ];
+
+  var soloMonthly = plans.solo ? plans.solo.monthly_price_cents / 100 : 79;
+  var soloAnnual = plans.solo ? plans.solo.annual_price_cents / 100 : 790;
+  var proMonthly = plans.pro ? plans.pro.monthly_price_cents / 100 : 149;
+  var proAnnual = plans.pro ? plans.pro.annual_price_cents / 100 : 1490;
+
+  var soloPrice = isAnnual ? soloAnnual : soloMonthly;
+  var proPrice = isAnnual ? proAnnual : proMonthly;
+  var priceSuffix = isAnnual ? '/yr' : '/mo';
+
+  var soloAnnualNote = isAnnual ? '$' + (soloAnnual / 12).toFixed(0) + '/mo billed annually' : '';
+  var proAnnualNote = isAnnual ? '$' + (proAnnual / 12).toFixed(0) + '/mo billed annually' : '';
+
+  var currentPlan = currentStatus ? currentStatus.plan : null;
+  var currentInterval = currentStatus ? currentStatus.billing_interval : null;
+  var subStatus = currentStatus ? currentStatus.subscription_status : null;
+  var isCurrent = function(plan) {
+    return currentPlan === plan && (subStatus === 'active' || subStatus === 'trialing');
+  };
+
+  function buildCard(key, name, price, suffix, annualNote, features, isPopular) {
+    var current = isCurrent(key);
+    var popularClass = isPopular ? ' popular' : '';
+    var popularBadge = isPopular ? '<div class="popular-badge">Most Popular</div>' : '';
+
+    var featList = '';
+    features.forEach(function(f) {
+      featList += '<li>' + esc(f) + '</li>';
+    });
+
+    var btnHtml;
+    if (current) {
+      btnHtml = '<div class="current-tag">Current Plan</div>';
+    } else {
+      var btnClass = isPopular ? 'btn btn-primary' : 'btn btn-outline';
+      btnHtml = '<button class="' + btnClass + '" onclick="selectPlan(\'' + key + '\')">Select Plan</button>';
+    }
+
+    return '<div class="pricing-card' + popularClass + '">' +
+      popularBadge +
+      '<h3>' + esc(name) + '</h3>' +
+      '<div class="pricing-price">$' + price + '<span>' + suffix + '</span></div>' +
+      '<div class="pricing-annual">' + esc(annualNote) + '</div>' +
+      '<ul class="pricing-features">' + featList + '</ul>' +
+      btnHtml +
+    '</div>';
+  }
+
+  grid.innerHTML =
+    buildCard('solo', 'Solo', soloPrice, priceSuffix, soloAnnualNote, soloFeatures, false) +
+    buildCard('pro', 'Pro', proPrice, priceSuffix, proAnnualNote, proFeatures, true);
+}
+
+/* ── Toggle annual/monthly ────────────────────────────────────────────── */
+document.getElementById('interval-toggle').addEventListener('click', function() {
+  isAnnual = !isAnnual;
+  this.classList.toggle('on', isAnnual);
+  document.getElementById('lbl-monthly').classList.toggle('active', !isAnnual);
+  document.getElementById('lbl-annual').classList.toggle('active', isAnnual);
+  document.getElementById('savings-note').style.display = isAnnual ? 'inline' : 'none';
+  renderPlans();
+});
+
+document.getElementById('interval-toggle').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    this.click();
+  }
+});
+
+/* ── Select plan → create checkout ────────────────────────────────────── */
+async function selectPlan(plan) {
+  var interval = isAnnual ? 'annual' : 'monthly';
+  try {
+    var r = await fetch(BASE + '/api/billing/helm/create-checkout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plan: plan, interval: interval})
+    });
+    var data = await r.json();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else {
+      alert('Billing setup coming soon');
+    }
+  } catch (e) {
+    alert('Billing setup coming soon');
+  }
+}
+
+/* ── Open billing portal ──────────────────────────────────────────────── */
+async function openPortal() {
+  var btn = document.getElementById('manage-btn');
+  btn.disabled = true;
+  btn.textContent = 'Opening portal\u2026';
+  try {
+    var r = await fetch(BASE + '/api/billing/helm/portal', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+    var data = await r.json();
+    if (data.portal_url) {
+      window.location.href = data.portal_url;
+    } else {
+      alert('Billing portal is not available yet.');
+      btn.disabled = false;
+      btn.textContent = 'Manage Billing & Invoices';
+    }
+  } catch (e) {
+    alert('Unable to open billing portal.');
+    btn.disabled = false;
+    btn.textContent = 'Manage Billing & Invoices';
+  }
+}
+
+/* ── Init ─────────────────────────────────────────────────────────────── */
+fetchStatus();
+fetchPlans();
+</script>
+</body>
+</html>
