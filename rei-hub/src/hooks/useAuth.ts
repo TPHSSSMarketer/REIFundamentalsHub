@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as authApi from '@/services/authApi'
 import type { AuthUser } from '@/types'
 
-const TOKEN_KEY = 'rei_auth_token'
+const TOKEN_KEY = 'rei_token'
 
 export function useAuth() {
   const [token, setToken] = useState<string | null>(null)
