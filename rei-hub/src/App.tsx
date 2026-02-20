@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Common/Layout'
+import ErrorBoundary from './components/Common/ErrorBoundary'
+import NotFoundPage from './components/Common/NotFoundPage'
 import Dashboard from './components/Dashboard/Dashboard'
 import Pipeline from './components/Pipeline/Pipeline'
 import Contacts from './components/Contacts/Contacts'
@@ -38,6 +40,7 @@ function AppLayout() {
         } />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<BillingPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Layout>
   )
@@ -45,23 +48,25 @@ function AppLayout() {
 
 function App() {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={isAuthenticated() ? <Navigate to="/pipeline" replace /> : <LandingPage />}
-      />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/pricing" element={<PricingPage />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route
+          path="/"
+          element={isAuthenticated() ? <Navigate to="/pipeline" replace /> : <LandingPage />}
+        />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </ErrorBoundary>
   )
 }
 

@@ -107,9 +107,10 @@ app = FastAPI(
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-_cors_origins: list[str] = ["*"] if not settings.is_production else []
-if settings.cors_origins:
-    _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if settings.app_env == "development":
+    _cors_origins = ["http://localhost:8000", "http://localhost:3000"]
+else:
+    _cors_origins = [settings.helm_hub_url]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

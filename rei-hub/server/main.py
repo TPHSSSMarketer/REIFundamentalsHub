@@ -51,10 +51,13 @@ app = FastAPI(
 )
 
 # CORS
-origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if settings.environment == "development":
+    _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
+else:
+    _cors_origins = [settings.rei_hub_url]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,7 +72,7 @@ app.include_router(plugin_router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "rei-hub"}
+    return {"status": "ok", "environment": settings.environment, "version": "1.0.0"}
 
 
 if __name__ == "__main__":

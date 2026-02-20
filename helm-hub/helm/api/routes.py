@@ -47,7 +47,9 @@ router = APIRouter()
 
 @router.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "Helm AI Assistant"}
+    from helm.config import get_settings
+    _settings = get_settings()
+    return {"status": "ok", "environment": _settings.app_env, "version": "1.0.0"}
 
 
 @router.get("/health/detailed")
