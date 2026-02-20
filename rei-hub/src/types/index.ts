@@ -123,3 +123,13 @@ export interface PortfolioProperty {
   createdAt: string
   updatedAt: string
 }
+
+// Auth user (matches backend UserResponse)
+export interface AuthUser {
+  id: number
+  email: string
+  fullName: string | null
+  isActive: boolean
+  isVerified: boolean
+  plan: string | null
+}
