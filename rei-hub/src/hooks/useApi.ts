@@ -36,7 +36,7 @@ function withAuth<T extends (...args: any[]) => Promise<any>>(fn: T): T {
 
 // ============ CONTACTS HOOKS ============
 
-export function useContacts() {
+export function useContacts(_options?: { limit?: number }) {
   return useQuery({
     queryKey: ['contacts'],
     queryFn: () => getContacts(USER_ID),

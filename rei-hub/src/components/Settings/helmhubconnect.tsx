@@ -25,7 +25,7 @@ export default function HelmHubConnect() {
     setErrorMessage('')
 
     try {
-      const res = await fetch(`${HELM_HUB_URL}/api/plugin/rei/entitlement`, {
+      const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/entitlement`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       })

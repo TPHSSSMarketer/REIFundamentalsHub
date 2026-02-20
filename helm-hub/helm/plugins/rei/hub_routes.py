@@ -572,9 +572,6 @@ def _summarize_event(event_type: str, data: dict) -> str | None:
     # Generic fallback
     return f"{event_type}: {str(data)[:200]}" if data else None
 
-    # Generic fallback
-    return f"{event_type}: {str(data)[:200]}" if data else None
-
 
 router.include_router(ai_proxy_router, prefix="/ai")
 @router.get("/context/files", dependencies=[Depends(get_current_user)])

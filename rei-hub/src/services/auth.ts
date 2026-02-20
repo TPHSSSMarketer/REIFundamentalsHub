@@ -2,36 +2,26 @@
 // This file wraps it for backward compatibility.
 
 /**
- * Authentication service — real JWT auth against FastAPI backend.
+ * Authentication service — delegates to authApi.ts for network calls.
  */
-import { getMe } from './authApi'
+import * as authApi from './authApi'
 
-export { getMe }
+export { getMe } from './authApi'
 
-const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 const TOKEN_KEY = 'rei_token'
 
-// ── Auth API calls ─────────────────────────────────────────────
+// ── Auth API calls (delegate to authApi.ts) ─────────────────────
 
 export async function login(
   email: string,
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      return { success: false, error: body.detail ?? 'Login failed' }
-    }
-    const data = await res.json()
+    const data = await authApi.login(email, password)
     localStorage.setItem(TOKEN_KEY, data.access_token)
     return { success: true }
-  } catch {
-    return { success: false, error: 'Network error — please try again' }
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Login failed' }
   }
 }
 
@@ -41,20 +31,11 @@ export async function register(
   name?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${BASE_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, full_name: name || null }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      return { success: false, error: body.detail ?? 'Registration failed' }
-    }
-    const data = await res.json()
+    const data = await authApi.register(email, password, name)
     localStorage.setItem(TOKEN_KEY, data.access_token)
     return { success: true }
-  } catch {
-    return { success: false, error: 'Network error — please try again' }
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Registration failed' }
   }
 }
 
@@ -74,7 +55,6 @@ export function isAuthenticated(): boolean {
   if (!token) return false
 
   try {
-    // Decode JWT payload (base64url → JSON)
     const parts = token.split('.')
     if (parts.length !== 3) return false
 
@@ -82,12 +62,9 @@ export function isAuthenticated(): boolean {
       atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
     )
 
-    // Check expiration
     if (typeof payload.exp === 'number') {
       return payload.exp > Date.now() / 1000
     }
-
-    // No exp claim — treat as valid
     return true
   } catch {
     return false
@@ -100,17 +77,13 @@ export function getAuthHeader(): Record<string, string> {
   return { Authorization: `Bearer ${token}` }
 }
 
-// ── Current user ──────────────────────────────────────────────
+// ── Current user (delegate to authApi.ts) ─────────────────────
 
 export async function getCurrentUser(): Promise<Record<string, unknown> | null> {
   const token = getToken()
   if (!token) return null
   try {
-    const res = await fetch(`${BASE_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return null
-    return res.json()
+    return await authApi.getMe(token)
   } catch {
     return null
   }

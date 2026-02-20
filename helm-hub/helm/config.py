@@ -117,6 +117,12 @@ class Settings(BaseSettings):
     # ── Google Chat ────────────────────────────────────────────────────
     google_chat_service_account_key: str = ""
 
+    # ── Discord ───────────────────────────────────────────────────────
+    discord_bot_token: str = ""
+
+    # ── WordPress ─────────────────────────────────────────────────────
+    wordpress_url: str = ""
+
     # ── Smart Check-ins ─────────────────────────────────────────────────
     checkin_enabled: bool = False
     checkin_interval_minutes: int = 30
