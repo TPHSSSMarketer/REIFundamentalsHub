@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     paypal_client_id: str = ""
     paypal_client_secret: str = ""
     paypal_base_url: str = "https://api-m.sandbox.paypal.com"
+    plugin_shared_secret: str = "change-me-in-production"
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
 

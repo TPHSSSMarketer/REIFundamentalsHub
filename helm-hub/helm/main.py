@@ -133,6 +133,9 @@ app.include_router(hub_billing_router, prefix="/api")
 from helm.api.cloud_storage_routes import cloud_storage_router
 app.include_router(cloud_storage_router, prefix="/api")
 
+from helm.api.dashboard_routes import dashboard_router
+app.include_router(dashboard_router, prefix="/api")
+
 # ── Static frontend ─────────────────────────────────────────────────────────
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
@@ -140,3 +143,7 @@ if FRONTEND_DIR.exists():
     @app.get("/")
     async def serve_frontend():
         return FileResponse(str(FRONTEND_DIR / "index.html"))
+
+    @app.get("/dashboard")
+    async def serve_dashboard():
+        return FileResponse(str(FRONTEND_DIR / "dashboard.html"))
