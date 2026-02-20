@@ -17,7 +17,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from helm.api.middleware import get_current_user, rate_limit, rate_limit_strict, rate_limit_webhook
-from helm.config import get_settings
+from helm.config import HELM_PLANS, HELM_TRIAL_DAYS, get_helm_plan_price_id, get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -473,3 +473,312 @@ async def _activate_tenant(tenant_id: str, stripe_customer_id: str | None = None
     except Exception as exc:
         logger.error("Failed to activate tenant: %s", exc)
         return False
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Helm Hub Standalone Billing (Solo / Pro plans)
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+@billing_router.get("/helm/plans")
+async def helm_plans():
+    """Return the Helm Hub plan catalog (public, no auth required)."""
+    # Strip internal Stripe price IDs before sending to client
+    safe_plans = {}
+    for key, plan in HELM_PLANS.items():
+        safe_plans[key] = {k: v for k, v in plan.items() if "price_id" not in k}
+    return {"plans": safe_plans, "trial_days": HELM_TRIAL_DAYS}
+
+
+@billing_router.get("/helm/status", dependencies=[Depends(rate_limit)])
+async def helm_billing_status(user: dict = Depends(get_current_user)):
+    """Return billing status for the current tenant's Helm Hub plan."""
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from helm.models.database import Tenant, async_session
+
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+
+    async with async_session() as session:
+        result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    now = datetime.now(timezone.utc)
+    trial_end = tenant.helm_trial_ends_at
+    is_trial_active = (
+        tenant.helm_subscription_status == "trialing"
+        and trial_end is not None
+        and trial_end > now
+    )
+    days_remaining = None
+    if is_trial_active and trial_end:
+        days_remaining = max(0, (trial_end - now).days)
+
+    plan_key = tenant.helm_plan or "solo"
+    plan_features = HELM_PLANS.get(plan_key, HELM_PLANS["solo"]).get("features", [])
+
+    sub_status = tenant.helm_subscription_status or "trialing"
+    has_access = sub_status in ("active", "trialing")
+
+    return {
+        "plan": tenant.helm_plan,
+        "billing_interval": tenant.helm_billing_interval,
+        "subscription_status": sub_status,
+        "trial_ends_at": trial_end.isoformat() if trial_end else None,
+        "subscription_ends_at": (
+            tenant.helm_subscription_ends_at.isoformat()
+            if tenant.helm_subscription_ends_at
+            else None
+        ),
+        "is_trial_active": is_trial_active,
+        "days_remaining_in_trial": days_remaining,
+        "features": plan_features,
+        "can_access": {f: has_access for f in plan_features},
+    }
+
+
+@billing_router.post("/helm/create-checkout", dependencies=[Depends(rate_limit_strict)])
+async def helm_create_checkout(request: Request, user: dict = Depends(get_current_user)):
+    """Create a Stripe Checkout Session for a Helm Hub Solo/Pro plan.
+
+    Body::
+
+        {
+            "plan": "solo" | "pro",
+            "interval": "monthly" | "annual"
+        }
+    """
+    import stripe
+
+    from sqlalchemy import select
+
+    from helm.models.database import Tenant, async_session
+
+    if not settings.helm_stripe_secret_key:
+        return {"checkout_url": None, "message": "Stripe not configured for Helm Hub plans"}
+
+    data = await request.json()
+    plan = data.get("plan", "solo")
+    interval = data.get("interval", "monthly")
+
+    if plan not in HELM_PLANS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
+    if interval not in ("monthly", "annual"):
+        raise HTTPException(status_code=400, detail=f"Invalid interval: {interval}")
+
+    price_id = get_helm_plan_price_id(plan, interval, settings)
+    if not price_id:
+        return {"checkout_url": None, "message": f"No Stripe price configured for {plan}/{interval}"}
+
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+
+    # Look up existing Stripe customer ID
+    customer_id = None
+    async with async_session() as session:
+        result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.scalar_one_or_none()
+        if tenant:
+            customer_id = tenant.helm_stripe_customer_id
+
+    stripe.api_key = settings.helm_stripe_secret_key
+    success_url = f"{settings.helm_hub_url}/billing?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{settings.helm_hub_url}/billing"
+
+    checkout_params: dict = {
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {"tenant_id": tenant_id, "plan": plan, "interval": interval},
+    }
+
+    if customer_id:
+        checkout_params["customer"] = customer_id
+    else:
+        checkout_params["customer_creation"] = "always"
+
+    try:
+        checkout_session = stripe.checkout.Session.create(**checkout_params)
+    except stripe.StripeError as exc:
+        logger.error("Stripe checkout error: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to create checkout session")
+
+    return {"checkout_url": checkout_session.url, "message": "Redirect to complete payment"}
+
+
+@billing_router.post("/helm/webhook/stripe", dependencies=[Depends(rate_limit_webhook)])
+async def helm_stripe_webhook(request: Request):
+    """Stripe webhook for Helm Hub standalone plans.
+
+    Uses the helm_stripe_webhook_secret to verify signatures independently
+    from the legacy Stripe webhook endpoint.
+    """
+    import stripe
+
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from helm.models.database import Tenant, async_session
+
+    if not settings.helm_stripe_secret_key or not settings.helm_stripe_webhook_secret:
+        raise HTTPException(status_code=503, detail="Helm Stripe webhook not configured")
+
+    body = await request.body()
+    sig_header = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            body, sig_header, settings.helm_stripe_webhook_secret
+        )
+    except (ValueError, stripe.SignatureVerificationError) as exc:
+        logger.warning("Helm Stripe webhook signature failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    logger.info("Helm Stripe webhook: %s", event_type)
+
+    if event_type == "checkout.session.completed":
+        tenant_id = obj.get("metadata", {}).get("tenant_id", "")
+        plan = obj.get("metadata", {}).get("plan", "solo")
+        interval = obj.get("metadata", {}).get("interval", "monthly")
+        customer_id = obj.get("customer", "")
+        subscription_id = obj.get("subscription", "")
+
+        if tenant_id:
+            async with async_session() as session:
+                result = await session.execute(
+                    select(Tenant).where(Tenant.id == tenant_id)
+                )
+                tenant = result.scalar_one_or_none()
+                if tenant:
+                    tenant.helm_plan = plan
+                    tenant.helm_billing_interval = interval
+                    tenant.helm_subscription_status = "active"
+                    tenant.helm_stripe_customer_id = customer_id
+                    tenant.helm_stripe_subscription_id = subscription_id
+                    tenant.helm_trial_ends_at = None
+                    await session.commit()
+                    logger.info("Helm plan activated: %s/%s for tenant %s", plan, interval, tenant_id)
+
+    elif event_type == "customer.subscription.updated":
+        sub_status = obj.get("status", "")
+        tenant_id = obj.get("metadata", {}).get("tenant_id", "")
+        if tenant_id:
+            async with async_session() as session:
+                result = await session.execute(
+                    select(Tenant).where(Tenant.id == tenant_id)
+                )
+                tenant = result.scalar_one_or_none()
+                if tenant:
+                    tenant.helm_subscription_status = sub_status
+                    if obj.get("current_period_end"):
+                        tenant.helm_subscription_ends_at = datetime.fromtimestamp(
+                            obj["current_period_end"], tz=timezone.utc
+                        )
+                    await session.commit()
+
+    elif event_type == "customer.subscription.deleted":
+        tenant_id = obj.get("metadata", {}).get("tenant_id", "")
+        if tenant_id:
+            async with async_session() as session:
+                result = await session.execute(
+                    select(Tenant).where(Tenant.id == tenant_id)
+                )
+                tenant = result.scalar_one_or_none()
+                if tenant:
+                    tenant.helm_subscription_status = "canceled"
+                    await session.commit()
+                    logger.info("Helm subscription cancelled for tenant %s", tenant_id)
+
+    elif event_type == "invoice.payment_failed":
+        customer_id = obj.get("customer", "")
+        logger.warning("Helm Stripe payment failed for customer %s", customer_id)
+
+    return {"status": "received"}
+
+
+@billing_router.post("/helm/portal", dependencies=[Depends(rate_limit)])
+async def helm_billing_portal(user: dict = Depends(get_current_user)):
+    """Create a Stripe Billing Portal session for Helm Hub plan management."""
+    import stripe
+
+    from sqlalchemy import select
+
+    from helm.models.database import Tenant, async_session
+
+    if not settings.helm_stripe_secret_key:
+        return {"portal_url": None}
+
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+
+    async with async_session() as session:
+        result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.scalar_one_or_none()
+
+    if not tenant or not tenant.helm_stripe_customer_id:
+        raise HTTPException(status_code=400, detail="No Stripe customer on file")
+
+    stripe.api_key = settings.helm_stripe_secret_key
+    return_url = f"{settings.helm_hub_url}/billing"
+
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=tenant.helm_stripe_customer_id,
+            return_url=return_url,
+        )
+    except stripe.StripeError as exc:
+        logger.error("Stripe portal error: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to create billing portal")
+
+    return {"portal_url": portal_session.url}
+
+
+@billing_router.post("/helm/cancel", dependencies=[Depends(rate_limit_strict)])
+async def helm_cancel_subscription(user: dict = Depends(get_current_user)):
+    """Cancel the current Helm Hub subscription at period end."""
+    import stripe
+
+    from sqlalchemy import select
+
+    from helm.models.database import Tenant, async_session
+
+    if not settings.helm_stripe_secret_key:
+        return {"message": "Stripe not configured"}
+
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+
+    async with async_session() as session:
+        result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.scalar_one_or_none()
+
+    if not tenant or not tenant.helm_stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="No active subscription to cancel")
+
+    stripe.api_key = settings.helm_stripe_secret_key
+
+    try:
+        stripe.Subscription.modify(
+            tenant.helm_stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+    except stripe.StripeError as exc:
+        logger.error("Stripe cancel error: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to cancel subscription")
+
+    return {"message": "Subscription will cancel at end of current billing period"}

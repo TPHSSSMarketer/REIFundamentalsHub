@@ -117,12 +117,21 @@ class Settings(BaseSettings):
     admin_tenant_id: str = ""           # Your personal tenant ID
     telegram_admin_user_id: str = ""    # Telegram user ID whitelist
 
-    # ── Stripe ────────────────────────────────────────────────────────────
+    # ── Stripe (legacy base/REI plugin) ────────────────────────────────────
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""   # whsec_... from Stripe Dashboard
     stripe_base_plan_price_id: str = ""  # price_... for the Helm base subscription
     stripe_rei_plugin_price_id: str = ""  # price_... for the REI plugin add-on
+
+    # ── Stripe (standalone Helm Hub plans: Solo / Pro) ───────────────────
+    helm_stripe_secret_key: str = ""
+    helm_stripe_webhook_secret: str = ""
+    helm_stripe_solo_monthly_price_id: str = ""
+    helm_stripe_solo_annual_price_id: str = ""
+    helm_stripe_pro_monthly_price_id: str = ""
+    helm_stripe_pro_annual_price_id: str = ""
+    helm_hub_url: str = "http://localhost:8000"
 
     # ── PayPal ────────────────────────────────────────────────────────────
     paypal_client_id: str = ""
@@ -152,3 +161,42 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# ── Helm Hub Plan Catalog ──────────────────────────────────────────────
+
+HELM_PLANS: dict[str, dict] = {
+    "solo": {
+        "name": "Solo",
+        "monthly_price_cents": 7900,
+        "annual_price_cents": 79000,
+        "stripe_monthly_price_id": "",
+        "stripe_annual_price_id": "",
+        "max_seats": 1,
+        "features": [
+            "ai_personas", "sms_drafting", "content_assist",
+            "telegram", "whatsapp", "memory", "heartbeat",
+        ],
+    },
+    "pro": {
+        "name": "Pro",
+        "monthly_price_cents": 14900,
+        "annual_price_cents": 149000,
+        "stripe_monthly_price_id": "",
+        "stripe_annual_price_id": "",
+        "max_seats": 3,
+        "features": [
+            "ai_personas", "sms_drafting", "content_assist",
+            "telegram", "whatsapp", "memory", "heartbeat",
+            "full_assistant_hub", "content_hub_ai", "priority_support",
+        ],
+    },
+}
+
+HELM_TRIAL_DAYS = 7
+
+
+def get_helm_plan_price_id(plan: str, interval: str, settings: Settings) -> str:
+    """Return the Stripe price ID for a Helm Hub plan + interval."""
+    key = f"helm_stripe_{plan}_{interval}_price_id"
+    return getattr(settings, key, "")
