@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     paypal_pro_addon_annual_plan_id: str = ""
     plugin_shared_secret: str = "change-me-in-production"
     rei_hub_url: str = "http://localhost:5173"
+    sendgrid_api_key: str = ""
+    email_from: str = "noreply@reifundamentalshub.com"
+    email_from_name: str = "REIFundamentals Hub"
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,7 @@ from rei.api.auth import create_access_token, decode_token, hash_password, verif
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
 from rei.models.user import Subscription, User
+from rei.services.email import send_welcome_email
 from rei.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -60,6 +62,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         data={"sub": user.id},
         expires_delta=timedelta(days=7),
     )
+
+    asyncio.create_task(send_welcome_email(user, get_settings()))
 
     return TokenResponse(
         access_token=token,
