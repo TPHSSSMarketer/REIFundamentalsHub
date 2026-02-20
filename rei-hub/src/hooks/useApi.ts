@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/services/api'
+import { getAuthHeader, logout } from '@/services/auth'
 import {
   getDeals,
   getDeal,
@@ -17,6 +18,21 @@ import type { Contact, Deal } from '@/types'
 import { toast } from 'sonner'
 
 const USER_ID = 'local-user'
+
+/** Wrap an async fn so that a 401 response triggers logout + redirect. */
+function withAuth<T extends (...args: any[]) => Promise<any>>(fn: T): T {
+  return (async (...args: any[]) => {
+    try {
+      const result = await fn(...args)
+      return result
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.status === 401) {
+        logout()
+      }
+      throw err
+    }
+  }) as T
+}
 
 // ============ CONTACTS HOOKS ============
 
@@ -179,9 +195,10 @@ export function useTasks() {
 
 export function useSendSMS() {
   return useMutation({
-    mutationFn: async ({ contactId, message }: { contactId: string; message: string }) => {
+    mutationFn: withAuth(async ({ contactId, message }: { contactId: string; message: string }) => {
+      void getAuthHeader() // ensure token is available
       return apiService.sendSMS(contactId, message)
-    },
+    }),
     onSuccess: () => {
       toast.success('SMS sent successfully')
     },
@@ -193,7 +210,7 @@ export function useSendSMS() {
 
 export function useSendEmail() {
   return useMutation({
-    mutationFn: async ({
+    mutationFn: withAuth(async ({
       contactId,
       subject,
       body,
@@ -202,8 +219,9 @@ export function useSendEmail() {
       subject: string
       body: string
     }) => {
+      void getAuthHeader() // ensure token is available
       return apiService.sendEmail(contactId, subject, body)
-    },
+    }),
     onSuccess: () => {
       toast.success('Email sent successfully')
     },

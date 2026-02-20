@@ -1,30 +1,30 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
+import { login } from '@/services/auth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login, error, setError, isLoading } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    try {
-      await login(email, password)
-      navigate('/dashboard')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
-  const busy = submitting || isLoading
+    const result = await login(email, password)
+
+    if (result.success) {
+      navigate('/pipeline')
+    } else {
+      setError(result.error ?? 'Login failed')
+    }
+
+    setSubmitting(false)
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
@@ -80,10 +80,13 @@ export default function LoginPage() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-primary-600 text-white py-2.5 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={submitting}
+            className="w-full rounded-lg bg-primary-600 text-white py-2.5 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
-            {busy ? 'Signing in…' : 'Sign In'}
+            {submitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {submitting ? 'Signing in\u2026' : 'Sign In'}
           </button>
         </form>
 

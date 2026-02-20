@@ -1,49 +1,43 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
+import { register } from '@/services/auth'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const { register, error, setError, isLoading } = useAuth()
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [clientError, setClientError] = useState<string | null>(null)
-
-  function validate(): boolean {
-    if (password.length < 8) {
-      setClientError('Password must be at least 8 characters')
-      return false
-    }
-    if (password !== confirmPassword) {
-      setClientError('Passwords do not match')
-      return false
-    }
-    setClientError(null)
-    return true
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!validate()) return
+    setError(null)
+
+    // Client-side validation
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
 
     setSubmitting(true)
-    setError(null)
-    try {
-      await register(email, password, fullName || undefined)
-      navigate('/dashboard')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Registration failed')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
-  const busy = submitting || isLoading
-  const displayError = clientError || error
+    const result = await register(email, password, fullName || undefined)
+
+    if (result.success) {
+      navigate('/pipeline')
+    } else {
+      setError(result.error ?? 'Registration failed')
+    }
+
+    setSubmitting(false)
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
@@ -63,9 +57,9 @@ export default function RegisterPage() {
             7-day free trial &mdash; no credit card required
           </div>
 
-          {displayError && (
+          {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
-              {displayError}
+              {error}
             </div>
           )}
 
@@ -135,11 +129,18 @@ export default function RegisterPage() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-primary-600 text-white py-2.5 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={submitting}
+            className="w-full rounded-lg bg-primary-600 text-white py-2.5 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
-            {busy ? 'Creating account…' : 'Start Free Trial'}
+            {submitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {submitting ? 'Creating account\u2026' : 'Start Free Trial'}
           </button>
+
+          <p className="text-xs text-slate-400 text-center">
+            7-day free trial &mdash; no credit card required
+          </p>
         </form>
 
         {/* Footer link */}
