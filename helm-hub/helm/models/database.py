@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     JSON,
@@ -67,6 +67,15 @@ class Tenant(Base):
     agent_config: Mapped[dict | None] = mapped_column(JSON, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    # ── Helm Hub Standalone Billing ──────────────────────────────────────
+    helm_plan: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    helm_billing_interval: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    helm_subscription_status: Mapped[str] = mapped_column(String(32), default="trialing")
+    helm_trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    helm_subscription_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    helm_stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    helm_stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Relationships
     conversations: Mapped[list[Conversation]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
