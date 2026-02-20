@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    environment: str = "development"
     database_url: str = "sqlite+aiosqlite:///./rei_hub.db"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
