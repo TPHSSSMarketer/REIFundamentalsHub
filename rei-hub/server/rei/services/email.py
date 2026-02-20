@@ -125,7 +125,7 @@ async def send_welcome_email(user: User, settings: Settings) -> bool:
     """Welcome email sent after registration."""
     name = user.full_name or user.email
     trial_date = _format_date(user.trial_ends_at)
-    hub_url = settings.rei_hub_url
+    hub_url = settings.hub_url
 
     body = (
         f"<p>Hi {name},</p>"
@@ -148,7 +148,7 @@ async def send_trial_ending_email(user: User, settings: Settings) -> bool:
     """Reminder sent 3 days before trial expires."""
     name = user.full_name or user.email
     trial_date = _format_date(user.trial_ends_at)
-    hub_url = settings.rei_hub_url
+    hub_url = settings.hub_url
 
     body = (
         f"<p>Hi {name},</p>"
@@ -171,7 +171,7 @@ async def send_subscription_active_email(user: User, settings: Settings) -> bool
     name = user.full_name or user.email
     plan = user.plan or "starter"
     interval = user.billing_interval or "monthly"
-    hub_url = settings.rei_hub_url
+    hub_url = settings.hub_url
 
     body = (
         f"<p>Hi {name},</p>"
@@ -192,7 +192,7 @@ async def send_subscription_active_email(user: User, settings: Settings) -> bool
 async def send_payment_failed_email(user: User, settings: Settings) -> bool:
     """Alert when a payment fails."""
     name = user.full_name or user.email
-    hub_url = settings.rei_hub_url
+    hub_url = settings.hub_url
 
     body = (
         f"<p>Hi {name},</p>"
@@ -213,7 +213,7 @@ async def send_payment_failed_email(user: User, settings: Settings) -> bool:
 async def send_subscription_canceled_email(user: User, settings: Settings) -> bool:
     """Notification when a subscription is canceled."""
     name = user.full_name or user.email
-    hub_url = settings.rei_hub_url
+    hub_url = settings.hub_url
 
     body = (
         f"<p>Hi {name},</p>"

@@ -1,8 +1,14 @@
+// NOTE: authApi.ts is the canonical API service.
+// This file wraps it for backward compatibility.
+
 /**
  * Authentication service — real JWT auth against FastAPI backend.
  */
+import { getMe } from './authApi'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8001'
+export { getMe }
+
+const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 const TOKEN_KEY = 'rei_token'
 
 // ── Auth API calls ─────────────────────────────────────────────
