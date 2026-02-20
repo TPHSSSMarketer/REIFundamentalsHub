@@ -148,3 +148,7 @@ if FRONTEND_DIR.exists():
     @app.get("/dashboard")
     async def serve_dashboard():
         return FileResponse(str(FRONTEND_DIR / "dashboard.html"))
+
+    @app.get("/billing")
+    async def serve_billing():
+        return FileResponse(str(FRONTEND_DIR / "billing.html"))
