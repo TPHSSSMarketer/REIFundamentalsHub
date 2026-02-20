@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -11,9 +12,11 @@ import {
   Settings,
   ChevronLeft,
   Home,
+  Shield,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
+import { getCurrentUser } from '@/services/auth'
 import { cn } from '@/utils/helpers'
 
 const navItems = [
@@ -31,6 +34,13 @@ const navItems = [
 export default function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useStore()
   const { billingStatus } = useBilling()
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user && user.is_admin) setIsAdmin(true)
+    })
+  }, [])
 
   return (
     <aside
@@ -86,6 +96,25 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors mt-4 border-t border-slate-100 pt-4',
+                isActive
+                  ? 'bg-primary-50 text-primary-600'
+                  : 'text-slate-600 hover:bg-slate-100'
+              )
+            }
+          >
+            <Shield className="w-5 h-5 shrink-0" />
+            {!isSidebarCollapsed && (
+              <span className="font-medium">Admin</span>
+            )}
+          </NavLink>
+        )}
       </nav>
 
       {/* Footer */}
