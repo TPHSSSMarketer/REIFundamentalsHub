@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -54,7 +54,7 @@ async def validate_plugin(
     sub = user.subscription
 
     if sub.status in ("trialing", "active"):
-        if sub.trial_ends_at is not None and sub.trial_ends_at < datetime.now(timezone.utc):
+        if sub.trial_ends_at is not None and sub.trial_ends_at < datetime.utcnow():
             return PluginValidationResponse(
                 active=False, plan=sub.plan, helm_addon=sub.helm_addon
             )

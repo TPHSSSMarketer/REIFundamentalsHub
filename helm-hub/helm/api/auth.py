@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from helm.config import get_settings
 
@@ -27,7 +27,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     from jose import jwt
 
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.jwt_expiration_minutes)
     )
     to_encode.update({"exp": expire})

@@ -101,11 +101,10 @@ class ApiService {
   async createDeal(deal: Partial<Deal>): Promise<Deal> {
     const response = await this.client.post('/opportunities/', {
       locationId: this.locationId,
-      pipelineId: deal.pipelineId,
-      pipelineStageId: deal.stageId,
+      pipelineStageId: deal.stage,
       contactId: deal.contactId,
       name: deal.title,
-      monetaryValue: deal.value,
+      monetaryValue: deal.purchasePrice,
       status: 'open',
     })
     return this.mapOpportunityToDeal(response.data.opportunity)
@@ -113,10 +112,9 @@ class ApiService {
 
   async updateDeal(dealId: string, updates: Partial<Deal>): Promise<Deal> {
     const response = await this.client.put(`/opportunities/${dealId}`, {
-      pipelineStageId: updates.stageId,
+      pipelineStageId: updates.stage,
       name: updates.title,
-      monetaryValue: updates.value,
-      status: updates.status,
+      monetaryValue: updates.purchasePrice,
     })
     return this.mapOpportunityToDeal(response.data.opportunity)
   }
@@ -255,25 +253,27 @@ class ApiService {
     firstName: contact.firstName || '',
     lastName: contact.lastName || '',
     name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown',
+    role: contact.role || 'seller',
     email: contact.email || '',
     phone: contact.phone || '',
     tags: contact.tags || [],
     source: contact.source || '',
-    dateAdded: contact.dateAdded,
+    interactionCount: contact.interactionCount ?? 0,
+    dateAdded: contact.dateAdded || new Date().toISOString(),
     lastActivity: contact.lastActivity,
   })
 
   private mapOpportunityToDeal = (opp: any): Deal => ({
     id: opp.id,
     title: opp.name || 'Untitled Deal',
-    value: opp.monetaryValue || 0,
-    stageId: opp.pipelineStageId,
-    pipelineId: opp.pipelineId,
+    address: opp.address || opp.name || '',
+    stage: opp.pipelineStageId || 'lead',
+    purchasePrice: opp.monetaryValue || 0,
     contactId: opp.contactId,
     contactName: opp.contact?.name || opp.contact?.firstName || 'Unknown',
-    status: opp.status || 'open',
-    createdAt: opp.createdAt,
-    updatedAt: opp.updatedAt,
+    isUrgent: opp.isUrgent ?? false,
+    createdAt: opp.createdAt || new Date().toISOString(),
+    updatedAt: opp.updatedAt || new Date().toISOString(),
   })
 }
 

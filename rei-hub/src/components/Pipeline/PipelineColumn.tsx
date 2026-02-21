@@ -23,7 +23,7 @@ export default function PipelineColumn({
     id: stage.id,
   })
 
-  const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0)
+  const totalValue = deals.reduce((sum, d) => sum + (d.purchasePrice || 0), 0)
 
   return (
     <div
