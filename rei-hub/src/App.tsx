@@ -11,6 +11,7 @@ import Portfolio from './components/Portfolio/Portfolio'
 import ProofOfFundsPage from './components/ProofOfFunds/ProofOfFundsPage'
 import DocumentsPage from './components/Documents/DocumentsPage'
 import EmailMarketingPage from './components/EmailMarketing/EmailMarketingPage'
+import PhonePage from './components/Phone/PhonePage'
 import Markets from './components/Markets/Markets'
 import Settings from './components/Settings/Settings'
 import LandingPage from './components/LandingPage/LandingPage'
@@ -35,6 +36,7 @@ function AppLayout() {
         <Route path="/proof-of-funds" element={<ProofOfFundsPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/email-marketing" element={<EmailMarketingPage />} />
+        <Route path="/phone" element={<PhonePage />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={
           <UpgradeGate feature="assistant_hub" requiredPlan="Pro">
