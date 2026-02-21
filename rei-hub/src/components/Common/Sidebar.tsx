@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   Home,
   Shield,
+  ShieldCheck,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/contacts', icon: Users, label: 'Contacts' },
   { to: '/markets', icon: MapPin, label: 'Markets' },
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
+  { to: '/proof-of-funds', icon: ShieldCheck, label: 'Proof of Funds' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },

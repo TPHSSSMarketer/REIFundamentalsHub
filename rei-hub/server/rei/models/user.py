@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from rei.database import Base
@@ -43,6 +43,10 @@ class User(Base):
     seats_used: Mapped[int] = mapped_column(Integer, default=1)
     trial_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # ── Plaid (Proof of Funds) ────────────────────────────────────
+    plaid_access_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    plaid_linked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -71,3 +75,20 @@ class Subscription(Base):
     )
 
     user: Mapped[User] = relationship("User", back_populates="subscription")
+
+
+class ProofOfFundsCertificate(Base):
+    __tablename__ = "pof_certificates"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    verified: Mapped[bool] = mapped_column(Boolean)
+    buyer_name: Mapped[str] = mapped_column(String)
+    buyer_email: Mapped[str] = mapped_column(String)
+    required_amount: Mapped[float] = mapped_column(Float)
+    available_balance_display: Mapped[str] = mapped_column(String)
+    property_address: Mapped[str] = mapped_column(String)
+    issued_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    certificate_data: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
