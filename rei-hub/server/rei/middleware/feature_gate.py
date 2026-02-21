@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import Depends, HTTPException
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user
 from rei.config import PLANS
 from rei.models.user import User
 
@@ -23,7 +23,6 @@ def require_feature(feature_slug: str):
 
     async def _check(
         user: User = Depends(get_current_user),
-        db=Depends(get_db),
     ) -> User:
         plan_key = getattr(user, "plan", "starter") or "starter"
         plan_features = PLANS.get(plan_key, {}).get("features", [])

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/hooks/useStore'
 import { useCreateDeal, usePipelines, useContacts } from '@/hooks/useApi'
+import type { Deal } from '@/types'
 
 export default function NewDealModal() {
   const { isNewDealModalOpen, setNewDealModalOpen } = useStore()
@@ -12,7 +13,7 @@ export default function NewDealModal() {
 
   const [formData, setFormData] = useState({
     title: '',
-    value: '',
+    purchasePrice: '',
     pipelineId: '',
     stageId: '',
     contactId: '',
@@ -25,18 +26,17 @@ export default function NewDealModal() {
 
     await createDeal.mutateAsync({
       title: formData.title,
-      value: parseFloat(formData.value) || 0,
-      pipelineId: formData.pipelineId,
-      stageId: formData.stageId,
+      purchasePrice: parseFloat(formData.purchasePrice) || 0,
+      stage: (formData.stageId as Deal['stage']) || 'lead',
       contactId: formData.contactId || undefined,
     })
 
-    setFormData({ title: '', value: '', pipelineId: '', stageId: '', contactId: '' })
+    setFormData({ title: '', purchasePrice: '', pipelineId: '', stageId: '', contactId: '' })
     setNewDealModalOpen(false)
   }
 
   const handleClose = () => {
-    setFormData({ title: '', value: '', pipelineId: '', stageId: '', contactId: '' })
+    setFormData({ title: '', purchasePrice: '', pipelineId: '', stageId: '', contactId: '' })
     setNewDealModalOpen(false)
   }
 
@@ -59,12 +59,12 @@ export default function NewDealModal() {
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Value ($)
+            Purchase Price ($)
           </label>
           <input
             type="number"
-            value={formData.value}
-            onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+            value={formData.purchasePrice}
+            onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value })}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="0"
           />
@@ -122,7 +122,7 @@ export default function NewDealModal() {
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">Select contact...</option>
-            {contactsData?.contacts.map((contact) => (
+            {contactsData?.map((contact) => (
               <option key={contact.id} value={contact.id}>
                 {contact.name} - {contact.phone || contact.email}
               </option>

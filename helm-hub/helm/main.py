@@ -38,7 +38,6 @@ async def lifespan(app: FastAPI):
 
     # Load persisted conversations into memory
     from helm.assistant.memory import memory
-    from helm.models.supabase_client import init_supabase
 
     loaded = await memory.load_from_db()
     if loaded:

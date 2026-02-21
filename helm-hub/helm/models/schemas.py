@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -38,7 +38,7 @@ class MessageRole(str, Enum):
 class ChatMessage(BaseModel):
     role: MessageRole
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ChatRequest(BaseModel):
@@ -54,7 +54,7 @@ class ChatResponse(BaseModel):
     model_tier: str = ""
     model_used: str = ""
     sources: list[str] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Personal Assistant ───────────────────────────────────────────────────────

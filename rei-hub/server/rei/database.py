@@ -20,12 +20,3 @@ async_session_factory = sessionmaker(
 
 class Base(DeclarativeBase):
     pass
-
-
-async def get_db():
-    """Yield an async database session."""
-    async with async_session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
