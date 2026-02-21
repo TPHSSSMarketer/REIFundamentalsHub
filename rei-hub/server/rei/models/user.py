@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -91,4 +93,24 @@ class ProofOfFundsCertificate(Base):
     issued_at: Mapped[datetime] = mapped_column(DateTime)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     certificate_data: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PofRequest(Base):
+    __tablename__ = "pof_requests"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    requestor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    buyer_email: Mapped[str] = mapped_column(String)
+    buyer_name: Mapped[str] = mapped_column(String)
+    property_address: Mapped[str] = mapped_column(String)
+    required_amount: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    request_token: Mapped[str] = mapped_column(String, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    certificate_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
