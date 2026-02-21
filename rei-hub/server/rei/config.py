@@ -50,8 +50,13 @@ class Settings(BaseSettings):
     google_drive_access_token: str = ""
     dropbox_access_token: str = ""
     sendgrid_api_key: str = ""
+    sendgrid_webhook_secret: str = ""
     email_from: str = "noreply@reifundamentalshub.com"
     email_from_name: str = "REIFundamentals Hub"
+
+    # ── Email Marketing provider ──────────────────────────────────
+    email_provider: str = "resend"  # "resend" to start, "sendgrid" when scaling
+    resend_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
 
@@ -113,6 +118,15 @@ PLANS: dict[str, dict] = {
 }
 
 TRIAL_DAYS = 7
+
+# ── Email Marketing plan limits ────────────────────────────────────────
+EMAIL_PLAN_LIMITS: dict[str, int] = {
+    "starter": 5000,
+    "pro": 25000,
+    "team": 100000,
+}
+
+OVERAGE_RATE_PER_THOUSAND = 1.50
 
 
 # ── Helpers to resolve Stripe price IDs from settings ──────────────────
