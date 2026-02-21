@@ -11,6 +11,8 @@ import {
   Clock,
   Trash2,
   Eye,
+  Database,
+  X,
 } from 'lucide-react'
 import {
   getLinkToken,
@@ -22,7 +24,9 @@ import {
   cancelRequest,
   getCertificate,
 } from '@/services/plaidApi'
+import { getDeals } from '@/services/db'
 import { getCurrentUser } from '@/services/auth'
+import type { Deal } from '@/types'
 
 interface Certificate {
   certificate_id: string
@@ -30,6 +34,7 @@ interface Certificate {
   buyer_name: string
   buyer_email: string
   required_amount: number
+  verified_amount_display?: string
   available_balance: string
   property_address: string
   issued_at: string
@@ -436,6 +441,12 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
   const [sendError, setSendError] = useState('')
   const [successEmail, setSuccessEmail] = useState('')
 
+  // Deal picker state
+  const [deals, setDeals] = useState<Deal[]>([])
+  const [showDealPicker, setShowDealPicker] = useState(false)
+  const [loadingDeals, setLoadingDeals] = useState(false)
+  const [pulledDealName, setPulledDealName] = useState('')
+
   const loadRequests = useCallback(async () => {
     try {
       const data = await getRequests()
@@ -505,6 +516,39 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
     const url = `${window.location.origin}/proof-of-funds?cert=${certId}`
     navigator.clipboard.writeText(url)
     showToast('Certificate link copied to clipboard')
+  }
+
+  const handleOpenDealPicker = async () => {
+    if (showDealPicker) {
+      setShowDealPicker(false)
+      return
+    }
+    setLoadingDeals(true)
+    try {
+      const allDeals = await getDeals('local-user')
+      setDeals(allDeals.filter((d) => d.address))
+      setShowDealPicker(true)
+    } catch {
+      showToast('Failed to load deals')
+    } finally {
+      setLoadingDeals(false)
+    }
+  }
+
+  const handleSelectDeal = (deal: Deal) => {
+    if (deal.purchasePrice) {
+      setReqAmount(String(deal.purchasePrice))
+    }
+    if (deal.address) {
+      const parts = [deal.address, deal.city, deal.state, deal.zip].filter(Boolean)
+      setPropAddress(parts.join(', '))
+    }
+    setPulledDealName(deal.title || deal.address)
+    setShowDealPicker(false)
+  }
+
+  const handleClearPulledDeal = () => {
+    setPulledDealName('')
   }
 
   const statusBadge = (s: string) => {
@@ -613,9 +657,47 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
               step="1000"
               placeholder="50000"
               value={reqAmount}
-              onChange={(e) => setReqAmount(e.target.value)}
+              onChange={(e) => { setReqAmount(e.target.value); setPulledDealName('') }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
+            <button
+              type="button"
+              onClick={handleOpenDealPicker}
+              disabled={loadingDeals}
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800 font-medium"
+            >
+              <Database className="w-3 h-3" />
+              {loadingDeals ? 'Loading deals...' : 'Pull from deal data'}
+            </button>
+            {showDealPicker && (
+              <div className="mt-1 border border-slate-200 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
+                {deals.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-3 text-center">No deals with addresses found</p>
+                ) : (
+                  deals.map((deal) => (
+                    <button
+                      key={deal.id}
+                      type="button"
+                      onClick={() => handleSelectDeal(deal)}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-slate-700 block truncate">{deal.title}</span>
+                      <span className="text-xs text-slate-400 block truncate">
+                        {deal.address}{deal.purchasePrice ? ` — $${deal.purchasePrice.toLocaleString()}` : ''}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {pulledDealName && (
+              <span className="mt-1.5 inline-flex items-center gap-1 text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">
+                Pulled from: {pulledDealName}
+                <button type="button" onClick={handleClearPulledDeal} className="hover:text-primary-900">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
           </div>
         </div>
 
@@ -808,8 +890,11 @@ function CertificateCard({
         <div>
           <span className="text-slate-500">Verified Amount:</span>{' '}
           <span className="font-semibold text-green-700">
-            {cert.available_balance}
+            {cert.verified_amount_display || cert.available_balance}
           </span>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Buyer confirmed funds meet this requirement
+          </p>
         </div>
         <div>
           <span className="text-slate-500">Issued:</span>{' '}

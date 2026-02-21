@@ -27,7 +27,7 @@ interface RequestData {
 
 interface VerifyResult {
   verified: boolean
-  available_balance: string
+  verified_amount_display: string
   requestor_name: string
 }
 
@@ -100,21 +100,13 @@ export default function BuyerVerifyPage() {
     try {
       const cert = await submitPublicVerification(requestToken, publicToken)
       const verified = cert.verified as boolean
-      const availableBalance = cert.available_balance as string
+      const verifiedDisplay = (cert.verified_amount_display || cert.available_balance) as string
 
-      if (verified) {
-        setResult({
-          verified: true,
-          available_balance: availableBalance,
-          requestor_name: request?.requestor_name || '',
-        })
-      } else {
-        setResult({
-          verified: false,
-          available_balance: availableBalance,
-          requestor_name: request?.requestor_name || '',
-        })
-      }
+      setResult({
+        verified,
+        verified_amount_display: verifiedDisplay,
+        requestor_name: request?.requestor_name || '',
+      })
     } catch {
       setErrorMsg('Verification failed. Please try again.')
     } finally {
@@ -229,7 +221,10 @@ export default function BuyerVerifyPage() {
               {result.requestor_name} has been notified.
             </p>
             <p className="text-green-700 font-semibold">
-              Your verified amount: {result.available_balance}
+              Verified Amount: {result.verified_amount_display}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              Buyer confirmed funds meet this requirement
             </p>
             <p className="text-xs text-slate-400 mt-3">
               This verification is valid for 24 hours.
