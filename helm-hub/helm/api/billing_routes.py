@@ -25,6 +25,17 @@ settings = get_settings()
 billing_router = APIRouter(prefix="/billing", tags=["billing"])
 
 
+# ── Future Payment Providers ─────────────────────────────────
+# X Money (xAI) — awaiting public API launch
+#   Status: Closed internal beta as of Feb 2026
+#   Track:  https://x.ai for developer documentation
+#   How to add: follow the paypal_service.py pattern
+#     1. Create xmoney_service.py in rei-hub/server/rei/services/
+#     2. Add "xmoney" case to create_checkout route
+#     3. Add POST /webhook/xmoney handler
+#     4. Add xmoney fields to User model
+# ─────────────────────────────────────────────────────────────
+
 # ── Stripe Endpoints ─────────────────────────────────────────────────────────
 
 
