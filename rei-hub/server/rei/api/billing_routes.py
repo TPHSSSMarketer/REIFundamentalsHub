@@ -188,6 +188,16 @@ async def create_checkout(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="interval must be 'monthly' or 'annual'",
         )
+    # ── Future Payment Providers ─────────────────────────────────
+    # X Money (xAI) — awaiting public API launch
+    #   Status: Closed internal beta as of Feb 2026
+    #   Track:  https://x.ai for developer documentation
+    #   How to add: follow the paypal_service.py pattern
+    #     1. Create xmoney_service.py in rei-hub/server/rei/services/
+    #     2. Add "xmoney" case to create_checkout route
+    #     3. Add POST /webhook/xmoney handler
+    #     4. Add xmoney fields to User model
+    # ─────────────────────────────────────────────────────────────
     if body.payment_method not in ("stripe", "paypal"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

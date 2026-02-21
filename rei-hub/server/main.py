@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from rei.api.admin_routes import admin_router
 from rei.api.auth_routes import auth_router
 from rei.api.billing_routes import billing_router
+from rei.api.plaid_routes import plaid_router
 from rei.api.plugin_routes import plugin_router
 from rei.config import get_settings
 from rei.database import async_session_factory
@@ -67,6 +68,7 @@ app.add_middleware(
 app.include_router(admin_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(billing_router, prefix="/api")
+app.include_router(plaid_router, prefix="/api")
 app.include_router(plugin_router, prefix="/api")
 
 

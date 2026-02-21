@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     paypal_starter_addon_annual_plan_id: str = ""
     paypal_pro_addon_monthly_plan_id: str = ""
     paypal_pro_addon_annual_plan_id: str = ""
+    plaid_client_id: str = ""
+    plaid_secret: str = ""
+    plaid_env: str = "sandbox"  # sandbox, development, production
+    plaid_products: str = "auth,identity,balance"
+    plaid_country_codes: str = "US"
     plugin_shared_secret: str = "change-me-in-production"
     hub_url: str = "http://localhost:5173"
     sendgrid_api_key: str = ""
