@@ -158,3 +158,70 @@ class GeneratedContract(Base):
     storage_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     storage_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ContractChecklistTemplate(Base):
+    __tablename__ = "contract_checklist_templates"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    deal_type: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)
+    is_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    document_template_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DealContractChecklist(Base):
+    __tablename__ = "deal_contract_checklists"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    deal_id: Mapped[str] = mapped_column(String)
+    checklist_template_id: Mapped[str] = mapped_column(
+        ForeignKey("contract_checklist_templates.id")
+    )
+    name: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="not_started")
+    document_template_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    generated_contract_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    signed_file_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    signed_file_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class LetterOfIntent(Base):
+    __tablename__ = "letters_of_intent"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    deal_id: Mapped[str] = mapped_column(String)
+    included_options: Mapped[str] = mapped_column(String)
+    homeowner_name: Mapped[str] = mapped_column(String)
+    property_address: Mapped[str] = mapped_column(String)
+    purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    as_is_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    existing_mortgage_balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    monthly_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    interest_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    owner_finance_down: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lease_option_term: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lease_monthly_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    option_purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    additional_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    generated_file_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    storage_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

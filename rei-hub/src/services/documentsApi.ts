@@ -117,3 +117,154 @@ export async function updateSettings(
   })
   return handleResponse(res)
 }
+
+// ── Checklist Templates ─────────────────────────────────────────
+
+export async function getChecklistTemplates(
+  dealType?: string
+): Promise<{ templates: Record<string, Array<Record<string, unknown>>> }> {
+  const params = dealType ? `?deal_type=${dealType}` : ''
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/templates${params}`, {
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+export async function createChecklistTemplate(
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/templates`, {
+    method: 'POST',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function updateChecklistTemplate(
+  id: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/templates/${id}`, {
+    method: 'PUT',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function deleteChecklistTemplate(
+  id: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/templates/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+// ── Deal Checklists ─────────────────────────────────────────────
+
+export async function getDealChecklist(
+  dealId: string,
+  dealType?: string
+): Promise<{ items: Array<Record<string, unknown>> }> {
+  const params = dealType ? `?deal_type=${dealType}` : ''
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/${dealId}${params}`, {
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+export async function addChecklistItem(
+  dealId: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/${dealId}/items`, {
+    method: 'POST',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function updateChecklistItem(
+  itemId: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function uploadSignedCopy(
+  itemId: string,
+  file: File
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('signed_file', file)
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/items/${itemId}/sign`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: formData,
+  })
+  return handleResponse(res)
+}
+
+export async function deleteChecklistItem(
+  itemId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/items/${itemId}`, {
+    method: 'DELETE',
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+export async function generateFromChecklist(
+  itemId: string,
+  data: Record<string, unknown>
+): Promise<{ contract_id: string; storage_url: string }> {
+  const res = await fetch(`${BASE_URL}/api/documents/checklist/items/${itemId}/generate`, {
+    method: 'POST',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function matchTemplate(
+  state: string,
+  dealType: string
+): Promise<{ template_id: string | null; source: string | null }> {
+  const res = await fetch(
+    `${BASE_URL}/api/documents/templates/match?state=${state}&deal_type=${dealType}`,
+    { headers: getAuthHeader() }
+  )
+  return handleResponse(res)
+}
+
+// ── Letter of Intent ────────────────────────────────────────────
+
+export async function generateLoi(
+  data: Record<string, unknown>
+): Promise<{ loi_id: string; file_name: string; storage_url: string }> {
+  const res = await fetch(`${BASE_URL}/api/documents/loi/generate`, {
+    method: 'POST',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function getDealLois(
+  dealId: string
+): Promise<{ lois: Array<Record<string, unknown>> }> {
+  const res = await fetch(`${BASE_URL}/api/documents/loi/${dealId}`, {
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}

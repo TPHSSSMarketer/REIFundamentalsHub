@@ -10,6 +10,8 @@ import {
   ExternalLink,
   ChevronDown,
   X,
+  Plus,
+  GripVertical,
 } from 'lucide-react'
 import {
   getTemplates,
@@ -20,6 +22,10 @@ import {
   getContracts,
   deleteContract,
   updateSettings,
+  getChecklistTemplates,
+  createChecklistTemplate,
+  updateChecklistTemplate,
+  deleteChecklistTemplate,
 } from '@/services/documentsApi'
 import { getCurrentUser } from '@/services/auth'
 
@@ -63,8 +69,17 @@ const STANDARD_FIELDS = [
 // Main page
 // ═══════════════════════════════════════════════════════════════
 
+type TabKey = 'templates' | 'generate' | 'history' | 'checklists'
+
+const TAB_LABELS: Record<TabKey, string> = {
+  templates: 'Templates',
+  generate: 'Generate Contract',
+  history: 'Contract History',
+  checklists: 'Checklist Templates',
+}
+
 export default function DocumentsPage() {
-  const [activeTab, setActiveTab] = useState<'templates' | 'generate' | 'history'>('templates')
+  const [activeTab, setActiveTab] = useState<TabKey>('templates')
   const [toast, setToast] = useState('')
 
   const showToast = (msg: string) => {
@@ -91,7 +106,7 @@ export default function DocumentsPage() {
       )}
 
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-        {(['templates', 'generate', 'history'] as const).map((tab) => (
+        {(Object.keys(TAB_LABELS) as TabKey[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -101,7 +116,7 @@ export default function DocumentsPage() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            {tab === 'templates' ? 'Templates' : tab === 'generate' ? 'Generate Contract' : 'Contract History'}
+            {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
@@ -109,6 +124,7 @@ export default function DocumentsPage() {
       {activeTab === 'templates' && <TemplatesTab showToast={showToast} />}
       {activeTab === 'generate' && <GenerateTab showToast={showToast} />}
       {activeTab === 'history' && <HistoryTab showToast={showToast} />}
+      {activeTab === 'checklists' && <ChecklistTemplatesTab showToast={showToast} />}
     </div>
   )
 }
@@ -883,5 +899,256 @@ function HistoryTab({ showToast }: { showToast: (m: string) => void }) {
         </div>
       )}
     </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 4 — Checklist Templates
+// ═══════════════════════════════════════════════════════════════
+
+interface ChecklistTemplateItem {
+  id: string
+  deal_type: string
+  name: string
+  is_required: boolean
+  document_template_id: string | null
+  state: string | null
+  sort_order: number
+  created_at: string
+}
+
+const DEAL_TYPES: { key: string; label: string }[] = [
+  { key: 'subject_to', label: 'Subject To' },
+  { key: 'cash_purchase', label: 'Cash Purchase' },
+  { key: 'owner_financing', label: 'Owner Financing' },
+  { key: 'lease_option', label: 'Lease Option' },
+  { key: 'fix_and_flip', label: 'Fix & Flip' },
+]
+
+function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }) {
+  const [loading, setLoading] = useState(true)
+  const [allTemplates, setAllTemplates] = useState<Record<string, ChecklistTemplateItem[]>>({})
+  const [docTemplates, setDocTemplates] = useState<Template[]>([])
+  const [activeDealType, setActiveDealType] = useState('subject_to')
+  const [addName, setAddName] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
+
+  const loadData = useCallback(async () => {
+    try {
+      const [clData, tplData] = await Promise.all([
+        getChecklistTemplates(),
+        getTemplates(),
+      ])
+      setAllTemplates(clData.templates as Record<string, ChecklistTemplateItem[]>)
+      setDocTemplates(tplData.templates as Template[])
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false))
+  }, [loadData])
+
+  const items = allTemplates[activeDealType] || []
+
+  const handleAdd = async () => {
+    if (!addName.trim()) return
+    try {
+      await createChecklistTemplate({
+        deal_type: activeDealType,
+        name: addName.trim(),
+        is_required: false,
+        sort_order: items.length,
+      })
+      setAddName('')
+      setShowAddForm(false)
+      showToast('Item added')
+      await loadData()
+    } catch {
+      showToast('Failed to add item')
+    }
+  }
+
+  const handleToggleRequired = async (item: ChecklistTemplateItem) => {
+    try {
+      await updateChecklistTemplate(item.id, { is_required: !item.is_required })
+      await loadData()
+    } catch {
+      showToast('Failed to update')
+    }
+  }
+
+  const handleLinkTemplate = async (item: ChecklistTemplateItem, templateId: string) => {
+    try {
+      await updateChecklistTemplate(item.id, {
+        document_template_id: templateId || null,
+      })
+      await loadData()
+    } catch {
+      showToast('Failed to link template')
+    }
+  }
+
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await deleteChecklistTemplate(id)
+      showToast('Item removed')
+      await loadData()
+    } catch {
+      showToast('Failed to remove item')
+    }
+  }
+
+  const handleMoveUp = async (item: ChecklistTemplateItem, idx: number) => {
+    if (idx === 0) return
+    const prev = items[idx - 1]
+    try {
+      await Promise.all([
+        updateChecklistTemplate(item.id, { sort_order: prev.sort_order }),
+        updateChecklistTemplate(prev.id, { sort_order: item.sort_order }),
+      ])
+      await loadData()
+    } catch {
+      showToast('Failed to reorder')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-6">
+        <p className="text-sm text-slate-500 mb-4">
+          Customize which contracts are required for each deal type.
+          These will auto-populate when a new deal is created.
+        </p>
+
+        {/* Deal type tabs */}
+        <div className="flex gap-1 mb-6 flex-wrap">
+          {DEAL_TYPES.map((dt) => (
+            <button
+              key={dt.key}
+              onClick={() => setActiveDealType(dt.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                activeDealType === dt.key
+                  ? 'bg-primary-100 text-primary-700'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {dt.label}
+              {(allTemplates[dt.key]?.length ?? 0) > 0 && (
+                <span className="ml-1.5 text-[10px] bg-white/60 px-1.5 py-0.5 rounded-full">
+                  {allTemplates[dt.key].length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Items list */}
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">
+            No checklist items for this deal type yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-lg group"
+              >
+                {/* Drag handle */}
+                <button
+                  onClick={() => handleMoveUp(item, idx)}
+                  className="text-slate-300 hover:text-slate-500 cursor-grab shrink-0"
+                  title="Move up"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </button>
+
+                {/* Sort order */}
+                <span className="text-xs text-slate-400 w-5 shrink-0 text-center">{idx + 1}</span>
+
+                {/* Name */}
+                <span className="flex-1 text-sm text-slate-700 font-medium">{item.name}</span>
+
+                {/* Required toggle */}
+                <button
+                  onClick={() => handleToggleRequired(item)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                    item.is_required
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {item.is_required ? 'Required' : 'Optional'}
+                </button>
+
+                {/* Template link */}
+                <select
+                  value={item.document_template_id || ''}
+                  onChange={(e) => handleLinkTemplate(item, e.target.value)}
+                  className="text-[11px] px-2 py-1 border border-slate-200 rounded bg-white text-slate-600 max-w-[140px] truncate focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">No template</option>
+                  {docTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+
+                {/* Delete */}
+                <button
+                  onClick={() => handleDeleteItem(item.id)}
+                  className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add item */}
+        <div className="mt-4">
+          {showAddForm ? (
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="New checklist item name"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                autoFocus
+              />
+              <button
+                onClick={handleAdd}
+                className="px-3 py-1.5 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Add
+              </button>
+              <button onClick={() => { setShowAddForm(false); setAddName('') }} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Item
+            </button>
+          )}
+        </div>
+      </section>
+    </div>
   )
 }
