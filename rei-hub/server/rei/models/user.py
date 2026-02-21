@@ -52,6 +52,12 @@ class User(Base):
     plaid_access_token: Mapped[str | None] = mapped_column(String, nullable=True)
     plaid_linked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # ── Email Marketing credits ───────────────────────────────────
+    email_credits_used: Mapped[int] = mapped_column(Integer, default=0)
+    email_credits_reset_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -158,3 +164,149 @@ class GeneratedContract(Base):
     storage_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     storage_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Email Marketing models
+# ═══════════════════════════════════════════════════════════════
+
+
+class EmailDomain(Base):
+    __tablename__ = "email_domains"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    domain: Mapped[str] = mapped_column(String)
+    from_name: Mapped[str] = mapped_column(String)
+    from_email: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    # pending, verified, failed
+    provider: Mapped[str] = mapped_column(String)
+    provider_domain_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    dns_records: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailList(Base):
+    __tablename__ = "email_lists"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    subscriber_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailSubscriber(Base):
+    __tablename__ = "email_subscribers"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    list_id: Mapped[str] = mapped_column(ForeignKey("email_lists.id"))
+    email: Mapped[str] = mapped_column(String)
+    first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="subscribed")
+    # subscribed, unsubscribed, bounced, complained
+    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    custom_fields: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    subscribed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    unsubscribed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class EmailTemplate(Base):
+    __tablename__ = "email_templates"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    subject: Mapped[str] = mapped_column(String)
+    preview_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    html_content: Mapped[str] = mapped_column(Text)
+    plain_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String, default="custom")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailCampaign(Base):
+    __tablename__ = "email_campaigns"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    subject: Mapped[str] = mapped_column(String)
+    preview_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    html_content: Mapped[str] = mapped_column(Text)
+    plain_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    from_domain_id: Mapped[str] = mapped_column(ForeignKey("email_domains.id"))
+    list_id: Mapped[str] = mapped_column(ForeignKey("email_lists.id"))
+    status: Mapped[str] = mapped_column(String, default="draft")
+    # draft, scheduled, sending, sent, paused
+    provider_used: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    total_sent: Mapped[int] = mapped_column(Integer, default=0)
+    total_delivered: Mapped[int] = mapped_column(Integer, default=0)
+    total_opened: Mapped[int] = mapped_column(Integer, default=0)
+    total_clicked: Mapped[int] = mapped_column(Integer, default=0)
+    total_bounced: Mapped[int] = mapped_column(Integer, default=0)
+    total_unsubscribed: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailSequence(Base):
+    __tablename__ = "email_sequences"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    list_id: Mapped[str] = mapped_column(ForeignKey("email_lists.id"))
+    from_domain_id: Mapped[str] = mapped_column(ForeignKey("email_domains.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmailSequenceStep(Base):
+    __tablename__ = "email_sequence_steps"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    sequence_id: Mapped[str] = mapped_column(ForeignKey("email_sequences.id"))
+    step_number: Mapped[int] = mapped_column(Integer)
+    delay_days: Mapped[int] = mapped_column(Integer, default=0)
+    subject: Mapped[str] = mapped_column(String)
+    html_content: Mapped[str] = mapped_column(Text)
+    plain_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class EmailSequenceEnrollment(Base):
+    __tablename__ = "email_sequence_enrollments"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    sequence_id: Mapped[str] = mapped_column(ForeignKey("email_sequences.id"))
+    subscriber_id: Mapped[str] = mapped_column(ForeignKey("email_subscribers.id"))
+    current_step: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String, default="active")
+    next_send_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    enrolled_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
