@@ -14,6 +14,7 @@ import {
   Home,
   Shield,
   ShieldCheck,
+  FileText,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/markets', icon: MapPin, label: 'Markets' },
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
   { to: '/proof-of-funds', icon: ShieldCheck, label: 'Proof of Funds' },
+  { to: '/documents', icon: FileText, label: 'Documents' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },

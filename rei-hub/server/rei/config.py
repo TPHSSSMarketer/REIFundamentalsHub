@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     plaid_country_codes: str = "US"
     plugin_shared_secret: str = "change-me-in-production"
     hub_url: str = "http://localhost:5173"
+    google_drive_access_token: str = ""
+    dropbox_access_token: str = ""
     sendgrid_api_key: str = ""
     email_from: str = "noreply@reifundamentalshub.com"
     email_from_name: str = "REIFundamentals Hub"
