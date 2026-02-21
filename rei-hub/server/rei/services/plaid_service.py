@@ -144,18 +144,21 @@ def generate_pof_certificate(
 ) -> dict:
     """Build a Proof of Funds certificate dict.
 
-    The ``available_balance`` is masked to a rounded range for privacy.
+    The ``verified_amount_display`` shows the exact required amount that was
+    verified (e.g. "$50,000") rather than the buyer's full balance.
     """
     now = datetime.utcnow()
-    available = verification_result["available_balance"]
+    required = verification_result["required_amount"]
+    verified_display = f"${required:,.0f}"
 
     return {
         "certificate_id": str(uuid.uuid4()),
         "verified": verification_result["verified"],
         "buyer_name": user.full_name or user.email,
         "buyer_email": user.email,
-        "required_amount": verification_result["required_amount"],
-        "available_balance": _mask_balance(available),
+        "required_amount": required,
+        "verified_amount_display": verified_display,
+        "available_balance": verified_display,
         "property_address": property_address,
         "issued_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
