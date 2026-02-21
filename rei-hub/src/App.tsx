@@ -19,6 +19,7 @@ import PricingPage from './components/Billing/PricingPage'
 import BillingPage from './components/Billing/BillingPage'
 import UpgradeGate from './components/Common/UpgradeGate'
 import AdminPage from './components/Admin'
+import BuyerVerifyPage from './components/ProofOfFunds/BuyerVerifyPage'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -61,6 +62,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
         <Route
           path="/*"
           element={

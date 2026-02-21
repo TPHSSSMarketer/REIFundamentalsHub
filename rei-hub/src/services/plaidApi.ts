@@ -79,3 +79,87 @@ export async function disconnectBank(): Promise<{ success: boolean }> {
   })
   return handleResponse(res)
 }
+
+// ── POF Requests (authenticated) ─────────────────────────────
+
+export async function requestPof(data: {
+  buyer_email: string
+  buyer_name: string
+  property_address: string
+  required_amount: number
+  notes?: string
+}): Promise<{ request_id: string; request_token: string; expires_at: string }> {
+  const res = await fetch(`${BASE_URL}/api/plaid/request-pof`, {
+    method: 'POST',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res)
+}
+
+export async function getRequests(): Promise<{
+  requests: Array<Record<string, unknown>>
+}> {
+  const res = await fetch(`${BASE_URL}/api/plaid/requests`, {
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+export async function getRequest(
+  id: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/plaid/requests/${id}`, {
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+export async function cancelRequest(
+  id: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/plaid/requests/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+// ── POF Requests (public — no auth) ──────────────────────────
+
+export async function getPublicRequest(
+  requestToken: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    `${BASE_URL}/api/plaid/public/request/${requestToken}`
+  )
+  return handleResponse(res)
+}
+
+export async function getPublicLinkToken(
+  requestToken: string
+): Promise<{ link_token: string }> {
+  const res = await fetch(
+    `${BASE_URL}/api/plaid/public/link-token/${requestToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }
+  )
+  return handleResponse(res)
+}
+
+export async function submitPublicVerification(
+  requestToken: string,
+  publicToken: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    `${BASE_URL}/api/plaid/public/verify/${requestToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_token: publicToken }),
+    }
+  )
+  return handleResponse(res)
+}

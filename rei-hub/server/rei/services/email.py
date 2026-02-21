@@ -229,3 +229,71 @@ async def send_subscription_canceled_email(user: User, settings: Settings) -> bo
         html_content=_build_html(body),
         settings=settings,
     )
+
+
+# ── Proof of Funds request emails ─────────────────────────────────────
+
+
+async def send_pof_request_email(
+    buyer_email: str,
+    buyer_name: str,
+    requestor_name: str,
+    property_address: str,
+    required_amount: float,
+    request_link: str,
+    expires_at: str,
+    settings: Settings,
+) -> bool:
+    """Email sent to a buyer requesting proof of funds."""
+    body = (
+        f"<p>Hi {buyer_name},</p>"
+        f"<p><strong>{requestor_name}</strong> is requesting proof of funds "
+        f"for the following property:</p>"
+        f"<p style=\"margin-left:16px;\">"
+        f"<strong>Property:</strong> {property_address}<br>"
+        f"<strong>Required Amount:</strong> ${required_amount:,.0f}"
+        f"</p>"
+        f"<p>Click below to securely verify your bank balance via Plaid. "
+        f"You do not need a REI Hub account.</p>"
+        f"{_cta_button('Verify My Funds', request_link)}"
+        f"<p style=\"margin-top:24px;font-size:13px;color:#666666;\">"
+        f"This link expires in 72 hours ({expires_at}).</p>"
+    )
+
+    return await send_email(
+        to_email=buyer_email,
+        to_name=buyer_name,
+        subject=f"{requestor_name} is requesting Proof of Funds",
+        html_content=_build_html(body),
+        settings=settings,
+    )
+
+
+async def send_pof_completed_email(
+    requestor_email: str,
+    requestor_name: str,
+    buyer_name: str,
+    property_address: str,
+    verified_amount_display: str,
+    certificate_link: str,
+    settings: Settings,
+) -> bool:
+    """Email sent to the requestor when buyer completes POF verification."""
+    body = (
+        f"<p>Hi {requestor_name},</p>"
+        f"<p><strong>{buyer_name}</strong> has verified their proof of funds.</p>"
+        f"<p style=\"margin-left:16px;\">"
+        f"<strong>Property:</strong> {property_address}<br>"
+        f"<strong>{verified_amount_display}</strong>"
+        f"</p>"
+        f"<p>View the full certificate in your REI Hub dashboard.</p>"
+        f"{_cta_button('View Certificate', certificate_link)}"
+    )
+
+    return await send_email(
+        to_email=requestor_email,
+        to_name=requestor_name,
+        subject=f"Proof of Funds Verified \u2014 {buyer_name}",
+        html_content=_build_html(body),
+        settings=settings,
+    )
