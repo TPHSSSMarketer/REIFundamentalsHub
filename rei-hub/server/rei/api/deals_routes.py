@@ -1,0 +1,230 @@
+"""Deal detail routes — aggregated deal view with notes, contracts, POF, activity."""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from rei.api.deps import get_current_user, get_db
+from rei.models.user import (
+    DealContractChecklist,
+    DealNote,
+    GeneratedContract,
+    PofRequest,
+    ProofOfFundsCertificate,
+    User,
+)
+
+logger = logging.getLogger(__name__)
+
+deals_router = APIRouter(prefix="/deals", tags=["deals"])
+
+
+# ── Models ─────────────────────────────────────────────────────────────
+
+
+class AddNoteBody(BaseModel):
+    content: str
+
+
+class UpdateStageBody(BaseModel):
+    stage_id: str
+
+
+# ── GET /api/deals/{deal_id} ───────────────────────────────────────────
+
+
+@deals_router.get("/{deal_id}")
+async def get_deal_detail(
+    deal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return aggregated deal data from local DB tables."""
+
+    # Generated contracts for this deal
+    contracts_result = await db.execute(
+        select(GeneratedContract)
+        .where(GeneratedContract.user_id == user.id, GeneratedContract.deal_id == deal_id)
+        .order_by(desc(GeneratedContract.created_at))
+    )
+    generated_contracts = [
+        {
+            "id": gc.id,
+            "template_id": gc.template_id,
+            "deal_id": gc.deal_id,
+            "file_name": gc.file_name,
+            "homeowner_name": gc.homeowner_name,
+            "property_address": gc.property_address,
+            "purchase_price": gc.purchase_price,
+            "storage_provider": gc.storage_provider,
+            "storage_url": gc.storage_url,
+            "created_at": gc.created_at.isoformat() if gc.created_at else None,
+        }
+        for gc in contracts_result.scalars().all()
+    ]
+
+    # POF requests (match on property address heuristic — all user's requests)
+    pof_req_result = await db.execute(
+        select(PofRequest)
+        .where(PofRequest.requestor_id == user.id)
+        .order_by(desc(PofRequest.created_at))
+    )
+    pof_requests = [
+        {
+            "id": p.id,
+            "buyer_email": p.buyer_email,
+            "buyer_name": p.buyer_name,
+            "property_address": p.property_address,
+            "required_amount": p.required_amount,
+            "status": p.status,
+            "notes": p.notes,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+        }
+        for p in pof_req_result.scalars().all()
+    ]
+
+    # POF certificates
+    pof_cert_result = await db.execute(
+        select(ProofOfFundsCertificate)
+        .where(ProofOfFundsCertificate.user_id == user.id)
+        .order_by(desc(ProofOfFundsCertificate.created_at))
+    )
+    pof_certificates = [
+        {
+            "id": c.id,
+            "verified": c.verified,
+            "buyer_name": c.buyer_name,
+            "buyer_email": c.buyer_email,
+            "required_amount": c.required_amount,
+            "available_balance_display": c.available_balance_display,
+            "property_address": c.property_address,
+            "issued_at": c.issued_at.isoformat() if c.issued_at else None,
+            "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in pof_cert_result.scalars().all()
+    ]
+
+    # Deal notes (persisted in DB)
+    notes_result = await db.execute(
+        select(DealNote)
+        .where(DealNote.user_id == user.id, DealNote.deal_id == deal_id)
+        .order_by(desc(DealNote.created_at))
+    )
+    notes = [
+        {
+            "id": n.id,
+            "deal_id": n.deal_id,
+            "user_id": n.user_id,
+            "content": n.content,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notes_result.scalars().all()
+    ]
+
+    # Build activity feed
+    activity_feed = []
+
+    for gc in generated_contracts:
+        activity_feed.append({
+            "type": "contract",
+            "id": gc["id"],
+            "timestamp": gc["created_at"],
+            "summary": f"Contract generated: {gc['file_name']}",
+            "data": gc,
+        })
+
+    for p in pof_requests:
+        activity_feed.append({
+            "type": "pof",
+            "id": p["id"],
+            "timestamp": p["created_at"],
+            "summary": f"POF {p['status']}: ${p['required_amount']:,.0f}",
+            "data": p,
+        })
+
+    for n in notes:
+        activity_feed.append({
+            "type": "note",
+            "id": n["id"],
+            "timestamp": n["created_at"],
+            "summary": n["content"],
+            "data": n,
+        })
+
+    # Sort newest first
+    activity_feed.sort(key=lambda x: x["timestamp"] or "", reverse=True)
+
+    return {
+        "generated_contracts": generated_contracts,
+        "pof_requests": pof_requests,
+        "pof_certificates": pof_certificates,
+        "notes": notes,
+        "activity_feed": activity_feed,
+    }
+
+
+# ── POST /api/deals/{deal_id}/notes ──────────────────────────────────
+
+
+@deals_router.post("/{deal_id}/notes")
+async def add_deal_note(
+    deal_id: str,
+    body: AddNoteBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not body.content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Note content cannot be empty",
+        )
+    note = DealNote(
+        user_id=user.id,
+        deal_id=deal_id,
+        content=body.content.strip(),
+    )
+    db.add(note)
+    await db.commit()
+    await db.refresh(note)
+    return {
+        "note_id": note.id,
+        "content": note.content,
+        "created_at": note.created_at.isoformat() if note.created_at else None,
+    }
+
+
+# ── DELETE /api/deals/{deal_id}/notes/{note_id} ──────────────────────
+
+
+@deals_router.delete("/{deal_id}/notes/{note_id}")
+async def delete_deal_note(
+    deal_id: str,
+    note_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(DealNote).where(
+            DealNote.id == note_id,
+            DealNote.user_id == user.id,
+            DealNote.deal_id == deal_id,
+        )
+    )
+    note = result.scalar_one_or_none()
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+    await db.delete(note)
+    await db.commit()
+    return {"success": True}

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +15,6 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Loader2, Plus } from 'lucide-react'
 import PipelineColumn from './PipelineColumn'
 import DealCard from './DealCard'
-import DealDetailModal from './DealDetailModal'
 import NewDealModal from './NewDealModal'
 import { usePipelines, useDeals, useUpdateDealStage, useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
@@ -22,8 +22,9 @@ import { formatCurrency, getStageColor } from '@/utils/helpers'
 import type { Deal, Pipeline as PipelineType } from '@/types'
 
 export default function Pipeline() {
+  const navigate = useNavigate()
   const { data: pipelines, isLoading: pipelinesLoading } = usePipelines()
-  const { selectedPipelineId, setSelectedPipelineId, selectedDeal, setSelectedDeal } = useStore()
+  const { selectedPipelineId, setSelectedPipelineId } = useStore()
 
   // Auto-select first pipeline
   const activePipeline = useMemo(() => {
@@ -172,7 +173,7 @@ export default function Pipeline() {
                 deals={dealsByStage[stage.id] || []}
                 color={getStageColor(index)}
                 loading={dealsLoading}
-                onDealClick={setSelectedDeal}
+                onDealClick={(deal) => navigate(`/deals/${deal.id}`)}
               />
             ))}
         </div>
@@ -183,12 +184,6 @@ export default function Pipeline() {
           )}
         </DragOverlay>
       </DndContext>
-
-      {/* Deal Detail Modal */}
-      <DealDetailModal
-        deal={selectedDeal}
-        onClose={() => setSelectedDeal(null)}
-      />
 
       {/* New Deal Modal */}
       <NewDealModal
