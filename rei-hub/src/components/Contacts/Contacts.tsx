@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Search, Phone, Mail, MessageSquare, Loader2, Star } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, Phone, Mail, MessageSquare, Loader2, Star, Eye } from 'lucide-react'
 import ContactDetailModal from './ContactDetailModal'
 import { useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
@@ -35,6 +36,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 export default function Contacts() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const { setSMSModalOpen, setSMSTargetContact } = useStore()
@@ -108,7 +110,7 @@ export default function Contacts() {
             {filteredContacts.map((contact) => (
               <div
                 key={contact.id}
-                onClick={() => setSelectedContact(contact)}
+                onClick={() => navigate(`/contacts/${contact.id}`)}
                 className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
@@ -175,6 +177,13 @@ export default function Contacts() {
 
                   {/* Quick Actions */}
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/contacts/${contact.id}`) }}
+                      className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                      title="View contact"
+                    >
+                      <Eye className="w-4 h-4 text-slate-500" />
+                    </button>
                     {contact.phone && (
                       <a
                         href={`tel:${contact.phone}`}
