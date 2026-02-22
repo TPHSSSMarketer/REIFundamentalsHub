@@ -93,8 +93,8 @@ PLANS: dict[str, dict] = {
     },
     "pro": {
         "name": "Pro",
-        "monthly_price_cents": 15000,
-        "annual_price_cents": 150000,
+        "monthly_price_cents": 17900,
+        "annual_price_cents": 179000,
         "stripe_monthly_price_id": "",
         "stripe_annual_price_id": "",
         "paypal_monthly_plan_id": "",
@@ -110,8 +110,8 @@ PLANS: dict[str, dict] = {
     },
     "team": {
         "name": "Team",
-        "monthly_price_cents": 25000,
-        "annual_price_cents": 250000,
+        "monthly_price_cents": 29900,
+        "annual_price_cents": 299000,
         "stripe_monthly_price_id": "",
         "stripe_annual_price_id": "",
         "paypal_monthly_plan_id": "",
@@ -163,6 +163,9 @@ CREDIT_BUNDLES: dict[str, dict[str, int]] = {
     "power": {"price_cents": 10000, "credits_cents": 14000},
 }
 
+# Pro and Team plans UNLOCK ACCESS to AI voicemail drops.
+# AI drops are always billed per-use from credits at $0.25/drop — never included in any plan.
+# Starter plan cannot use AI voicemail drops at all.
 AI_VOICEMAIL_PLANS: list[str] = ["pro", "team"]
 
 

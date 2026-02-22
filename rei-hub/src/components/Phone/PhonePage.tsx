@@ -58,7 +58,7 @@ const PRICING_TABLE = [
   { item: 'Fax sent', rate: '$0.04/page' },
   { item: 'Fax received', rate: '$0.02/page' },
   { item: 'Additional numbers', rate: '$2.00/mo' },
-  { item: 'AI voicemail drop', rate: '$0.25/drop' },
+  { item: 'AI Voicemail Drops (Pro+)', rate: '$0.25/drop (credits)' },
   { item: 'Standard drop', rate: '$0.05/drop' },
 ]
 
@@ -1045,7 +1045,7 @@ function VoicemailTab() {
                 </select>
               </div>
               <p className="text-xs text-slate-500">
-                Estimated cost: $0.25 per personalized drop. Powered by ElevenLabs AI.
+                AI Voicemail Drops &mdash; $0.25/drop (billed from credits, not included in any plan). Powered by ElevenLabs AI.
               </p>
             </div>
           )}

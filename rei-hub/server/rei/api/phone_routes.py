@@ -803,7 +803,7 @@ async def create_voicemail_drop(
         if plan not in AI_VOICEMAIL_PLANS:
             raise HTTPException(
                 status_code=403,
-                detail="AI Voicemail requires Pro plan or above",
+                detail="AI Voicemail Drops require Pro or Team plan to unlock access. Drops are billed at $0.25/drop from credits.",
             )
 
     drop = VoicemailDrop(
@@ -906,7 +906,7 @@ async def send_voicemail_campaign(
         if plan not in AI_VOICEMAIL_PLANS:
             raise HTTPException(
                 status_code=403,
-                detail="AI Voicemail requires Pro plan or above",
+                detail="AI Voicemail Drops require Pro or Team plan to unlock access. Drops are billed at $0.25/drop from credits.",
             )
 
     pn_result = await db.execute(
