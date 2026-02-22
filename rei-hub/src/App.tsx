@@ -23,6 +23,8 @@ import BillingPage from './components/Billing/BillingPage'
 import UpgradeGate from './components/Common/UpgradeGate'
 import AdminPage from './components/Admin'
 import BuyerVerifyPage from './components/ProofOfFunds/BuyerVerifyPage'
+import OnboardingPage from './components/Onboarding/OnboardingPage'
+import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -70,10 +72,20 @@ function App() {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
         <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/*"
           element={
             <ProtectedRoute>
-              <AppLayout />
+              <OnboardingGuard>
+                <AppLayout />
+              </OnboardingGuard>
             </ProtectedRoute>
           }
         />
