@@ -45,8 +45,29 @@ class User(Base):
     seats_used: Mapped[int] = mapped_column(Integer, default=1)
     trial_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # ── Onboarding ─────────────────────────────────────────────
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    onboarding_step: Mapped[int] = mapped_column(Integer, default=0)
+    # tracks last completed step (1-6)
+
     # ── Company / Documents ──────────────────────────────────────
     company_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    company_website: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Investing Profile ────────────────────────────────────────
+    investing_experience: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # "beginner", "intermediate", "experienced"
+    deal_types: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # JSON list: ["subject_to", "cash_purchase", "owner_financing", "lease_option", "fix_and_flip"]
+    primary_market: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # city/state they invest in
+    storage_provider: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # "google_drive" or "dropbox" — chosen during onboarding
 
     # ── Plaid (Proof of Funds) ────────────────────────────────────
     plaid_access_token: Mapped[str | None] = mapped_column(String, nullable=True)
