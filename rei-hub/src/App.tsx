@@ -24,6 +24,7 @@ import UpgradeGate from './components/Common/UpgradeGate'
 import AdminPage from './components/Admin'
 import BuyerVerifyPage from './components/ProofOfFunds/BuyerVerifyPage'
 import ContactDetailPage from './components/CRM/ContactDetailPage'
+import DealDetailPage from './components/Pipeline/DealDetailPage'
 import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import { isAuthenticated } from './services/auth'
@@ -34,6 +35,7 @@ function AppLayout() {
       <Routes>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pipeline" element={<Pipeline />} />
+        <Route path="/deals/:dealId" element={<DealDetailPage />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
         <Route path="/portfolio" element={<Portfolio />} />
