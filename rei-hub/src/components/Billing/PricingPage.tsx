@@ -9,24 +9,33 @@ const PLANS = [
     annualPrice: 825,
     badge: null,
     features: [
-      '1 user',
-      'Dashboard, Pipeline, Contacts, Markets, Portfolio',
+      '100 voice minutes included',
+      '500 SMS included',
+      '5,000 emails included',
+      '1 phone number included',
+      'Deal Pipeline + CRM',
+      'Documents + Contracts',
+      'Proof of Funds',
     ],
-    excluded: ['No ContentHub', 'No AssistantHub'],
+    excluded: ['AI Voicemail Drops (Pro+)'],
     helmAddon: { monthly: 49, annual: 399 },
     helmIncluded: false,
   },
   {
     key: 'pro',
     name: 'Pro',
-    monthlyPrice: 150,
-    annualPrice: 1250,
+    monthlyPrice: 179,
+    annualPrice: 1492,
     badge: 'Most Popular',
     features: [
-      '1\u20133 users',
+      '500 voice minutes included',
+      '2,000 SMS included',
+      '25,000 emails included',
+      '1 phone number included',
       'Everything in Starter',
-      'ContentHub (content gen, WP publish, cloud sync)',
-      'AssistantHub (AI personas, SMS drafts)',
+      'AI Voicemail Drops ($0.25/drop, credits)',
+      'Market Analysis',
+      'Portfolio Tracking',
     ],
     excluded: [],
     helmAddon: { monthly: 79, annual: 659 },
@@ -35,12 +44,17 @@ const PLANS = [
   {
     key: 'team',
     name: 'Team',
-    monthlyPrice: 250,
-    annualPrice: 2083,
+    monthlyPrice: 299,
+    annualPrice: 2492,
     badge: null,
     features: [
-      '4+ users',
+      '2,000 voice minutes included',
+      '5,000 SMS included',
+      '100,000 emails included',
+      '1 phone number included',
       'Everything in Pro',
+      'Priority support',
+      'Team member access',
     ],
     excluded: [],
     helmAddon: null,
@@ -174,6 +188,16 @@ export default function PricingPage() {
               </div>
             )
           })}
+        </div>
+
+        {/* All plans note */}
+        <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h3 className="text-sm font-semibold text-slate-900 mb-3">All plans include:</h3>
+          <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li className="flex items-center gap-2"><span className="text-primary-600">&#10003;</span> Additional numbers: $2.00/mo each</li>
+            <li className="flex items-center gap-2"><span className="text-primary-600">&#10003;</span> Credits never expire and roll over</li>
+            <li className="flex items-center gap-2"><span className="text-primary-600">&#10003;</span> Overage: pay-as-you-go via credits</li>
+          </ul>
         </div>
 
         {/* Helm Hub upsell note */}

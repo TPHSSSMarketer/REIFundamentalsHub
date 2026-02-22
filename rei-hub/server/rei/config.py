@@ -50,8 +50,23 @@ class Settings(BaseSettings):
     google_drive_access_token: str = ""
     dropbox_access_token: str = ""
     sendgrid_api_key: str = ""
+    sendgrid_webhook_secret: str = ""
     email_from: str = "noreply@reifundamentalshub.com"
     email_from_name: str = "REIFundamentals Hub"
+
+    # ── Email Marketing provider ──────────────────────────────────
+    email_provider: str = "resend"  # "resend" to start, "sendgrid" when scaling
+    resend_api_key: str = ""
+
+    # ── Twilio (Phone System) ──────────────────────────────────────
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_api_key_sid: str = ""
+    twilio_api_key_secret: str = ""
+    twilio_twiml_app_sid: str = ""
+
+    # ── ElevenLabs (AI Voicemail) ──────────────────────────────────
+    elevenlabs_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
 
@@ -78,8 +93,8 @@ PLANS: dict[str, dict] = {
     },
     "pro": {
         "name": "Pro",
-        "monthly_price_cents": 15000,
-        "annual_price_cents": 150000,
+        "monthly_price_cents": 17900,
+        "annual_price_cents": 179000,
         "stripe_monthly_price_id": "",
         "stripe_annual_price_id": "",
         "paypal_monthly_plan_id": "",
@@ -95,8 +110,8 @@ PLANS: dict[str, dict] = {
     },
     "team": {
         "name": "Team",
-        "monthly_price_cents": 25000,
-        "annual_price_cents": 250000,
+        "monthly_price_cents": 29900,
+        "annual_price_cents": 299000,
         "stripe_monthly_price_id": "",
         "stripe_annual_price_id": "",
         "paypal_monthly_plan_id": "",
@@ -113,6 +128,45 @@ PLANS: dict[str, dict] = {
 }
 
 TRIAL_DAYS = 7
+
+# ── Email Marketing plan limits ────────────────────────────────────────
+EMAIL_PLAN_LIMITS: dict[str, int] = {
+    "starter": 5000,
+    "pro": 25000,
+    "team": 100000,
+}
+
+OVERAGE_RATE_PER_THOUSAND = 1.50
+
+# ── Phone System pricing ──────────────────────────────────────────────
+PHONE_PRICING: dict[str, float] = {
+    "outbound_per_min": 0.03,
+    "inbound_per_min": 0.03,
+    "voicemail_drop": 0.05,
+    "outbound_sms": 0.02,
+    "inbound_sms": 0.00,
+    "fax_sent_per_page": 0.04,
+    "fax_received_per_page": 0.02,
+    "additional_number_per_month": 2.00,
+    "ai_voicemail_drop": 0.25,
+}
+
+PHONE_PLAN_LIMITS: dict[str, dict[str, int]] = {
+    "starter": {"minutes": 100, "sms": 500},
+    "pro": {"minutes": 500, "sms": 2000},
+    "team": {"minutes": 2000, "sms": 5000},
+}
+
+CREDIT_BUNDLES: dict[str, dict[str, int]] = {
+    "starter": {"price_cents": 2500, "credits_cents": 3000},
+    "growth": {"price_cents": 5000, "credits_cents": 6500},
+    "power": {"price_cents": 10000, "credits_cents": 14000},
+}
+
+# Pro and Team plans UNLOCK ACCESS to AI voicemail drops.
+# AI drops are always billed per-use from credits at $0.25/drop — never included in any plan.
+# Starter plan cannot use AI voicemail drops at all.
+AI_VOICEMAIL_PLANS: list[str] = ["pro", "team"]
 
 
 # ── Helpers to resolve Stripe price IDs from settings ──────────────────
