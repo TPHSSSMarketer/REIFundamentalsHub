@@ -92,6 +92,42 @@ class User(Base):
         String, nullable=True
     )
 
+    # ── Deal Analyzer Preferences ─────────────────────────────────
+    analyzer_arv_multiplier: Mapped[float] = mapped_column(
+        Float, default=0.70)
+    analyzer_default_closing_costs_pct: Mapped[float] = mapped_column(
+        Float, default=0.03)
+    analyzer_default_agent_commission_pct: Mapped[float] = mapped_column(
+        Float, default=0.06)
+    analyzer_default_holding_months: Mapped[int] = mapped_column(
+        Integer, default=6)
+    analyzer_default_monthly_holding_cost: Mapped[float] = mapped_column(
+        Float, default=1000.00)
+    analyzer_min_profit: Mapped[float] = mapped_column(
+        Float, default=20000.00)
+    analyzer_min_roi_pct: Mapped[float] = mapped_column(
+        Float, default=0.15)
+    analyzer_sub2_default_interest_rate: Mapped[float] = mapped_column(
+        Float, default=0.04)
+    analyzer_sub2_default_rental_income: Mapped[float] = mapped_column(
+        Float, default=1500.00)
+    analyzer_sub2_default_vacancy_pct: Mapped[float] = mapped_column(
+        Float, default=0.08)
+    analyzer_sub2_default_mgmt_pct: Mapped[float] = mapped_column(
+        Float, default=0.10)
+    analyzer_of_default_interest_rate: Mapped[float] = mapped_column(
+        Float, default=0.06)
+    analyzer_of_default_term_years: Mapped[int] = mapped_column(
+        Integer, default=30)
+    analyzer_of_default_down_pct: Mapped[float] = mapped_column(
+        Float, default=0.10)
+    analyzer_lo_default_option_term_years: Mapped[int] = mapped_column(
+        Integer, default=3)
+    analyzer_lo_default_monthly_credit_pct: Mapped[float] = mapped_column(
+        Float, default=0.20)
+    analyzer_blend_cash_pct: Mapped[float] = mapped_column(
+        Float, default=0.50)
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -519,6 +555,21 @@ class FaxLog(Base):
     contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     cost: Mapped[float] = mapped_column(Float, default=0.00)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DealAnalyzerResult(Base):
+    __tablename__ = "deal_analyzer_results"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    deal_id: Mapped[str] = mapped_column(String, nullable=False)
+    analyzer_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class DealNote(Base):

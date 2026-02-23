@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   MapPin,
   User,
-  DollarSign,
   Calendar,
   AlertTriangle,
   FileText,
@@ -12,22 +11,18 @@ import {
   StickyNote,
   Calculator,
   BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Star,
   Trash2,
   Plus,
   ExternalLink,
   Loader2,
-  Copy,
   ClipboardList,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
 import { getAuthHeader } from '@/services/auth'
-import { getDealChecklist } from '@/services/documentsApi'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
+import DealAnalyzer from './DealAnalyzer'
 import type { Deal } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -104,14 +99,8 @@ export default function DealDetailPage() {
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
 
-  // Deal Analyzer fields
-  const [arvInput, setArvInput] = useState('')
-  const [rehabInput, setRehabInput] = useState('')
-  const [purchaseInput, setPurchaseInput] = useState('')
-  const [closingCostPct, setClosingCostPct] = useState('3')
-  const [holdingMonths, setHoldingMonths] = useState('6')
-  const [holdingCostMonthly, setHoldingCostMonthly] = useState('1500')
-  const [rentInput, setRentInput] = useState('')
+  // Deal Analyzer preferences
+  const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
 
   // Get pipeline stages for stage selector
   const stages = useMemo(() => {
@@ -137,64 +126,23 @@ export default function DealDetailPage() {
     loadBackendData()
   }, [loadBackendData])
 
-  // Seed analyzer inputs from deal data
+  // Fetch analyzer preferences
   useEffect(() => {
-    if (deal) {
-      if (deal.arv != null) setArvInput(deal.arv.toString())
-      if (deal.rehabEstimate != null) setRehabInput(deal.rehabEstimate.toString())
-      if (deal.purchasePrice != null) setPurchaseInput(deal.purchasePrice.toString())
-      if (deal.monthlyRent != null) setRentInput(deal.monthlyRent.toString())
+    async function fetchPrefs() {
+      try {
+        const res = await fetch(`${BASE_URL}/api/deals/analyzer/preferences`, {
+          headers: getAuthHeader(),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setAnalyzerPreferences(data)
+        }
+      } catch {
+        // use defaults
+      }
     }
-  }, [deal])
-
-  // ── Analyzer calculations ──────────────────────────────────
-
-  const analysis = useMemo(() => {
-    const arv = parseFloat(arvInput) || 0
-    const rehab = parseFloat(rehabInput) || 0
-    const purchase = parseFloat(purchaseInput) || 0
-    const closingPct = parseFloat(closingCostPct) || 0
-    const months = parseInt(holdingMonths) || 0
-    const holdingPerMonth = parseFloat(holdingCostMonthly) || 0
-    const monthlyRent = parseFloat(rentInput) || 0
-
-    const closingCosts = purchase * (closingPct / 100)
-    const holdingCosts = months * holdingPerMonth
-    const totalInvestment = purchase + rehab + closingCosts + holdingCosts
-    const profit = arv - totalInvestment
-    const roi = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0
-
-    // 70% Rule
-    const maxOffer70 = arv * 0.7 - rehab
-    const meetsRule = purchase <= maxOffer70
-
-    // Rental metrics
-    const annualRent = monthlyRent * 12
-    const capRate = totalInvestment > 0 ? (annualRent / totalInvestment) * 100 : 0
-    const cashOnCash = totalInvestment > 0 ? ((annualRent - holdingPerMonth * 12) / totalInvestment) * 100 : 0
-
-    // Deal Rating (1-5 stars)
-    let rating = 0
-    if (roi >= 30) rating += 2
-    else if (roi >= 15) rating += 1
-    if (meetsRule) rating += 1
-    if (capRate >= 8) rating += 1
-    if (profit > 0) rating += 1
-
-    return {
-      closingCosts,
-      holdingCosts,
-      totalInvestment,
-      profit,
-      roi,
-      maxOffer70,
-      meetsRule,
-      annualRent,
-      capRate,
-      cashOnCash,
-      rating: Math.min(rating, 5),
-    }
-  }, [arvInput, rehabInput, purchaseInput, closingCostPct, holdingMonths, holdingCostMonthly, rentInput])
+    fetchPrefs()
+  }, [])
 
   // ── Handlers ───────────────────────────────────────────────
 
@@ -493,155 +441,18 @@ export default function DealDetailPage() {
               )}
 
               {/* ── Deal Analyzer Tab ─────────────────── */}
-              {activeTab === 'analyzer' && (
-                <div className="space-y-5">
-                  {/* Rating */}
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-slate-900">Deal Analyzer</h3>
-                    <div className="flex items-center gap-0.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={cn(
-                            'w-5 h-5',
-                            i < analysis.rating
-                              ? 'fill-yellow-400 text-yellow-400'
-                              : 'text-slate-200'
-                          )}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Inputs */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Purchase Price ($)</label>
-                      <input
-                        type="number"
-                        value={purchaseInput}
-                        onChange={(e) => setPurchaseInput(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">After Repair Value ($)</label>
-                      <input
-                        type="number"
-                        value={arvInput}
-                        onChange={(e) => setArvInput(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Rehab Estimate ($)</label>
-                      <input
-                        type="number"
-                        value={rehabInput}
-                        onChange={(e) => setRehabInput(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Rent ($)</label>
-                      <input
-                        type="number"
-                        value={rentInput}
-                        onChange={(e) => setRentInput(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Closing Costs (%)</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={closingCostPct}
-                        onChange={(e) => setClosingCostPct(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Holding Months</label>
-                      <input
-                        type="number"
-                        value={holdingMonths}
-                        onChange={(e) => setHoldingMonths(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Holding Cost ($)</label>
-                      <input
-                        type="number"
-                        value={holdingCostMonthly}
-                        onChange={(e) => setHoldingCostMonthly(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Results */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-slate-50 rounded-lg">
-                      <p className="text-xs text-slate-500">Total Investment</p>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {formatCurrency(analysis.totalInvestment)}
-                      </p>
-                    </div>
-                    <div className={cn('p-3 rounded-lg', analysis.profit >= 0 ? 'bg-green-50' : 'bg-red-50')}>
-                      <p className={cn('text-xs', analysis.profit >= 0 ? 'text-green-600' : 'text-red-600')}>
-                        Est. Profit
-                      </p>
-                      <p className={cn(
-                        'text-sm font-semibold flex items-center gap-1',
-                        analysis.profit >= 0 ? 'text-green-700' : 'text-red-700'
-                      )}>
-                        {analysis.profit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                        {formatCurrency(Math.abs(analysis.profit))}
-                      </p>
-                    </div>
-                    <div className="p-3 bg-slate-50 rounded-lg">
-                      <p className="text-xs text-slate-500">ROI</p>
-                      <p className={cn(
-                        'text-sm font-semibold',
-                        analysis.roi >= 15 ? 'text-green-700' : analysis.roi >= 0 ? 'text-amber-700' : 'text-red-700'
-                      )}>
-                        {analysis.roi.toFixed(1)}%
-                      </p>
-                    </div>
-                    <div className={cn('p-3 rounded-lg', analysis.meetsRule ? 'bg-green-50' : 'bg-red-50')}>
-                      <p className="text-xs text-slate-500">70% Rule Max Offer</p>
-                      <p className={cn(
-                        'text-sm font-semibold',
-                        analysis.meetsRule ? 'text-green-700' : 'text-red-700'
-                      )}>
-                        {formatCurrency(analysis.maxOffer70)}
-                        <span className="text-[10px] ml-1 font-normal">
-                          {analysis.meetsRule ? '(PASS)' : '(FAIL)'}
-                        </span>
-                      </p>
-                    </div>
-                    {(parseFloat(rentInput) > 0) && (
-                      <>
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                          <p className="text-xs text-slate-500">Cap Rate</p>
-                          <p className="text-sm font-semibold text-slate-800">{analysis.capRate.toFixed(1)}%</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                          <p className="text-xs text-slate-500">Cash-on-Cash</p>
-                          <p className="text-sm font-semibold text-slate-800">{analysis.cashOnCash.toFixed(1)}%</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Closing + holding breakdown */}
-                  <div className="text-xs text-slate-400 space-y-0.5">
-                    <p>Closing costs: {formatCurrency(analysis.closingCosts)}</p>
-                    <p>Holding costs ({holdingMonths} mo): {formatCurrency(analysis.holdingCosts)}</p>
-                  </div>
-                </div>
+              {activeTab === 'analyzer' && dealId && (
+                <DealAnalyzer
+                  dealId={dealId}
+                  preferences={analyzerPreferences}
+                  dealData={{
+                    purchasePrice: deal.purchasePrice,
+                    arv: deal.arv,
+                    rehabEstimate: deal.rehabEstimate,
+                    monthlyRent: deal.monthlyRent,
+                    listPrice: deal.listPrice,
+                  }}
+                />
               )}
 
               {/* ── Documents Tab ─────────────────────── */}
