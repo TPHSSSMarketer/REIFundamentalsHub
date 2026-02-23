@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
 from rei.models.user import (
+    DealAnalyzerResult,
     DealContractChecklist,
     DealNote,
     GeneratedContract,
@@ -35,6 +36,122 @@ class AddNoteBody(BaseModel):
 
 class UpdateStageBody(BaseModel):
     stage_id: str
+
+
+class UpdateAnalyzerPrefsBody(BaseModel):
+    arv_multiplier: Optional[float] = None
+    default_closing_costs_pct: Optional[float] = None
+    default_agent_commission_pct: Optional[float] = None
+    default_holding_months: Optional[int] = None
+    default_monthly_holding_cost: Optional[float] = None
+    min_profit: Optional[float] = None
+    min_roi_pct: Optional[float] = None
+    sub2_default_interest_rate: Optional[float] = None
+    sub2_default_rental_income: Optional[float] = None
+    sub2_default_vacancy_pct: Optional[float] = None
+    sub2_default_mgmt_pct: Optional[float] = None
+    of_default_interest_rate: Optional[float] = None
+    of_default_term_years: Optional[int] = None
+    of_default_down_pct: Optional[float] = None
+    lo_default_option_term_years: Optional[int] = None
+    lo_default_monthly_credit_pct: Optional[float] = None
+    blend_cash_pct: Optional[float] = None
+
+
+class PatchDealBody(BaseModel):
+    analyzer_data: Optional[str] = None
+
+
+# ── GET /api/deals/analyzer/preferences ────────────────────────────────
+
+_ANALYZER_FIELDS = [
+    "arv_multiplier",
+    "default_closing_costs_pct",
+    "default_agent_commission_pct",
+    "default_holding_months",
+    "default_monthly_holding_cost",
+    "min_profit",
+    "min_roi_pct",
+    "sub2_default_interest_rate",
+    "sub2_default_rental_income",
+    "sub2_default_vacancy_pct",
+    "sub2_default_mgmt_pct",
+    "of_default_interest_rate",
+    "of_default_term_years",
+    "of_default_down_pct",
+    "lo_default_option_term_years",
+    "lo_default_monthly_credit_pct",
+    "blend_cash_pct",
+]
+
+
+@deals_router.get("/analyzer/preferences")
+async def get_analyzer_preferences(
+    user: User = Depends(get_current_user),
+):
+    """Return all analyzer preference values for the current user."""
+    return {
+        field: getattr(user, f"analyzer_{field}", None)
+        for field in _ANALYZER_FIELDS
+    }
+
+
+# ── PATCH /api/deals/analyzer/preferences ─────────────────────────────
+
+
+@deals_router.patch("/analyzer/preferences")
+async def update_analyzer_preferences(
+    body: UpdateAnalyzerPrefsBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update user's analyzer default preferences."""
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+    for field, value in updates.items():
+        setattr(user, f"analyzer_{field}", value)
+    await db.commit()
+    await db.refresh(user)
+    return {
+        field: getattr(user, f"analyzer_{field}", None)
+        for field in _ANALYZER_FIELDS
+    }
+
+
+# ── PATCH /api/deals/{deal_id} ────────────────────────────────────────
+
+
+@deals_router.patch("/{deal_id}")
+async def patch_deal(
+    deal_id: str,
+    body: PatchDealBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save or update analyzer_data for a deal."""
+    if body.analyzer_data is not None:
+        result = await db.execute(
+            select(DealAnalyzerResult).where(
+                DealAnalyzerResult.user_id == user.id,
+                DealAnalyzerResult.deal_id == deal_id,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.analyzer_data = body.analyzer_data
+        else:
+            row = DealAnalyzerResult(
+                user_id=user.id,
+                deal_id=deal_id,
+                analyzer_data=body.analyzer_data,
+            )
+            db.add(row)
+        await db.commit()
+    return {"success": True}
 
 
 # ── GET /api/deals/{deal_id} ───────────────────────────────────────────
