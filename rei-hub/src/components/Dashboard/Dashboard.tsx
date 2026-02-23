@@ -68,8 +68,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <p className="text-slate-600">Welcome back! Here's your overview.</p>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Dashboard</h1>
+        <p className="text-sm md:text-base text-slate-600">Welcome back! Here's your overview.</p>
       </div>
 
       {/* Metrics Grid */}
@@ -107,9 +107,9 @@ export default function Dashboard() {
       <TodayWidget />
 
       {/* Pipeline Value */}
-      <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl p-4 md:p-6 text-white">
         <p className="text-primary-100 text-sm font-medium">Total Pipeline Value</p>
-        <p className="text-3xl font-bold mt-1">{formatCurrency(pipelineValue)}</p>
+        <p className="text-2xl md:text-3xl font-bold mt-1">{formatCurrency(pipelineValue)}</p>
         <p className="text-primary-200 text-sm mt-2">
           Across {activeDeals} active deals
         </p>

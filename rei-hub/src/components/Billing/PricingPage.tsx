@@ -67,11 +67,11 @@ export default function PricingPage() {
   const [annual, setAnnual] = useState(false)
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-16">
+    <div className="min-h-screen bg-slate-50 px-3 md:px-4 py-8 md:py-16">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-slate-900">
+        <div className="text-center mb-8 md:mb-10">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
             REI Fundamentals Hub &mdash; Pricing
           </h1>
 
@@ -117,7 +117,7 @@ export default function PricingPage() {
             return (
               <div
                 key={plan.key}
-                className={`relative bg-white rounded-xl shadow-sm border p-8 flex flex-col ${
+                className={`relative bg-white rounded-xl shadow-sm border p-5 md:p-8 flex flex-col ${
                   plan.badge
                     ? 'border-primary-500 ring-2 ring-primary-500'
                     : 'border-slate-200'
@@ -132,7 +132,7 @@ export default function PricingPage() {
                 <h2 className="text-xl font-bold text-slate-900">{plan.name}</h2>
 
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-slate-900">
+                  <span className="text-3xl md:text-4xl font-extrabold text-slate-900">
                     ${price.toLocaleString()}
                   </span>
                   <span className="text-slate-500 text-sm">{period}</span>
@@ -191,7 +191,7 @@ export default function PricingPage() {
         </div>
 
         {/* All plans note */}
-        <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="mt-6 md:mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6">
           <h3 className="text-sm font-semibold text-slate-900 mb-3">All plans include:</h3>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-slate-600">
             <li className="flex items-center gap-2"><span className="text-primary-600">&#10003;</span> Additional numbers: $2.00/mo each</li>

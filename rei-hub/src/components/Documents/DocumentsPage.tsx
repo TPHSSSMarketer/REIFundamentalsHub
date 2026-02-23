@@ -88,13 +88,13 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <FileText className="w-7 h-7 text-primary-600" />
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <FileText className="w-6 h-6 md:w-7 md:h-7 text-primary-600" />
           Documents &amp; Contracts
         </h1>
-        <p className="text-slate-500 mt-1">
+        <p className="text-sm md:text-base text-slate-500 mt-1">
           Manage contract templates, merge with deal data, and save to cloud storage
         </p>
       </div>
@@ -105,18 +105,21 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 overflow-x-auto scrollbar-hide">
         {(Object.keys(TAB_LABELS) as TabKey[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 py-2 px-2 md:px-4 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap min-h-[40px] ${
               activeTab === tab
                 ? 'bg-white text-primary-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            {TAB_LABELS[tab]}
+            <span className="md:hidden">
+              {tab === 'templates' ? 'Templates' : tab === 'generate' ? 'Generate' : tab === 'history' ? 'History' : 'Checklists'}
+            </span>
+            <span className="hidden md:inline">{TAB_LABELS[tab]}</span>
           </button>
         ))}
       </div>
@@ -282,7 +285,7 @@ function TemplatesTab({ showToast }: { showToast: (m: string) => void }) {
       )}
 
       {/* Template Library */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Template Library</h2>
 
         {grouped.length === 0 ? (
@@ -355,7 +358,7 @@ function TemplatesTab({ showToast }: { showToast: (m: string) => void }) {
       </section>
 
       {/* Upload New Template */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Upload Contract Template (.docx)
         </h2>
@@ -727,7 +730,7 @@ function GenerateTab({ showToast }: { showToast: (m: string) => void }) {
           {customFields.length > 0 ? 'Step 4' : 'Step 3'} &mdash; Save To
         </h2>
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <button
             type="button"
             onClick={() => setStorageProvider('google_drive')}
@@ -827,7 +830,7 @@ function HistoryTab({ showToast }: { showToast: (m: string) => void }) {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-slate-200 p-6">
+    <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">
         Generated Contracts
       </h2>
@@ -1024,14 +1027,14 @@ function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }
 
   return (
     <div className="space-y-6">
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <p className="text-sm text-slate-500 mb-4">
           Customize which contracts are required for each deal type.
           These will auto-populate when a new deal is created.
         </p>
 
         {/* Deal type tabs */}
-        <div className="flex gap-1 mb-6 flex-wrap">
+        <div className="flex gap-1 mb-6 overflow-x-auto scrollbar-hide pb-1">
           {DEAL_TYPES.map((dt) => (
             <button
               key={dt.key}
@@ -1062,7 +1065,7 @@ function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }
             {items.map((item, idx) => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-lg group"
+                className="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 bg-slate-50 rounded-lg group"
               >
                 {/* Drag handle */}
                 <button
@@ -1095,7 +1098,7 @@ function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }
                 <select
                   value={item.document_template_id || ''}
                   onChange={(e) => handleLinkTemplate(item, e.target.value)}
-                  className="text-[11px] px-2 py-1 border border-slate-200 rounded bg-white text-slate-600 max-w-[140px] truncate focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  className="hidden sm:block text-[11px] px-2 py-1 border border-slate-200 rounded bg-white text-slate-600 max-w-[140px] truncate focus:outline-none focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="">No template</option>
                   {docTemplates.map((t) => (
@@ -1106,7 +1109,7 @@ function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }
                 {/* Delete */}
                 <button
                   onClick={() => handleDeleteItem(item.id)}
-                  className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  className="text-slate-300 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

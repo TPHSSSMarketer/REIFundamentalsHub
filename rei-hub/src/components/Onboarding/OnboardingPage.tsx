@@ -232,7 +232,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4">
+      <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-700 rounded-lg flex items-center justify-center">
             <span className="text-white text-sm font-bold">R</span>
@@ -249,7 +249,7 @@ export default function OnboardingPage() {
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-4 pb-24">
+      <div className="flex-1 flex items-start md:items-center justify-center px-3 md:px-4 pb-24 pt-4 md:pt-0">
         <div
           className={`w-full max-w-[600px] transition-all duration-200 ${
             animating
@@ -259,7 +259,7 @@ export default function OnboardingPage() {
               : 'opacity-100 translate-x-0'
           }`}
         >
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 md:p-8">
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
                 {error}
@@ -379,8 +379,8 @@ export default function OnboardingPage() {
       </div>
 
       {/* Progress dots */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 py-4">
-        <div className="flex items-center justify-center gap-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 py-3 md:py-4">
+        <div className="flex items-center justify-center gap-2 md:gap-3">
           {STEP_LABELS.map((label, i) => {
             const stepNum = i + 1
             const isCompleted = stepNum < step
@@ -461,7 +461,7 @@ function Step1CompanyInfo({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
             <input
@@ -1186,9 +1186,9 @@ function Step6Review({
       <div className="space-y-3 mb-8">
         <SummaryRow label="Company" value={data.company_name || 'Not set up yet'} />
         <SummaryRow label="Market" value={data.primary_market || 'Not set up yet'} />
-        <div className="flex items-start justify-between py-2 border-b border-slate-100">
-          <span className="text-sm text-slate-500">Deal Types</span>
-          <div className="flex flex-wrap gap-1 justify-end max-w-[300px]">
+        <div className="flex items-start justify-between py-2 border-b border-slate-100 gap-3">
+          <span className="text-sm text-slate-500 shrink-0">Deal Types</span>
+          <div className="flex flex-wrap gap-1 justify-end max-w-[200px] sm:max-w-[300px]">
             {data.deal_types.length > 0 ? (
               data.deal_types.map((dt) => (
                 <span

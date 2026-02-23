@@ -190,7 +190,7 @@ export default function BillingPage() {
   const anyCheckoutLoading = checkoutLoading !== null
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-10">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8 md:space-y-10">
 
       {/* ── Success Banner ─────────────────────────────────────── */}
       {showSuccess && (
@@ -273,7 +273,7 @@ export default function BillingPage() {
         <>
           {/* Header + Toggle */}
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900">
               {billingStatus ? 'Change Your Plan' : 'Choose a Plan'}
             </h2>
 
@@ -372,7 +372,7 @@ export default function BillingPage() {
               return (
                 <div
                   key={planKey}
-                  className={`relative bg-white rounded-xl shadow-sm border p-8 flex flex-col ${
+                  className={`relative bg-white rounded-xl shadow-sm border p-5 md:p-8 flex flex-col ${
                     isPopular
                       ? 'border-primary-500 ring-2 ring-primary-500'
                       : 'border-slate-200'
@@ -387,7 +387,7 @@ export default function BillingPage() {
                   <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
 
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-extrabold text-slate-900">
+                    <span className="text-3xl md:text-4xl font-extrabold text-slate-900">
                       {cents(price)}
                     </span>
                     <span className="text-slate-500 text-sm">{period}</span>

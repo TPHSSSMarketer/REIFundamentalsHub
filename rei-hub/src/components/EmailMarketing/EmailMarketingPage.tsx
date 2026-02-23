@@ -85,30 +85,31 @@ export default function EmailMarketingPage() {
   ]
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Email Marketing</h1>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Email Marketing</h1>
         {provider && (
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${provider === 'resend' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold self-start ${provider === 'resend' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
             Sending via {provider.charAt(0).toUpperCase() + provider.slice(1)}
           </span>
         )}
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-slate-200 mb-6">
+      <div className="flex gap-1 border-b border-slate-200 mb-4 md:mb-6 overflow-x-auto scrollbar-hide">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 px-3 md:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-h-[44px] ${
               tab === t.key
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {t.icon}
-            {t.label}
+            <span className="hidden sm:inline">{t.label}</span>
+            <span className="sm:hidden">{t.key === 'lists' ? 'Lists' : t.key === 'campaigns' ? 'Camps' : t.key === 'sequences' ? 'Seqs' : t.key === 'templates' ? 'Tmpl' : t.label}</span>
           </button>
         ))}
       </div>
@@ -429,11 +430,11 @@ function ListsTab() {
             </div>
 
             {/* Add subscriber inline */}
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex gap-2 items-center">
-              <input placeholder="email@example.com" value={subForm.email} onChange={(e) => setSubForm({ ...subForm, email: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm flex-1" />
-              <input placeholder="First" value={subForm.first_name} onChange={(e) => setSubForm({ ...subForm, first_name: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm w-24" />
-              <input placeholder="Last" value={subForm.last_name} onChange={(e) => setSubForm({ ...subForm, last_name: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm w-24" />
-              <button onClick={handleAddSub} disabled={!subForm.email} className="px-3 py-1.5 bg-primary-600 text-white rounded text-sm disabled:opacity-50">Add</button>
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap md:flex-nowrap gap-2 items-center">
+              <input placeholder="email@example.com" value={subForm.email} onChange={(e) => setSubForm({ ...subForm, email: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm flex-1 min-w-[150px] min-h-[40px]" />
+              <input placeholder="First" value={subForm.first_name} onChange={(e) => setSubForm({ ...subForm, first_name: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm w-full md:w-24 min-h-[40px]" />
+              <input placeholder="Last" value={subForm.last_name} onChange={(e) => setSubForm({ ...subForm, last_name: e.target.value })} className="px-3 py-1.5 border border-slate-300 rounded text-sm w-full md:w-24 min-h-[40px]" />
+              <button onClick={handleAddSub} disabled={!subForm.email} className="px-3 py-1.5 bg-primary-600 text-white rounded text-sm disabled:opacity-50 min-h-[40px] w-full md:w-auto">Add</button>
             </div>
 
             {/* Table */}

@@ -66,8 +66,8 @@ export default function Contacts() {
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Contacts</h1>
-        <p className="text-slate-600">Manage your contacts and leads</p>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Contacts</h1>
+        <p className="text-sm md:text-base text-slate-600">Manage your contacts and leads</p>
       </div>
 
       {/* Search */}
@@ -75,10 +75,10 @@ export default function Contacts() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         <input
           type="text"
-          placeholder="Search by name, phone, email, or company..."
+          placeholder="Search contacts..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 min-h-[44px]"
         />
       </div>
 
@@ -111,34 +111,34 @@ export default function Contacts() {
               <div
                 key={contact.id}
                 onClick={() => navigate(`/contacts/${contact.id}`)}
-                className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 hover:bg-slate-50 transition-colors cursor-pointer gap-2 sm:gap-0"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                     <span className="text-sm font-medium text-primary-600">
                       {getInitials(contact.name)}
                     </span>
                   </div>
 
                   {/* Info */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-slate-800">{contact.name}</p>
-                      <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${ROLE_COLORS[contact.role] || 'bg-slate-100 text-slate-700'}`}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-slate-800 truncate">{contact.name}</p>
+                      <span className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${ROLE_COLORS[contact.role] || 'bg-slate-100 text-slate-700'}`}>
                         {ROLE_LABELS[contact.role] || contact.role}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-500">
-                      {contact.company && <span>{contact.company}</span>}
-                      {contact.phone && <span>{formatPhone(contact.phone)}</span>}
-                      {contact.email && <span>{contact.email}</span>}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
+                      {contact.company && <span className="truncate">{contact.company}</span>}
+                      {contact.phone && <span className="truncate">{formatPhone(contact.phone)}</span>}
+                      {contact.email && <span className="hidden sm:inline truncate">{contact.email}</span>}
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-13 sm:ml-0 shrink-0">
                   {/* Rating */}
                   {contact.rating != null && contact.rating > 0 && (
                     <div className="hidden md:flex items-center gap-0.5">
@@ -179,7 +179,7 @@ export default function Contacts() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); navigate(`/contacts/${contact.id}`) }}
-                      className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                      className="p-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
                       title="View contact"
                     >
                       <Eye className="w-4 h-4 text-slate-500" />
@@ -188,7 +188,7 @@ export default function Contacts() {
                       <a
                         href={`tel:${contact.phone}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
                       >
                         <Phone className="w-4 h-4 text-slate-500" />
                       </a>
@@ -196,7 +196,7 @@ export default function Contacts() {
                     {contact.phone && (
                       <button
                         onClick={(e) => handleSendSMS(contact, e)}
-                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
                       >
                         <MessageSquare className="w-4 h-4 text-slate-500" />
                       </button>
@@ -205,7 +205,7 @@ export default function Contacts() {
                       <a
                         href={`mailto:${contact.email}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                        className="p-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
                       >
                         <Mail className="w-4 h-4 text-slate-500" />
                       </a>
