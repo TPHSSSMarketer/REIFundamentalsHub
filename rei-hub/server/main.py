@@ -23,6 +23,7 @@ from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
 from rei.api.email_marketing_routes import email_marketing_router
 from rei.api.onboarding_routes import onboarding_router
+from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
 from rei.api.plaid_routes import plaid_router
 from rei.api.plugin_routes import plugin_router
@@ -162,6 +163,7 @@ app.include_router(email_marketing_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(phone_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
+app.include_router(payment_portal_router, prefix="/api")
 
 
 @app.get("/health")

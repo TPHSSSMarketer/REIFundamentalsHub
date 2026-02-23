@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # Used for encrypting stored API keys
     # Should be 32 chars — set in .env
 
+    # ── TPHS Payment Portal (Stripe Connect) ────────────────────────
+    stripe_connect_secret_key: str = ""
+    stripe_connect_publishable_key: str = ""
+    tphs_admin_email: str = ""
+
     # ── Google Calendar ─────────────────────────────────────────────
     google_client_id: str = ""
     google_client_secret: str = ""

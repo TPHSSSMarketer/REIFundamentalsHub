@@ -215,17 +215,17 @@ async def create_checkout(
 async def _create_stripe_checkout(
     body: CreateCheckoutRequest, current_user: User, settings
 ) -> dict:
-    """Create a Stripe Checkout Session."""
+    """Create a Stripe Embedded Checkout Session (ui_mode='embedded')."""
     if not settings.stripe_secret_key:
         return {
-            "checkout_url": None,
+            "client_secret": None,
             "message": "Stripe not yet configured — price IDs pending",
         }
 
     main_price_id = get_plan_price_id(body.plan, body.interval, settings)
     if not main_price_id:
         return {
-            "checkout_url": None,
+            "client_secret": None,
             "message": "Stripe not yet configured — price IDs pending",
         }
 
@@ -239,10 +239,10 @@ async def _create_stripe_checkout(
     try:
         stripe.api_key = settings.stripe_secret_key
         session = stripe.checkout.Session.create(
+            ui_mode="embedded",
             mode="subscription",
             line_items=line_items,
-            success_url=f"{settings.hub_url}/billing?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{settings.hub_url}/billing",
+            return_url=f"{settings.hub_url}/billing/complete?session_id={{CHECKOUT_SESSION_ID}}",
             customer_email=current_user.email,
             subscription_data={
                 "trial_period_days": TRIAL_DAYS,
@@ -262,7 +262,7 @@ async def _create_stripe_checkout(
             detail=f"Stripe error: {e.user_message or str(e)}",
         ) from e
 
-    return {"checkout_url": session.url, "message": "ok"}
+    return {"client_secret": session.client_secret, "message": "ok"}
 
 
 async def _create_paypal_checkout(

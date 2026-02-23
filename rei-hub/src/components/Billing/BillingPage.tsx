@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import {
   getBillingStatus,
@@ -40,6 +40,34 @@ const FEATURE_LABELS: Record<string, string> = {
 }
 
 const PLAN_ORDER = ['starter', 'pro', 'team'] as const
+
+/* ── Stripe.js CDN loader ────────────────────────────────────── */
+
+let stripeJsPromise: Promise<any> | null = null
+
+function loadStripeJs(publishableKey: string): Promise<any> {
+  if (stripeJsPromise) return stripeJsPromise
+
+  stripeJsPromise = new Promise((resolve, reject) => {
+    if ((window as any).Stripe) {
+      resolve((window as any).Stripe(publishableKey))
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://js.stripe.com/v3/'
+    script.onload = () => {
+      if ((window as any).Stripe) {
+        resolve((window as any).Stripe(publishableKey))
+      } else {
+        reject(new Error('Stripe.js failed to initialize'))
+      }
+    }
+    script.onerror = () => reject(new Error('Failed to load Stripe.js'))
+    document.head.appendChild(script)
+  })
+
+  return stripeJsPromise
+}
 
 /* ── Sub-components ──────────────────────────────────────────── */
 
@@ -88,11 +116,14 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe')
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const checkoutContainerRef = useRef<HTMLDivElement | null>(null)
+  const embeddedCheckoutRef = useRef<any>(null)
 
-  // Check for ?session_id= or ?paypal=success on mount (checkout success redirect)
+  // Check for ?paypal=success on mount (PayPal checkout success redirect)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('session_id') || params.get('paypal') === 'success') {
+    if (params.get('paypal') === 'success') {
       setShowSuccess(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -124,6 +155,14 @@ export default function BillingPage() {
     return () => { cancelled = true }
   }, [token])
 
+  const destroyEmbeddedCheckout = useCallback(() => {
+    if (embeddedCheckoutRef.current) {
+      try { embeddedCheckoutRef.current.destroy() } catch { /* noop */ }
+      embeddedCheckoutRef.current = null
+    }
+    setShowCheckoutModal(false)
+  }, [])
+
   async function handleSelectPlan(planKey: string) {
     if (!token || checkoutLoading) return
     setCheckoutLoading(planKey)
@@ -135,13 +174,39 @@ export default function BillingPage() {
         paymentMethod,
         planKey === 'team' ? false : helmAddon,
       )
+
+      // Stripe: open embedded checkout in modal
+      if (paymentMethod === 'stripe' && res.client_secret) {
+        const pk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ''
+        if (!pk) {
+          setToast('Stripe publishable key not configured')
+          return
+        }
+        const stripeInstance = await loadStripeJs(pk)
+        setShowCheckoutModal(true)
+
+        // Wait one tick for the modal container to mount
+        await new Promise((r) => setTimeout(r, 0))
+
+        const checkout = await stripeInstance.initEmbeddedCheckout({
+          clientSecret: res.client_secret,
+        })
+        embeddedCheckoutRef.current = checkout
+        if (checkoutContainerRef.current) {
+          checkout.mount(checkoutContainerRef.current)
+        }
+        return
+      }
+
+      // PayPal: redirect to approval URL (still hosted)
       if (res.checkout_url) {
         window.location.href = res.checkout_url
-      } else {
-        setToast('Billing setup coming soon — we\u2019ll notify you when payments are live')
+        return
       }
+
+      setToast('Billing setup coming soon \u2014 we\u2019ll notify you when payments are live')
     } catch {
-      setToast('Something went wrong — please try again')
+      setToast('Something went wrong \u2014 please try again')
     } finally {
       setCheckoutLoading(null)
     }
@@ -497,6 +562,24 @@ export default function BillingPage() {
             )}
             {portalLoading ? 'Opening...' : 'Manage Billing & Invoices'}
           </button>
+        </div>
+      )}
+
+      {/* ── Stripe Embedded Checkout Modal ──────────────────── */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900">Complete Your Subscription</h3>
+              <button
+                onClick={destroyEmbeddedCheckout}
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div ref={checkoutContainerRef} className="p-6 min-h-[300px]" />
+          </div>
         </div>
       )}
 

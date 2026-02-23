@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Layout from './components/Common/Layout'
 import ErrorBoundary from './components/Common/ErrorBoundary'
 import NotFoundPage from './components/Common/NotFoundPage'
@@ -28,7 +29,27 @@ import DealDetailPage from './components/Pipeline/DealDetailPage'
 import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import CalendarPage from './components/Calendar/CalendarPage'
+import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import { isAuthenticated } from './services/auth'
+
+function BillingCompletePage() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const timer = setTimeout(() => navigate('/dashboard', { replace: true }), 3000)
+    return () => clearTimeout(timer)
+  }, [navigate])
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center p-8">
+        <div className="text-5xl mb-4">&#10004;&#65039;</div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Subscription activated!</h1>
+        <p className="text-slate-500">Refreshing your account&hellip;</p>
+      </div>
+    </div>
+  )
+}
 
 function AppLayout() {
   return (
@@ -77,6 +98,15 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
+        <Route path="/pay" element={<PaymentPortalPage />} />
+        <Route
+          path="/billing/complete"
+          element={
+            <ProtectedRoute>
+              <BillingCompletePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/onboarding"
           element={

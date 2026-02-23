@@ -55,7 +55,7 @@ export async function createCheckout(
   interval: 'monthly' | 'annual',
   paymentMethod: 'stripe' | 'paypal',
   helmAddon: boolean = false
-): Promise<{ checkout_url: string | null; message: string }> {
+): Promise<{ client_secret?: string | null; checkout_url?: string | null; message: string }> {
   const res = await fetch(`${BASE_URL}/api/billing/create-checkout`, {
     method: 'POST',
     headers: {
@@ -69,7 +69,7 @@ export async function createCheckout(
       helm_addon: helmAddon,
     }),
   })
-  return handleResponse<{ checkout_url: string | null; message: string }>(res)
+  return handleResponse<{ client_secret?: string | null; checkout_url?: string | null; message: string }>(res)
 }
 
 export async function openBillingPortal(
