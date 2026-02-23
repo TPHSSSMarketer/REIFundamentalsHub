@@ -192,6 +192,16 @@ class User(Base):
     ai_override_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
 
+    # ── Loan Servicing ─────────────────────────────────────────
+    loan_servicing_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    stripe_connect_account_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    stripe_connect_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    is_superadmin: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -793,3 +803,315 @@ class AIProviderConfig(Base):
         DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Loan Servicing models
+# ═══════════════════════════════════════════════════════════════
+
+
+class LandTrust(Base):
+    __tablename__ = "land_trusts"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    trust_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    trustee: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    beneficiary: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    state: Mapped[str] = mapped_column(String)
+    property_address: Mapped[str] = mapped_column(String)
+    property_city: Mapped[str] = mapped_column(String)
+    property_state: Mapped[str] = mapped_column(String)
+    property_zip: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(
+        String, default="potential")
+    gdrive_folder_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    state_law_research: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    state_law_researched_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    state_law_provider: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    admin_notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    loan_servicing_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    bank_negotiation_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class ContractForDeed(Base):
+    __tablename__ = "contracts_for_deed"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    land_trust_id: Mapped[str] = mapped_column(
+        ForeignKey("land_trusts.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    account_number: Mapped[str] = mapped_column(
+        String, unique=True)
+    buyer_name: Mapped[str] = mapped_column(String)
+    buyer_email: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    buyer_phone: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    buyer_mailing_address: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    purchase_price: Mapped[float] = mapped_column(Float)
+    down_payment: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    loan_amount: Mapped[float] = mapped_column(Float)
+    interest_rate: Mapped[float] = mapped_column(Float)
+    term_months: Mapped[int] = mapped_column(Integer)
+    monthly_payment: Mapped[float] = mapped_column(Float)
+    has_balloon: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    balloon_month: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True)
+    balloon_amount: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    start_date: Mapped[datetime] = mapped_column(DateTime)
+    maturity_date: Mapped[datetime] = mapped_column(DateTime)
+    first_payment_date: Mapped[datetime] = mapped_column(
+        DateTime)
+    current_balance: Mapped[float] = mapped_column(Float)
+    total_paid: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    total_interest_paid: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    late_fee_amount: Mapped[float] = mapped_column(
+        Float, default=50.0)
+    late_fee_days: Mapped[int] = mapped_column(
+        Integer, default=15)
+    status: Mapped[str] = mapped_column(
+        String, default="active")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True)
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    payment_method: Mapped[str] = mapped_column(
+        String, default="stripe")
+    has_underlying_mortgage: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    mortgage_servicer: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    mortgage_balance: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    mortgage_monthly_payment: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    mortgage_account_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class LoanPayment(Base):
+    __tablename__ = "loan_payments"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    cfd_id: Mapped[str] = mapped_column(
+        ForeignKey("contracts_for_deed.id"))
+    land_trust_id: Mapped[str] = mapped_column(
+        ForeignKey("land_trusts.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    amount: Mapped[float] = mapped_column(Float)
+    principal_portion: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    interest_portion: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    late_fee_portion: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    payment_date: Mapped[datetime] = mapped_column(DateTime)
+    due_date: Mapped[datetime] = mapped_column(DateTime)
+    is_late: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    days_late: Mapped[int] = mapped_column(
+        Integer, default=0)
+    payment_method: Mapped[str] = mapped_column(String)
+    stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    stripe_charge_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    reference_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, default="pending")
+    balance_after: Mapped[float] = mapped_column(Float)
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class LoanDefault(Base):
+    __tablename__ = "loan_defaults"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    cfd_id: Mapped[str] = mapped_column(
+        ForeignKey("contracts_for_deed.id"))
+    land_trust_id: Mapped[str] = mapped_column(
+        ForeignKey("land_trusts.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    default_date: Mapped[datetime] = mapped_column(DateTime)
+    missed_payment_amount: Mapped[float] = mapped_column(Float)
+    total_amount_due: Mapped[float] = mapped_column(Float)
+    notice_1_type: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notice_1_sent_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    notice_1_cure_deadline: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    notice_1_document_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notice_2_type: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notice_2_sent_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    notice_2_cure_deadline: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    notice_2_document_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, default="active")
+    cured_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    cured_amount: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    eviction_filed_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    eviction_status: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class Investor(Base):
+    __tablename__ = "investors"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    admin_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    email: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    entity_name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    distribution_percentage: Mapped[float] = mapped_column(
+        Float, default=4.0)
+    payment_method: Mapped[str] = mapped_column(
+        String, default="check")
+    bank_name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    routing_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    account_number_bank: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True)
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class DistributionStatement(Base):
+    __tablename__ = "distribution_statements"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    admin_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+    period_type: Mapped[str] = mapped_column(String)
+    period_start: Mapped[datetime] = mapped_column(DateTime)
+    period_end: Mapped[datetime] = mapped_column(DateTime)
+    quarter: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    total_collected: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    total_late_fees: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    total_investor_distributions: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    total_entity_distribution: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    property_breakdown: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    investor_breakdown: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, default="draft")
+    distributed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    gdrive_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class StateLawResearch(Base):
+    __tablename__ = "state_law_research"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    state: Mapped[str] = mapped_column(
+        String, unique=True)
+    contract_for_deed: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    owner_finance: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    subject_to: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    rent_to_own: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    eviction_timeline: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    foreclosure_process: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    payment_collection: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    citations: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    researched_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    researched_by_provider: Mapped[str] = mapped_column(
+        String, default="nvidia_aiq")
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False)
