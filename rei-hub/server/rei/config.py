@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""
 
     # ── AI Provider defaults ─────────────────────────────────────────
-    default_ai_provider: str = "anthropic"
-    default_ai_model: str = "claude-sonnet-4-6"
+    default_ai_provider: str = "nvidia_kimi"
+    default_ai_model: str = "moonshotai/kimi-k2-instruct"
     ai_encryption_key: str = ""
     # Used for encrypting stored API keys
     # Should be 32 chars — set in .env

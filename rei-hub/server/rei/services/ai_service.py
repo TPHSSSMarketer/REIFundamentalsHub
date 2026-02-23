@@ -261,7 +261,7 @@ async def _resolve_provider(
         model = PROVIDER_CONFIGS["nvidia_aiq"]["default_model"]
 
     # Determine the API key and base_url for the resolved provider
-    pconfig = PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["anthropic"])
+    pconfig = PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["nvidia_kimi"])
     base_url = pconfig["base_url"]
 
     if provider == "anthropic":
