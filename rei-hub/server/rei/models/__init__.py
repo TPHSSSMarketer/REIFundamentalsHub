@@ -10,6 +10,7 @@ from rei.models.user import (
     FaxLog,
     PhoneCredit,
 )
+from rei.models.loan import LoanAccount, LoanPayment
 
 __all__ = [
     "User",
@@ -22,4 +23,6 @@ __all__ = [
     "VoicemailDropCampaign",
     "FaxLog",
     "PhoneCredit",
+    "LoanAccount",
+    "LoanPayment",
 ]

@@ -28,6 +28,7 @@ import DealDetailPage from './components/Pipeline/DealDetailPage'
 import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import CalendarPage from './components/Calendar/CalendarPage'
+import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -77,6 +78,7 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
+        <Route path="/pay" element={<PaymentPortalPage />} />
         <Route
           path="/onboarding"
           element={
