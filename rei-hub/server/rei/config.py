@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # ── ElevenLabs (AI Voicemail) ──────────────────────────────────
     elevenlabs_api_key: str = ""
 
+    # ── AI Provider defaults ─────────────────────────────────────────
+    default_ai_provider: str = "anthropic"
+    default_ai_model: str = "claude-sonnet-4-6"
+    ai_encryption_key: str = ""
+    # Used for encrypting stored API keys
+    # Should be 32 chars — set in .env
+
     # ── Google Calendar ─────────────────────────────────────────────
     google_client_id: str = ""
     google_client_secret: str = ""

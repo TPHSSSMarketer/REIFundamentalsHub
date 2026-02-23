@@ -16,6 +16,7 @@ import {
   type AdminStats,
   type Subscriber,
 } from '@/services/adminApi'
+import AiProviderSettings from './AiProviderSettings'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 
@@ -45,7 +46,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -508,6 +509,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ── AI Providers Tab ──────────────────────────────────── */}
+      {tab === 'AI Providers' && <AiProviderSettings />}
 
       {/* ── Tools Tab ─────────────────────────────────────────── */}
       {tab === 'Tools' && (

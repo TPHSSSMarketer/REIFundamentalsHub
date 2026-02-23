@@ -3,6 +3,7 @@ import { Save, Key, MapPin, Check, AlertTriangle, Globe, Calculator, Loader2 } f
 import { getConfigStatus, getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import HelmHubConnect from './helmhubconnect'
+import AiProviderUserSettings from './AiProviderUserSettings'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -233,6 +234,9 @@ export default function Settings() {
 
       {/* Helm Hub AI Connection */}
       <HelmHubConnect />
+
+      {/* AI Provider Settings (only shown if admin allows override) */}
+      <AiProviderUserSettings />
 
       {/* Deal Analyzer Defaults */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">

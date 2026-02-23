@@ -177,6 +177,21 @@ class User(Base):
         Boolean, default=False
     )
 
+    # ── AI Provider override (if admin allows) ──────────────────
+    ai_provider_override: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # NULL = use global, set = use this provider
+    ai_model_override: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    ai_own_anthropic_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Encrypted — user's own Anthropic key
+    ai_own_nvidia_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Encrypted — user's own NVIDIA key
+    ai_override_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -730,3 +745,51 @@ class CalendarEvent(Base):
     recurrence_rule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI Provider Configuration
+# ═══════════════════════════════════════════════════════════════
+
+
+class AIProviderConfig(Base):
+    __tablename__ = "ai_provider_configs"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # NULL = global config, user_id = per-user
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+
+    # Active provider: anthropic, nvidia_kimi, nvidia_minimax, nvidia_aiq
+    active_provider: Mapped[str] = mapped_column(
+        String, default="anthropic")
+
+    # Active model per provider
+    active_model: Mapped[str] = mapped_column(
+        String, default="claude-sonnet-4-6")
+
+    # Admin API keys (encrypted)
+    anthropic_api_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    nvidia_api_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # One NVIDIA key works for all NVIDIA models
+
+    # Per-user override settings
+    allow_user_override: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # If True: user can select their own provider
+    user_can_bring_own_key: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # If True: user can enter their own API keys
+
+    # Usage tracking
+    total_requests: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)

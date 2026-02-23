@@ -31,6 +31,8 @@ interface OnboardingData {
   from_name: string
   from_email: string
   dns_records: Array<{ type: string; host: string; value: string }>
+  nvidia_api_key: string
+  ai_research_provider: string
 }
 
 const STEP_LABELS = [
@@ -72,6 +74,8 @@ export default function OnboardingPage() {
     from_name: '',
     from_email: '',
     dns_records: [],
+    nvidia_api_key: '',
+    ai_research_provider: 'anthropic',
   })
 
   // Phone search state
@@ -370,6 +374,7 @@ export default function OnboardingPage() {
             {step === 6 && (
               <Step6Review
                 data={data}
+                setData={setData}
                 saving={saving}
                 onLaunch={handleComplete}
               />
@@ -1168,13 +1173,44 @@ function Step5EmailDomain({
 
 function Step6Review({
   data,
+  setData,
   saving,
   onLaunch,
 }: {
   data: OnboardingData
+  setData: React.Dispatch<React.SetStateAction<OnboardingData>>
   saving: boolean
   onLaunch: () => void
 }) {
+  const [testingNvidia, setTestingNvidia] = useState(false)
+  const [nvidiaTestOk, setNvidiaTestOk] = useState<boolean | null>(null)
+
+  const handleTestNvidia = async () => {
+    if (!data.nvidia_api_key.trim()) return
+    setTestingNvidia(true)
+    setNvidiaTestOk(null)
+    try {
+      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.nvidia_api_key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+          messages: [{ role: 'user', content: 'Say hello in one word.' }],
+          max_tokens: 10,
+          temperature: 0.1,
+        }),
+      })
+      setNvidiaTestOk(res.ok)
+    } catch {
+      setNvidiaTestOk(false)
+    } finally {
+      setTestingNvidia(false)
+    }
+  }
+
   return (
     <div>
       <div className="text-center mb-8">
@@ -1220,6 +1256,99 @@ function Step6Review({
         />
       </div>
 
+      {/* NVIDIA AI Models (Optional) */}
+      <div className="mb-8 p-4 rounded-xl border border-slate-200 bg-slate-50">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-7 h-7 rounded-md bg-green-100 flex items-center justify-center">
+            <span className="text-green-700 font-bold text-xs">N</span>
+          </div>
+          <h3 className="font-semibold text-slate-900">NVIDIA AI Models (Optional)</h3>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Powers advanced legal research and bank contact lookup
+        </p>
+
+        <div className="mb-3">
+          <label className="block text-sm font-medium text-slate-700 mb-1">NVIDIA API Key</label>
+          <input
+            type="password"
+            value={data.nvidia_api_key}
+            onChange={(e) => setData((prev) => ({ ...prev, nvidia_api_key: e.target.value }))}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="nvapi-..."
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Get your key at{' '}
+            <a
+              href="https://build.nvidia.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              build.nvidia.com
+            </a>
+          </p>
+        </div>
+
+        {data.nvidia_api_key && (
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={handleTestNvidia}
+              disabled={testingNvidia}
+              className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {testingNvidia ? 'Testing...' : 'Test Connection'}
+            </button>
+            {nvidiaTestOk === true && (
+              <span className="text-xs text-green-600 font-medium">Connected</span>
+            )}
+            {nvidiaTestOk === false && (
+              <span className="text-xs text-red-600 font-medium">Failed — check key</span>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Default AI for research tasks
+          </label>
+          <div className="flex gap-3">
+            <label
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                data.ai_research_provider === 'anthropic'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200'
+              }`}
+            >
+              <input
+                type="radio"
+                name="ai_research_provider"
+                checked={data.ai_research_provider === 'anthropic'}
+                onChange={() => setData((prev) => ({ ...prev, ai_research_provider: 'anthropic' }))}
+                className="w-3.5 h-3.5 text-blue-600"
+              />
+              <span className="text-sm font-medium text-slate-700">Claude (default)</span>
+            </label>
+            <label
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                data.ai_research_provider === 'nvidia_aiq'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200'
+              }`}
+            >
+              <input
+                type="radio"
+                name="ai_research_provider"
+                checked={data.ai_research_provider === 'nvidia_aiq'}
+                onChange={() => setData((prev) => ({ ...prev, ai_research_provider: 'nvidia_aiq' }))}
+                className="w-3.5 h-3.5 text-blue-600"
+              />
+              <span className="text-sm font-medium text-slate-700">NVIDIA AI-Q</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-8">
         <h3 className="font-semibold text-slate-900 mb-3">What's ready for you:</h3>
         <div className="space-y-2">
@@ -1231,6 +1360,7 @@ function Step6Review({
             'Email marketing',
             'Phone system',
             'AI Voicemail Drops (Pro plan)',
+            'AI-powered legal research',
           ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-slate-700">
               <span className="text-green-500">✅</span>
