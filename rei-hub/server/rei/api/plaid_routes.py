@@ -203,6 +203,19 @@ async def verify_funds(
         certificate_data=json.dumps(certificate),
     )
     db.add(pof)
+
+    # Auto-create POF expiry reminder task
+    from rei.api.calendar_routes import auto_pof_expiry_task
+
+    expires_at = datetime.fromisoformat(certificate["expires_at"])
+    await auto_pof_expiry_task(
+        db=db,
+        user_id=current_user.id,
+        contact_id=None,
+        deal_id=None,
+        expires_at=expires_at,
+    )
+
     await db.commit()
 
     return certificate

@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     # ── ElevenLabs (AI Voicemail) ──────────────────────────────────
     elevenlabs_api_key: str = ""
 
+    # ── Google Calendar ─────────────────────────────────────────────
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+
+    # ── Microsoft Outlook Calendar ──────────────────────────────────
+    outlook_client_id: str = ""
+    outlook_client_secret: str = ""
+    outlook_redirect_uri: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REI_")
 
 

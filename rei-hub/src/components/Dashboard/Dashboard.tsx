@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Target, DollarSign, CheckCircle, Clock } from 'lucide-react'
 import MetricCard from './MetricCard'
 import ActivityFeed from './ActivityFeed'
+import TodayWidget from '@/components/Calendar/TodayWidget'
 import { useDeals, useTasks, useContacts } from '@/hooks/useApi'
 import { formatCurrency } from '@/utils/helpers'
 import type { Activity } from '@/types'
@@ -101,6 +102,9 @@ export default function Dashboard() {
           color="danger"
         />
       </div>
+
+      {/* Today Widget */}
+      <TodayWidget />
 
       {/* Pipeline Value */}
       <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl p-6 text-white">

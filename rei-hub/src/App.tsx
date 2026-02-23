@@ -27,6 +27,7 @@ import ContactDetailPage from './components/CRM/ContactDetailPage'
 import DealDetailPage from './components/Pipeline/DealDetailPage'
 import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
+import CalendarPage from './components/Calendar/CalendarPage'
 import { isAuthenticated } from './services/auth'
 
 function AppLayout() {
@@ -43,6 +44,7 @@ function AppLayout() {
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/email-marketing" element={<EmailMarketingPage />} />
         <Route path="/phone" element={<PhonePage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={
           <UpgradeGate feature="assistant_hub" requiredPlan="Pro">

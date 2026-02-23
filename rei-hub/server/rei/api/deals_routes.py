@@ -60,6 +60,8 @@ class UpdateAnalyzerPrefsBody(BaseModel):
 
 class PatchDealBody(BaseModel):
     analyzer_data: Optional[str] = None
+    closing_date: Optional[str] = None
+    contact_id: Optional[str] = None
 
 
 # ── GET /api/deals/analyzer/preferences ────────────────────────────────
@@ -150,7 +152,21 @@ async def patch_deal(
                 analyzer_data=body.analyzer_data,
             )
             db.add(row)
-        await db.commit()
+
+    # Auto-create closing task when closing_date is provided
+    if body.closing_date:
+        from rei.api.calendar_routes import auto_closing_task
+
+        closing_dt = datetime.fromisoformat(body.closing_date)
+        await auto_closing_task(
+            db=db,
+            user_id=user.id,
+            deal_id=deal_id,
+            contact_id=body.contact_id,
+            closing_date=closing_dt,
+        )
+
+    await db.commit()
     return {"success": True}
 
 

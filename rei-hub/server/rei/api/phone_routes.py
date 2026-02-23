@@ -509,6 +509,21 @@ async def save_disposition(
     if call_log:
         call_log.disposition = body.disposition
         call_log.notes = body.notes
+
+        # Auto-create callback task if disposition is "callback"
+        if body.disposition == "callback":
+            from rei.api.calendar_routes import auto_callback_task
+
+            callback_time = datetime.utcnow() + timedelta(days=1)
+            await auto_callback_task(
+                db=db,
+                user_id=user.id,
+                contact_id=call_log.contact_id or "",
+                call_log_id=call_log.id,
+                scheduled_datetime=callback_time,
+                notes=body.notes,
+            )
+
         await db.commit()
 
     # Return next contact preview

@@ -16,6 +16,7 @@ from sqlalchemy import select
 from rei.api.admin_routes import admin_router
 from rei.api.auth_routes import auth_router
 from rei.api.billing_routes import billing_router
+from rei.api.calendar_routes import calendar_router
 from rei.api.contacts_routes import contacts_router
 from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
@@ -28,6 +29,7 @@ from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
 from rei.models.user import User
+from rei.tasks.reminder_processor import process_reminders
 from rei.tasks.sequence_processor import process_sequence_steps, reset_email_credits
 from rei.tasks.trial_reminder import send_trial_reminders
 
@@ -38,6 +40,7 @@ _TRIAL_REMINDER_INTERVAL_SECS = 60 * 60 * 24  # 24 hours
 _SEQUENCE_PROCESSOR_INTERVAL_SECS = 60 * 60  # 1 hour
 _CREDIT_RESET_INTERVAL_SECS = 60 * 60 * 24  # 24 hours
 _PHONE_USAGE_RESET_INTERVAL_SECS = 60 * 60  # 1 hour
+_REMINDER_PROCESSOR_INTERVAL_SECS = 60 * 5  # 5 minutes
 
 
 async def _trial_reminder_loop() -> None:
@@ -97,6 +100,17 @@ async def _phone_usage_reset_loop() -> None:
         await asyncio.sleep(_PHONE_USAGE_RESET_INTERVAL_SECS)
 
 
+async def _reminder_processor_loop() -> None:
+    """Process calendar/task reminders every 5 minutes."""
+    while True:
+        try:
+            async with async_session_factory() as db:
+                await process_reminders(db, settings)
+        except Exception:
+            logger.exception("Reminder processor task error")
+        await asyncio.sleep(_REMINDER_PROCESSOR_INTERVAL_SECS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create database tables on startup and launch background tasks."""
@@ -105,11 +119,13 @@ async def lifespan(app: FastAPI):
     task_seq = asyncio.create_task(_sequence_processor_loop())
     task_credits = asyncio.create_task(_credit_reset_loop())
     task_phone = asyncio.create_task(_phone_usage_reset_loop())
+    task_reminders = asyncio.create_task(_reminder_processor_loop())
     yield
     task_trial.cancel()
     task_seq.cancel()
     task_credits.cancel()
     task_phone.cancel()
+    task_reminders.cancel()
 
 
 app = FastAPI(
@@ -143,6 +159,7 @@ app.include_router(plugin_router, prefix="/api")
 app.include_router(email_marketing_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(phone_router, prefix="/api")
+app.include_router(calendar_router, prefix="/api")
 
 
 @app.get("/health")
