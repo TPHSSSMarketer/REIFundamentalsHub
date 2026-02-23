@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Loader2,
   Plus,
+  Calendar,
 } from 'lucide-react'
 import { apiService } from '@/services/api'
 import * as phoneApi from '@/services/phoneApi'
@@ -327,6 +328,12 @@ export default function ContactDetailPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" /> Send Email
+              </button>
+              <button
+                onClick={() => navigate(`/calendar?contact=${contactId}&action=add-task`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <Calendar className="w-3.5 h-3.5" /> Add Task
               </button>
             </div>
           </div>

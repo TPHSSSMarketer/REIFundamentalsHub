@@ -228,6 +228,12 @@ export default function DealDetailPage() {
                 Urgent
               </span>
             )}
+            <button
+              onClick={() => navigate(`/calendar?deal=${dealId}&action=add-task`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors"
+            >
+              <Calendar className="w-3.5 h-3.5" /> Add Task
+            </button>
           </div>
           {location && (
             <div className="flex items-center gap-1 mt-0.5 text-sm text-slate-500">

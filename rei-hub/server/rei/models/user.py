@@ -128,6 +128,55 @@ class User(Base):
     analyzer_blend_cash_pct: Mapped[float] = mapped_column(
         Float, default=0.50)
 
+    # ── Google Calendar ──────────────────────────────────────────
+    google_calendar_token: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON OAuth token
+    google_calendar_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+    google_calendar_sync: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )
+
+    # ── Microsoft Outlook ─────────────────────────────────────────
+    outlook_calendar_token: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON OAuth token
+    outlook_calendar_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+    outlook_calendar_sync: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )
+
+    # ── Apple iCal (CalDAV) ───────────────────────────────────────
+    caldav_username: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+    caldav_password_encrypted: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # AES encrypted iCloud app-specific password
+    caldav_calendar_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+    caldav_sync: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )
+
+    # ── Universal iCal feed ───────────────────────────────────────
+    ical_feed_token: Mapped[str] = mapped_column(
+        String, default=lambda: str(uuid.uuid4())
+    )  # unique token for public .ics feed URL
+
+    # ── Reminder preferences ──────────────────────────────────────
+    task_reminder_email: Mapped[bool] = mapped_column(
+        Boolean, default=True
+    )
+    task_reminder_sms: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -612,3 +661,72 @@ class PhoneCredit(Base):
     credits_cents: Mapped[int] = mapped_column(Integer)
     credits_remaining_cents: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Calendar & Task Management models
+# ═══════════════════════════════════════════════════════════════
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    # pending, in_progress, completed, cancelled
+    priority: Mapped[str] = mapped_column(String, default="medium")
+    # low, medium, high, urgent
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    due_time: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    call_log_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    task_type: Mapped[str] = mapped_column(String, default="manual")
+    # manual, callback, closing, pof_expiry, contract_deadline, follow_up, appointment
+    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
+    recurrence_rule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    reminder_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    event_type: Mapped[str] = mapped_column(String, default="appointment")
+    # appointment, closing, follow_up, callback, reminder, task
+    start_datetime: Mapped[datetime] = mapped_column(DateTime)
+    end_datetime: Mapped[datetime] = mapped_column(DateTime)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    task_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Google Calendar
+    google_event_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    google_calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Microsoft Outlook
+    outlook_event_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # CalDAV (Apple iCal)
+    caldav_uid: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # UUID used as CalDAV event UID
+    last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reminder_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
+    recurrence_rule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
