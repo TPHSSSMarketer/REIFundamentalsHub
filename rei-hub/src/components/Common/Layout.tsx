@@ -22,8 +22,8 @@ export default function Layout({ children }: LayoutProps) {
       <Sidebar />
 
       <main
-        className={`transition-all duration-300 ${
-          isSidebarCollapsed ? 'ml-16' : 'ml-64'
+        className={`transition-all duration-300 pt-14 pb-20 md:pt-0 md:pb-0 ${
+          isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
         }`}
       >
         {/* Trial / Billing Banner */}

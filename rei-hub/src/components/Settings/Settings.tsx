@@ -130,11 +130,11 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-        <p className="text-slate-600">Configure your API connection and preferences</p>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Settings</h1>
+        <p className="text-sm md:text-base text-slate-600">Configure your API connection and preferences</p>
       </div>
 
       {/* Connection Status */}
@@ -173,7 +173,7 @@ export default function Settings() {
       </div>
 
       {/* API Settings */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">
           API Configuration
         </h2>
@@ -235,7 +235,7 @@ export default function Settings() {
       <HelmHubConnect />
 
       {/* Deal Analyzer Defaults */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <div className="flex items-center gap-2 mb-1">
           <Calculator className="w-5 h-5 text-primary-500" />
           <h2 className="text-lg font-semibold text-slate-800">Deal Analyzer</h2>
@@ -253,7 +253,7 @@ export default function Settings() {
             {/* General */}
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">General</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">ARV Multiplier (%)</label>
                   <input type="number" step="1" value={analyzerPrefs.arv_multiplier}
@@ -302,7 +302,7 @@ export default function Settings() {
             {/* Subject-To */}
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Subject-To Defaults</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate (%)</label>
                   <input type="number" step="0.25" value={analyzerPrefs.sub2_default_interest_rate}
@@ -333,7 +333,7 @@ export default function Settings() {
             {/* Owner Financing */}
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Owner Financing Defaults</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate (%)</label>
                   <input type="number" step="0.25" value={analyzerPrefs.of_default_interest_rate}
@@ -358,7 +358,7 @@ export default function Settings() {
             {/* Lease Option */}
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Lease Option Defaults</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Option Term (Years)</label>
                   <input type="number" step="1" value={analyzerPrefs.lo_default_option_term_years}
@@ -377,7 +377,7 @@ export default function Settings() {
             {/* Blend */}
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Blend Defaults</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Cash Weight (%)</label>
                   <input type="number" step="5" value={analyzerPrefs.blend_cash_pct}
@@ -402,7 +402,7 @@ export default function Settings() {
       </div>
 
       {/* WordPress Publishing */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <div className="flex items-center gap-2 mb-1">
           <h2 className="text-lg font-semibold text-slate-800">
             WordPress Publishing
@@ -483,7 +483,7 @@ export default function Settings() {
       </div>
 
       {/* Environment Variables Help */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
+      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 md:p-6">
         <h3 className="font-semibold text-slate-800 mb-3">
           Environment Variables
         </h3>

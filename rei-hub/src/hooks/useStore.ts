@@ -31,6 +31,11 @@ interface AppState {
   isSidebarCollapsed: boolean
   toggleSidebar: () => void
 
+  // Mobile drawer
+  isMobileDrawerOpen: boolean
+  setMobileDrawerOpen: (open: boolean) => void
+  toggleMobileDrawer: () => void
+
   // Search
   globalSearch: string
   setGlobalSearch: (search: string) => void
@@ -65,6 +70,11 @@ export const useStore = create<AppState>((set) => ({
   // Sidebar
   isSidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
+
+  // Mobile drawer
+  isMobileDrawerOpen: false,
+  setMobileDrawerOpen: (open) => set({ isMobileDrawerOpen: open }),
+  toggleMobileDrawer: () => set((state) => ({ isMobileDrawerOpen: !state.isMobileDrawerOpen })),
 
   // Search
   globalSearch: '',

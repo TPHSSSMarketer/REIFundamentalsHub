@@ -212,33 +212,33 @@ export default function DealDetailPage() {
   return (
     <div className="space-y-6">
       {/* Back button + title */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-3 md:gap-4">
         <button
           onClick={() => navigate('/pipeline')}
-          className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+          className="p-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800 truncate">{deal.title}</h1>
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 truncate">{deal.title}</h1>
             {deal.isUrgent && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full shrink-0">
                 <AlertTriangle className="w-3 h-3" />
                 Urgent
               </span>
             )}
             <button
               onClick={() => navigate(`/calendar?deal=${dealId}&action=add-task`)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors min-h-[36px] shrink-0"
             >
               <Calendar className="w-3.5 h-3.5" /> Add Task
             </button>
           </div>
           {location && (
             <div className="flex items-center gap-1 mt-0.5 text-sm text-slate-500">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{location}</span>
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{location}</span>
             </div>
           )}
         </div>
@@ -249,9 +249,9 @@ export default function DealDetailPage() {
         {/* LEFT COLUMN — 40% */}
         <div className="lg:col-span-2 space-y-5">
           {/* Stage Selector */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5">
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Stage</h3>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-nowrap md:flex-wrap gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
               {stages.map((stage) => {
                 const cfg = STAGE_CONFIG[stage.id] || STAGE_CONFIG[stage.name?.toLowerCase().replace(/\s+/g, '_')] || { label: stage.name, color: 'text-slate-700', bg: 'bg-slate-100' }
                 const isActive = deal.stage === stage.id
@@ -260,7 +260,7 @@ export default function DealDetailPage() {
                     key={stage.id}
                     onClick={() => handleStageChange(stage.id)}
                     className={cn(
-                      'px-3 py-1.5 text-xs font-medium rounded-full transition-all',
+                      'px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap shrink-0 min-h-[32px]',
                       isActive
                         ? `${cfg.bg} ${cfg.color} ring-2 ring-offset-1 ring-current`
                         : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
@@ -381,20 +381,21 @@ export default function DealDetailPage() {
         <div className="lg:col-span-3">
           {/* Tab Bar */}
           <div className="bg-white rounded-xl border border-slate-200">
-            <div className="flex border-b border-slate-200 overflow-x-auto">
+            <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-hide">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
                   className={cn(
-                    'flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2',
+                    'flex items-center gap-1.5 px-3 md:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 min-h-[44px]',
                     activeTab === id
                       ? 'border-primary-500 text-primary-600'
                       : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                   )}
                 >
                   <Icon className="w-4 h-4" />
-                  {label}
+                  <span className="hidden sm:inline">{label}</span>
+                  <span className="sm:hidden">{id === 'overview' ? 'Info' : id === 'checklist' ? 'Check' : id === 'analyzer' ? 'Calc' : id === 'documents' ? 'Docs' : id === 'pof' ? 'POF' : 'Notes'}</span>
                 </button>
               ))}
             </div>

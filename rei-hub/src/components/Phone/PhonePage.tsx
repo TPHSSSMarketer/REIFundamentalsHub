@@ -77,7 +77,7 @@ export default function PhonePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Phone System</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Phone System</h1>
         <p className="text-sm text-slate-500 mt-1">
           Manage numbers, calls, SMS, voicemail drops, fax, and credits
         </p>
@@ -85,19 +85,20 @@ export default function PhonePage() {
 
       {/* Tabs */}
       <div className="border-b border-slate-200">
-        <nav className="flex gap-1 -mb-px">
+        <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 px-3 md:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-h-[44px] ${
                 activeTab === tab.key
                   ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
+              <tab.icon className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.key === 'numbers' ? 'Nums' : tab.key === 'dialer' ? 'Dial' : tab.key === 'voicemail' ? 'VM' : tab.key === 'credits' ? 'Credits' : tab.label}</span>
             </button>
           ))}
         </nav>
@@ -648,11 +649,11 @@ function SmsTab() {
   return (
     <div className="space-y-6">
       {/* Split Pane */}
-      <div className="flex border border-slate-200 rounded-lg overflow-hidden" style={{ height: '500px' }}>
+      <div className="flex border border-slate-200 rounded-lg overflow-hidden h-[500px] md:h-[500px]">
         {/* Left — Conversations */}
-        <div className="w-80 border-r border-slate-200 flex flex-col">
+        <div className={`${selectedContact ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-slate-200 flex-col`}>
           <div className="p-3 border-b border-slate-200">
-            <input type="text" placeholder="Search conversations..." className="w-full border rounded-lg px-3 py-2 text-sm" />
+            <input type="text" placeholder="Search conversations..." className="w-full border rounded-lg px-3 py-2 text-sm min-h-[44px]" />
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 ? (
@@ -662,12 +663,12 @@ function SmsTab() {
                 <button
                   key={conv.contact_id || conv.contact_number}
                   onClick={() => selectConversation(conv.contact_id || conv.contact_number)}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 min-h-[52px] ${
                     selectedContact === (conv.contact_id || conv.contact_number) ? 'bg-primary-50' : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-medium text-slate-600">
+                    <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-medium text-slate-600 shrink-0">
                       {(conv.contact_number || '?')[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -675,7 +676,7 @@ function SmsTab() {
                       <p className="text-xs text-slate-500 truncate">{conv.last_message}</p>
                     </div>
                     {conv.unread_count > 0 && (
-                      <span className="w-5 h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center">
+                      <span className="w-5 h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center shrink-0">
                         {conv.unread_count}
                       </span>
                     )}
@@ -687,11 +688,16 @@ function SmsTab() {
         </div>
 
         {/* Right — Thread */}
-        <div className="flex-1 flex flex-col">
+        <div className={`${selectedContact ? 'flex' : 'hidden md:flex'} flex-1 flex-col`}>
           {selectedContact ? (
             <>
               <div className="p-3 border-b border-slate-200 flex items-center justify-between">
-                <span className="font-medium text-sm text-slate-900">{selectedContact}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedContact(null)} className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center">
+                    <ArrowRight className="w-4 h-4 text-slate-500 rotate-180" />
+                  </button>
+                  <span className="font-medium text-sm text-slate-900">{selectedContact}</span>
+                </div>
                 <button className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1">
                   <PhoneCall className="w-3.5 h-3.5" /> Call
                 </button>

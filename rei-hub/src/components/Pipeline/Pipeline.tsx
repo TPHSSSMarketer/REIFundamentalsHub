@@ -39,6 +39,7 @@ export default function Pipeline() {
 
   const [activeDragDeal, setActiveDragDeal] = useState<Deal | null>(null)
   const [showNewDealModal, setShowNewDealModal] = useState(false)
+  const [mobileStageFilter, setMobileStageFilter] = useState<string | null>(null)
   const { data: contacts } = useContacts()
 
   // DnD sensors
@@ -109,10 +110,10 @@ export default function Pipeline() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">REI Pipeline Manager</h1>
-          <p className="text-slate-600">Drag and drop deals between stages</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">REI Pipeline Manager</h1>
+          <p className="text-sm md:text-base text-slate-600">Drag and drop deals between stages</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -121,7 +122,7 @@ export default function Pipeline() {
             <select
               value={activePipeline?.id || ''}
               onChange={(e) => setSelectedPipelineId(e.target.value)}
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm min-h-[44px]"
             >
               {pipelines.map((pipeline) => (
                 <option key={pipeline.id} value={pipeline.id}>
@@ -133,7 +134,7 @@ export default function Pipeline() {
 
           <button
             onClick={() => setShowNewDealModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium min-h-[44px]"
           >
             <Plus className="w-4 h-4" />
             Add Deal
@@ -142,28 +143,88 @@ export default function Pipeline() {
       </div>
 
       {/* Pipeline Summary */}
-      <div className="flex items-center gap-4 p-4 bg-white rounded-lg border border-slate-200">
+      <div className="flex items-center gap-4 p-3 md:p-4 bg-white rounded-lg border border-slate-200">
         <div>
-          <p className="text-sm text-slate-500">Total Deals</p>
-          <p className="text-xl font-bold text-slate-800">{deals?.length || 0}</p>
+          <p className="text-xs md:text-sm text-slate-500">Total Deals</p>
+          <p className="text-lg md:text-xl font-bold text-slate-800">{deals?.length || 0}</p>
         </div>
         <div className="h-8 w-px bg-slate-200" />
         <div>
-          <p className="text-sm text-slate-500">Pipeline Value</p>
-          <p className="text-xl font-bold text-primary-600">
+          <p className="text-xs md:text-sm text-slate-500">Pipeline Value</p>
+          <p className="text-lg md:text-xl font-bold text-primary-600">
             {formatCurrency(pipelineValue)}
           </p>
         </div>
       </div>
 
-      {/* Kanban Board */}
+      {/* Mobile Stage Tabs */}
+      <div className="md:hidden overflow-x-auto -mx-2 px-2">
+        <div className="flex gap-2 pb-2">
+          <button
+            onClick={() => setMobileStageFilter(null)}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap min-h-[36px] transition-colors',
+              mobileStageFilter === null
+                ? 'bg-primary-500 text-white'
+                : 'bg-slate-100 text-slate-600'
+            )}
+          >
+            All ({deals?.length || 0})
+          </button>
+          {activePipeline?.stages
+            .sort((a, b) => a.order - b.order)
+            .map((stage, index) => (
+              <button
+                key={stage.id}
+                onClick={() => setMobileStageFilter(stage.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap min-h-[36px] transition-colors',
+                  mobileStageFilter === stage.id
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-slate-100 text-slate-600'
+                )}
+              >
+                {stage.name} ({dealsByStage[stage.id]?.length || 0})
+              </button>
+            ))}
+        </div>
+      </div>
+
+      {/* Mobile Deal List */}
+      <div className="md:hidden space-y-2">
+        {(mobileStageFilter
+          ? dealsByStage[mobileStageFilter] || []
+          : deals || []
+        ).map((deal) => (
+          <div
+            key={deal.id}
+            onClick={() => navigate(`/deals/${deal.id}`)}
+            className="bg-white border border-slate-200 rounded-lg p-3 cursor-pointer hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-medium text-slate-800 text-sm truncate mr-2">{deal.address || deal.title}</p>
+              <span className="text-xs font-semibold text-primary-600 whitespace-nowrap">{formatCurrency(deal.purchasePrice || 0)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded', getStageColor(activePipeline?.stages.findIndex((s) => s.id === deal.stage) || 0))}>
+                {activePipeline?.stages.find((s) => s.id === deal.stage)?.name || deal.stage}
+              </span>
+            </div>
+          </div>
+        ))}
+        {(mobileStageFilter ? (dealsByStage[mobileStageFilter]?.length || 0) : (deals?.length || 0)) === 0 && (
+          <p className="text-center text-sm text-slate-500 py-8">No deals in this stage</p>
+        )}
+      </div>
+
+      {/* Kanban Board (Desktop) */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
           {activePipeline?.stages
             .sort((a, b) => a.order - b.order)
             .map((stage, index) => (
