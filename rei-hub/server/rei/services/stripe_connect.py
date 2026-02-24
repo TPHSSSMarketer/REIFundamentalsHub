@@ -41,21 +41,33 @@ async def create_payment_intent(
     stripe_connect_secret_key: str,
     cfd_account_number: str,
     description: str,
+    platform_fee_cents: int = 0,
+    platform_account_id: str | None = None,
+    currency: str = "usd",
 ) -> dict:
-    """Create a payment intent on the connected account."""
+    """Create a payment intent on the connected account.
+
+    If ``platform_fee_cents`` > 0 and ``platform_account_id`` is set,
+    Stripe automatically routes the application fee to the platform account.
+    """
+    form_data: dict[str, str] = {
+        "amount": str(amount_cents),
+        "currency": currency,
+        "customer": customer_id,
+        "description": description,
+        "metadata[account_number]": cfd_account_number,
+        "metadata[source]": "tphs_payment_portal",
+    }
+
+    if platform_fee_cents > 0 and platform_account_id:
+        form_data["application_fee_amount"] = str(platform_fee_cents)
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{STRIPE_BASE}/payment_intents",
             auth=(stripe_connect_secret_key, ""),
             headers={"Stripe-Account": connect_account_id},
-            data={
-                "amount": str(amount_cents),
-                "currency": "usd",
-                "customer": customer_id,
-                "description": description,
-                "metadata[account_number]": cfd_account_number,
-                "metadata[source]": "tphs_payment_portal",
-            },
+            data=form_data,
         )
         resp.raise_for_status()
         data = resp.json()

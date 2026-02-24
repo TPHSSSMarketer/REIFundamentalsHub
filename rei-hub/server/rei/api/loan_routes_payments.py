@@ -52,6 +52,11 @@ from rei.services.stripe_connect import (
     create_payment_intent,
     get_connect_account_status,
 )
+from rei.services.tenant_config import (
+    calculate_servicing_fee,
+    get_loan_stripe_account,
+    get_servicing_fee_pct,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +136,14 @@ class EnableLoanServicingBody(BaseModel):
     pass
 
 
+class TenantConfigUpdateBody(BaseModel):
+    loan_company_name: Optional[str] = None
+    loan_company_logo_url: Optional[str] = None
+    loan_portal_primary_color: Optional[str] = None
+    loan_default_investor_pct: Optional[float] = None
+    loan_servicing_fee_pct: Optional[float] = None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -160,6 +173,9 @@ def _serialize_payment(p: LoanPayment) -> dict:
         "reference_number": p.reference_number,
         "status": p.status,
         "balance_after": p.balance_after,
+        "servicing_fee_amount": p.servicing_fee_amount,
+        "servicing_fee_pct": p.servicing_fee_pct,
+        "net_amount": p.net_amount,
         "notes": p.notes,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
@@ -317,6 +333,16 @@ async def record_payment(
     principal_portion = split["principal"]
     interest_portion = split["interest"]
 
+    # Calculate servicing fee (REI Hub platform cut)
+    # Look up the CFD owner for tenant config
+    cfd_owner_result = await db.execute(
+        select(User).where(User.id == cfd.user_id)
+    )
+    cfd_owner = cfd_owner_result.scalar_one_or_none() or user
+    servicing_fee = calculate_servicing_fee(body.amount, cfd_owner)
+    fee_pct = get_servicing_fee_pct(cfd_owner)
+    net_amount = body.amount - servicing_fee
+
     # Create LoanPayment record
     balance_after = cfd.current_balance - principal_portion
     payment = LoanPayment(
@@ -335,7 +361,10 @@ async def record_payment(
         reference_number=reference_number,
         status="completed",
         balance_after=max(balance_after, 0),
-        notes=notes,
+        servicing_fee_amount=servicing_fee,
+        servicing_fee_pct=fee_pct,
+        net_amount=net_amount,
+        notes=body.notes,
     )
     db.add(payment)
 
@@ -380,6 +409,9 @@ async def record_payment(
         "late_fee": late_fee,
         "principal": principal_portion,
         "interest": interest_portion,
+        "servicing_fee": servicing_fee,
+        "servicing_fee_pct": fee_pct,
+        "net_amount": net_amount,
     }
 
 
@@ -407,14 +439,27 @@ async def create_stripe_intent(
             detail="No Stripe customer ID on this contract. Set up Stripe first.",
         )
 
+    # Resolve tenant-specific Stripe Connect account
+    cfd_owner_result = await db.execute(
+        select(User).where(User.id == cfd.user_id)
+    )
+    cfd_owner = cfd_owner_result.scalar_one_or_none() or user
+    connect_account = get_loan_stripe_account(cfd_owner, settings)
+
+    # Calculate platform fee
+    fee = calculate_servicing_fee(body.amount, cfd_owner)
+    fee_cents = int(fee * 100)
+
     amount_cents = int(body.amount * 100)
     result = await create_payment_intent(
         amount_cents=amount_cents,
         customer_id=cfd.stripe_customer_id,
-        connect_account_id=settings.stripe_connect_account_id,
+        connect_account_id=connect_account,
         stripe_connect_secret_key=settings.stripe_connect_secret_key,
         cfd_account_number=cfd.account_number,
         description=f"Loan payment for {cfd.account_number}",
+        platform_fee_cents=fee_cents,
+        platform_account_id=settings.stripe_platform_account_id,
     )
 
     return {
@@ -441,9 +486,16 @@ async def confirm_stripe_payment(
     if not user.is_superadmin and cfd.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    # Resolve tenant-specific Stripe Connect account
+    cfd_owner_result = await db.execute(
+        select(User).where(User.id == cfd.user_id)
+    )
+    cfd_owner = cfd_owner_result.scalar_one_or_none() or user
+    connect_account = get_loan_stripe_account(cfd_owner, settings)
+
     result = await stripe_confirm_payment(
         payment_intent_id=body.payment_intent_id,
-        connect_account_id=settings.stripe_connect_account_id,
+        connect_account_id=connect_account,
         stripe_connect_secret_key=settings.stripe_connect_secret_key,
     )
 
@@ -485,6 +537,11 @@ async def confirm_stripe_payment(
     interest_portion = split["interest"]
     balance_after = max(cfd.current_balance - principal_portion, 0)
 
+    # Calculate servicing fee for this payment
+    servicing_fee = calculate_servicing_fee(amount, cfd_owner)
+    fee_pct = get_servicing_fee_pct(cfd_owner)
+    net_amount = amount - servicing_fee
+
     payment = LoanPayment(
         cfd_id=cfd.id,
         land_trust_id=cfd.land_trust_id,
@@ -502,6 +559,9 @@ async def confirm_stripe_payment(
         stripe_charge_id=result.get("charge_id", ""),
         status="completed",
         balance_after=balance_after,
+        servicing_fee_amount=servicing_fee,
+        servicing_fee_pct=fee_pct,
+        net_amount=net_amount,
     )
     db.add(payment)
 
@@ -1328,6 +1388,86 @@ async def admin_enable_loan_servicing(
 
 
 # ---------------------------------------------------------------------------
+# TENANT CONFIG ENDPOINTS (superadmin only)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin/tenant-config/{user_id}")
+async def admin_get_tenant_config(
+    user_id: int,
+    user: User = Depends(get_current_user_with_loans),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return full tenant config for a user. Superadmin only."""
+    if not user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "user_id": target_user.id,
+        "email": target_user.email,
+        "loan_company_name": target_user.loan_company_name,
+        "loan_company_logo_url": target_user.loan_company_logo_url,
+        "loan_portal_primary_color": target_user.loan_portal_primary_color,
+        "loan_default_investor_pct": target_user.loan_default_investor_pct,
+        "loan_servicing_fee_pct": target_user.loan_servicing_fee_pct,
+        "loan_stripe_connect_account_id": target_user.loan_stripe_connect_account_id,
+        "loan_stripe_connect_enabled": target_user.loan_stripe_connect_enabled,
+        "loan_stripe_publishable_key": target_user.loan_stripe_publishable_key,
+        "loan_servicing_fee_stripe_account": target_user.loan_servicing_fee_stripe_account,
+        "loan_servicing_enabled": target_user.loan_servicing_enabled,
+    }
+
+
+@router.patch("/admin/tenant-config/{user_id}")
+async def admin_update_tenant_config(
+    user_id: int,
+    body: TenantConfigUpdateBody,
+    user: User = Depends(get_current_user_with_loans),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update tenant config for a user. Superadmin only."""
+    if not user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    updates = body.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(target_user, field, value)
+
+    target_user.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(target_user)
+
+    return {
+        "user_id": target_user.id,
+        "email": target_user.email,
+        "loan_company_name": target_user.loan_company_name,
+        "loan_company_logo_url": target_user.loan_company_logo_url,
+        "loan_portal_primary_color": target_user.loan_portal_primary_color,
+        "loan_default_investor_pct": target_user.loan_default_investor_pct,
+        "loan_servicing_fee_pct": target_user.loan_servicing_fee_pct,
+        "loan_stripe_connect_account_id": target_user.loan_stripe_connect_account_id,
+        "loan_stripe_connect_enabled": target_user.loan_stripe_connect_enabled,
+        "loan_stripe_publishable_key": target_user.loan_stripe_publishable_key,
+        "loan_servicing_fee_stripe_account": target_user.loan_servicing_fee_stripe_account,
+        "loan_servicing_enabled": target_user.loan_servicing_enabled,
+    }
+
+
+# ---------------------------------------------------------------------------
 # STRIPE CONNECT ENDPOINTS
 # ---------------------------------------------------------------------------
 
@@ -1336,13 +1476,23 @@ async def admin_enable_loan_servicing(
 async def stripe_connect_status(
     user: User = Depends(get_current_user_with_loans),
 ):
-    """Check Stripe Connect account status."""
+    """Check Stripe Connect account status for this user's loan servicing."""
     settings = get_settings()
+    connect_account = get_loan_stripe_account(user, settings)
+
+    if not connect_account:
+        return {
+            "charges_enabled": False,
+            "payouts_enabled": False,
+            "details_submitted": False,
+            "has_own_account": False,
+        }
 
     result = await get_connect_account_status(
-        connect_account_id=settings.stripe_connect_account_id,
+        connect_account_id=connect_account,
         stripe_secret_key=settings.stripe_connect_secret_key,
     )
+    result["has_own_account"] = bool(user.loan_stripe_connect_account_id)
 
     return result
 
@@ -1350,13 +1500,37 @@ async def stripe_connect_status(
 @router.get("/stripe-connect/onboard")
 async def stripe_connect_onboard(
     user: User = Depends(get_current_user_with_loans),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get Stripe Connect onboarding URL."""
+    """Get Stripe Connect onboarding URL.
+
+    Uses user's own connect account if it exists.
+    Otherwise creates a new connect account for the user and stores the ID.
+    """
     settings = get_settings()
     base_url = settings.hub_url
 
+    connect_account_id = user.loan_stripe_connect_account_id
+    if not connect_account_id:
+        # Create a new Stripe Connect account for this user
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://api.stripe.com/v1/accounts",
+                auth=(settings.stripe_connect_secret_key, ""),
+                data={
+                    "type": "standard",
+                    "email": user.email,
+                },
+            )
+            resp.raise_for_status()
+            account_data = resp.json()
+        connect_account_id = account_data["id"]
+        user.loan_stripe_connect_account_id = connect_account_id
+        await db.commit()
+
     result = await create_connect_account_link(
-        connect_account_id=settings.stripe_connect_account_id,
+        connect_account_id=connect_account_id,
         stripe_secret_key=settings.stripe_connect_secret_key,
         refresh_url=f"{base_url}/loan-servicing",
         return_url=f"{base_url}/loan-servicing?stripe_connected=true",
@@ -1372,6 +1546,7 @@ async def stripe_connect_callback(
 ):
     """Mark user's Stripe Connect as enabled."""
     user.stripe_connect_enabled = True
+    user.loan_stripe_connect_enabled = True
     await db.commit()
 
     return {"connected": True}

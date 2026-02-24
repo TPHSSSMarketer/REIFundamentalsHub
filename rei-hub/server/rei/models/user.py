@@ -206,6 +206,50 @@ class User(Base):
     bank_negotiation_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
 
+    # ── Loan Servicing Tenant Config ──────────────────────────
+
+    # Stripe Connect (per business)
+    loan_stripe_connect_account_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    loan_stripe_connect_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    loan_stripe_publishable_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+
+    # Company branding (for payment portal)
+    loan_company_name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # e.g. "TriPoint Home Solutions"
+    # Falls back to user's company name
+
+    loan_company_logo_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # URL to company logo for portal header
+
+    loan_portal_primary_color: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default="#1B3A6B")
+    # Hex color for portal branding
+
+    # Distribution settings (per business)
+    loan_default_investor_pct: Mapped[float] = mapped_column(
+        Float, default=4.0)
+    # Default investor distribution %
+    # Was hardcoded to 4% — now per business
+
+    # REI Hub platform servicing fee
+    loan_servicing_fee_pct: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    # % of each payment taken by REI Hub
+    # Set by superadmin per business
+    # e.g. 1.5 = 1.5% of each collection
+
+    loan_servicing_fee_stripe_account: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # REI Hub's Stripe account ID
+    # for receiving platform fees
+    # Set globally via config but stored
+    # per user for audit trail
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -962,6 +1006,13 @@ class LoanPayment(Base):
     status: Mapped[str] = mapped_column(
         String, default="pending")
     balance_after: Mapped[float] = mapped_column(Float)
+    servicing_fee_amount: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    servicing_fee_pct: Mapped[float] = mapped_column(
+        Float, default=0.0)
+    net_amount: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    # amount - servicing_fee_amount
     notes: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

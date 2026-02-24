@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     stripe_connect_publishable_key: str = ""
     tphs_admin_email: str = ""
 
+    # REI Hub platform Stripe account
+    # (receives servicing fees from all tenants)
+    stripe_platform_account_id: str = ""
+
     # ── USPS Web Tools API ──────────────────────────────────────────
     usps_user_id: str = ""
     # Register at: reg.usps.com/entrancePostal.do

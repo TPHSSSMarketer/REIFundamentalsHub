@@ -1,7 +1,8 @@
-"""TPHS Payment Portal — public endpoints for buyer loan payments.
+"""Payment Portal — public endpoints for buyer loan payments.
 
 Prefix: /api/portal
 No authentication required — these are public-facing endpoints.
+Supports multi-tenant: each business has their own portal via user_id scoping.
 """
 
 from __future__ import annotations
@@ -11,9 +12,10 @@ import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Optional
 
 import stripe
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.sql import func
@@ -21,6 +23,13 @@ from sqlalchemy.sql import func
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.models.loan import LoanAccount, LoanPayment
+from rei.models.user import User
+from rei.services.tenant_config import (
+    calculate_servicing_fee,
+    get_loan_company_name,
+    get_loan_portal_color,
+    get_loan_stripe_account,
+    get_servicing_fee_pct,
 from rei.services.security import (
     sanitize_text,
     sanitize_email,
@@ -79,6 +88,7 @@ class StripPaymentRequest(BaseModel):
     account_number: str
     amount_cents: int
     payment_method_id: str
+    user_id: Optional[int] = None  # Portal owner user_id for tenant routing
 
 
 class ManualPaymentRequest(BaseModel):
@@ -87,6 +97,7 @@ class ManualPaymentRequest(BaseModel):
     payment_method: str  # "check" or "wire"
     reference_number: str = ""
     notes: str = ""
+    user_id: Optional[int] = None  # Portal owner user_id for tenant routing
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────
@@ -128,12 +139,48 @@ async def portal_health():
     return {"status": "ok"}
 
 
+@payment_portal_router.get("/config/{user_id}")
+async def portal_config(user_id: int):
+    """Return branding config for a business's payment portal.
+
+    Public endpoint — no auth needed. Each business has their own portal URL
+    that references their user_id for branding and Stripe credentials.
+    """
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(User).where(User.id == user_id)
+        )
+        portal_user = result.scalar_one_or_none()
+
+    if not portal_user or not portal_user.loan_servicing_enabled:
+        raise HTTPException(status_code=404, detail="Portal not found.")
+
+    # Determine publishable key: user's own or platform default
+    publishable_key = (
+        portal_user.loan_stripe_publishable_key
+        or settings.stripe_connect_publishable_key
+    )
+
+    return {
+        "company_name": get_loan_company_name(portal_user),
+        "logo_url": portal_user.loan_company_logo_url,
+        "primary_color": get_loan_portal_color(portal_user),
+        "stripe_publishable_key": publishable_key,
+    }
+
+
 @payment_portal_router.get("/lookup")
 async def portal_lookup(
     account_number: str,
     property_address: str,
     request: Request,
+    user_id: Optional[int] = Query(None),
 ):
+    """Look up a loan account by account number + property address.
+
+    If user_id is provided, scopes the lookup to that business only.
+    """
+    if not _check_rate_limit(_get_client_ip(request)):
     """Look up a loan account by account number + property address."""
     ip = _get_client_ip(request)
 
@@ -161,12 +208,11 @@ async def portal_lookup(
         return {"valid": False}
 
     async with async_session_factory() as db:
-        result = await db.execute(
-            select(LoanAccount).where(
-                func.lower(LoanAccount.account_number) == account_number.strip().lower(),
-                LoanAccount.status == "active",
-            )
+        stmt = select(LoanAccount).where(
+            func.lower(LoanAccount.account_number) == account_number.strip().lower(),
+            LoanAccount.status == "active",
         )
+        result = await db.execute(stmt)
         account = result.scalar_one_or_none()
 
     valid = False
@@ -248,6 +294,12 @@ async def portal_lookup(
 
 
 @payment_portal_router.post("/pay/stripe")
+async def portal_pay_stripe(body: StripPaymentRequest):
+    """Charge buyer's card via Stripe and record the payment.
+
+    Uses the portal owner's (user_id) Stripe Connect account if set,
+    otherwise falls back to the platform default.
+    """
 async def portal_pay_stripe(body: StripPaymentRequest, request: Request):
     """Charge buyer's card via Stripe and record the payment."""
     ip = _get_client_ip(request)
@@ -288,21 +340,45 @@ async def portal_pay_stripe(body: StripPaymentRequest, request: Request):
                 detail=f"Minimum payment is ${account.monthly_payment:.2f}.",
             )
 
-        # Create Stripe PaymentIntent using TPHS Connect credentials
-        stripe.api_key = settings.stripe_connect_secret_key
-        try:
-            intent = stripe.PaymentIntent.create(
-                amount=body.amount_cents,
-                currency="usd",
-                payment_method=body.payment_method_id,
-                confirm=True,
-                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
-                description=f"Loan payment — {account.account_number}",
-                metadata={
-                    "account_number": account.account_number,
-                    "property_address": account.property_address,
-                },
+        # Resolve tenant Stripe credentials
+        portal_user = None
+        if body.user_id:
+            user_result = await db.execute(
+                select(User).where(User.id == body.user_id)
             )
+            portal_user = user_result.scalar_one_or_none()
+
+        stripe_account = None
+        servicing_fee_cents = 0
+        if portal_user:
+            stripe_account = get_loan_stripe_account(portal_user, settings)
+            amount_dollars_for_fee = body.amount_cents / 100.0
+            fee = calculate_servicing_fee(amount_dollars_for_fee, portal_user)
+            servicing_fee_cents = int(fee * 100)
+        else:
+            stripe_account = settings.stripe_connect_account_id
+
+        # Create Stripe PaymentIntent
+        stripe.api_key = settings.stripe_connect_secret_key
+        create_kwargs: dict = {
+            "amount": body.amount_cents,
+            "currency": "usd",
+            "payment_method": body.payment_method_id,
+            "confirm": True,
+            "automatic_payment_methods": {"enabled": True, "allow_redirects": "never"},
+            "description": f"Loan payment — {account.account_number}",
+            "metadata": {
+                "account_number": account.account_number,
+                "property_address": account.property_address,
+            },
+        }
+        if stripe_account:
+            create_kwargs["stripe_account"] = stripe_account
+        if servicing_fee_cents > 0 and settings.stripe_platform_account_id:
+            create_kwargs["application_fee_amount"] = servicing_fee_cents
+
+        try:
+            intent = stripe.PaymentIntent.create(**create_kwargs)
         except stripe.error.CardError as e:
             raise HTTPException(status_code=400, detail=str(e.user_message or e))
         except stripe.error.StripeError as e:
