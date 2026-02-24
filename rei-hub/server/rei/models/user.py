@@ -202,6 +202,10 @@ class User(Base):
     is_superadmin: Mapped[bool] = mapped_column(
         Boolean, default=False)
 
+    # ── Bank Negotiation ────────────────────────────────────────
+    bank_negotiation_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+
     # Legacy subscription relationship (kept for backwards compat)
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="user", uselist=False
@@ -1115,3 +1119,322 @@ class StateLawResearch(Base):
         DateTime, default=datetime.utcnow)
     is_verified: Mapped[bool] = mapped_column(
         Boolean, default=False)
+
+
+# ═══════════════════════════════════════════════
+# Bank Negotiation Models
+# ═══════════════════════════════════════════════
+
+
+class BankNegotiation(Base):
+    __tablename__ = "bank_negotiations"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    # Can link to existing LandTrust
+    # A property can be in BOTH loan servicing
+    # AND bank negotiation simultaneously
+    land_trust_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Not a FK — optional link
+
+    # Property info (duplicated here in case
+    # no land trust exists yet)
+    property_address: Mapped[str] = mapped_column(
+        String)
+    property_city: Mapped[str] = mapped_column(
+        String)
+    property_state: Mapped[str] = mapped_column(
+        String)
+    property_zip: Mapped[str] = mapped_column(
+        String)
+
+    # Bank / Servicer info
+    bank_name: Mapped[str] = mapped_column(String)
+    loan_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    loan_balance: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+
+    # Negotiation type
+    negotiation_type: Mapped[str] = mapped_column(
+        String, default="short_sale")
+    # short_sale, loan_modification,
+    # deed_in_lieu, payoff, other
+
+    # Our position
+    our_offer: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True)
+    target_outcome: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+
+    # Status
+    status: Mapped[str] = mapped_column(
+        String, default="active")
+    # active, pending_response, approved,
+    # denied, withdrawn, completed
+
+    # Google Drive
+    gdrive_folder_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+
+    # Admin notes (superadmin only)
+    admin_notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+
+    # Feature flag — admin enables per user
+    bank_negotiation_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+
+    # Next follow-up date (auto-set 30 days
+    # after last correspondence)
+    next_followup_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class NegotiationRecipient(Base):
+    __tablename__ = "negotiation_recipients"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    negotiation_id: Mapped[str] = mapped_column(
+        ForeignKey("bank_negotiations.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    # Recipient type
+    recipient_type: Mapped[str] = mapped_column(
+        String)
+    # ceo, general_counsel,
+    # registered_agent, respa_address
+
+    # Contact info (AI researched)
+    name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # e.g. "Chief Executive Officer"
+
+    # Full contact profile
+    mailing_address: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    mailing_city: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    mailing_state: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    mailing_zip: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    fax: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+
+    # AI research metadata
+    ai_researched: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    ai_researched_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    ai_research_provider: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    ai_confidence: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # high, medium, low
+    ai_sources: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    # JSON list of sources used
+
+    # Manual override flag
+    manually_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # User can mark as verified after
+    # confirming contact info is correct
+
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class NegotiationDocument(Base):
+    __tablename__ = "negotiation_documents"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    negotiation_id: Mapped[str] = mapped_column(
+        ForeignKey("bank_negotiations.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    # Document info
+    document_type: Mapped[str] = mapped_column(
+        String)
+    # hardship_letter, qwr, dispute_letter,
+    # authorization, bank_statement, other
+
+    document_name: Mapped[str] = mapped_column(
+        String)
+
+    # Sent date (same date to all recipients)
+    sent_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+
+    # Google Drive URL
+    gdrive_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    gdrive_file_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class NegotiationCorrespondence(Base):
+    __tablename__ = "negotiation_correspondence"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    negotiation_id: Mapped[str] = mapped_column(
+        ForeignKey("bank_negotiations.id"))
+    document_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Links to NegotiationDocument
+    recipient_id: Mapped[str] = mapped_column(
+        ForeignKey("negotiation_recipients.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    # Send method
+    send_method: Mapped[str] = mapped_column(
+        String)
+    # certified_mail, fax, email, phone
+
+    sent_date: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+    # ── Certified Mail Tracking ──────────────
+    # USPS tracking per recipient
+    usps_tracking_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    usps_signature_tracking_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Separate tracking # for signature card
+
+    # USPS delivery status
+    usps_status: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # in_transit, delivered, attempted,
+    # returned, unknown
+    usps_delivered_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    usps_signed_by: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Name on signature
+    usps_signature_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    usps_last_checked: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    usps_raw_response: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    # Full USPS API response JSON
+
+    # ── Fax Tracking ─────────────────────────
+    twilio_fax_sid: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    fax_status: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # queued, processing, sending,
+    # delivered, no-answer, busy,
+    # failed, canceled
+    fax_confirmation_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    fax_pages: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True)
+    fax_duration_seconds: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True)
+    fax_delivered_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+
+    # ── Email Tracking ────────────────────────
+    email_message_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    email_status: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # sent, delivered, opened, bounced
+    email_opened_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+
+    # ── Follow-up ─────────────────────────────
+    followup_due_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    # Auto-set 30 days after sent_date
+    followup_completed: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    followup_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+
+    # General status
+    status: Mapped[str] = mapped_column(
+        String, default="sent")
+    # sent, delivered, confirmed,
+    # failed, pending
+
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
+class NegotiationFollowUp(Base):
+    __tablename__ = "negotiation_followups"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    negotiation_id: Mapped[str] = mapped_column(
+        ForeignKey("bank_negotiations.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    due_date: Mapped[datetime] = mapped_column(
+        DateTime)
+    # Auto-set 30 days after last contact
+
+    follow_up_type: Mapped[str] = mapped_column(
+        String, default="general")
+    # general, check_status, send_reminder,
+    # escalate
+
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+
+    completed: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    completed_notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
