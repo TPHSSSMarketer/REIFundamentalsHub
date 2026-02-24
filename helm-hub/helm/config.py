@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # ── NVIDIA NIM (OpenAI-compatible API) ────────────────────────────
     nvidia_api_key: str = ""
-    nvidia_model: str = "moonshotai/kimi-k2-instruct"
+    nvidia_model: str = "moonshotai/kimi-k2.5-instruct"
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
     # ── Database ─────────────────────────────────────────────────────────

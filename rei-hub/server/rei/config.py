@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # ── AI Provider defaults ─────────────────────────────────────────
     default_ai_provider: str = "nvidia_kimi"
-    default_ai_model: str = "moonshotai/kimi-k2-instruct"
+    default_ai_model: str = "moonshotai/kimi-k2.5-instruct"
     ai_encryption_key: str = ""
     # Used for encrypting stored API keys
     # Should be 32 chars — set in .env
