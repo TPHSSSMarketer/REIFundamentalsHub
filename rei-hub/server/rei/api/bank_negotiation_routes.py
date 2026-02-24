@@ -24,6 +24,18 @@ from rei.models.user import (
     Task,
     User,
 )
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    sanitize_url,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
+)
 from rei.services.contact_research import (
     format_recipient_for_display,
     research_bank_contacts,
@@ -340,24 +352,42 @@ async def list_negotiations(
 async def create_negotiation(
     body: NegotiationCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     user: User = Depends(get_current_user_with_banking),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new bank negotiation and trigger background contact research."""
+    # Rate limit: 20 per hour per user
+    if not check_rate_limit(rl_key(user.id, "create_negotiation"), max_requests=20, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    # Sanitize inputs
+    try:
+        bank_name = sanitize_text(body.bank_name, 200)
+        property_address = sanitize_text(body.property_address, 300)
+        property_city = sanitize_text(body.property_city, 100)
+        property_state = sanitize_state_code(body.property_state)
+        property_zip = sanitize_text(body.property_zip, 10)
+        loan_number = sanitize_text(body.loan_number, 50) if body.loan_number else body.loan_number
+        loan_balance = sanitize_currency(body.loan_balance) if body.loan_balance else None
+        notes = sanitize_text(body.notes, 1000) if body.notes else body.notes
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     negotiation = BankNegotiation(
         user_id=user.id,
-        property_address=body.property_address,
-        property_city=body.property_city,
-        property_state=body.property_state,
-        property_zip=body.property_zip,
-        bank_name=body.bank_name,
-        loan_number=body.loan_number,
-        loan_balance=body.loan_balance,
+        property_address=property_address,
+        property_city=property_city,
+        property_state=property_state,
+        property_zip=property_zip,
+        bank_name=bank_name,
+        loan_number=loan_number,
+        loan_balance=loan_balance,
         negotiation_type=body.negotiation_type,
         our_offer=body.our_offer,
         target_outcome=body.target_outcome,
         land_trust_id=body.land_trust_id,
-        notes=body.notes,
+        notes=notes,
         status="active",
         next_followup_date=datetime.utcnow() + timedelta(days=30),
     )
@@ -369,8 +399,8 @@ async def create_negotiation(
     # Trigger background AI contact research
     background_tasks.add_task(
         _bg_research_bank_contacts,
-        body.bank_name,
-        body.property_state,
+        bank_name,
+        property_state,
         negotiation.id,
         user.id,
     )
@@ -378,7 +408,7 @@ async def create_negotiation(
     # Create Google Drive folder structure (log only; actual creation deferred)
     folder_base = (
         f"ABF Clients/Bank Negotiations/"
-        f"{body.bank_name} - {body.property_address}"
+        f"{bank_name} - {property_address}"
     )
     subfolders = [
         f"{folder_base}/Documents",
@@ -398,8 +428,8 @@ async def create_negotiation(
     followup_task = Task(
         user_id=user.id,
         title=(
-            f"Follow up on {body.bank_name} negotiation "
-            f"- {body.property_address}"
+            f"Follow up on {bank_name} negotiation "
+            f"- {property_address}"
         ),
         due_date=datetime.utcnow() + timedelta(days=30),
         priority="high",
@@ -408,6 +438,17 @@ async def create_negotiation(
     )
     db.add(followup_task)
     await db.commit()
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="create_negotiation", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="bank_negotiation",
+            resource_id=negotiation.id,
+            details={"bank": bank_name, "address": property_address, "type": body.negotiation_type},
+        ))
+    except Exception:
+        pass
 
     return {
         "negotiation": _serialize_negotiation(negotiation),
@@ -471,6 +512,15 @@ async def get_negotiation(
 
     # Letter series status
     letter_series_status = _build_letter_series_status(correspondence)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="view_negotiation", user_id=user.id, user_email=user.email,
+            resource_type="bank_negotiation", resource_id=neg_id,
+        ))
+    except Exception:
+        pass
 
     return {
         "negotiation": _serialize_negotiation(negotiation),
@@ -550,6 +600,7 @@ async def update_recipient(
     neg_id: str,
     rec_id: str,
     body: RecipientUpdate,
+    request: Request,
     user: User = Depends(get_current_user_with_banking),
     db: AsyncSession = Depends(get_db),
 ):
@@ -566,7 +617,22 @@ async def update_recipient(
     if not recipient:
         raise HTTPException(status_code=404, detail="Recipient not found")
 
-    updates = body.model_dump(exclude_unset=True)
+    # Sanitize contact fields
+    try:
+        updates = body.model_dump(exclude_unset=True)
+        if "name" in updates and updates["name"]:
+            updates["name"] = sanitize_text(updates["name"], 200)
+        if "phone" in updates and updates["phone"]:
+            updates["phone"] = sanitize_phone(updates["phone"])
+        if "fax" in updates and updates["fax"]:
+            updates["fax"] = sanitize_phone(updates["fax"])
+        if "email" in updates and updates["email"]:
+            updates["email"] = sanitize_email(updates["email"])
+        if "mailing_address" in updates and updates["mailing_address"]:
+            updates["mailing_address"] = sanitize_text(updates["mailing_address"], 300)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     for field, value in updates.items():
         setattr(recipient, field, value)
 
@@ -575,6 +641,17 @@ async def update_recipient(
 
     await db.commit()
     await db.refresh(recipient)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="update_recipient", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="negotiation_recipient",
+            resource_id=rec_id,
+            details={"recipient_type": recipient.recipient_type, "manually_verified": True},
+        ))
+    except Exception:
+        pass
 
     return format_recipient_for_display(recipient)
 
@@ -722,10 +799,22 @@ async def list_correspondence(
 async def send_correspondence(
     neg_id: str,
     body: SendCorrespondence,
+    request: Request,
     user: User = Depends(get_current_user_with_banking),
     db: AsyncSession = Depends(get_db),
 ):
     """Send document to all 4 recipients via specified methods."""
+    # Rate limit: 10 sends per hour per user
+    if not check_rate_limit(rl_key(user.id, "send_correspondence"), max_requests=10, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    # Sanitize fax_media_url if provided
+    if body.fax_media_url:
+        try:
+            body.fax_media_url = sanitize_url(body.fax_media_url)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
     settings = get_settings()
     negotiation = await _get_negotiation_or_404(neg_id, user, db)
 
@@ -964,6 +1053,17 @@ async def send_correspondence(
     # Refresh to get IDs
     for corr in correspondence_records:
         await db.refresh(corr)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="send_to_recipients", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="bank_negotiation",
+            resource_id=neg_id,
+            details={"letter_number": body.letter_number, "methods": body.send_methods, "sent_count": sent_count},
+        ))
+    except Exception:
+        pass
 
     return {
         "sent_count": sent_count,

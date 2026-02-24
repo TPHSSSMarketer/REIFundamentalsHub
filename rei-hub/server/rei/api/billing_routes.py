@@ -23,6 +23,17 @@ from rei.config import (
     get_settings,
 )
 from rei.models.user import User
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
+)
 from rei.services import paypal as paypal_service
 from rei.services.email import (
     send_payment_failed_email,
@@ -175,9 +186,14 @@ async def billing_status(current_user: User = Depends(get_current_user)):
 @billing_router.post("/create-checkout")
 async def create_checkout(
     body: CreateCheckoutRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """Create a Stripe or PayPal checkout session for the requested plan."""
+    # Rate limit: 10 per hour per user
+    if not check_rate_limit(rl_key(current_user.id, "create_checkout"), max_requests=10, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
     if body.plan not in PLANS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,6 +221,19 @@ async def create_checkout(
         )
 
     settings = get_settings()
+
+    # Audit log
+    try:
+        from rei.database import async_session_factory
+        async with async_session_factory() as audit_db:
+            await audit_db.run_sync(lambda s: audit_log(
+                s, action="create_checkout", user_id=current_user.id,
+                user_email=current_user.email,
+                ip_address=request.client.host,
+                details={"plan": body.plan},
+            ))
+    except Exception:
+        pass
 
     if body.payment_method == "paypal":
         return await _create_paypal_checkout(body, current_user, settings)
