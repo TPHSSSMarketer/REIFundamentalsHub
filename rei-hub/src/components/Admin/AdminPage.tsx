@@ -18,7 +18,7 @@ import {
 } from '@/services/adminApi'
 import AiProviderSettings from './AiProviderSettings'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
-import { enableLoanServicing } from '@/services/loanServicingApi'
+import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
 import { getToken, getAuthHeader } from '@/services/auth'
 
@@ -266,6 +266,12 @@ export default function AdminPage() {
   const [bankNegUsers, setBankNegUsers] = useState<Subscriber[]>([])
   const [bankNegUsersLoading, setBankNegUsersLoading] = useState(false)
 
+  // Tenant config state
+  const [configUserId, setConfigUserId] = useState<number | null>(null)
+  const [tenantConfig, setTenantConfig] = useState<Record<string, any>>({})
+  const [tenantConfigLoading, setTenantConfigLoading] = useState(false)
+  const [tenantConfigSaving, setTenantConfigSaving] = useState(false)
+
   // Audit log state
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
@@ -370,6 +376,43 @@ export default function AdminPage() {
     } catch {
       setToast('Failed to enable loan servicing')
     }
+  }
+
+  async function handleLoadTenantConfig(userId: number) {
+    if (configUserId === userId) {
+      setConfigUserId(null)
+      return
+    }
+    const tk = getToken()
+    if (!tk) return
+    setConfigUserId(userId)
+    setTenantConfigLoading(true)
+    try {
+      const cfg = await getTenantConfig(String(userId), tk) as Record<string, any>
+      setTenantConfig(cfg)
+    } catch {
+      setTenantConfig({})
+    }
+    setTenantConfigLoading(false)
+  }
+
+  async function handleSaveTenantConfig() {
+    if (!configUserId) return
+    const tk = getToken()
+    if (!tk) return
+    setTenantConfigSaving(true)
+    try {
+      await updateTenantConfig(String(configUserId), {
+        company_name: tenantConfig.company_name || '',
+        logo_url: tenantConfig.logo_url || '',
+        portal_primary_color: tenantConfig.portal_primary_color || '#1B3A6B',
+        servicing_fee_pct: tenantConfig.servicing_fee_pct ?? 0,
+      }, tk)
+      setToast(`Configuration saved for ${tenantConfig.company_name || 'user'}`)
+    } catch {
+      setToast('Failed to save tenant config')
+    }
+    setTenantConfigSaving(false)
   }
 
   function handleSaved(msg: string) {
@@ -667,7 +710,7 @@ export default function AdminPage() {
                       loanUsers.map((u) => {
                         const enabled = !!(u as any).loan_servicing_enabled
                         return (
-                          <tr key={u.user_id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <><tr key={u.user_id} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="px-4 py-3 text-slate-800">{u.email}</td>
                             <td className="px-4 py-3">
                               {enabled ? (
@@ -676,7 +719,7 @@ export default function AdminPage() {
                                 <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">Disabled</span>
                               )}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 flex gap-2">
                               {!enabled && (
                                 <button
                                   onClick={() => handleEnableLoanServicing(u.user_id)}
@@ -685,8 +728,128 @@ export default function AdminPage() {
                                   Enable
                                 </button>
                               )}
+                              {enabled && (
+                                <button
+                                  onClick={() => handleLoadTenantConfig(u.user_id)}
+                                  className="px-3 py-1.5 text-xs font-medium border border-[#1B3A6B] text-[#1B3A6B] rounded-lg hover:bg-slate-50"
+                                >
+                                  {configUserId === u.user_id ? 'Close' : 'Configure'}
+                                </button>
+                              )}
                             </td>
                           </tr>
+                          {configUserId === u.user_id && (
+                            <tr key={`config-${u.user_id}`}>
+                              <td colSpan={3} className="px-4 py-4 bg-slate-50">
+                                {tenantConfigLoading ? (
+                                  <p className="text-sm text-slate-400">Loading config...</p>
+                                ) : (
+                                  <div className="space-y-5 max-w-lg">
+                                    {/* Company Settings */}
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-800 mb-3">Company Settings</h4>
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className="block text-xs font-medium text-slate-700 mb-1">Company Name</label>
+                                          <input
+                                            type="text"
+                                            value={tenantConfig.company_name || ''}
+                                            onChange={(e) => setTenantConfig({ ...tenantConfig, company_name: e.target.value })}
+                                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-slate-700 mb-1">Logo URL</label>
+                                          <input
+                                            type="text"
+                                            value={tenantConfig.logo_url || ''}
+                                            onChange={(e) => setTenantConfig({ ...tenantConfig, logo_url: e.target.value })}
+                                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                                            placeholder="https://..."
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-slate-700 mb-1">Portal Primary Color</label>
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="text"
+                                              value={tenantConfig.portal_primary_color || '#1B3A6B'}
+                                              onChange={(e) => setTenantConfig({ ...tenantConfig, portal_primary_color: e.target.value })}
+                                              className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                                            />
+                                            <div
+                                              className="w-8 h-8 rounded border border-slate-300"
+                                              style={{ backgroundColor: tenantConfig.portal_primary_color || '#1B3A6B' }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Platform Fee */}
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-800 mb-3">Platform Fee</h4>
+                                      <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">REI Hub Fee %</label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={10}
+                                          step={0.1}
+                                          value={tenantConfig.servicing_fee_pct ?? 0}
+                                          onChange={(e) => setTenantConfig({ ...tenantConfig, servicing_fee_pct: parseFloat(e.target.value) || 0 })}
+                                          className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1">
+                                          This % is automatically deducted from each payment collected by this business and sent to REI Hub
+                                        </p>
+                                        {(tenantConfig.servicing_fee_pct ?? 0) > 5 && (
+                                          <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1 mt-2">
+                                            Warning: High fee rate — confirm with business owner before saving
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Stripe Connect Status */}
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-800 mb-3">Stripe Connect Status</h4>
+                                      {tenantConfig.stripe_account_id ? (
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2 text-sm">
+                                            <span className="text-green-600">✓</span>
+                                            <span className="text-slate-700">Connected</span>
+                                          </div>
+                                          <p className="text-xs text-slate-500">Account: {tenantConfig.stripe_account_id}</p>
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm text-slate-500">Not Connected</p>
+                                      )}
+                                      <p className="text-xs text-slate-400 mt-1">Business sets up their own Stripe — not editable by admin</p>
+                                    </div>
+
+                                    {/* Distribution Default */}
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-800 mb-3">Distribution Default</h4>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm text-slate-700">Default Investor %: {tenantConfig.default_investor_pct ?? '—'}</span>
+                                        <span className="text-xs text-slate-400">Set by user</span>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      onClick={handleSaveTenantConfig}
+                                      disabled={tenantConfigSaving}
+                                      className="px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50"
+                                    >
+                                      {tenantConfigSaving ? 'Saving...' : 'Save Configuration'}
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </>
                         )
                       })
                     )}

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type FormEvent } from 'react'
+import { getPortalConfig } from '../../services/loanServicingApi'
 
 // ── Constants ───────────────────────────────────────────────────────────
 
@@ -107,8 +108,17 @@ function formatDate(iso: string | null): string {
 
 // ── Component ───────────────────────────────────────────────────────────
 
+interface PortalConfig {
+  company_name: string
+  logo_url: string | null
+  primary_color: string
+  stripe_publishable_key: string | null
+}
+
 export default function PaymentPortalPage() {
   const [step, setStep] = useState<Step>('lookup')
+  const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null)
+  const [portalLoading, setPortalLoading] = useState(true)
 
   // Lookup state
   const [accountNumber, setAccountNumber] = useState('')
@@ -152,18 +162,45 @@ export default function PaymentPortalPage() {
   const cardElementRef = useRef<any>(null)
   const cardMountRef = useRef<HTMLDivElement | null>(null)
 
+  // Load portal config from URL param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const businessId = params.get('business')
+    if (businessId) {
+      getPortalConfig(businessId)
+        .then((cfg: any) => {
+          if (cfg && cfg.company_name) {
+            setPortalConfig({
+              company_name: cfg.company_name,
+              logo_url: cfg.logo_url || null,
+              primary_color: cfg.primary_color || '#1B3A6B',
+              stripe_publishable_key: cfg.stripe_publishable_key || null,
+            })
+          }
+        })
+        .catch(() => { /* use defaults */ })
+        .finally(() => setPortalLoading(false))
+    } else {
+      setPortalLoading(false)
+    }
+  }, [])
+
+  // Derived branding values
+  const brandName = portalConfig?.company_name || 'TriPoint Home Solutions'
+  const brandColor = portalConfig?.primary_color || BRAND.navy
+  const brandLogoUrl = portalConfig?.logo_url || null
+
   // Set favicon on mount
   useEffect(() => {
     const link: HTMLLinkElement =
       document.querySelector("link[rel~='icon']") || document.createElement('link')
     link.rel = 'icon'
     link.href = FAVICON
-    document.head.appendChild(link)
-    document.title = 'TriPoint Home Solutions — Payment Portal'
+    document.title = `${brandName} — Payment Portal`
     return () => {
       document.title = 'REIFundamentals Hub'
     }
-  }, [])
+  }, [brandName])
 
   // Initialize Stripe Elements when entering the payment step
   const initStripe = useCallback(async () => {
@@ -394,16 +431,35 @@ export default function PaymentPortalPage() {
 
   // ── Render ────────────────────────────────────────────────────────
 
+  if (portalLoading) {
+    return (
+      <div style={{ ...styles.page, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '4px solid #1B3A6B', borderTopColor: 'transparent', borderRadius: '50%', animation: 'tphs-spin 0.6s linear infinite' }} />
+        <style>{`@keyframes tphs-spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
   return (
     <div style={styles.page}>
       {/* Header */}
-      <header style={styles.header}>
+      <header style={{ ...styles.header, backgroundColor: brandColor }}>
         <div style={styles.headerInner}>
-          <img
-            src={LOGO_WIDE}
-            alt="TriPoint Home Solutions"
-            style={styles.logo}
-          />
+          {brandLogoUrl ? (
+            <img
+              src={brandLogoUrl}
+              alt={brandName}
+              style={styles.logo}
+            />
+          ) : !portalConfig ? (
+            <img
+              src={LOGO_WIDE}
+              alt={brandName}
+              style={styles.logo}
+            />
+          ) : (
+            <span style={{ color: BRAND.white, fontSize: 20, fontWeight: 700 }}>{brandName}</span>
+          )}
           <p style={styles.tagline}>Secure Payment Portal</p>
         </div>
       </header>
@@ -622,7 +678,7 @@ export default function PaymentPortalPage() {
                     <div style={styles.instructionCard}>
                       <h3 style={styles.instructionTitle}>Mail check payable to:</h3>
                       <p style={styles.instructionText}>
-                        <strong>TriPoint Home Solutions</strong>
+                        <strong>{brandName}</strong>
                         <br />
                         (Address on your monthly statement)
                       </p>
@@ -828,9 +884,9 @@ export default function PaymentPortalPage() {
 
       {/* Footer */}
       <footer style={styles.footer}>
-        <p>&copy; TriPoint Home Solutions</p>
+        <p>&copy; {brandName}</p>
         <p style={{ fontSize: 12, marginTop: 4, opacity: 0.7 }}>
-          Powered by Stripe &bull; Questions? Contact info@tripointhomesolutions.com
+          Powered by Stripe
         </p>
       </footer>
 

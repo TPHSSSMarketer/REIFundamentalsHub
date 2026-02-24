@@ -14,6 +14,7 @@ const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 interface OnboardingData {
   company_name: string
+  company_logo_url: string
   company_address: string
   company_city: string
   company_state: string
@@ -57,6 +58,7 @@ export default function OnboardingPage() {
 
   const [data, setData] = useState<OnboardingData>({
     company_name: '',
+    company_logo_url: '',
     company_address: '',
     company_city: '',
     company_state: '',
@@ -117,6 +119,7 @@ export default function OnboardingPage() {
         setData((prev) => ({
           ...prev,
           company_name: u.company_name || '',
+          company_logo_url: (u as any).company_logo_url || '',
           company_address: u.company_address || '',
           company_city: u.company_city || '',
           company_state: u.company_state || '',
@@ -278,6 +281,7 @@ export default function OnboardingPage() {
                 onContinue={() =>
                   handleSaveStep(1, {
                     company_name: data.company_name,
+                    company_logo_url: data.company_logo_url,
                     company_address: data.company_address,
                     company_city: data.company_city,
                     company_state: data.company_state,
@@ -453,6 +457,19 @@ function Step1CompanyInfo({
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="ABC Investments LLC"
           />
+        </div>
+
+        {/* Company Logo — feeds into loan servicing branding automatically */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Company Logo URL</label>
+          <input
+            type="url"
+            value={data.company_logo_url}
+            onChange={(e) => update('company_logo_url', e.target.value)}
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="https://yoursite.com/logo.png"
+          />
+          <p className="text-xs text-slate-500 mt-1">Optional — used for payment portals and documents</p>
         </div>
 
         <div>

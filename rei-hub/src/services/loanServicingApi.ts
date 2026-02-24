@@ -288,3 +288,28 @@ export async function enableLoanServicing(userId: string, token: string) {
   })
   return handleResponse(res, 'Failed to enable loan servicing')
 }
+
+// ── Tenant Config ────────────────────────────────────────────────
+
+export async function getTenantConfig(userId: string, token: string) {
+  const res = await fetch(`${BASE_URL}/api/loans/admin/tenant-config/${userId}`, {
+    headers: authHeaders(token),
+  })
+  return handleResponse(res, 'Failed to fetch tenant config')
+}
+
+export async function updateTenantConfig(userId: string, data: Record<string, any>, token: string) {
+  const res = await fetch(`${BASE_URL}/api/loans/admin/tenant-config/${userId}`, {
+    method: 'PATCH',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  })
+  return handleResponse(res, 'Failed to update tenant config')
+}
+
+// ── Portal Config (public) ───────────────────────────────────────
+
+export async function getPortalConfig(userId: string) {
+  const res = await fetch(`${BASE_URL}/api/portal/config/${userId}`)
+  return res.json()
+}

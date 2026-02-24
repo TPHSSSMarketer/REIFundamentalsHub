@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getDistributions, generateDistribution, finalizeDistribution } from '../../../services/loanServicingApi'
+import { getCurrentUser } from '@/services/auth'
 
 interface Props { token: string; isSuperAdmin: boolean }
 
@@ -42,8 +43,18 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
   const [useCustomDates, setUseCustomDates] = useState(false)
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState<string>('')
 
   const quarters = buildQuarters()
+
+  useEffect(() => {
+    getCurrentUser()
+      .then((user) => {
+        const u = user as Record<string, any> | null
+        setCompanyName(u?.company_name || u?.loan_company_name || 'Your Company')
+      })
+      .catch(() => setCompanyName('Your Company'))
+  }, [])
 
   useEffect(() => { fetchStatements() }, [token])
 
@@ -247,7 +258,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
         <div className="bg-white rounded-xl shadow p-6 space-y-4 print:shadow-none print:p-0" id="print-statement">
           <style>{`@media print { body > *:not(#print-statement) { display: none !important; } }`}</style>
           <div className="text-center space-y-1">
-            <p className="text-lg font-bold text-slate-800 uppercase tracking-wide">TriPoint Home Solutions</p>
+            <p className="text-lg font-bold text-slate-800 uppercase tracking-wide">{companyName}</p>
             <p className="text-sm text-slate-600">Quarterly Distribution Statement</p>
             <p className="text-sm text-slate-500">Period: {expandedStatement.quarter}</p>
             <p className="text-xs text-slate-400">Generated: {expandedStatement.created_at || expandedStatement.generated_date || '-'}</p>
@@ -314,7 +325,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
 
           {/* Entity remainder */}
           <div className="bg-[#1B3A6B]/5 border border-[#1B3A6B]/20 rounded-lg p-3 text-sm">
-            <span className="text-slate-600">Entity Remainder (TriPoint Home Solutions): </span>
+            <span className="text-slate-600">Entity Remainder ({companyName}): </span>
             <span className="font-bold text-[#1B3A6B]">${parseFloat(expandedStatement.entity_total || 0).toLocaleString()}</span>
           </div>
 
