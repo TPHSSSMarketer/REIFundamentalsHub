@@ -20,6 +20,7 @@ build/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
 
 # Dependencies
 node_modules/

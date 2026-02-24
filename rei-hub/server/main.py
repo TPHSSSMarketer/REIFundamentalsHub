@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from rei.api.admin_routes import admin_router
 from rei.api.ai_routes import ai_router
+from rei.api.analytics_routes import router as analytics_router
 from rei.api.audit_routes import audit_router
 from rei.api.auth_routes import auth_router
 from rei.api.bank_negotiation_routes import router as bank_negotiation_router
@@ -213,6 +214,7 @@ app.include_router(calendar_router, prefix="/api")
 app.include_router(loan_properties_router)
 app.include_router(loan_payments_router)
 app.include_router(bank_negotiation_router)
+app.include_router(analytics_router)
 app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 
