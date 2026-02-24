@@ -41,6 +41,7 @@ from rei.services.contact_research import (
     research_bank_contacts,
     research_single_recipient,
 )
+from rei.services.tenant_config import get_gdrive_negotiation_path
 from rei.services.twilio_fax import send_fax_to_recipient, update_fax_status
 from rei.services.usps_tracking import update_correspondence_tracking
 
@@ -348,6 +349,205 @@ async def list_negotiations(
     return items
 
 
+async def _build_lender_summary(
+    negotiation: BankNegotiation,
+    db: AsyncSession,
+) -> dict:
+    """Build a lender summary dict for a single negotiation.
+
+    Used by both /by-property and /for-deal endpoints.
+    """
+    # Last correspondence (most recent sent_date)
+    corr_result = await db.execute(
+        select(NegotiationCorrespondence.sent_date)
+        .where(NegotiationCorrespondence.negotiation_id == negotiation.id)
+        .order_by(NegotiationCorrespondence.sent_date.desc())
+        .limit(1)
+    )
+    last_sent = corr_result.scalar_one_or_none()
+
+    # Recipients where ai_confidence is not null
+    researched_result = await db.execute(
+        select(func.count()).where(
+            NegotiationRecipient.negotiation_id == negotiation.id,
+            NegotiationRecipient.ai_confidence.isnot(None),
+        )
+    )
+    recipients_researched = researched_result.scalar() or 0
+
+    # Delivery summary — letters delivered vs sent
+    sent_result = await db.execute(
+        select(func.count()).where(
+            NegotiationCorrespondence.negotiation_id == negotiation.id,
+        )
+    )
+    letters_sent = sent_result.scalar() or 0
+
+    delivered_result = await db.execute(
+        select(func.count()).where(
+            NegotiationCorrespondence.negotiation_id == negotiation.id,
+            NegotiationCorrespondence.usps_status == "delivered",
+        )
+    )
+    letters_delivered = delivered_result.scalar() or 0
+
+    return {
+        "id": negotiation.id,
+        "bank_name": negotiation.bank_name,
+        "loan_number": negotiation.loan_number,
+        "loan_balance": negotiation.loan_balance,
+        "negotiation_type": negotiation.negotiation_type,
+        "status": negotiation.status,
+        "created_at": (
+            negotiation.created_at.isoformat()
+            if negotiation.created_at else None
+        ),
+        "last_letter_sent_date": (
+            last_sent.isoformat() if last_sent else None
+        ),
+        "next_followup_date": (
+            negotiation.next_followup_date.isoformat()
+            if negotiation.next_followup_date else None
+        ),
+        "recipients_researched": recipients_researched,
+        "letters_delivered": letters_delivered,
+        "letters_sent": letters_sent,
+    }
+
+
+@router.get("/by-property")
+async def list_negotiations_by_property(
+    user: User = Depends(get_current_user_with_banking),
+    db: AsyncSession = Depends(get_db),
+):
+    """Group all user's negotiations by property address."""
+    stmt = (
+        select(BankNegotiation)
+        .where(BankNegotiation.user_id == user.id)
+        .order_by(
+            BankNegotiation.property_address.asc(),
+            BankNegotiation.created_at.desc(),
+        )
+    )
+    result = await db.execute(stmt)
+    negotiations = result.scalars().all()
+
+    # Group by property_address
+    from collections import OrderedDict
+
+    grouped: dict[str, list[BankNegotiation]] = OrderedDict()
+    for n in negotiations:
+        grouped.setdefault(n.property_address, []).append(n)
+
+    properties = []
+    for addr, negs in grouped.items():
+        first = negs[0]
+        lenders = []
+        total_balance = 0.0
+        active_count = 0
+        approved_count = 0
+        denied_count = 0
+
+        for n in negs:
+            lender = await _build_lender_summary(n, db)
+            lenders.append(lender)
+
+            balance = n.loan_balance or 0.0
+            total_balance += balance
+
+            if n.status == "active":
+                active_count += 1
+            elif n.status == "approved":
+                approved_count += 1
+            elif n.status == "denied":
+                denied_count += 1
+
+        properties.append({
+            "property_address": addr,
+            "property_city": first.property_city,
+            "property_state": first.property_state,
+            "property_zip": first.property_zip,
+            "lenders": lenders,
+            "total_lenders": len(negs),
+            "active_lenders": active_count,
+            "approved_lenders": approved_count,
+            "denied_lenders": denied_count,
+            "total_balance": round(total_balance, 2),
+        })
+
+    return properties
+
+
+@router.get("/for-deal")
+async def get_negotiations_for_deal(
+    property_address: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return lender negotiations for a property address (CRM integration).
+
+    If bank_negotiation_enabled is False for the user, returns an empty
+    lenders array instead of 403 — the CRM always calls this endpoint.
+    """
+    if not user.is_superadmin and not user.bank_negotiation_enabled:
+        return {
+            "property_address": property_address,
+            "bank_negotiation_enabled": False,
+            "lenders": [],
+            "summary": {
+                "total": 0,
+                "active": 0,
+                "approved": 0,
+                "denied": 0,
+                "pending_followups": 0,
+            },
+        }
+
+    stmt = (
+        select(BankNegotiation)
+        .where(
+            BankNegotiation.user_id == user.id,
+            BankNegotiation.property_address == property_address,
+        )
+        .order_by(BankNegotiation.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    negotiations = result.scalars().all()
+
+    lenders = []
+    active_count = 0
+    approved_count = 0
+    denied_count = 0
+    pending_followups = 0
+
+    for n in negotiations:
+        lender = await _build_lender_summary(n, db)
+        lenders.append(lender)
+
+        if n.status == "active":
+            active_count += 1
+        elif n.status == "approved":
+            approved_count += 1
+        elif n.status == "denied":
+            denied_count += 1
+
+        if n.next_followup_date and n.next_followup_date >= datetime.utcnow():
+            pending_followups += 1
+
+    return {
+        "property_address": property_address,
+        "bank_negotiation_enabled": True,
+        "lenders": lenders,
+        "summary": {
+            "total": len(negotiations),
+            "active": active_count,
+            "approved": approved_count,
+            "denied": denied_count,
+            "pending_followups": pending_followups,
+        },
+    }
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_negotiation(
     body: NegotiationCreate,
@@ -406,9 +606,8 @@ async def create_negotiation(
     )
 
     # Create Google Drive folder structure (log only; actual creation deferred)
-    folder_base = (
-        f"ABF Clients/Bank Negotiations/"
-        f"{bank_name} - {property_address}"
+    folder_base = get_gdrive_negotiation_path(
+        user, property_address, bank_name
     )
     subfolders = [
         f"{folder_base}/Documents",

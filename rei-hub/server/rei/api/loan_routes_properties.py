@@ -24,6 +24,7 @@ from rei.models.user import (
     User,
 )
 from rei.services.loan_servicing import calculate_amortization, generate_account_number
+from rei.services.tenant_config import get_gdrive_property_root, get_gdrive_root_folder
 from rei.services.security import (
     sanitize_text,
     sanitize_email,
@@ -289,9 +290,7 @@ async def create_property(
     )
 
     # Build GDrive folder path (store path; actual creation deferred to gdrive service)
-    folder_base = (
-        f"ABF Clients/2 - Current Clients/{body.property_address}"
-    )
+    folder_base = get_gdrive_property_root(user, body.property_address)
     subfolders = [
         f"{folder_base}/Documents/Certified Mail",
         f"{folder_base}/Documents/Bank Correspondence",
@@ -480,14 +479,17 @@ async def update_property(
     if new_status and new_status != old_status:
         old_folder = _STATUS_TO_GDRIVE_FOLDER.get(old_status, old_status)
         new_folder = _STATUS_TO_GDRIVE_FOLDER.get(new_status, new_status)
+        gdrive_root = get_gdrive_root_folder(user)
         logger.info(
             "Property %s status changed: %s → %s. GDrive folder move: "
-            "'ABF Clients/%s/%s' → 'ABF Clients/%s/%s'",
+            "'%s/%s/%s' → '%s/%s/%s'",
             trust_id,
             old_status,
             new_status,
+            gdrive_root,
             old_folder,
             land_trust.property_address,
+            gdrive_root,
             new_folder,
             land_trust.property_address,
         )
