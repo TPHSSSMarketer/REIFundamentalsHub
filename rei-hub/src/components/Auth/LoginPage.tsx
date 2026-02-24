@@ -15,12 +15,21 @@ export default function LoginPage() {
     setSubmitting(true)
     setError(null)
 
+    // Client-side email format check
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailPattern.test(email)) {
+      setError('Please enter a valid email address.')
+      setSubmitting(false)
+      return
+    }
+
     const result = await login(email, password)
 
     if (result.success) {
       navigate('/pipeline')
     } else {
       setError(result.error ?? 'Login failed')
+      setPassword('')
     }
 
     setSubmitting(false)
@@ -54,6 +63,8 @@ export default function LoginPage() {
               id="email"
               type="email"
               required
+              maxLength={254}
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -70,6 +81,8 @@ export default function LoginPage() {
               id="password"
               type="password"
               required
+              maxLength={128}
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"

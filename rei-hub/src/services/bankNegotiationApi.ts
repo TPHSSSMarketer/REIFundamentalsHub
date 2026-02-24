@@ -15,6 +15,32 @@ function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` }
 }
 
+async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
+  if (res.ok) return res.json()
+
+  if (res.status === 429) {
+    throw new Error('Too many requests. Please wait a moment before trying again.')
+  }
+  if (res.status === 401) {
+    localStorage.removeItem('rei_token')
+    window.location.href = '/login'
+    throw new Error('Your session has expired. Please log in again.')
+  }
+  if (res.status === 403) {
+    throw new Error("You don't have permission to perform this action.")
+  }
+
+  const body = await res.json().catch(() => ({}))
+  if (res.status === 422) {
+    const detail = body.detail
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((d: any) => d.msg).join(', '))
+    }
+    throw new Error(detail ?? 'Validation error')
+  }
+  throw new Error(body.detail ?? fallbackMsg)
+}
+
 // ── Negotiations ─────────────────────────────────────────────────
 
 export async function getNegotiations(token: string, filters?: Record<string, string>) {
@@ -22,16 +48,14 @@ export async function getNegotiations(token: string, filters?: Record<string, st
   const res = await fetch(`${BASE_URL}/api/negotiations?${params}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch negotiations')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch negotiations')
 }
 
 export async function getNegotiation(negId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/${negId}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch negotiation')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch negotiation')
 }
 
 export async function createNegotiation(data: Record<string, any>, token: string) {
@@ -40,8 +64,7 @@ export async function createNegotiation(data: Record<string, any>, token: string
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create negotiation')
-  return res.json()
+  return handleResponse(res, 'Failed to create negotiation')
 }
 
 export async function updateNegotiation(negId: string, data: Record<string, any>, token: string) {
@@ -50,8 +73,7 @@ export async function updateNegotiation(negId: string, data: Record<string, any>
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update negotiation')
-  return res.json()
+  return handleResponse(res, 'Failed to update negotiation')
 }
 
 // ── Recipients ───────────────────────────────────────────────────
@@ -60,8 +82,7 @@ export async function getRecipients(negId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/${negId}/recipients`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch recipients')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch recipients')
 }
 
 export async function updateRecipient(negId: string, recId: string, data: Record<string, any>, token: string) {
@@ -70,8 +91,7 @@ export async function updateRecipient(negId: string, recId: string, data: Record
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update recipient')
-  return res.json()
+  return handleResponse(res, 'Failed to update recipient')
 }
 
 export async function refreshRecipient(negId: string, recId: string, token: string) {
@@ -79,8 +99,7 @@ export async function refreshRecipient(negId: string, recId: string, token: stri
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to refresh recipient')
-  return res.json()
+  return handleResponse(res, 'Failed to refresh recipient')
 }
 
 // ── Documents ────────────────────────────────────────────────────
@@ -89,8 +108,7 @@ export async function getDocuments(negId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/${negId}/documents`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch documents')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch documents')
 }
 
 export async function createDocument(negId: string, data: Record<string, any>, token: string) {
@@ -99,8 +117,7 @@ export async function createDocument(negId: string, data: Record<string, any>, t
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create document')
-  return res.json()
+  return handleResponse(res, 'Failed to create document')
 }
 
 // ── Correspondence ───────────────────────────────────────────────
@@ -109,8 +126,7 @@ export async function getCorrespondence(negId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/${negId}/correspondence`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch correspondence')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch correspondence')
 }
 
 export async function sendToAll(negId: string, data: Record<string, any>, token: string) {
@@ -119,8 +135,7 @@ export async function sendToAll(negId: string, data: Record<string, any>, token:
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to send to all')
-  return res.json()
+  return handleResponse(res, 'Failed to send to all')
 }
 
 export async function updateTracking(negId: string, corrId: string, token: string) {
@@ -128,8 +143,7 @@ export async function updateTracking(negId: string, corrId: string, token: strin
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to update tracking')
-  return res.json()
+  return handleResponse(res, 'Failed to update tracking')
 }
 
 // ── Tracking ─────────────────────────────────────────────────────
@@ -138,8 +152,7 @@ export async function getTrackingSummary(negId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/${negId}/tracking-summary`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch tracking summary')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch tracking summary')
 }
 
 export async function refreshAllTracking(token: string) {
@@ -147,8 +160,7 @@ export async function refreshAllTracking(token: string) {
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to refresh all tracking')
-  return res.json()
+  return handleResponse(res, 'Failed to refresh all tracking')
 }
 
 // ── Follow-ups ───────────────────────────────────────────────────
@@ -157,8 +169,7 @@ export async function getPendingFollowups(token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/followups/pending`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch pending follow-ups')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch pending follow-ups')
 }
 
 export async function completeFollowup(id: string, data: Record<string, any>, token: string) {
@@ -167,8 +178,7 @@ export async function completeFollowup(id: string, data: Record<string, any>, to
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to complete follow-up')
-  return res.json()
+  return handleResponse(res, 'Failed to complete follow-up')
 }
 
 // ── Admin ────────────────────────────────────────────────────────
@@ -177,8 +187,7 @@ export async function getAllNegotiations(token: string) {
   const res = await fetch(`${BASE_URL}/api/negotiations/admin/all`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch all negotiations')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch all negotiations')
 }
 
 export async function enableBankNegotiation(userId: string, token: string) {
@@ -186,6 +195,5 @@ export async function enableBankNegotiation(userId: string, token: string) {
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to enable bank negotiation')
-  return res.json()
+  return handleResponse(res, 'Failed to enable bank negotiation')
 }

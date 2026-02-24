@@ -112,6 +112,7 @@ export default function PaymentPortalPage() {
 
   // Lookup state
   const [accountNumber, setAccountNumber] = useState('')
+  const [accountNumberValid, setAccountNumberValid] = useState(true)
   const [propertyAddress, setPropertyAddress] = useState('')
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState('')
@@ -423,12 +424,26 @@ export default function PaymentPortalPage() {
                   <input
                     type="text"
                     value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value.toUpperCase()
+                      setAccountNumber(v)
+                      setAccountNumberValid(
+                        v === '' || /^CFD-[A-Z]{2}-\d{4}-\d{5}$/.test(v)
+                      )
+                    }}
                     placeholder="CFD-NY-2025-00147"
                     required
-                    style={styles.input}
+                    maxLength={20}
+                    style={{
+                      ...styles.input,
+                      borderColor: !accountNumberValid ? BRAND.red : undefined,
+                    }}
                   />
-                  <p style={styles.helper}>Found on your monthly statement</p>
+                  <p style={styles.helper}>
+                    {!accountNumberValid
+                      ? 'Format: CFD-XX-YYYY-NNNNN'
+                      : 'Found on your monthly statement'}
+                  </p>
                 </div>
 
                 <div style={styles.fieldGroup}>
@@ -556,9 +571,13 @@ export default function PaymentPortalPage() {
                         <input
                           type="number"
                           step="0.01"
-                          min={account.monthly_payment}
+                          min={1}
+                          max={10000}
                           value={payAmount}
-                          onChange={(e) => setPayAmount(e.target.value)}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            if (v === '' || parseFloat(v) >= 0) setPayAmount(v)
+                          }}
                           style={{ ...styles.input, paddingLeft: 28 }}
                         />
                       </div>
@@ -635,9 +654,13 @@ export default function PaymentPortalPage() {
                           <input
                             type="number"
                             step="0.01"
-                            min="0.01"
+                            min={1}
+                            max={10000}
                             value={manualAmount}
-                            onChange={(e) => setManualAmount(e.target.value)}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              if (v === '' || parseFloat(v) >= 0) setManualAmount(v)
+                            }}
                             required
                             style={{ ...styles.input, paddingLeft: 28 }}
                           />
