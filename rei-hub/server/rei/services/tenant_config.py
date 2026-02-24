@@ -86,32 +86,16 @@ def get_gdrive_root_folder(user: User) -> str:
     return safe if safe else "REI Hub Clients"
 
 
-def get_gdrive_negotiation_path(
-    user: User,
-    property_address: str,
-    bank_name: str,
-) -> str:
-    """Return folder path for one lender's negotiation documents.
-
-    Structure::
-
-        {Company}/{Property Address}/Bank Negotiations/{Bank Name}/
-    """
-    import re
-
-    root = get_gdrive_root_folder(user)
-    safe_addr = re.sub(r'[\\/:*?"<>|]', '', property_address).strip()
-    safe_bank = re.sub(r'[\\/:*?"<>|]', '', bank_name).strip()
-    return f"{root}/{safe_addr}/Bank Negotiations/{safe_bank}"
-
-
 def get_gdrive_property_root(
     user: User,
     property_address: str,
+    property_city: str = "",
+    property_state: str = "",
+    property_zip: str = "",
 ) -> str:
     """Return the property-level root folder.
 
-    All documents for this property go under this path.
+    Uses street address only for the folder name to keep paths clean and short.
     """
     import re
 
@@ -120,15 +104,35 @@ def get_gdrive_property_root(
     return f"{root}/{safe_addr}"
 
 
+def get_gdrive_negotiation_path(
+    user: User,
+    property_address: str,
+    bank_name: str,
+    property_city: str = "",
+    property_state: str = "",
+    property_zip: str = "",
+) -> str:
+    """Return folder path for one lender's negotiation documents.
+
+    Uses street address only for the folder name.
+    """
+    import re
+
+    prop_root = get_gdrive_property_root(user, property_address)
+    safe_bank = re.sub(r'[\\/:*?"<>|]', '', bank_name).strip()
+    return f"{prop_root}/Bank Negotiations/{safe_bank}"
+
+
 def get_gdrive_loan_path(
     user: User,
     property_address: str,
+    property_city: str = "",
+    property_state: str = "",
+    property_zip: str = "",
 ) -> str:
     """Return folder path for loan servicing documents for a property.
 
-    Structure::
-
-        {Company}/{Property Address}/Loan Servicing/
+    Uses street address only for the folder name.
     """
     prop_root = get_gdrive_property_root(user, property_address)
     return f"{prop_root}/Loan Servicing"
