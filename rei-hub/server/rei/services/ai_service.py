@@ -34,8 +34,8 @@ PROVIDER_CONFIGS = {
     },
     "nvidia_kimi": {
         "base_url": "https://integrate.api.nvidia.com",
-        "models": ["moonshotai/kimi-k2-instruct"],
-        "default_model": "moonshotai/kimi-k2-instruct",
+        "models": ["moonshotai/kimi-k2.5-instruct"],
+        "default_model": "moonshotai/kimi-k2.5-instruct",
         "display_name": "NVIDIA Kimi 2.5",
     },
     "nvidia_minimax": {
