@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,17 @@ from rei.models.user import (
     User,
 )
 from rei.services.loan_servicing import calculate_amortization, generate_account_number
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
+)
 from rei.services.state_law_service import research_state_laws
 from rei.services.stripe_connect import create_connect_customer
 
@@ -241,21 +252,39 @@ async def list_properties(
 async def create_property(
     body: PropertyCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     user: User = Depends(get_current_user_with_loans),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new land trust / property."""
+    # Rate limit: 20 per hour per user
+    if not check_rate_limit(rl_key(user.id, "create_property"), max_requests=20, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    # Sanitize inputs
+    try:
+        name = sanitize_text(body.name, 200)
+        trust_number = sanitize_text(body.trust_number, 100) if body.trust_number else body.trust_number
+        trustee = sanitize_text(body.trustee, 200) if body.trustee else body.trustee
+        beneficiary = sanitize_text(body.beneficiary, 200) if body.beneficiary else body.beneficiary
+        state = sanitize_state_code(body.state)
+        property_address = sanitize_text(body.property_address, 300)
+        property_city = sanitize_text(body.property_city, 100)
+        property_zip = sanitize_text(body.property_zip, 10)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     land_trust = LandTrust(
         user_id=user.id,
-        name=body.name,
-        trust_number=body.trust_number,
-        trustee=body.trustee,
-        beneficiary=body.beneficiary,
-        state=body.state,
-        property_address=body.property_address,
-        property_city=body.property_city,
+        name=name,
+        trust_number=trust_number,
+        trustee=trustee,
+        beneficiary=beneficiary,
+        state=state,
+        property_address=property_address,
+        property_city=property_city,
         property_state=body.property_state,
-        property_zip=body.property_zip,
+        property_zip=property_zip,
         status="current",
     )
 
@@ -283,6 +312,17 @@ async def create_property(
 
     # Trigger background state law research
     background_tasks.add_task(_bg_research_state_laws, body.state, user.id)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="create_property", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="land_trust",
+            resource_id=land_trust.id,
+            details={"address": property_address, "state": state},
+        ))
+    except Exception:
+        pass
 
     return {
         "land_trust": {
@@ -391,6 +431,15 @@ async def get_property(
                 "is_verified": state_law.is_verified,
             }
 
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="view_property", user_id=user.id, user_email=user.email,
+            resource_type="land_trust", resource_id=trust_id,
+        ))
+    except Exception:
+        pass
+
     return {
         "land_trust": _serialize_land_trust(land_trust),
         "active_cfd": _serialize_cfd(active_cfd) if active_cfd else None,
@@ -489,6 +538,15 @@ async def get_property_state_laws(
                 land_trust.property_state,
                 user.id,
             )
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="view_state_laws", user_id=user.id, user_email=user.email,
+            resource_type="land_trust", resource_id=trust_id,
+        ))
+    except Exception:
+        pass
 
     if user.is_superadmin:
         return {

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,6 +15,17 @@ from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
 from rei.models.user import Subscription, User
 from rei.services.email import send_welcome_email
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
+)
 from rei.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -74,19 +85,50 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @auth_router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT."""
+    ip = request.client.host if request.client else "unknown"
+
+    # Rate limit: 10 attempts per 15 min per IP
+    if not check_rate_limit(rl_ip_key(ip, "login"), max_requests=10, window_seconds=900):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again in 15 minutes.",
+        )
+
+    # Sanitize email
+    try:
+        email = sanitize_email(body.email)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     result = await db.execute(
-        select(User).options(selectinload(User.subscription)).where(User.email == body.email)
+        select(User).options(selectinload(User.subscription)).where(User.email == email)
     )
     user = result.scalar_one_or_none()
     if user is None:
+        # Audit log failed login
+        try:
+            await db.run_sync(lambda s: audit_log(
+                s, action="failed_login", user_email=body.email,
+                ip_address=ip, success=False,
+            ))
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
     if not verify_password(body.password, user.hashed_password):
+        # Audit log failed login
+        try:
+            await db.run_sync(lambda s: audit_log(
+                s, action="failed_login", user_email=body.email,
+                ip_address=ip, success=False,
+            ))
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -98,6 +140,15 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         data={"sub": user.id},
         expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
     )
+
+    # Audit log successful login
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="login", user_id=user.id, user_email=user.email,
+            ip_address=ip,
+        ))
+    except Exception:
+        pass
 
     return TokenResponse(
         access_token=token,

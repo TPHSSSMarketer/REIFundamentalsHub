@@ -30,6 +30,17 @@ from rei.services.tenant_config import (
     get_loan_portal_color,
     get_loan_stripe_account,
     get_servicing_fee_pct,
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    sanitize_account_number,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +52,13 @@ payment_portal_router = APIRouter(prefix="/portal", tags=["payment-portal"])
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 _RATE_LIMIT_MAX = 10
 _RATE_LIMIT_WINDOW = 60  # seconds
+
+# Failed lookup tracking — block IP after 3 failures in 5 minutes
+_failed_lookup_store: dict[str, list[float]] = defaultdict(list)
+_FAILED_LOOKUP_MAX = 3
+_FAILED_LOOKUP_WINDOW = 300  # 5 minutes
+_FAILED_LOOKUP_BLOCK = 900  # 15 minutes
+_blocked_ips: dict[str, float] = {}  # ip -> blocked_until timestamp
 
 
 def _check_rate_limit(ip: str) -> bool:
@@ -163,7 +181,28 @@ async def portal_lookup(
     If user_id is provided, scopes the lookup to that business only.
     """
     if not _check_rate_limit(_get_client_ip(request)):
+    """Look up a loan account by account number + property address."""
+    ip = _get_client_ip(request)
+
+    # IP-based rate limit: 10 per minute
+    if not check_rate_limit(rl_ip_key(ip, "portal_lookup"), max_requests=10, window_seconds=60):
         raise HTTPException(status_code=429, detail="Too many requests. Try again in a minute.")
+
+    # Check if IP is blocked from too many failed lookups
+    now_ts = time.time()
+    if ip in _blocked_ips:
+        if now_ts < _blocked_ips[ip]:
+            raise HTTPException(status_code=429, detail="Too many failed attempts. Try again later.")
+        else:
+            del _blocked_ips[ip]
+
+    # Sanitize inputs
+    try:
+        account_number = sanitize_account_number(account_number)
+        property_address = sanitize_text(property_address, 300)
+    except ValueError:
+        # Don't reveal validation details on public endpoint
+        return {"valid": False}
 
     if not account_number.strip() or not property_address.strip():
         return {"valid": False}
@@ -176,13 +215,40 @@ async def portal_lookup(
         result = await db.execute(stmt)
         account = result.scalar_one_or_none()
 
-    if not account:
-        return {"valid": False}
+    valid = False
 
-    # Verify property address matches (case-insensitive, loose match)
-    stored_addr = account.property_address.lower().strip()
-    input_addr = property_address.lower().strip()
-    if input_addr not in stored_addr and stored_addr not in input_addr:
+    if not account:
+        valid = False
+    else:
+        # Verify property address matches (case-insensitive, loose match)
+        stored_addr = account.property_address.lower().strip()
+        input_addr = property_address.lower().strip()
+        if input_addr not in stored_addr and stored_addr not in input_addr:
+            valid = False
+        else:
+            valid = True
+
+    if not valid:
+        # Track failed lookups per IP
+        _failed_lookup_store[ip] = [
+            t for t in _failed_lookup_store[ip] if now_ts - t < _FAILED_LOOKUP_WINDOW
+        ]
+        _failed_lookup_store[ip].append(now_ts)
+        if len(_failed_lookup_store[ip]) >= _FAILED_LOOKUP_MAX:
+            _blocked_ips[ip] = now_ts + _FAILED_LOOKUP_BLOCK
+
+        # Audit log
+        try:
+            async with async_session_factory() as audit_db:
+                await audit_db.run_sync(lambda s: audit_log(
+                    s, action="portal_lookup", user_id=None,
+                    ip_address=ip,
+                    details={"account_number": account_number, "found": False},
+                    success=False,
+                ))
+        except Exception:
+            pass
+
         return {"valid": False}
 
     is_late, days_late, late_fee_due = _compute_late_info(account)
@@ -197,6 +263,18 @@ async def portal_lookup(
 
     # Return first name only for security
     first_name = account.buyer_name.split()[0] if account.buyer_name else ""
+
+    # Audit log
+    try:
+        async with async_session_factory() as audit_db:
+            await audit_db.run_sync(lambda s: audit_log(
+                s, action="portal_lookup", user_id=None,
+                ip_address=ip,
+                details={"account_number": account_number, "found": True},
+                success=True,
+            ))
+    except Exception:
+        pass
 
     return {
         "valid": True,
@@ -222,13 +300,33 @@ async def portal_pay_stripe(body: StripPaymentRequest):
     Uses the portal owner's (user_id) Stripe Connect account if set,
     otherwise falls back to the platform default.
     """
+async def portal_pay_stripe(body: StripPaymentRequest, request: Request):
+    """Charge buyer's card via Stripe and record the payment."""
+    ip = _get_client_ip(request)
+
+    # Rate limit: 5 per hour per IP
+    if not check_rate_limit(rl_ip_key(ip, "portal_pay_stripe"), max_requests=5, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many payment attempts. Try again later.")
+
+    # Validate amount_cents
+    if not isinstance(body.amount_cents, int) or body.amount_cents < 100:
+        raise HTTPException(status_code=422, detail="Minimum payment is $1.00.")
+    if body.amount_cents > 1_000_000:
+        raise HTTPException(status_code=422, detail="Maximum payment is $10,000.")
+
+    # Sanitize account number
+    try:
+        account_number = sanitize_account_number(body.account_number)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     if not settings.stripe_connect_secret_key:
         raise HTTPException(status_code=503, detail="Payment processing not configured.")
 
     async with async_session_factory() as db:
         result = await db.execute(
             select(LoanAccount).where(
-                func.lower(LoanAccount.account_number) == body.account_number.strip().lower(),
+                func.lower(LoanAccount.account_number) == account_number.strip().lower(),
                 LoanAccount.status == "active",
             )
         )
@@ -327,6 +425,17 @@ async def portal_pay_stripe(body: StripPaymentRequest):
         account.current_balance = round(balance_after, 2)
         await db.commit()
 
+    # Audit log
+    try:
+        async with async_session_factory() as audit_db:
+            await audit_db.run_sync(lambda s: audit_log(
+                s, action="portal_payment_stripe", user_id=None,
+                ip_address=ip,
+                details={"account_number": account_number, "amount_cents": body.amount_cents},
+            ))
+    except Exception:
+        pass
+
     return {
         "success": True,
         "payment_id": intent.id,
@@ -339,15 +448,30 @@ async def portal_pay_stripe(body: StripPaymentRequest):
 
 
 @payment_portal_router.post("/pay/manual")
-async def portal_pay_manual(body: ManualPaymentRequest):
+async def portal_pay_manual(body: ManualPaymentRequest, request: Request):
     """Record a pending check/wire payment notification."""
+    ip = _get_client_ip(request)
+
+    # Rate limit: 5 per hour per IP
+    if not check_rate_limit(rl_ip_key(ip, "portal_pay_manual"), max_requests=5, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many payment attempts. Try again later.")
+
     if body.payment_method not in ("check", "wire"):
         raise HTTPException(status_code=400, detail="Payment method must be 'check' or 'wire'.")
+
+    # Sanitize inputs
+    try:
+        account_number = sanitize_account_number(body.account_number)
+        amount = sanitize_currency(body.amount)
+        reference_number = sanitize_text(body.reference_number, 100) if body.reference_number else body.reference_number
+        notes = sanitize_text(body.notes, 500) if body.notes else body.notes
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     async with async_session_factory() as db:
         result = await db.execute(
             select(LoanAccount).where(
-                func.lower(LoanAccount.account_number) == body.account_number.strip().lower(),
+                func.lower(LoanAccount.account_number) == account_number.strip().lower(),
                 LoanAccount.status == "active",
             )
         )
@@ -359,11 +483,11 @@ async def portal_pay_manual(body: ManualPaymentRequest):
         payment = LoanPayment(
             confirmation_number=confirmation,
             account_number=account.account_number,
-            amount=body.amount,
+            amount=amount,
             payment_method=body.payment_method,
             status="pending",
-            reference_number=body.reference_number,
-            notes=body.notes,
+            reference_number=reference_number,
+            notes=notes,
             balance_after=round(account.current_balance, 2),  # Unchanged until admin confirms
         )
         db.add(payment)
@@ -382,15 +506,26 @@ async def portal_pay_manual(body: ManualPaymentRequest):
                     f"<p>A buyer has submitted a <strong>{body.payment_method}</strong> "
                     f"payment notification.</p>"
                     f"<p><strong>Account:</strong> {account.account_number}<br>"
-                    f"<strong>Amount:</strong> ${body.amount:,.2f}<br>"
-                    f"<strong>Reference:</strong> {body.reference_number or 'N/A'}<br>"
-                    f"<strong>Notes:</strong> {body.notes or 'N/A'}</p>"
+                    f"<strong>Amount:</strong> ${amount:,.2f}<br>"
+                    f"<strong>Reference:</strong> {reference_number or 'N/A'}<br>"
+                    f"<strong>Notes:</strong> {notes or 'N/A'}</p>"
                     f"<p>Please verify receipt and confirm in the admin panel.</p>"
                 ),
                 settings=settings,
             )
         except Exception:
             logger.warning("Failed to send admin notification for manual payment %s", confirmation)
+
+    # Audit log
+    try:
+        async with async_session_factory() as audit_db:
+            await audit_db.run_sync(lambda s: audit_log(
+                s, action="portal_payment_manual", user_id=None,
+                ip_address=ip,
+                details={"account_number": account_number, "amount": amount, "method": body.payment_method},
+            ))
+    except Exception:
+        pass
 
     return {
         "success": True,

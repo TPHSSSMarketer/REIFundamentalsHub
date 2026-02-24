@@ -31,7 +31,7 @@ const PROVIDERS = [
     icon: 'N',
     iconBg: 'bg-green-100',
     iconColor: 'text-green-700',
-    models: ['moonshotai/kimi-k2-instruct'],
+    models: ['moonshotai/kimi-k2.5-instruct'],
     keyField: 'nvidia' as const,
     description: 'Fast multilingual model',
   },
