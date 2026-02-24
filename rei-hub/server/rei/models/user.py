@@ -195,6 +195,8 @@ class User(Base):
     # ── Loan Servicing ─────────────────────────────────────────
     loan_servicing_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
+    loan_servicing_onboarding_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False)
     stripe_connect_account_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True)
     stripe_connect_enabled: Mapped[bool] = mapped_column(

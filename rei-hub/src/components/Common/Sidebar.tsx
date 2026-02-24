@@ -66,7 +66,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     getCurrentUser().then((user) => {
-      if (user && user.is_admin) setIsAdmin(true)
+      if (user && user.is_superadmin) setIsAdmin(true)
       if (user && (user.loan_servicing_enabled || user.is_superadmin)) setShowLoanServicing(true)
       if (user && (user.bank_negotiation_enabled || user.is_superadmin)) setShowBankNegotiation(true)
     })
