@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getToken } from '@/services/auth'
+import NegotiationsTab from './tabs/NegotiationsTab'
+import CorrespondenceTab from './tabs/CorrespondenceTab'
+import FollowUpsTab from './tabs/FollowUpsTab'
+import TrackingTab from './tabs/TrackingTab'
 
 const TABS = [
   { id: 'negotiations', label: '\u{1F3E6} Negotiations', short: 'Negs' },
@@ -79,16 +83,16 @@ export default function BankNegotiationPage() {
       {/* Tab Content */}
       <div className="p-4 md:p-6">
         {activeTab === 'negotiations' && (
-          <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Coming soon</div>
+          <NegotiationsTab token={token} isSuperAdmin={isSuperAdmin} />
         )}
         {activeTab === 'correspondence' && (
-          <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Coming soon</div>
+          <CorrespondenceTab token={token} />
         )}
         {activeTab === 'followups' && (
-          <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Coming soon</div>
+          <FollowUpsTab token={token} />
         )}
         {activeTab === 'tracking' && (
-          <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Coming soon</div>
+          <TrackingTab token={token} />
         )}
       </div>
     </div>

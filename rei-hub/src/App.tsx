@@ -30,6 +30,7 @@ import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import CalendarPage from './components/Calendar/CalendarPage'
 import LoanServicingPage from './components/LoanServicing/LoanServicingPage'
+import BankNegotiationPage from './components/BankNegotiation/BankNegotiationPage'
 import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import { isAuthenticated } from './services/auth'
 
@@ -68,6 +69,7 @@ function AppLayout() {
         <Route path="/phone" element={<PhonePage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/loan-servicing" element={<LoanServicingPage />} />
+        <Route path="/bank-negotiation" element={<BankNegotiationPage />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={
           <UpgradeGate feature="assistant_hub" requiredPlan="Pro">
