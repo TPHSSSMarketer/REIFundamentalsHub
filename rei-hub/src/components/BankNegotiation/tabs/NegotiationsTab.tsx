@@ -1,10 +1,15 @@
-import { useState, useEffect, type FormEvent } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
 import {
-  getNegotiations, createNegotiation, getRecipients, getCorrespondence,
+  getNegotiationsByProperty, createNegotiation, getRecipients, getCorrespondence,
   sendToAll, refreshRecipient, updateRecipient, refreshAllTracking,
 } from '../../../services/bankNegotiationApi'
 
-interface Props { token: string; isSuperAdmin: boolean }
+interface Props {
+  token: string
+  isSuperAdmin: boolean
+  preSelectedProperty?: string | null
+  autoAddLender?: boolean
+}
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -21,15 +26,38 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-gray-100 text-gray-600',
 }
 
+const LOAN_TYPE_BADGE: Record<string, string> = {
+  '1st': 'bg-[#1B3A6B] text-white',
+  '2nd': 'bg-blue-500 text-white',
+  'HELOC': 'bg-teal-600 text-white',
+  'HOA': 'bg-orange-500 text-white',
+  'Tax': 'bg-[#CC2229] text-white',
+  'Other': 'bg-gray-500 text-white',
+}
+
 const LETTER_TYPES: Record<number, string> = { 1: 'Initial', 2: 'Follow-up', 3: 'Final Demand' }
 const CONFIDENCE_DOT: Record<string, string> = { high: 'bg-green-500', medium: 'bg-yellow-500', low: 'bg-red-500' }
 
+function formatFollowUp(dateStr: string | null | undefined) {
+  if (!dateStr) return { text: '\u2014', color: 'text-slate-400' }
+  const d = new Date(dateStr)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const diff = d.getTime() - now.getTime()
+  const days = Math.ceil(diff / 86400000)
+  if (days < 0) return { text: 'Overdue', color: 'text-[#CC2229] font-semibold' }
+  if (days <= 1) return { text: d.toLocaleDateString(), color: 'text-orange-600 font-semibold' }
+  return { text: d.toLocaleDateString(), color: 'text-slate-500' }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: Props) {
-  const [negotiations, setNegotiations] = useState<any[]>([])
+export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, preSelectedProperty, autoAddLender }: Props) {
+  const [properties, setProperties] = useState<any[]>([])
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selectedNeg, setSelectedNeg] = useState<any>(null)
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [prefillAddress, setPrefillAddress] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
   const [recipients, setRecipients] = useState<any[]>([])
@@ -49,15 +77,37 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
     our_offer: '', target_outcome: '', land_trust_id: '', notes: '',
   })
   const [creating, setCreating] = useState(false)
+  const propertyRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const initializedRef = useRef(false)
 
-  useEffect(() => { fetchNegotiations() }, [token])
+  useEffect(() => { fetchProperties() }, [token])
 
-  async function fetchNegotiations() {
+  // Handle preSelectedProperty and autoAddLender after data loads
+  useEffect(() => {
+    if (initializedRef.current || loading || properties.length === 0) return
+    if (preSelectedProperty) {
+      initializedRef.current = true
+      // Expand the target property and scroll to it
+      setCollapsed(prev => ({ ...prev, [preSelectedProperty]: false }))
+      setTimeout(() => {
+        const el = propertyRefs.current[preSelectedProperty]
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+      if (autoAddLender) {
+        setPrefillAddress(preSelectedProperty)
+        setForm(prev => ({ ...prev, property_address: preSelectedProperty }))
+        setShowCreateModal(true)
+      }
+    }
+  }, [loading, properties, preSelectedProperty, autoAddLender])
+
+  async function fetchProperties() {
     setLoading(true)
     try {
-      const data = await getNegotiations(token)
-      setNegotiations(Array.isArray(data) ? data : data.negotiations || [])
-    } catch { setNegotiations([]) }
+      const data = await getNegotiationsByProperty(token)
+      const list = Array.isArray(data) ? data : data.properties || []
+      setProperties(list)
+    } catch { setProperties([]) }
     setLoading(false)
   }
 
@@ -75,8 +125,9 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
       await createNegotiation({ ...form, current_balance: form.current_balance ? parseFloat(form.current_balance) : undefined, our_offer: form.our_offer ? parseFloat(form.our_offer) : undefined, land_trust_id: form.land_trust_id || undefined }, token)
       showToastMsg('Created. AI researching bank contacts now.')
       setShowCreateModal(false)
+      setPrefillAddress(null)
       setForm({ bank_name: '', property_address: '', city: '', state: '', zip: '', loan_number: '', current_balance: '', negotiation_type: 'Short Sale', our_offer: '', target_outcome: '', land_trust_id: '', notes: '' })
-      fetchNegotiations()
+      fetchProperties()
     } catch { showToastMsg('Failed to create negotiation') }
     setCreating(false)
   }
@@ -115,7 +166,36 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000) }
 
-  const stats = { total: negotiations.length, active: negotiations.filter((n: any) => n.status === 'active').length, approved: negotiations.filter((n: any) => n.status === 'approved').length, pending: negotiations.filter((n: any) => n.status === 'pending_response').length }
+  function toggleCollapse(addr: string) {
+    setCollapsed(prev => ({ ...prev, [addr]: !prev[addr] }))
+  }
+
+  function openAddLender(propertyAddress: string) {
+    setPrefillAddress(propertyAddress)
+    setForm(prev => ({ ...prev, property_address: propertyAddress }))
+    setShowCreateModal(true)
+  }
+
+  function getPropertySummary(prop: any) {
+    const lenders = prop.negotiations || []
+    const total = lenders.length
+    const active = lenders.filter((n: any) => n.status === 'active' || n.status === 'pending_response').length
+    const approved = lenders.filter((n: any) => n.status === 'approved').length
+    const denied = lenders.filter((n: any) => n.status === 'denied').length
+    let summaryColor = 'bg-blue-100 text-blue-800'
+    if (total > 0 && approved === total) summaryColor = 'bg-green-100 text-green-800'
+    else if (denied > 0) summaryColor = 'bg-red-100 text-[#CC2229]'
+    return { total, active, approved, denied, summaryColor }
+  }
+
+  // Aggregate stats across all properties
+  const allNegs = properties.flatMap((p: any) => p.negotiations || [])
+  const stats = {
+    total: allNegs.length,
+    active: allNegs.filter((n: any) => n.status === 'active').length,
+    approved: allNegs.filter((n: any) => n.status === 'approved').length,
+    pending: allNegs.filter((n: any) => n.status === 'pending_response').length,
+  }
 
   function letterStatus(num: number) {
     const letters = correspondence.filter((c: any) => c.letter_number === num)
@@ -131,7 +211,7 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-slate-800">Negotiations</h2>
-        <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90">+ New Negotiation</button>
+        <button onClick={() => { setPrefillAddress(null); setForm(prev => ({ ...prev, property_address: '' })); setShowCreateModal(true) }} className="px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90">+ Add New Property</button>
       </div>
 
       {/* Stats Row */}
@@ -144,25 +224,87 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
         ))}
       </div>
 
-      {/* Negotiations Table */}
-      {loading ? <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Loading...</div> : negotiations.length === 0 ? <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">No negotiations yet. Create your first one above.</div> : (
-        <div className="bg-white rounded-xl shadow overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b"><tr>
-              {['Bank', 'Property', 'Type', 'Status', 'Recipients Ready', 'Last Contact', 'Actions'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{h}</th>)}
-            </tr></thead>
-            <tbody>{negotiations.map((n: any) => (
-              <tr key={n.id} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="px-4 py-3 text-slate-800">{n.bank_name}</td>
-                <td className="px-4 py-3 text-slate-600">{n.property_address}</td>
-                <td className="px-4 py-3 text-slate-600">{n.negotiation_type}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_BADGE[n.status] || 'bg-gray-100 text-gray-600'}`}>{(n.status || '').replace(/_/g, ' ')}</span></td>
-                <td className="px-4 py-3 text-slate-600">{n.recipients_ready ?? '—'}</td>
-                <td className="px-4 py-3 text-slate-600">{n.last_contact ? new Date(n.last_contact).toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-3"><button onClick={() => openDetail(n)} className="px-3 py-1 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90">View</button></td>
-              </tr>
-            ))}</tbody>
-          </table>
+      {/* Property Cards */}
+      {loading ? <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">Loading...</div> : properties.length === 0 ? <div className="bg-white rounded-xl shadow p-8 text-center text-slate-400">No negotiations yet. Add your first property above.</div> : (
+        <div className="space-y-4">
+          {properties.map((prop: any) => {
+            const addr = prop.property_address || ''
+            const summary = getPropertySummary(prop)
+            const isCollapsed = collapsed[addr] === true
+            const lenders = prop.negotiations || []
+            return (
+              <div key={addr} ref={el => { propertyRefs.current[addr] = el }} className="bg-white rounded-xl shadow overflow-hidden">
+                {/* Property Card Header */}
+                <div
+                  className="bg-[#1B3A6B] px-5 py-4 cursor-pointer select-none flex items-center justify-between"
+                  onClick={() => toggleCollapse(addr)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-white text-lg shrink-0">{isCollapsed ? '\u25B6' : '\u25BC'}</span>
+                    <div className="min-w-0">
+                      <p className="text-white font-semibold truncate">{'\uD83D\uDCCD'} {addr}</p>
+                      <p className="text-blue-200 text-sm truncate">
+                        {[prop.property_city, prop.property_state, prop.property_zip].filter(Boolean).join(', ') || '\u00A0'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${summary.summaryColor}`}>
+                        {summary.total} Lender{summary.total !== 1 ? 's' : ''}
+                      </span>
+                      <div className="flex gap-1.5 mt-1 justify-end">
+                        {summary.active > 0 && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-800">{summary.active} Active</span>}
+                        {summary.approved > 0 && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-green-100 text-green-800">{summary.approved} Approved</span>}
+                        {summary.denied > 0 && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-[#CC2229]">{summary.denied} Denied</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); openAddLender(addr) }}
+                      className="px-3 py-1.5 text-xs font-medium bg-white/20 text-white rounded hover:bg-white/30 whitespace-nowrap"
+                    >
+                      + Add Lender
+                    </button>
+                  </div>
+                </div>
+
+                {/* Property Card Body — Lender Rows */}
+                {!isCollapsed && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b"><tr>
+                        {['Bank/Servicer', 'Loan Type', 'Balance', 'Status', 'Last Letter', 'Next Follow-Up', 'Actions'].map(h => (
+                          <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>{lenders.map((n: any) => {
+                        const loanType = n.loan_type || n.negotiation_type || 'Other'
+                        const loanBadge = LOAN_TYPE_BADGE[loanType] || LOAN_TYPE_BADGE['Other']
+                        const lastLetter = n.last_letter_number
+                          ? `Letter ${n.last_letter_number} \u2014 ${n.last_letter_date ? new Date(n.last_letter_date).toLocaleDateString() : ''}`
+                          : '\u2014'
+                        const followUp = formatFollowUp(n.next_followup)
+                        return (
+                          <tr key={n.id} className="border-b last:border-0 hover:bg-slate-50">
+                            <td className="px-4 py-3 text-slate-800 font-medium">{n.bank_name}</td>
+                            <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs font-semibold rounded ${loanBadge}`}>{loanType}</span></td>
+                            <td className="px-4 py-3 text-slate-600">{n.current_balance != null ? `$${Number(n.current_balance).toLocaleString()}` : '\u2014'}</td>
+                            <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_BADGE[n.status] || 'bg-gray-100 text-gray-600'}`}>{(n.status || '').replace(/_/g, ' ')}</span></td>
+                            <td className="px-4 py-3 text-slate-600 text-xs">{lastLetter}</td>
+                            <td className="px-4 py-3"><span className={`text-xs ${followUp.color}`}>{followUp.text}</span></td>
+                            <td className="px-4 py-3"><button onClick={() => openDetail(n)} className="px-3 py-1 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90">View</button></td>
+                          </tr>
+                        )
+                      })}</tbody>
+                    </table>
+                    {lenders.length === 0 && (
+                      <p className="text-sm text-slate-400 text-center py-6">No lenders yet for this property.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -312,9 +454,9 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin }: 
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
-              {[{ key: 'bank_name' as const, label: 'Bank/Servicer Name *', req: true }, { key: 'property_address' as const, label: 'Property Address *', req: true }, { key: 'city' as const, label: 'City', req: false }].map(f => (
-                <div key={f.key}><label className="block text-sm font-medium text-slate-700 mb-1">{f.label}</label><input required={f.req} value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
-              ))}
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">Bank/Servicer Name *</label><input required value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Address *</label><input required value={form.property_address} onChange={e => { if (!prefillAddress) setForm({ ...form, property_address: e.target.value }) }} readOnly={!!prefillAddress} className={`w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B] ${prefillAddress ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} /></div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">City</label><input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">State</label><select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"><option value="">Select state</option>{US_STATES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label><input value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
