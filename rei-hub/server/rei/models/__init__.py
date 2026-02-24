@@ -16,6 +16,7 @@ from rei.models.user import (
     NegotiationFollowUp,
 )
 from rei.models.loan import LoanAccount, LoanPayment
+from rei.models.audit import AuditLog
 
 __all__ = [
     "User",
@@ -35,4 +36,5 @@ __all__ = [
     "NegotiationDocument",
     "NegotiationCorrespondence",
     "NegotiationFollowUp",
+    "AuditLog",
 ]

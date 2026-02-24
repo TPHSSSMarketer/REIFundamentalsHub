@@ -269,12 +269,20 @@ async def _resolve_provider(
     else:
         api_key = nvidia_key
 
-    # Fallback: if chosen provider has no key, fall back to anthropic
-    if not api_key and provider != "anthropic" and anthropic_key:
-        provider = "anthropic"
-        model = PROVIDER_CONFIGS["anthropic"]["default_model"]
-        api_key = anthropic_key
-        base_url = PROVIDER_CONFIGS["anthropic"]["base_url"]
+    # Fallback chain: nvidia_kimi → nvidia_minimax → anthropic (last resort)
+    if not api_key:
+        fallback_chain = [
+            ("nvidia_kimi", nvidia_key),
+            ("nvidia_minimax", nvidia_key),
+            ("anthropic", anthropic_key),
+        ]
+        for fb_provider, fb_key in fallback_chain:
+            if fb_key and fb_provider != provider:
+                provider = fb_provider
+                model = PROVIDER_CONFIGS[fb_provider]["default_model"]
+                api_key = fb_key
+                base_url = PROVIDER_CONFIGS[fb_provider]["base_url"]
+                break
 
     return {
         "provider": provider,

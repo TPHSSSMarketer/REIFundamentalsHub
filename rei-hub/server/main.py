@@ -6,7 +6,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from datetime import datetime, timedelta
@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from rei.api.admin_routes import admin_router
 from rei.api.ai_routes import ai_router
+from rei.api.audit_routes import audit_router
 from rei.api.auth_routes import auth_router
 from rei.api.bank_negotiation_routes import router as bank_negotiation_router
 from rei.api.billing_routes import billing_router
@@ -180,6 +181,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), microphone=(), camera=()"
+    )
+    # Don't add CSP here — breaks Stripe and other third-party scripts
+    return response
+
+
 # Routes
 app.include_router(admin_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
@@ -198,6 +214,7 @@ app.include_router(loan_properties_router)
 app.include_router(loan_payments_router)
 app.include_router(bank_negotiation_router)
 app.include_router(payment_portal_router, prefix="/api")
+app.include_router(audit_router, prefix="/api")
 
 
 @app.get("/health")
