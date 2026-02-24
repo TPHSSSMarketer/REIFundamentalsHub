@@ -16,11 +16,15 @@ import {
   ExternalLink,
   Loader2,
   ClipboardList,
+  ChevronDown,
+  ChevronUp,
+  Landmark,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
-import { getAuthHeader } from '@/services/auth'
+import { getAuthHeader, getToken } from '@/services/auth'
+import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
 import type { Deal } from '@/types'
@@ -102,6 +106,11 @@ export default function DealDetailPage() {
   // Deal Analyzer preferences
   const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
 
+  // Bank Negotiations
+  const [lenderData, setLenderData] = useState<any>(null)
+  const [lenderLoading, setLenderLoading] = useState(false)
+  const [lendersExpanded, setLendersExpanded] = useState(false)
+
   // Get pipeline stages for stage selector
   const stages = useMemo(() => {
     if (!pipelines?.length) return STAGE_ORDER.map(id => ({ id, name: STAGE_CONFIG[id]?.label || id }))
@@ -125,6 +134,18 @@ export default function DealDetailPage() {
   useEffect(() => {
     loadBackendData()
   }, [loadBackendData])
+
+  // Fetch bank negotiation lender data for this deal's property
+  useEffect(() => {
+    if (!deal?.address) return
+    const token = getToken()
+    if (!token) return
+    setLenderLoading(true)
+    getNegotiationsForDeal(token, deal.address)
+      .then((data) => setLenderData(data))
+      .catch(() => setLenderData(null))
+      .finally(() => setLenderLoading(false))
+  }, [deal?.address])
 
   // Fetch analyzer preferences
   useEffect(() => {
@@ -366,6 +387,123 @@ export default function DealDetailPage() {
                 <span className="text-sm font-medium text-slate-800">{formatDate(deal.createdAt)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Bank Negotiations */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <Landmark className="w-3.5 h-3.5" />
+              Bank Negotiations
+            </h3>
+            {lenderLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-[#1B3A6B]" />
+              </div>
+            ) : !lenderData || (Array.isArray(lenderData.lenders) && lenderData.lenders.length === 0) || (Array.isArray(lenderData) && lenderData.length === 0) ? (
+              <div className="text-center py-3">
+                <span className="inline-block px-3 py-1.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
+                  No Active Negotiations
+                </span>
+                <div className="mt-2">
+                  <button
+                    onClick={() => navigate('/bank-negotiation')}
+                    className="text-xs text-[#1B3A6B] hover:underline"
+                  >
+                    Set up Bank Negotiation &rarr;
+                  </button>
+                </div>
+              </div>
+            ) : (() => {
+              const lenders = lenderData.lenders || (Array.isArray(lenderData) ? lenderData : [])
+              const active = lenders.filter((l: any) => l.status === 'active' || l.status === 'pending_response').length
+              const approved = lenders.filter((l: any) => l.status === 'approved').length
+              const LOAN_TYPE_BADGE_DEAL: Record<string, string> = {
+                '1st': 'bg-[#1B3A6B] text-white',
+                '2nd': 'bg-blue-500 text-white',
+                'HELOC': 'bg-teal-600 text-white',
+                'HOA': 'bg-orange-500 text-white',
+                'Tax': 'bg-[#CC2229] text-white',
+                'Other': 'bg-gray-500 text-white',
+              }
+              const STATUS_BADGE_DEAL: Record<string, string> = {
+                active: 'bg-blue-100 text-blue-800',
+                pending_response: 'bg-yellow-100 text-yellow-800',
+                approved: 'bg-green-100 text-green-800',
+                denied: 'bg-red-100 text-red-800',
+                completed: 'bg-gray-100 text-gray-600',
+              }
+              function fmtFollowUp(dateStr: string | null | undefined) {
+                if (!dateStr) return { text: '\u2014', color: 'text-slate-400' }
+                const d = new Date(dateStr)
+                const now = new Date(); now.setHours(0, 0, 0, 0)
+                const days = Math.ceil((d.getTime() - now.getTime()) / 86400000)
+                if (days < 0) return { text: 'Overdue', color: 'text-[#CC2229] font-semibold' }
+                if (days <= 1) return { text: d.toLocaleDateString(), color: 'text-orange-600 font-semibold' }
+                return { text: d.toLocaleDateString(), color: 'text-slate-500' }
+              }
+              return (
+                <>
+                  <button
+                    onClick={() => setLendersExpanded(!lendersExpanded)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#1B3A6B]/5 hover:bg-[#1B3A6B]/10 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-[#1B3A6B]">
+                      {lenders.length} Lender{lenders.length !== 1 ? 's' : ''} &mdash; {active} Active, {approved} Approved
+                    </span>
+                    {lendersExpanded
+                      ? <ChevronUp className="w-4 h-4 text-[#1B3A6B]" />
+                      : <ChevronDown className="w-4 h-4 text-[#1B3A6B]" />
+                    }
+                  </button>
+                  {lendersExpanded && (
+                    <div className="mt-3 space-y-3">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 border-b"><tr>
+                            {['Lender', 'Type', 'Balance', 'Status', 'Last Letter', 'Next Follow-Up'].map(h => (
+                              <th key={h} className="text-left px-2 py-2 text-[10px] font-semibold text-slate-500 uppercase">{h}</th>
+                            ))}
+                          </tr></thead>
+                          <tbody>{lenders.map((l: any) => {
+                            const loanType = l.loan_type || l.negotiation_type || 'Other'
+                            const badge = LOAN_TYPE_BADGE_DEAL[loanType] || LOAN_TYPE_BADGE_DEAL['Other']
+                            const statusBadge = STATUS_BADGE_DEAL[l.status] || 'bg-gray-100 text-gray-600'
+                            const lastLetter = l.last_letter_number
+                              ? `Letter ${l.last_letter_number} \u2014 ${l.last_letter_date ? new Date(l.last_letter_date).toLocaleDateString() : ''}`
+                              : '\u2014'
+                            const fu = fmtFollowUp(l.next_followup)
+                            return (
+                              <tr key={l.id} className="border-b last:border-0">
+                                <td className="px-2 py-2 text-slate-800 font-medium">{l.bank_name}</td>
+                                <td className="px-2 py-2"><span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${badge}`}>{loanType}</span></td>
+                                <td className="px-2 py-2 text-slate-600">{l.current_balance != null ? `$${Number(l.current_balance).toLocaleString()}` : '\u2014'}</td>
+                                <td className="px-2 py-2"><span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${statusBadge}`}>{(l.status || '').replace(/_/g, ' ')}</span></td>
+                                <td className="px-2 py-2 text-slate-600">{lastLetter}</td>
+                                <td className="px-2 py-2"><span className={fu.color}>{fu.text}</span></td>
+                              </tr>
+                            )
+                          })}</tbody>
+                        </table>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/bank-negotiation?property=${encodeURIComponent(deal.address)}`)}
+                          className="px-3 py-1.5 text-xs font-medium text-[#1B3A6B] border border-[#1B3A6B] rounded hover:bg-slate-50"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => navigate(`/bank-negotiation?property=${encodeURIComponent(deal.address)}&addLender=true`)}
+                          className="px-3 py-1.5 text-xs font-medium bg-[#1B3A6B] text-white rounded hover:opacity-90"
+                        >
+                          + Add Lender
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
 
           {/* Inline Notes */}

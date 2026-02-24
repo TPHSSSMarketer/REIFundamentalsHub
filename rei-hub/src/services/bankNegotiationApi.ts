@@ -181,6 +181,24 @@ export async function completeFollowup(id: string, data: Record<string, any>, to
   return handleResponse(res, 'Failed to complete follow-up')
 }
 
+// ── Property-grouped & Deal views ────────────────────────────
+
+export async function getNegotiationsByProperty(token: string, params?: Record<string, string>) {
+  const query = params ? `?${new URLSearchParams(params)}` : ''
+  const res = await fetch(`${BASE_URL}/api/negotiations/by-property${query}`, {
+    headers: authHeaders(token),
+  })
+  return handleResponse(res, 'Failed to fetch negotiations by property')
+}
+
+export async function getNegotiationsForDeal(token: string, property_address: string) {
+  const res = await fetch(
+    `${BASE_URL}/api/negotiations/for-deal?property_address=${encodeURIComponent(property_address)}`,
+    { headers: authHeaders(token) },
+  )
+  return handleResponse(res, 'Failed to fetch negotiations for deal')
+}
+
 // ── Admin ────────────────────────────────────────────────────────
 
 export async function getAllNegotiations(token: string) {

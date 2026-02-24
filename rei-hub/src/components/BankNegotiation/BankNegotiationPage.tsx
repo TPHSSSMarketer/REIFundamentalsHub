@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getCurrentUser, getToken } from '@/services/auth'
 import NegotiationsTab from './tabs/NegotiationsTab'
 import CorrespondenceTab from './tabs/CorrespondenceTab'
@@ -13,10 +14,14 @@ const TABS = [
 ] as const
 
 export default function BankNegotiationPage() {
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<string>('negotiations')
   const [user, setUser] = useState<Record<string, unknown> | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const preSelectedProperty = searchParams.get('property') || null
+  const autoAddLender = searchParams.get('addLender') === 'true' && !!preSelectedProperty
 
   useEffect(() => {
     setToken(getToken())
@@ -83,7 +88,12 @@ export default function BankNegotiationPage() {
       {/* Tab Content */}
       <div className="p-4 md:p-6">
         {activeTab === 'negotiations' && (
-          <NegotiationsTab token={token} isSuperAdmin={isSuperAdmin} />
+          <NegotiationsTab
+            token={token}
+            isSuperAdmin={isSuperAdmin}
+            preSelectedProperty={preSelectedProperty}
+            autoAddLender={autoAddLender}
+          />
         )}
         {activeTab === 'correspondence' && (
           <CorrespondenceTab token={token} />
