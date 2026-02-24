@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     stripe_connect_publishable_key: str = ""
     tphs_admin_email: str = ""
 
+    # ── USPS Web Tools API ──────────────────────────────────────────
+    usps_user_id: str = ""
+    # Register at: reg.usps.com/entrancePostal.do
+    # Free account — get User ID after registration
+    usps_api_url: str = "https://secure.shippingapis.com/ShippingAPI.dll"
+
     # ── Google Calendar ─────────────────────────────────────────────
     google_client_id: str = ""
     google_client_secret: str = ""
