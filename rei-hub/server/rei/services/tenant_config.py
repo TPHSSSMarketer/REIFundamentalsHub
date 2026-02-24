@@ -67,3 +67,68 @@ def get_distribution_statement_header(user: User) -> dict:
         "logo_url": user.loan_company_logo_url,
         "primary_color": get_loan_portal_color(user),
     }
+
+
+# ---------------------------------------------------------------------------
+# Google Drive folder path helpers
+# ---------------------------------------------------------------------------
+
+
+def get_gdrive_root_folder(user: User) -> str:
+    """Return root Google Drive folder using tenant's company name.
+
+    Falls back to "REI Hub Clients".
+    """
+    import re
+
+    company = get_loan_company_name(user)
+    safe = re.sub(r'[\\/:*?"<>|]', '', company).strip()
+    return safe if safe else "REI Hub Clients"
+
+
+def get_gdrive_negotiation_path(
+    user: User,
+    property_address: str,
+    bank_name: str,
+) -> str:
+    """Return folder path for one lender's negotiation documents.
+
+    Structure::
+
+        {Company}/{Property Address}/Bank Negotiations/{Bank Name}/
+    """
+    import re
+
+    root = get_gdrive_root_folder(user)
+    safe_addr = re.sub(r'[\\/:*?"<>|]', '', property_address).strip()
+    safe_bank = re.sub(r'[\\/:*?"<>|]', '', bank_name).strip()
+    return f"{root}/{safe_addr}/Bank Negotiations/{safe_bank}"
+
+
+def get_gdrive_property_root(
+    user: User,
+    property_address: str,
+) -> str:
+    """Return the property-level root folder.
+
+    All documents for this property go under this path.
+    """
+    import re
+
+    root = get_gdrive_root_folder(user)
+    safe_addr = re.sub(r'[\\/:*?"<>|]', '', property_address).strip()
+    return f"{root}/{safe_addr}"
+
+
+def get_gdrive_loan_path(
+    user: User,
+    property_address: str,
+) -> str:
+    """Return folder path for loan servicing documents for a property.
+
+    Structure::
+
+        {Company}/{Property Address}/Loan Servicing/
+    """
+    prop_root = get_gdrive_property_root(user, property_address)
+    return f"{prop_root}/Loan Servicing"
