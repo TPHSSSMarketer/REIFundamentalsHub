@@ -77,6 +77,7 @@ class Settings(BaseSettings):
 
     # ── TPHS Payment Portal (Stripe Connect) ────────────────────────
     stripe_connect_secret_key: str = ""
+    stripe_connect_account_id: str = ""
     stripe_connect_publishable_key: str = ""
     tphs_admin_email: str = ""
 

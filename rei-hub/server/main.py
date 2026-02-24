@@ -22,6 +22,8 @@ from rei.api.contacts_routes import contacts_router
 from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
 from rei.api.email_marketing_routes import email_marketing_router
+from rei.api.loan_routes_payments import router as loan_payments_router
+from rei.api.loan_routes_properties import router as loan_properties_router
 from rei.api.onboarding_routes import onboarding_router
 from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
@@ -33,6 +35,7 @@ from rei.migrations.create_tables import create_tables
 from rei.models.user import User
 from rei.tasks.reminder_processor import process_reminders
 from rei.tasks.sequence_processor import process_sequence_steps, reset_email_credits
+from rei.tasks.state_law_processor import process_pending_state_research
 from rei.tasks.trial_reminder import send_trial_reminders
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ _SEQUENCE_PROCESSOR_INTERVAL_SECS = 60 * 60  # 1 hour
 _CREDIT_RESET_INTERVAL_SECS = 60 * 60 * 24  # 24 hours
 _PHONE_USAGE_RESET_INTERVAL_SECS = 60 * 60  # 1 hour
 _REMINDER_PROCESSOR_INTERVAL_SECS = 60 * 5  # 5 minutes
+_STATE_LAW_PROCESSOR_INTERVAL_SECS = 60 * 60  # 1 hour
 
 
 async def _trial_reminder_loop() -> None:
@@ -113,6 +117,16 @@ async def _reminder_processor_loop() -> None:
         await asyncio.sleep(_REMINDER_PROCESSOR_INTERVAL_SECS)
 
 
+async def _state_law_processor_loop() -> None:
+    """Process pending state law research every hour."""
+    while True:
+        try:
+            await process_pending_state_research(async_session_factory, settings)
+        except Exception:
+            logger.exception("State law processor task error")
+        await asyncio.sleep(_STATE_LAW_PROCESSOR_INTERVAL_SECS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create database tables on startup and launch background tasks."""
@@ -122,12 +136,14 @@ async def lifespan(app: FastAPI):
     task_credits = asyncio.create_task(_credit_reset_loop())
     task_phone = asyncio.create_task(_phone_usage_reset_loop())
     task_reminders = asyncio.create_task(_reminder_processor_loop())
+    task_state_law = asyncio.create_task(_state_law_processor_loop())
     yield
     task_trial.cancel()
     task_seq.cancel()
     task_credits.cancel()
     task_phone.cancel()
     task_reminders.cancel()
+    task_state_law.cancel()
 
 
 app = FastAPI(
@@ -163,6 +179,8 @@ app.include_router(email_marketing_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(phone_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
+app.include_router(loan_properties_router)
+app.include_router(loan_payments_router)
 app.include_router(payment_portal_router, prefix="/api")
 
 
