@@ -32,6 +32,7 @@ import CalendarPage from './components/Calendar/CalendarPage'
 import LoanServicingPage from './components/LoanServicing/LoanServicingPage'
 import BankNegotiationPage from './components/BankNegotiation/BankNegotiationPage'
 import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
+import AnalyticsPage from './components/Analytics/AnalyticsPage'
 import { isAuthenticated } from './services/auth'
 
 function BillingCompletePage() {
@@ -70,6 +71,7 @@ function AppLayout() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/loan-servicing" element={<LoanServicingPage />} />
         <Route path="/bank-negotiation" element={<BankNegotiationPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={
           <UpgradeGate feature="assistant_hub" requiredPlan="Pro">
