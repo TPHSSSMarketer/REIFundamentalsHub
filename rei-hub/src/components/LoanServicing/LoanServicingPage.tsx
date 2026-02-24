@@ -5,6 +5,7 @@ import ContractsTab from './tabs/ContractsTab'
 import PaymentsTab from './tabs/PaymentsTab'
 import InvestorsTab from './tabs/InvestorsTab'
 import DistributionsTab from './tabs/DistributionsTab'
+import LoanServicingOnboarding from '../Onboarding/LoanServicingOnboarding'
 
 const TABS = [
   { id: 'properties', label: '\u{1F3E0} Properties', short: 'Props' },
@@ -19,11 +20,17 @@ export default function LoanServicingPage() {
   const [user, setUser] = useState<Record<string, unknown> | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     setToken(getToken())
     getCurrentUser()
-      .then(setUser)
+      .then((u) => {
+        setUser(u)
+        if (u?.loan_servicing_enabled === true && u?.loan_servicing_onboarding_complete === false) {
+          setShowOnboarding(true)
+        }
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
   }, [])
@@ -56,6 +63,10 @@ export default function LoanServicingPage() {
 
   return (
     <div className="space-y-0">
+      {showOnboarding && (
+        <LoanServicingOnboarding onComplete={() => setShowOnboarding(false)} />
+      )}
+
       {/* Header */}
       <div className="bg-[#1B3A6B] rounded-t-xl px-6 py-5">
         <h1 className="text-xl font-bold text-white">Loan Servicing</h1>
