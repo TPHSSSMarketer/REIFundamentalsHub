@@ -362,6 +362,13 @@ class GeneratedContract(Base):
 
 class ContractChecklistTemplate(Base):
     __tablename__ = "contract_checklist_templates"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
 # ═══════════════════════════════════════════════════════════════
 # Email Marketing models
 # ═══════════════════════════════════════════════════════════════
@@ -404,6 +411,12 @@ class EmailList(Base):
 
 class DealContractChecklist(Base):
     __tablename__ = "deal_contract_checklists"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
     name: Mapped[str] = mapped_column(String)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     subscriber_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -464,6 +477,14 @@ class EmailTemplate(Base):
 
 class LetterOfIntent(Base):
     __tablename__ = "letters_of_intent"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+
 class EmailCampaign(Base):
     __tablename__ = "email_campaigns"
 
