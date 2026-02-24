@@ -204,6 +204,15 @@ async def update_fax_status(
     if not corr.twilio_fax_sid:
         return None
 
+    # Guard: skip records already in final status
+    if corr.fax_status in ("delivered", "failed", "canceled"):
+        logger.info(
+            "Skipping fax %s — already %s",
+            corr.twilio_fax_sid,
+            corr.fax_status,
+        )
+        return None
+
     try:
         result = await get_fax_status(
             corr.twilio_fax_sid,

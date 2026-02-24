@@ -1383,6 +1383,14 @@ class NegotiationCorrespondence(Base):
     email_opened_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True)
 
+    # ── Letter Series Tracking ─────────────────
+    letter_number: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=1)
+    # 1, 2, or 3
+    letter_type: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default="initial")
+    # initial, followup, final_demand
+
     # ── Follow-up ─────────────────────────────
     followup_due_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True)
