@@ -20,7 +20,7 @@ import AiProviderSettings from './AiProviderSettings'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
-import { getToken, getAuthHeader } from '@/services/auth'
+import { getToken, getAuthHeader, getCurrentUser } from '@/services/auth'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 
@@ -249,6 +249,8 @@ function EditModal({
 /* ── Main Component ──────────────────────────────────────────── */
 
 export default function AdminPage() {
+  const [user, setUser] = useState<any>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
@@ -280,6 +282,14 @@ export default function AdminPage() {
   const [auditStartDate, setAuditStartDate] = useState('')
   const [auditEndDate, setAuditEndDate] = useState('')
   const [auditExpanded, setAuditExpanded] = useState<string | null>(null)
+
+  // ── Superadmin access gate ──────────────────────────────────
+  useEffect(() => {
+    getCurrentUser()
+      .then((u) => setUser(u))
+      .catch(() => setUser(null))
+      .finally(() => setAuthLoading(false))
+  }, [])
 
   // Fetch stats
   useEffect(() => {
@@ -470,6 +480,28 @@ export default function AdminPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / perPage))
+
+  /* ── Superadmin access gate (early return) ────────────────── */
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500">Loading…</p>
+      </div>
+    )
+  }
+
+  if (!user?.is_superadmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <div className="text-6xl mb-4">🔒</div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h1>
+          <p className="text-gray-600">This area is restricted to administrators only.</p>
+        </div>
+      </div>
+    )
+  }
 
   /* ── Loading / Error ─────────────────────────────────────── */
 

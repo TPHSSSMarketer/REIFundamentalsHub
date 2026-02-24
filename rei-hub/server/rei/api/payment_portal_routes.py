@@ -30,6 +30,7 @@ from rei.services.tenant_config import (
     get_loan_portal_color,
     get_loan_stripe_account,
     get_servicing_fee_pct,
+)
 from rei.services.security import (
     sanitize_text,
     sanitize_email,
@@ -180,8 +181,6 @@ async def portal_lookup(
 
     If user_id is provided, scopes the lookup to that business only.
     """
-    if not _check_rate_limit(_get_client_ip(request)):
-    """Look up a loan account by account number + property address."""
     ip = _get_client_ip(request)
 
     # IP-based rate limit: 10 per minute
@@ -294,14 +293,12 @@ async def portal_lookup(
 
 
 @payment_portal_router.post("/pay/stripe")
-async def portal_pay_stripe(body: StripPaymentRequest):
+async def portal_pay_stripe(body: StripPaymentRequest, request: Request):
     """Charge buyer's card via Stripe and record the payment.
 
     Uses the portal owner's (user_id) Stripe Connect account if set,
     otherwise falls back to the platform default.
     """
-async def portal_pay_stripe(body: StripPaymentRequest, request: Request):
-    """Charge buyer's card via Stripe and record the payment."""
     ip = _get_client_ip(request)
 
     # Rate limit: 5 per hour per IP
