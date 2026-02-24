@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,17 @@ from rei.models.user import (
     User,
 )
 from rei.services.ai_service import encrypt_api_key
+from rei.services.security import (
+    sanitize_text,
+    sanitize_email,
+    sanitize_phone,
+    sanitize_currency,
+    sanitize_state_code,
+    check_rate_limit,
+    rl_key,
+    rl_ip_key,
+    audit_log,
+)
 from rei.services.loan_servicing import (
     calculate_amortization,
     calculate_late_fee,
@@ -240,10 +251,23 @@ async def list_payments(
 @router.post("/payments/record")
 async def record_payment(
     body: RecordPaymentBody,
+    request: Request,
     user: User = Depends(get_current_user_with_loans),
     db: AsyncSession = Depends(get_db),
 ):
     """Record a manual loan payment."""
+    # Rate limit: 50 per hour per user
+    if not check_rate_limit(rl_key(user.id, "record_payment"), max_requests=50, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    # Sanitize inputs
+    try:
+        amount = sanitize_currency(body.amount)
+        reference_number = sanitize_text(body.reference_number, 100) if body.reference_number else body.reference_number
+        notes = sanitize_text(body.notes, 500) if body.notes else body.notes
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     # Get CFD and verify ownership
     cfd_result = await db.execute(
         select(ContractForDeed).where(ContractForDeed.id == body.cfd_id)
@@ -284,7 +308,7 @@ async def record_payment(
 
     # Calculate P&I split
     split = calculate_payment_split(
-        payment_amount=body.amount,
+        payment_amount=amount,
         current_balance=cfd.current_balance,
         annual_interest_rate=cfd.interest_rate,
         monthly_payment=cfd.monthly_payment,
@@ -299,7 +323,7 @@ async def record_payment(
         cfd_id=cfd.id,
         land_trust_id=cfd.land_trust_id,
         user_id=cfd.user_id,
-        amount=body.amount,
+        amount=amount,
         principal_portion=principal_portion,
         interest_portion=interest_portion,
         late_fee_portion=late_fee,
@@ -308,16 +332,16 @@ async def record_payment(
         is_late=is_late,
         days_late=days_late,
         payment_method=body.payment_method,
-        reference_number=body.reference_number,
+        reference_number=reference_number,
         status="completed",
         balance_after=max(balance_after, 0),
-        notes=body.notes,
+        notes=notes,
     )
     db.add(payment)
 
     # Update CFD balances
     cfd.current_balance = max(balance_after, 0)
-    cfd.total_paid += body.amount
+    cfd.total_paid += amount
     cfd.total_interest_paid += interest_portion
 
     # Handle default curing
@@ -329,14 +353,25 @@ async def record_payment(
             )
         )
         active_default = default_result.scalar_one_or_none()
-        if active_default and body.amount >= active_default.total_amount_due:
+        if active_default and amount >= active_default.total_amount_due:
             active_default.status = "cured"
             active_default.cured_date = datetime.utcnow()
-            active_default.cured_amount = body.amount
+            active_default.cured_amount = amount
             cfd.status = "active"
 
     await db.commit()
     await db.refresh(payment)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="record_payment", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="cfd",
+            resource_id=body.cfd_id,
+            details={"amount": amount, "method": body.payment_method, "is_late": is_late},
+        ))
+    except Exception:
+        pass
 
     return {
         "payment": _serialize_payment(payment),
@@ -529,10 +564,15 @@ async def list_defaults(
 @router.post("/defaults")
 async def create_default(
     body: CreateDefaultBody,
+    request: Request,
     user: User = Depends(get_current_user_with_loans),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a loan default record with state-specific notice timeline."""
+    # Rate limit: 10 per hour per user
+    if not check_rate_limit(rl_key(user.id, "create_default"), max_requests=10, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
     # Get CFD
     cfd_result = await db.execute(
         select(ContractForDeed).where(ContractForDeed.id == body.cfd_id)
@@ -614,6 +654,17 @@ async def create_default(
 
     await db.commit()
     await db.refresh(loan_default)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="create_default", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="cfd",
+            resource_id=body.cfd_id,
+            details={"missed_amount": body.missed_payment_amount},
+        ))
+    except Exception:
+        pass
 
     return {
         "default": _serialize_default(loan_default),
@@ -711,12 +762,26 @@ async def list_investors(
 @router.post("/investors", status_code=status.HTTP_201_CREATED)
 async def create_investor(
     body: InvestorCreateBody,
+    request: Request,
     user: User = Depends(get_current_user_with_loans),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new investor. Superadmin only."""
     if not user.is_superadmin:
         raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    # Rate limit: 20 per hour per user
+    if not check_rate_limit(rl_key(user.id, "create_investor"), max_requests=20, window_seconds=3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    # Sanitize inputs
+    try:
+        name = sanitize_text(body.name, 200)
+        entity_name = sanitize_text(body.entity_name, 200) if body.entity_name else body.entity_name
+        email = sanitize_email(body.email) if body.email else None
+        phone = sanitize_phone(body.phone) if body.phone else None
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     settings = get_settings()
 
@@ -730,10 +795,10 @@ async def create_investor(
 
     investor = Investor(
         admin_user_id=user.id,
-        name=body.name,
-        email=body.email,
-        phone=body.phone,
-        entity_name=body.entity_name,
+        name=name,
+        email=email,
+        phone=phone,
+        entity_name=entity_name,
         distribution_percentage=body.distribution_percentage,
         payment_method=body.payment_method,
         bank_name=body.bank_name,
@@ -744,6 +809,17 @@ async def create_investor(
     db.add(investor)
     await db.commit()
     await db.refresh(investor)
+
+    # Audit log — never log bank details
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="create_investor", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="investor",
+            resource_id=investor.id,
+            details={"name": name, "percentage": body.distribution_percentage},
+        ))
+    except Exception:
+        pass
 
     return _serialize_investor(investor)
 
@@ -855,6 +931,7 @@ async def list_distributions(
 @router.post("/distributions/generate")
 async def generate_distribution(
     body: GenerateDistributionBody,
+    request: Request,
     user: User = Depends(get_current_user_with_loans),
     db: AsyncSession = Depends(get_db),
 ):
@@ -927,6 +1004,17 @@ async def generate_distribution(
     db.add(statement)
     await db.commit()
     await db.refresh(statement)
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="generate_distribution", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="distribution",
+            resource_id=statement.id,
+            details={"quarter": body.quarter, "period_start": str(body.period_start)},
+        ))
+    except Exception:
+        pass
 
     return {
         "statement": {
