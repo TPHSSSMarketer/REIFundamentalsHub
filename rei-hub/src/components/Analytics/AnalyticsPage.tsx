@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getToken } from '@/services/auth'
+import OverviewTab from './tabs/OverviewTab'
+import PipelineTab from './tabs/PipelineTab'
+import PortfolioTab from './tabs/PortfolioTab'
+import LoanServicingAnalyticsTab from './tabs/LoanServicingAnalyticsTab'
+import BankNegotiationAnalyticsTab from './tabs/BankNegotiationAnalyticsTab'
+import RevenueTab from './tabs/RevenueTab'
 
 type Period = '30d' | '90d' | '1y' | 'this_month' | 'last_month' | 'ytd' | 'custom'
 
@@ -136,25 +142,25 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Tab Content (placeholders) */}
+      {/* Tab Content */}
       <div className="p-4 md:p-6">
         {activeTab === 'overview' && (
-          <div className="text-sm text-slate-500">Overview tab — coming soon</div>
+          <OverviewTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} isSuperAdmin={isSuperAdmin} loanServicingEnabled={loanEnabled} bankNegotiationEnabled={bankEnabled} />
         )}
         {activeTab === 'pipeline' && (
-          <div className="text-sm text-slate-500">Pipeline analytics — coming soon</div>
+          <PipelineTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'portfolio' && (
-          <div className="text-sm text-slate-500">Portfolio analytics — coming soon</div>
+          <PortfolioTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'loan_servicing' && (
-          <div className="text-sm text-slate-500">Loan Servicing analytics — coming soon</div>
+          <LoanServicingAnalyticsTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'bank_negotiation' && (
-          <div className="text-sm text-slate-500">Bank Negotiation analytics — coming soon</div>
+          <BankNegotiationAnalyticsTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'revenue' && (
-          <div className="text-sm text-slate-500">Revenue analytics — coming soon</div>
+          <RevenueTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
       </div>
     </div>
