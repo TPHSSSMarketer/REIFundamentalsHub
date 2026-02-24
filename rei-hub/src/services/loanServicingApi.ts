@@ -15,6 +15,32 @@ function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` }
 }
 
+async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
+  if (res.ok) return res.json()
+
+  if (res.status === 429) {
+    throw new Error('Too many requests. Please wait a moment before trying again.')
+  }
+  if (res.status === 401) {
+    localStorage.removeItem('rei_token')
+    window.location.href = '/login'
+    throw new Error('Your session has expired. Please log in again.')
+  }
+  if (res.status === 403) {
+    throw new Error("You don't have permission to perform this action.")
+  }
+
+  const body = await res.json().catch(() => ({}))
+  if (res.status === 422) {
+    const detail = body.detail
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((d: any) => d.msg).join(', '))
+    }
+    throw new Error(detail ?? 'Validation error')
+  }
+  throw new Error(body.detail ?? fallbackMsg)
+}
+
 // ── Properties ────────────────────────────────────────────────────
 
 export async function getProperties(token: string, filters?: Record<string, string>) {
@@ -22,16 +48,14 @@ export async function getProperties(token: string, filters?: Record<string, stri
   const res = await fetch(`${BASE_URL}/api/loans/properties?${params}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch properties')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch properties')
 }
 
 export async function getProperty(trustId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/properties/${trustId}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch property')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch property')
 }
 
 export async function createProperty(data: Record<string, any>, token: string) {
@@ -40,8 +64,7 @@ export async function createProperty(data: Record<string, any>, token: string) {
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create property')
-  return res.json()
+  return handleResponse(res, 'Failed to create property')
 }
 
 export async function updateProperty(trustId: string, data: Record<string, any>, token: string) {
@@ -50,16 +73,14 @@ export async function updateProperty(trustId: string, data: Record<string, any>,
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update property')
-  return res.json()
+  return handleResponse(res, 'Failed to update property')
 }
 
 export async function getStateLaws(trustId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/properties/${trustId}/state-laws`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch state laws')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch state laws')
 }
 
 // ── CFDs ──────────────────────────────────────────────────────────
@@ -69,16 +90,14 @@ export async function getCfds(token: string, filters?: Record<string, string>) {
   const res = await fetch(`${BASE_URL}/api/loans/cfds?${params}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch CFDs')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch CFDs')
 }
 
 export async function getCfd(cfdId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/cfds/${cfdId}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch CFD')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch CFD')
 }
 
 export async function createCfd(data: Record<string, any>, token: string) {
@@ -87,8 +106,7 @@ export async function createCfd(data: Record<string, any>, token: string) {
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create CFD')
-  return res.json()
+  return handleResponse(res, 'Failed to create CFD')
 }
 
 export async function updateCfd(cfdId: string, data: Record<string, any>, token: string) {
@@ -97,16 +115,14 @@ export async function updateCfd(cfdId: string, data: Record<string, any>, token:
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update CFD')
-  return res.json()
+  return handleResponse(res, 'Failed to update CFD')
 }
 
 export async function getAmortization(cfdId: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/cfds/${cfdId}/amortization`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch amortization')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch amortization')
 }
 
 // ── Payments ──────────────────────────────────────────────────────
@@ -116,8 +132,7 @@ export async function getPayments(token: string, filters?: Record<string, string
   const res = await fetch(`${BASE_URL}/api/loans/payments?${params}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch payments')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch payments')
 }
 
 export async function recordPayment(data: Record<string, any>, token: string) {
@@ -126,8 +141,7 @@ export async function recordPayment(data: Record<string, any>, token: string) {
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to record payment')
-  return res.json()
+  return handleResponse(res, 'Failed to record payment')
 }
 
 export async function createStripeIntent(data: Record<string, any>, token: string) {
@@ -136,8 +150,7 @@ export async function createStripeIntent(data: Record<string, any>, token: strin
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create Stripe intent')
-  return res.json()
+  return handleResponse(res, 'Failed to create Stripe intent')
 }
 
 // ── Defaults ──────────────────────────────────────────────────────
@@ -147,8 +160,7 @@ export async function getDefaults(token: string, filters?: Record<string, string
   const res = await fetch(`${BASE_URL}/api/loans/defaults?${params}`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch defaults')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch defaults')
 }
 
 export async function createDefault(data: Record<string, any>, token: string) {
@@ -157,8 +169,7 @@ export async function createDefault(data: Record<string, any>, token: string) {
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create default')
-  return res.json()
+  return handleResponse(res, 'Failed to create default')
 }
 
 export async function updateDefault(id: string, data: Record<string, any>, token: string) {
@@ -167,8 +178,7 @@ export async function updateDefault(id: string, data: Record<string, any>, token
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update default')
-  return res.json()
+  return handleResponse(res, 'Failed to update default')
 }
 
 // ── Investors ─────────────────────────────────────────────────────
@@ -177,8 +187,7 @@ export async function getInvestors(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/investors`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch investors')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch investors')
 }
 
 export async function createInvestor(data: Record<string, any>, token: string) {
@@ -187,8 +196,7 @@ export async function createInvestor(data: Record<string, any>, token: string) {
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create investor')
-  return res.json()
+  return handleResponse(res, 'Failed to create investor')
 }
 
 export async function updateInvestor(id: string, data: Record<string, any>, token: string) {
@@ -197,8 +205,7 @@ export async function updateInvestor(id: string, data: Record<string, any>, toke
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update investor')
-  return res.json()
+  return handleResponse(res, 'Failed to update investor')
 }
 
 export async function deactivateInvestor(id: string, token: string) {
@@ -206,8 +213,7 @@ export async function deactivateInvestor(id: string, token: string) {
     method: 'DELETE',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to deactivate investor')
-  return res.json()
+  return handleResponse(res, 'Failed to deactivate investor')
 }
 
 // ── Distributions ─────────────────────────────────────────────────
@@ -216,8 +222,7 @@ export async function getDistributions(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/distributions`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch distributions')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch distributions')
 }
 
 export async function generateDistribution(data: Record<string, any>, token: string) {
@@ -226,8 +231,7 @@ export async function generateDistribution(data: Record<string, any>, token: str
     headers: headers(token),
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to generate distribution')
-  return res.json()
+  return handleResponse(res, 'Failed to generate distribution')
 }
 
 export async function finalizeDistribution(id: string, token: string) {
@@ -235,16 +239,14 @@ export async function finalizeDistribution(id: string, token: string) {
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to finalize distribution')
-  return res.json()
+  return handleResponse(res, 'Failed to finalize distribution')
 }
 
 export async function getDistributionPdf(id: string, token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/distributions/${id}/pdf`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch distribution PDF')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch distribution PDF')
 }
 
 // ── Stripe Connect ────────────────────────────────────────────────
@@ -253,16 +255,14 @@ export async function getStripeConnectStatus(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/stripe-connect/status`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch Stripe Connect status')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch Stripe Connect status')
 }
 
 export async function getStripeConnectOnboardUrl(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/stripe-connect/onboard`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to get Stripe Connect onboard URL')
-  return res.json()
+  return handleResponse(res, 'Failed to get Stripe Connect onboard URL')
 }
 
 // ── Admin ─────────────────────────────────────────────────────────
@@ -271,16 +271,14 @@ export async function getAllProperties(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/admin/all-properties`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch all properties')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch all properties')
 }
 
 export async function getAllCfds(token: string) {
   const res = await fetch(`${BASE_URL}/api/loans/admin/all-cfds`, {
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch all CFDs')
-  return res.json()
+  return handleResponse(res, 'Failed to fetch all CFDs')
 }
 
 export async function enableLoanServicing(userId: string, token: string) {
@@ -288,6 +286,5 @@ export async function enableLoanServicing(userId: string, token: string) {
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to enable loan servicing')
-  return res.json()
+  return handleResponse(res, 'Failed to enable loan servicing')
 }

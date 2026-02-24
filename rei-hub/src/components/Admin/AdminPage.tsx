@@ -20,7 +20,7 @@ import AiProviderSettings from './AiProviderSettings'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
-import { getToken } from '@/services/auth'
+import { getToken, getAuthHeader } from '@/services/auth'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 
@@ -50,7 +50,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Loan Servicing', 'Bank Negotiation', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -266,6 +266,15 @@ export default function AdminPage() {
   const [bankNegUsers, setBankNegUsers] = useState<Subscriber[]>([])
   const [bankNegUsersLoading, setBankNegUsersLoading] = useState(false)
 
+  // Audit log state
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditActionFilter, setAuditActionFilter] = useState('')
+  const [auditSuccessFilter, setAuditSuccessFilter] = useState<'' | 'true' | 'false'>('')
+  const [auditStartDate, setAuditStartDate] = useState('')
+  const [auditEndDate, setAuditEndDate] = useState('')
+  const [auditExpanded, setAuditExpanded] = useState<string | null>(null)
+
   // Fetch stats
   useEffect(() => {
     let cancelled = false
@@ -369,6 +378,52 @@ export default function AdminPage() {
     fetchSubscribers()
     // Refresh stats too
     getStats().then(setStats).catch(() => {})
+  }
+
+  const fetchAuditLogs = useCallback(async () => {
+    setAuditLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (auditActionFilter) params.set('action', auditActionFilter)
+      if (auditSuccessFilter) params.set('success', auditSuccessFilter)
+      if (auditStartDate) params.set('start_date', auditStartDate)
+      if (auditEndDate) params.set('end_date', auditEndDate)
+      params.set('limit', '100')
+      const qs = params.toString()
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const res = await fetch(`${BASE_URL}/api/audit/logs${qs ? `?${qs}` : ''}`, {
+        headers: { ...getAuthHeader() },
+      })
+      if (!res.ok) throw new Error('Failed to load audit logs')
+      const data = await res.json()
+      setAuditLogs(data)
+    } catch {
+      setAuditLogs([])
+    }
+    setAuditLoading(false)
+  }, [auditActionFilter, auditSuccessFilter, auditStartDate, auditEndDate])
+
+  useEffect(() => {
+    if (tab === 'Audit Log') fetchAuditLogs()
+  }, [tab, fetchAuditLogs])
+
+  async function handleExportAuditCsv() {
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const res = await fetch(`${BASE_URL}/api/audit/logs/export`, {
+        headers: { ...getAuthHeader() },
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'audit_logs.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setToast('Failed to export audit logs')
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / perPage))
@@ -692,6 +747,133 @@ export default function AdminPage() {
                         </tr>
                       )
                     })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Audit Log Tab ─────────────────────────────────────── */}
+      {tab === 'Audit Log' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Action</label>
+              <input
+                type="text"
+                value={auditActionFilter}
+                onChange={(e) => setAuditActionFilter(e.target.value)}
+                placeholder="e.g. login"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-40"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Result</label>
+              <select
+                value={auditSuccessFilter}
+                onChange={(e) => setAuditSuccessFilter(e.target.value as '' | 'true' | 'false')}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">All</option>
+                <option value="true">Success</option>
+                <option value="false">Failed</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={auditStartDate}
+                onChange={(e) => setAuditStartDate(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">End Date</label>
+              <input
+                type="date"
+                value={auditEndDate}
+                onChange={(e) => setAuditEndDate(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <button
+              onClick={fetchAuditLogs}
+              className="px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              Search
+            </button>
+            <button
+              onClick={handleExportAuditCsv}
+              className="px-4 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Timestamp</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">User</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Action</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Resource</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">IP Address</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Loading...</td>
+                    </tr>
+                  ) : auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">No audit logs found</td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log: any) => (
+                      <>
+                        <tr
+                          key={log.id}
+                          onClick={() => setAuditExpanded(auditExpanded === log.id ? null : log.id)}
+                          className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                        >
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {log.created_at ? new Date(log.created_at).toLocaleString() : '\u2014'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-800">{log.user_email || '\u2014'}</td>
+                          <td className="px-4 py-3 text-slate-600">{log.action}</td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {log.resource_type ? `${log.resource_type}${log.resource_id ? ` #${log.resource_id}` : ''}` : '\u2014'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{log.ip_address || '\u2014'}</td>
+                          <td className="px-4 py-3">
+                            {log.success ? (
+                              <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">Success</span>
+                            ) : (
+                              <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">Failed</span>
+                            )}
+                          </td>
+                        </tr>
+                        {auditExpanded === log.id && (
+                          <tr key={`${log.id}-detail`}>
+                            <td colSpan={6} className="px-4 py-3 bg-slate-50">
+                              <pre className="text-xs text-slate-600 whitespace-pre-wrap max-w-full overflow-auto">
+                                {log.details ? JSON.stringify(JSON.parse(log.details), null, 2) : 'No details'}
+                                {log.error_message ? `\n\nError: ${log.error_message}` : ''}
+                              </pre>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    ))
                   )}
                 </tbody>
               </table>

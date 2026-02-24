@@ -30,11 +30,29 @@ export interface PlansResponse {
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail ?? 'Request failed')
+  if (res.ok) return res.json()
+
+  if (res.status === 429) {
+    throw new Error('Too many requests. Please wait a moment before trying again.')
   }
-  return res.json()
+  if (res.status === 401) {
+    localStorage.removeItem('rei_token')
+    window.location.href = '/login'
+    throw new Error('Your session has expired. Please log in again.')
+  }
+  if (res.status === 403) {
+    throw new Error("You don't have permission to perform this action.")
+  }
+
+  const body = await res.json().catch(() => ({}))
+  if (res.status === 422) {
+    const detail = body.detail
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((d: any) => d.msg).join(', '))
+    }
+    throw new Error(detail ?? 'Validation error')
+  }
+  throw new Error(body.detail ?? 'Request failed')
 }
 
 export async function getPlans(): Promise<PlansResponse> {

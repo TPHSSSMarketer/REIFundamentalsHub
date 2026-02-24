@@ -8,6 +8,8 @@ import * as authApi from './authApi'
 
 export { getMe } from './authApi'
 
+// TODO: Consider sessionStorage for higher security environments.
+// localStorage persists across tabs which is acceptable for this use case.
 const TOKEN_KEY = 'rei_token'
 
 // ── Auth API calls (delegate to authApi.ts) ─────────────────────
@@ -71,7 +73,32 @@ export function isAuthenticated(): boolean {
   }
 }
 
+/**
+ * Check if the current JWT token is expired.
+ * If expired, clear auth state and redirect to login.
+ * Only redirects if the token actually has an exp claim and it's past.
+ */
+function checkTokenExpiry(): void {
+  const token = getToken()
+  if (!token) return
+
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+    )
+    if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
+      localStorage.removeItem(TOKEN_KEY)
+      window.location.href = '/login'
+    }
+  } catch {
+    // Malformed token — don't redirect mid-session, let API call handle it
+  }
+}
+
 export function getAuthHeader(): Record<string, string> {
+  checkTokenExpiry()
   const token = getToken()
   if (!token) return {}
   return { Authorization: `Bearer ${token}` }
