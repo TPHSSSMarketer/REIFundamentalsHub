@@ -286,6 +286,15 @@ async def update_correspondence_tracking(
     if not corr.usps_tracking_number:
         return None
 
+    # Guard: skip records already in final status
+    if corr.usps_status in ("delivered", "returned"):
+        logger.info(
+            "Skipping %s — already %s",
+            corr.usps_tracking_number,
+            corr.usps_status,
+        )
+        return None
+
     result = await track_package(
         corr.usps_tracking_number,
         settings.usps_user_id,
