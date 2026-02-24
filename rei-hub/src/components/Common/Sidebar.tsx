@@ -19,6 +19,7 @@ import {
   Phone,
   Calendar,
   Landmark,
+  Scale,
   Menu,
   X,
   MoreHorizontal,
@@ -58,12 +59,14 @@ export default function Sidebar() {
   const { billingStatus } = useBilling()
   const [isAdmin, setIsAdmin] = useState(false)
   const [showLoanServicing, setShowLoanServicing] = useState(false)
+  const [showBankNegotiation, setShowBankNegotiation] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
     getCurrentUser().then((user) => {
       if (user && user.is_admin) setIsAdmin(true)
       if (user && (user.loan_servicing_enabled || user.is_superadmin)) setShowLoanServicing(true)
+      if (user && (user.bank_negotiation_enabled || user.is_superadmin)) setShowBankNegotiation(true)
     })
   }, [])
 
@@ -144,6 +147,22 @@ export default function Sidebar() {
                 >
                   <Landmark className="w-5 h-5 shrink-0" />
                   <span className="font-medium">Loan Servicing</span>
+                </NavLink>
+              )}
+              {showBankNegotiation && (
+                <NavLink
+                  to="/bank-negotiation"
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 px-3 py-3 rounded-lg transition-colors min-h-[44px]',
+                      isActive
+                        ? 'bg-primary-50 text-primary-600'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    )
+                  }
+                >
+                  <Scale className="w-5 h-5 shrink-0" />
+                  <span className="font-medium">Bank Negotiation</span>
                 </NavLink>
               )}
               {isAdmin && (
@@ -269,6 +288,25 @@ export default function Sidebar() {
               <Landmark className="w-5 h-5 shrink-0" />
               {!isSidebarCollapsed && (
                 <span className="font-medium">Loan Servicing</span>
+              )}
+            </NavLink>
+          )}
+
+          {showBankNegotiation && (
+            <NavLink
+              to="/bank-negotiation"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
+                  isActive
+                    ? 'bg-primary-50 text-primary-600'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )
+              }
+            >
+              <Scale className="w-5 h-5 shrink-0" />
+              {!isSidebarCollapsed && (
+                <span className="font-medium">Bank Negotiation</span>
               )}
             </NavLink>
           )}

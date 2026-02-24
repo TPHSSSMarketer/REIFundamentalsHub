@@ -19,6 +19,7 @@ import {
 import AiProviderSettings from './AiProviderSettings'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing } from '@/services/loanServicingApi'
+import { enableBankNegotiation } from '@/services/bankNegotiationApi'
 import { getToken } from '@/services/auth'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
@@ -49,7 +50,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Loan Servicing', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Loan Servicing', 'Bank Negotiation', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -262,6 +263,8 @@ export default function AdminPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [loanUsers, setLoanUsers] = useState<Subscriber[]>([])
   const [loanUsersLoading, setLoanUsersLoading] = useState(false)
+  const [bankNegUsers, setBankNegUsers] = useState<Subscriber[]>([])
+  const [bankNegUsersLoading, setBankNegUsersLoading] = useState(false)
 
   // Fetch stats
   useEffect(() => {
@@ -318,6 +321,35 @@ export default function AdminPage() {
       fetchLoanUsers()
     }
   }, [tab, fetchLoanUsers])
+
+  const fetchBankNegUsers = useCallback(async () => {
+    setBankNegUsersLoading(true)
+    try {
+      const res = await getSubscribers({ per_page: 100 })
+      setBankNegUsers(res.subscribers)
+    } catch {
+      setBankNegUsers([])
+    }
+    setBankNegUsersLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'Bank Negotiation') {
+      fetchBankNegUsers()
+    }
+  }, [tab, fetchBankNegUsers])
+
+  async function handleEnableBankNegotiation(userId: number) {
+    const tk = getToken()
+    if (!tk) return
+    try {
+      await enableBankNegotiation(String(userId), tk)
+      setToast('Bank negotiation enabled')
+      fetchBankNegUsers()
+    } catch {
+      setToast('Failed to enable bank negotiation')
+    }
+  }
 
   async function handleEnableLoanServicing(userId: number) {
     const tk = getToken()
@@ -606,6 +638,63 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bank Negotiation Tab ──────────────────────────────── */}
+      {tab === 'Bank Negotiation' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-slate-800">Bank Negotiation Access</h2>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Email</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bankNegUsersLoading ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-400">Loading...</td>
+                    </tr>
+                  ) : bankNegUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-400">No users found</td>
+                    </tr>
+                  ) : (
+                    bankNegUsers.map((u) => {
+                      const enabled = !!(u as any).bank_negotiation_enabled
+                      return (
+                        <tr key={u.user_id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-800">{u.email}</td>
+                          <td className="px-4 py-3">
+                            {enabled ? (
+                              <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-700">Enabled</span>
+                            ) : (
+                              <span className="inline-block text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">Disabled</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {!enabled && (
+                              <button
+                                onClick={() => handleEnableBankNegotiation(u.user_id)}
+                                className="px-3 py-1.5 text-xs font-medium bg-[#1B3A6B] text-white rounded-lg hover:opacity-90"
+                              >
+                                Enable
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
