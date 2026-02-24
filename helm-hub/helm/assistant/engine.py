@@ -249,8 +249,9 @@ class HelmEngine:
             configured = "anthropic"
 
         # Build an ordered list of backends to try
+        # Fallback chain: nvidia → claude_cli → openrouter → anthropic (last resort)
         backends: list[str] = [configured]
-        for alt in ["claude_cli", "openrouter", "nvidia", "anthropic"]:
+        for alt in ["nvidia", "claude_cli", "openrouter", "anthropic"]:
             if alt not in backends:
                 backends.append(alt)
 
