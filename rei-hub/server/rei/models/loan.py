@@ -1,18 +1,13 @@
-"""Loan account and payment models for TPHS Payment Portal."""
+"""Loan account model for TPHS Payment Portal."""
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, Integer, String
 from sqlalchemy.sql import func
 
 from rei.database import Base
-
-
-def _gen_uuid() -> str:
-    return str(uuid.uuid4())
 
 
 class LoanAccount(Base):
@@ -35,23 +30,3 @@ class LoanAccount(Base):
     status = Column(String, nullable=False, default="active")  # active, paid_off, defaulted
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-
-class LoanPayment(Base):
-    """Individual payment record against a loan account."""
-
-    __tablename__ = "loan_payments"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    confirmation_number = Column(String, unique=True, nullable=False, index=True, default=_gen_uuid)
-    account_number = Column(String, nullable=False, index=True)
-    amount = Column(Float, nullable=False)
-    payment_method = Column(String, nullable=False)  # stripe, check, wire
-    status = Column(String, nullable=False, default="completed")  # completed, pending, failed
-    stripe_payment_intent_id = Column(String, default="")
-    stripe_receipt_url = Column(String, default="")
-    reference_number = Column(String, default="")
-    notes = Column(Text, default="")
-    card_last_four = Column(String, default="")
-    balance_after = Column(Float, nullable=False, default=0.0)
-    created_at = Column(DateTime, server_default=func.now())

@@ -9,13 +9,14 @@ from rei.models.user import (
     VoicemailDropCampaign,
     FaxLog,
     PhoneCredit,
+    LoanPayment,
     BankNegotiation,
     NegotiationRecipient,
     NegotiationDocument,
     NegotiationCorrespondence,
     NegotiationFollowUp,
 )
-from rei.models.loan import LoanAccount, LoanPayment
+from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
 
 __all__ = [
