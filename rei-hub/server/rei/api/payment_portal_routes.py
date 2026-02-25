@@ -22,8 +22,8 @@ from sqlalchemy.sql import func
 
 from rei.config import get_settings
 from rei.database import async_session_factory
-from rei.models.loan import LoanAccount, LoanPayment
-from rei.models.user import User
+from rei.models.loan import LoanAccount
+from rei.models.user import LoanPayment, User
 from rei.services.tenant_config import (
     calculate_servicing_fee,
     get_loan_company_name,
