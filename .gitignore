@@ -33,3 +33,9 @@ venv/
 # Databases
 *.db
 *.sqlite
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
