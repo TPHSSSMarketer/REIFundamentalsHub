@@ -1,0 +1,46 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'rei-hub/src/**'
+      - 'rei-hub/public/**'
+      - 'rei-hub/package.json'
+      - 'rei-hub/vite.config.ts'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: rei-hub/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd rei-hub
+          npm ci
+
+      - name: Build
+        run: |
+          cd rei-hub
+          npm run build
+        env:
+          VITE_REI_SERVER_URL: ${{ secrets.VITE_REI_SERVER_URL }}
+          VITE_APP_URL: https://hub.reifundamentalsHub.com
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: rei-hub
+          directory: rei-hub/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
