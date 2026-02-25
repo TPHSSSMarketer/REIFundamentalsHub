@@ -9,8 +9,30 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          charts: ['recharts'],
+        },
+      },
+    },
+
+    chunkSizeWarningLimit: 1000,
+  },
+
   server: {
-    port: 3000,
-    open: true,
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+      },
+    },
   },
 })
