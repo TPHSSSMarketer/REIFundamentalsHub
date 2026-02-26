@@ -1,5 +1,6 @@
 name: Deploy Frontend to Cloudflare Pages
 on:
+  workflow_dispatch:
   push:
     branches: [master]
     paths:
