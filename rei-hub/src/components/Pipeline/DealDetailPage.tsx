@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Landmark,
+  Receipt,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
@@ -27,6 +28,7 @@ import { getAuthHeader, getToken } from '@/services/auth'
 import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
+import DealExpenditures from './DealExpenditures'
 import type { Deal } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -77,6 +79,7 @@ const STAGE_ORDER = ['lead', 'analysis', 'offer', 'under_contract', 'due_diligen
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'expenditures', label: 'Expenditures', icon: Receipt },
   { id: 'checklist', label: 'Contracts & Checklist', icon: ClipboardList },
   { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
   { id: 'documents', label: 'Documents', icon: FileText },
@@ -533,7 +536,7 @@ export default function DealDetailPage() {
                 >
                   <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{label}</span>
-                  <span className="sm:hidden">{id === 'overview' ? 'Info' : id === 'checklist' ? 'Check' : id === 'analyzer' ? 'Calc' : id === 'documents' ? 'Docs' : id === 'pof' ? 'POF' : 'Notes'}</span>
+                  <span className="sm:hidden">{id === 'overview' ? 'Info' : id === 'expenditures' ? 'Costs' : id === 'checklist' ? 'Check' : id === 'analyzer' ? 'Calc' : id === 'documents' ? 'Docs' : id === 'pof' ? 'POF' : 'Notes'}</span>
                 </button>
               ))}
             </div>
@@ -572,6 +575,11 @@ export default function DealDetailPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* ── Expenditures Tab ──────────────────── */}
+              {activeTab === 'expenditures' && dealId && (
+                <DealExpenditures dealId={dealId} />
               )}
 
               {/* ── Contracts & Checklist Tab ──────────── */}
