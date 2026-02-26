@@ -36,6 +36,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: rei-hub
+          projectName: rei-hub-frontend
           directory: rei-hub/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
