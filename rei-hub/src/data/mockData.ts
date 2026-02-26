@@ -236,7 +236,7 @@ export const mockDeals: Deal[] = [
     createdAt: new Date(Date.now() - 86400000 * 40).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
   },
-  // ── Closed Won deals (for KPI calculations) ──
+  // ── Closed Won deals (with full expenditure data) ──
   {
     id: 'deal-7',
     title: '1842 Ridgewood Dr',
@@ -245,14 +245,52 @@ export const mockDeals: Deal[] = [
     state: 'TX',
     zip: '78201',
     stage: 'closed_won',
+    // Pricing & Valuation
     listPrice: 210000,
+    offerPrice: 190000,
     purchasePrice: 185000,
     arv: 235000,
+    // Acquisition Costs
+    earnestMoney: 2000,
+    downPayment: 37000,          // 20% of 185k
+    closingCostsBuyer: 4200,
+    loanOriginationFee: 1480,    // 1% of loan
+    appraisalFee: 450,
+    inspectionFee: 375,
+    titleInsurance: 1200,
+    attorneyFee: 800,
+    surveyFee: 350,
+    otherAcquisitionCosts: 250,
+    // Rehab
     rehabEstimate: 22000,
-    allInCost: 207000,
+    rehabActual: 19800,
+    permitFees: 450,
+    holdingCostsDuringRehab: 2400,   // ~2 months of loan + insurance
+    // Financing
+    loanAmount: 148000,
+    interestRate: 7.25,
+    loanTermMonths: 360,
+    monthlyMortgagePI: 1010,
+    pmiMonthly: 0,
+    // Monthly Expenses
+    propertyTaxAnnual: 3700,
+    insuranceAnnual: 1440,
+    propertyMgmtPercent: 10,
+    vacancyPercent: 8,
+    maintenancePercent: 10,
+    hoaMonthly: 0,
+    utilitiesMonthly: 0,
+    // Income
     monthlyRent: 1750,
-    cashOnCash: 10.1,
+    otherMonthlyIncome: 0,
+    // Computed
+    allInCost: 68505,           // down + closing + rehab actual + holding + fees
+    totalMonthlyExpenses: 1739,  // mortgage + tax/12 + ins/12 + mgmt + reserves
+    monthlyCashFlow: 11,
+    annualCashFlow: 132,
+    cashOnCash: 0.2,
     capRate: 7.2,
+    roiPercent: 13.5,
     contactId: '1',
     contactName: 'John Smith',
     source: 'Direct Mail',
@@ -269,14 +307,52 @@ export const mockDeals: Deal[] = [
     state: 'AL',
     zip: '35201',
     stage: 'closed_won',
+    // Pricing & Valuation
     listPrice: 160000,
+    offerPrice: 138000,
     purchasePrice: 132000,
     arv: 175000,
+    // Acquisition Costs
+    earnestMoney: 1500,
+    downPayment: 33000,          // 25% of 132k
+    closingCostsBuyer: 3200,
+    loanOriginationFee: 990,
+    appraisalFee: 425,
+    inspectionFee: 350,
+    titleInsurance: 950,
+    attorneyFee: 650,
+    surveyFee: 300,
+    otherAcquisitionCosts: 200,
+    // Rehab
     rehabEstimate: 18000,
-    allInCost: 150000,
+    rehabActual: 16500,
+    permitFees: 300,
+    holdingCostsDuringRehab: 1800,
+    // Financing
+    loanAmount: 99000,
+    interestRate: 7.0,
+    loanTermMonths: 360,
+    monthlyMortgagePI: 659,
+    pmiMonthly: 0,
+    // Monthly Expenses
+    propertyTaxAnnual: 1800,
+    insuranceAnnual: 1080,
+    propertyMgmtPercent: 10,
+    vacancyPercent: 8,
+    maintenancePercent: 10,
+    hoaMonthly: 0,
+    utilitiesMonthly: 0,
+    // Income
     monthlyRent: 1350,
-    cashOnCash: 12.8,
+    otherMonthlyIncome: 0,
+    // Computed
+    allInCost: 55615,           // down + closing + rehab + holding + fees
+    totalMonthlyExpenses: 1278,
+    monthlyCashFlow: 72,
+    annualCashFlow: 864,
+    cashOnCash: 1.6,
     capRate: 8.4,
+    roiPercent: 16.7,
     contactId: '3',
     contactName: 'Michael Williams',
     source: 'Referral',
@@ -293,14 +369,52 @@ export const mockDeals: Deal[] = [
     state: 'AR',
     zip: '72201',
     stage: 'closed_won',
+    // Pricing & Valuation
     listPrice: 125000,
+    offerPrice: 110000,
     purchasePrice: 105000,
     arv: 155000,
+    // Acquisition Costs
+    earnestMoney: 1000,
+    downPayment: 21000,          // 20% of 105k
+    closingCostsBuyer: 2600,
+    loanOriginationFee: 840,
+    appraisalFee: 400,
+    inspectionFee: 325,
+    titleInsurance: 800,
+    attorneyFee: 500,
+    surveyFee: 275,
+    otherAcquisitionCosts: 150,
+    // Rehab
     rehabEstimate: 20000,
-    allInCost: 125000,
+    rehabActual: 21200,          // went slightly over budget
+    permitFees: 250,
+    holdingCostsDuringRehab: 1600,
+    // Financing
+    loanAmount: 84000,
+    interestRate: 7.5,
+    loanTermMonths: 360,
+    monthlyMortgagePI: 587,
+    pmiMonthly: 0,
+    // Monthly Expenses
+    propertyTaxAnnual: 1400,
+    insuranceAnnual: 960,
+    propertyMgmtPercent: 10,
+    vacancyPercent: 8,
+    maintenancePercent: 10,
+    hoaMonthly: 0,
+    utilitiesMonthly: 0,
+    // Income
     monthlyRent: 1200,
-    cashOnCash: 11.5,
+    otherMonthlyIncome: 50,      // storage shed rental
+    // Computed
+    allInCost: 48940,
+    totalMonthlyExpenses: 1084,
+    monthlyCashFlow: 166,
+    annualCashFlow: 1992,
+    cashOnCash: 4.1,
     capRate: 7.8,
+    roiPercent: 24.0,
     contactId: '5',
     contactName: 'Robert Brown',
     source: 'Driving for Dollars',
@@ -317,14 +431,53 @@ export const mockDeals: Deal[] = [
     state: 'TX',
     zip: '77002',
     stage: 'closed_won',
+    // Pricing & Valuation
     listPrice: 245000,
+    offerPrice: 205000,
     purchasePrice: 198000,
     arv: 290000,
+    // Acquisition Costs
+    earnestMoney: 3000,
+    downPayment: 49500,          // 25% of 198k
+    closingCostsBuyer: 5100,
+    loanOriginationFee: 1485,
+    appraisalFee: 475,
+    inspectionFee: 400,
+    titleInsurance: 1350,
+    attorneyFee: 900,
+    surveyFee: 375,
+    otherAcquisitionCosts: 300,
+    // Rehab
     rehabEstimate: 40000,
-    allInCost: 238000,
+    rehabActual: 38500,
+    permitFees: 600,
+    architectFees: 1500,
+    holdingCostsDuringRehab: 3600,   // ~3 months
+    // Financing
+    loanAmount: 148500,
+    interestRate: 7.25,
+    loanTermMonths: 360,
+    monthlyMortgagePI: 1013,
+    pmiMonthly: 0,
+    // Monthly Expenses
+    propertyTaxAnnual: 4200,
+    insuranceAnnual: 1680,
+    propertyMgmtPercent: 10,
+    vacancyPercent: 8,
+    maintenancePercent: 10,
+    hoaMonthly: 0,
+    utilitiesMonthly: 0,
+    // Income
     monthlyRent: 2100,
-    cashOnCash: 9.7,
+    otherMonthlyIncome: 75,      // covered parking
+    // Computed
+    allInCost: 103585,
+    totalMonthlyExpenses: 1977,
+    monthlyCashFlow: 198,
+    annualCashFlow: 2376,
+    cashOnCash: 2.3,
     capRate: 6.9,
+    roiPercent: 21.8,
     contactId: '2',
     contactName: 'Sarah Johnson',
     source: 'Facebook Ads',

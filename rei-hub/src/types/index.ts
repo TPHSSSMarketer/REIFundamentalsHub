@@ -29,14 +29,65 @@ export interface Deal {
   state?: string
   zip?: string
   stage: 'lead' | 'analysis' | 'offer' | 'under_contract' | 'due_diligence' | 'closing' | 'closed_won' | 'closed_lost'
+
+  // ── Pricing & Valuation ──
   listPrice?: number
-  purchasePrice?: number
-  arv?: number
-  rehabEstimate?: number
-  allInCost?: number
+  offerPrice?: number
+  purchasePrice?: number          // final contract price
+  arv?: number                    // after-repair value
+
+  // ── Acquisition Costs ──
+  earnestMoney?: number           // earnest money deposit
+  downPayment?: number            // cash down at closing
+  closingCostsBuyer?: number      // title, escrow, recording, etc.
+  loanOriginationFee?: number     // points / origination
+  appraisalFee?: number
+  inspectionFee?: number
+  titleInsurance?: number
+  attorneyFee?: number
+  surveyFee?: number
+  otherAcquisitionCosts?: number  // catch-all for misc acquisition
+
+  // ── Rehab / Renovation ──
+  rehabEstimate?: number          // estimated rehab budget
+  rehabActual?: number            // actual rehab spent
+  permitFees?: number
+  architectFees?: number
+  holdingCostsDuringRehab?: number // insurance, utilities, loan payments during rehab
+
+  // ── Financing ──
+  loanAmount?: number
+  interestRate?: number           // annual % (e.g. 7.5)
+  loanTermMonths?: number         // e.g. 360 for 30-year
+  monthlyMortgagePI?: number      // principal + interest
+  pmiMonthly?: number             // private mortgage insurance
+
+  // ── Monthly Operating Expenses ──
+  propertyTaxAnnual?: number
+  insuranceAnnual?: number
+  propertyMgmtPercent?: number    // % of rent (e.g. 10)
+  propertyMgmtFlat?: number       // OR flat monthly fee
+  vacancyPercent?: number         // reserve % (e.g. 8)
+  maintenancePercent?: number     // maintenance + CapEx reserve % (e.g. 10)
+  hoaMonthly?: number
+  utilitiesMonthly?: number       // if landlord-paid
+  otherExpensesMonthly?: number
+
+  // ── Income ──
   monthlyRent?: number
-  cashOnCash?: number
-  capRate?: number
+  otherMonthlyIncome?: number     // laundry, parking, storage, etc.
+
+  // ── Computed / Summary (can be stored or calculated) ──
+  allInCost?: number              // total cash invested (down + closing + rehab + holding)
+  totalMonthlyExpenses?: number
+  monthlyCashFlow?: number
+  annualCashFlow?: number
+  cashOnCash?: number             // annual cash flow / total cash invested × 100
+  capRate?: number                // NOI / purchase price × 100
+  roiPercent?: number             // (ARV − allInCost) / allInCost × 100
+  debtServiceCoverageRatio?: number // NOI / annual debt service
+
+  // ── Deal Info ──
   contactId?: string
   contactName?: string
   offerExpiresAt?: string

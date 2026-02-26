@@ -138,81 +138,143 @@ export default function Dashboard() {
   }, [deals, closedWon, closedLost])
 
   // ═══════════════════════════════════════════
-  // KPI: Financial Metrics
+  // KPI: Financial Metrics (using full expenditure data)
   // ═══════════════════════════════════════════
   const financialMetrics = useMemo(() => {
     if (!deals) return null
 
-    // Total invested capital (all-in cost of closed_won)
-    const totalInvested = closedWon.reduce(
-      (s, d) => s + (d.allInCost || d.purchasePrice || 0),
-      0
-    )
+    // ── Per-deal cost calculator ──
+    const dealCosts = closedWon.map((d) => {
+      // Acquisition costs
+      const downPayment = d.downPayment || 0
+      const closingCosts = d.closingCostsBuyer || 0
+      const loanOrigination = d.loanOriginationFee || 0
+      const appraisal = d.appraisalFee || 0
+      const inspection = d.inspectionFee || 0
+      const title = d.titleInsurance || 0
+      const attorney = d.attorneyFee || 0
+      const survey = d.surveyFee || 0
+      const otherAcq = d.otherAcquisitionCosts || 0
 
-    // Total estimated equity (ARV − allInCost for closed_won)
+      const totalAcquisition =
+        downPayment + closingCosts + loanOrigination + appraisal +
+        inspection + title + attorney + survey + otherAcq
+
+      // Rehab costs
+      const rehab = d.rehabActual || d.rehabEstimate || 0
+      const permits = d.permitFees || 0
+      const architect = d.architectFees || 0
+      const holdingRehab = d.holdingCostsDuringRehab || 0
+      const totalRehab = rehab + permits + architect + holdingRehab
+
+      // Total cash invested = acquisition + rehab
+      const totalCashInvested =
+        d.allInCost || (totalAcquisition + totalRehab)
+
+      // Monthly expenses
+      const mortgage = d.monthlyMortgagePI || 0
+      const pmi = d.pmiMonthly || 0
+      const taxMonthly = (d.propertyTaxAnnual || 0) / 12
+      const insMonthly = (d.insuranceAnnual || 0) / 12
+      const rent = d.monthlyRent || 0
+      const otherIncome = d.otherMonthlyIncome || 0
+      const grossIncome = rent + otherIncome
+      const mgmt = d.propertyMgmtFlat || (grossIncome * (d.propertyMgmtPercent || 0) / 100)
+      const vacancy = grossIncome * (d.vacancyPercent || 0) / 100
+      const maintenance = grossIncome * (d.maintenancePercent || 0) / 100
+      const hoa = d.hoaMonthly || 0
+      const utilities = d.utilitiesMonthly || 0
+      const otherExp = d.otherExpensesMonthly || 0
+
+      const totalMonthlyExp =
+        d.totalMonthlyExpenses ||
+        (mortgage + pmi + taxMonthly + insMonthly + mgmt + vacancy + maintenance + hoa + utilities + otherExp)
+
+      const monthlyCashFlow = d.monthlyCashFlow || (grossIncome - totalMonthlyExp)
+      const annualCashFlow = monthlyCashFlow * 12
+
+      // NOI = gross income - operating expenses (no debt service)
+      const operatingExp = taxMonthly + insMonthly + mgmt + vacancy + maintenance + hoa + utilities + otherExp
+      const noi = (grossIncome - operatingExp) * 12
+
+      // Cash-on-cash = annual cash flow / total cash invested
+      const cashOnCash = totalCashInvested > 0
+        ? d.cashOnCash ?? Math.round((annualCashFlow / totalCashInvested) * 1000) / 10
+        : 0
+
+      // Cap rate = NOI / purchase price
+      const capRate = d.purchasePrice && d.purchasePrice > 0
+        ? d.capRate ?? Math.round((noi / d.purchasePrice) * 1000) / 10
+        : 0
+
+      return {
+        address: d.address,
+        purchasePrice: d.purchasePrice || 0,
+        arv: d.arv || 0,
+        totalAcquisition,
+        totalRehab,
+        totalCashInvested,
+        grossIncome,
+        totalMonthlyExp,
+        monthlyCashFlow,
+        annualCashFlow,
+        noi,
+        cashOnCash,
+        capRate,
+      }
+    })
+
+    // ── Aggregates ──
+    const totalCashInvested = dealCosts.reduce((s, d) => s + d.totalCashInvested, 0)
+    const totalAcquisitionCosts = dealCosts.reduce((s, d) => s + d.totalAcquisition, 0)
+    const totalRehabCosts = dealCosts.reduce((s, d) => s + d.totalRehab, 0)
+
+    // Equity = ARV − purchase price for closed_won
     const totalEquity = closedWon.reduce((s, d) => {
-      const cost = d.allInCost || d.purchasePrice || 0
+      const cost = d.purchasePrice || 0
       const arv = d.arv || cost
       return s + (arv - cost)
     }, 0)
 
-    // Monthly rental income (closed_won deals)
-    const monthlyRentIncome = closedWon.reduce(
-      (s, d) => s + (d.monthlyRent || 0),
-      0
-    )
-
-    // Annualized income
+    // Monthly rent income
+    const monthlyRentIncome = dealCosts.reduce((s, d) => s + d.grossIncome, 0)
     const annualRentIncome = monthlyRentIncome * 12
 
-    // Cash-on-cash return (avg of closed_won with cashOnCash set)
-    const cochDeals = closedWon.filter((d) => d.cashOnCash)
-    const avgCashOnCash =
-      cochDeals.length > 0
-        ? Math.round(
-            (cochDeals.reduce((s, d) => s + (d.cashOnCash || 0), 0) /
-              cochDeals.length) *
-              10
-          ) / 10
-        : 0
+    // Monthly cash flow (total across all closed_won)
+    const totalMonthlyCashFlow = dealCosts.reduce((s, d) => s + d.monthlyCashFlow, 0)
+    const totalAnnualCashFlow = totalMonthlyCashFlow * 12
 
-    // Average cap rate
-    const capDeals = closedWon.filter((d) => d.capRate)
-    const avgCapRate =
-      capDeals.length > 0
-        ? Math.round(
-            (capDeals.reduce((s, d) => s + (d.capRate || 0), 0) /
-              capDeals.length) *
-              10
-          ) / 10
-        : 0
+    // Averages
+    const n = dealCosts.length || 1
+    const avgCashOnCash = Math.round(
+      (dealCosts.reduce((s, d) => s + d.cashOnCash, 0) / n) * 10
+    ) / 10
+    const avgCapRate = Math.round(
+      (dealCosts.reduce((s, d) => s + d.capRate, 0) / n) * 10
+    ) / 10
+    const avgDealSize = Math.round(
+      dealCosts.reduce((s, d) => s + d.purchasePrice, 0) / n
+    )
 
-    // Average deal size (closed_won purchase price)
-    const avgDealSize =
-      closedWon.length > 0
-        ? Math.round(
-            closedWon.reduce((s, d) => s + (d.purchasePrice || 0), 0) /
-              closedWon.length
-          )
-        : 0
-
-    // Profit margin per deal (avg equity / avg cost)
-    const avgCost =
-      closedWon.length > 0 ? totalInvested / closedWon.length : 0
-    const avgEquity =
-      closedWon.length > 0 ? totalEquity / closedWon.length : 0
-    const profitMargin =
-      avgCost > 0 ? Math.round((avgEquity / avgCost) * 1000) / 10 : 0
+    // Profit margin (equity / cash invested)
+    const profitMargin = totalCashInvested > 0
+      ? Math.round((totalEquity / totalCashInvested) * 1000) / 10
+      : 0
 
     return {
-      totalInvested,
+      totalCashInvested,
+      totalAcquisitionCosts,
+      totalRehabCosts,
       totalEquity,
       monthlyRentIncome,
       annualRentIncome,
+      totalMonthlyCashFlow,
+      totalAnnualCashFlow,
       avgCashOnCash,
       avgCapRate,
       avgDealSize,
       profitMargin,
+      dealCosts,
     }
   }, [deals, closedWon])
 
@@ -571,12 +633,27 @@ export default function Dashboard() {
               Financial Metrics
             </h2>
           </div>
-          <div className="divide-y divide-slate-100">
+
+          {/* Capital Deployed */}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Capital Deployed</p>
+          <div className="divide-y divide-slate-100 mb-3">
             <KpiRow
               icon={DollarSign}
               iconColor="text-green-500"
-              label="Total Invested"
-              value={formatCurrency(financialMetrics?.totalInvested ?? 0)}
+              label="Total Cash Invested"
+              value={formatCurrency(financialMetrics?.totalCashInvested ?? 0)}
+            />
+            <KpiRow
+              icon={DollarSign}
+              iconColor="text-blue-400"
+              label="Acquisition Costs"
+              value={formatCurrency(financialMetrics?.totalAcquisitionCosts ?? 0)}
+            />
+            <KpiRow
+              icon={Home}
+              iconColor="text-orange-400"
+              label="Rehab Costs"
+              value={formatCurrency(financialMetrics?.totalRehabCosts ?? 0)}
             />
             <KpiRow
               icon={ArrowUpRight}
@@ -584,22 +661,34 @@ export default function Dashboard() {
               label="Total Est. Equity"
               value={formatCurrency(financialMetrics?.totalEquity ?? 0)}
             />
+          </div>
+
+          {/* Cash Flow */}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Cash Flow</p>
+          <div className="divide-y divide-slate-100 mb-3">
             <KpiRow
               icon={Home}
               iconColor="text-blue-500"
               label="Monthly Rent Income"
-              value={formatCurrency(
-                financialMetrics?.monthlyRentIncome ?? 0
-              )}
+              value={formatCurrency(financialMetrics?.monthlyRentIncome ?? 0)}
+            />
+            <KpiRow
+              icon={TrendingUp}
+              iconColor={`${(financialMetrics?.totalMonthlyCashFlow ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}
+              label="Monthly Cash Flow"
+              value={formatCurrency(financialMetrics?.totalMonthlyCashFlow ?? 0)}
             />
             <KpiRow
               icon={Calendar}
               iconColor="text-indigo-500"
-              label="Annual Rent Income"
-              value={formatCurrency(
-                financialMetrics?.annualRentIncome ?? 0
-              )}
+              label="Annual Cash Flow"
+              value={formatCurrency(financialMetrics?.totalAnnualCashFlow ?? 0)}
             />
+          </div>
+
+          {/* Returns */}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Returns</p>
+          <div className="divide-y divide-slate-100">
             <KpiRow
               icon={Percent}
               iconColor="text-orange-500"
@@ -710,28 +799,61 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── ROI Per Closed Deal ── */}
-      {dealPerformance &&
-        dealPerformance.roiPerDeal.length > 0 && (
+      {/* ── Per-Deal Financial Summary ── */}
+      {financialMetrics &&
+        financialMetrics.dealCosts.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h2 className="text-base font-semibold text-slate-800 mb-3">
-              ROI Per Closed Deal
+              Closed Deal Financials
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {dealPerformance.roiPerDeal.map((d) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {financialMetrics.dealCosts.map((d) => (
                 <div
                   key={d.address}
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                  className="border border-slate-100 rounded-lg p-4 bg-slate-50"
                 >
-                  <span className="text-sm text-slate-700 truncate mr-2">
+                  <p className="text-sm font-semibold text-slate-800 mb-2 truncate">
                     {d.address}
-                  </span>
-                  <span
-                    className={`text-sm font-bold whitespace-nowrap ${d.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                  >
-                    {d.roi >= 0 ? '+' : ''}
-                    {d.roi}%
-                  </span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Purchase</span>
+                      <span className="font-medium">{formatCurrency(d.purchasePrice)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">ARV</span>
+                      <span className="font-medium">{formatCurrency(d.arv)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Acquisition</span>
+                      <span className="font-medium">{formatCurrency(d.totalAcquisition)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Rehab</span>
+                      <span className="font-medium">{formatCurrency(d.totalRehab)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Cash In</span>
+                      <span className="font-medium">{formatCurrency(d.totalCashInvested)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Mo. Cash Flow</span>
+                      <span className={`font-medium ${d.monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(d.monthlyCashFlow)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-2 pt-2 border-t border-slate-200">
+                    <span className={`text-xs font-bold ${d.cashOnCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      CoC: {d.cashOnCash}%
+                    </span>
+                    <span className="text-xs font-bold text-blue-600">
+                      Cap: {d.capRate}%
+                    </span>
+                    <span className={`text-xs font-bold ${(d.arv - d.purchasePrice) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      ROI: {d.purchasePrice > 0 ? Math.round(((d.arv - d.purchasePrice) / d.totalCashInvested) * 1000) / 10 : 0}%
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
