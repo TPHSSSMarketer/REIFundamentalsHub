@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, Loader2 } from 'lucide-react'
 import { getToken } from '@/services/auth'
+import { useDemoMode } from '@/hooks/useDemoMode'
 import * as calApi from '@/services/calendarApi'
 import { cn } from '@/utils/helpers'
 
@@ -14,22 +15,71 @@ interface TodaySummary {
   callbacks_scheduled: any[]
 }
 
+function getDemoTodaySummary(): TodaySummary {
+  const now = new Date()
+
+  // Create a closing date 3 days from now
+  const closingDate = new Date(now.getTime() + 3 * 86400000)
+
+  return {
+    tasks_due_today: [
+      { id: 'dt-1', title: 'Call seller for 123 Main St', status: 'pending', due_time: '10:00 AM' },
+      { id: 'dt-2', title: 'Schedule property inspection', status: 'pending', due_time: '2:00 PM' },
+      { id: 'dt-3', title: 'Send updated offer letter', status: 'pending', due_time: '4:00 PM' },
+    ],
+    tasks_overdue: [
+      { id: 'do-1', title: 'Follow up with lender on pre-approval' },
+    ],
+    events_today: [
+      {
+        id: 'ev-1',
+        title: 'Property showing — 456 Oak Ave',
+        event_type: 'showing',
+        start_datetime: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0).toISOString(),
+      },
+      {
+        id: 'ev-2',
+        title: 'Callback — Sarah Johnson',
+        event_type: 'callback',
+        start_datetime: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 30).toISOString(),
+      },
+    ],
+    upcoming_closings: [
+      {
+        id: 'cl-1',
+        title: '789 Pine Rd closing',
+        start_datetime: closingDate.toISOString(),
+      },
+    ],
+    expiring_pof: [],
+    callbacks_scheduled: [],
+  }
+}
+
 export default function TodayWidget() {
   const navigate = useNavigate()
+  const { isDemoMode } = useDemoMode()
   const token = getToken() || ''
   const [data, setData] = useState<TodaySummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const summary = await calApi.getTodaySummary(token)
-      setData(summary)
+      if (isDemoMode) {
+        setData(getDemoTodaySummary())
+      } else {
+        const summary = await calApi.getTodaySummary(token)
+        setData(summary)
+      }
     } catch {
-      // ignore
+      // In case of error, still show demo data if in demo mode
+      if (isDemoMode) {
+        setData(getDemoTodaySummary())
+      }
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, isDemoMode])
 
   useEffect(() => {
     load()
@@ -38,6 +88,19 @@ export default function TodayWidget() {
   }, [load])
 
   const handleComplete = async (id: string) => {
+    if (isDemoMode) {
+      // In demo mode, just mark the task completed visually
+      setData((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          tasks_due_today: prev.tasks_due_today.map((t) =>
+            t.id === id ? { ...t, status: 'completed' } : t
+          ),
+        }
+      })
+      return
+    }
     try {
       await calApi.completeTask(id, token)
       await load()
