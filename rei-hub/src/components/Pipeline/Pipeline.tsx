@@ -18,7 +18,7 @@ import DealCard from './DealCard'
 import NewDealModal from './NewDealModal'
 import { usePipelines, useDeals, useUpdateDealStage, useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
-import { formatCurrency, getStageColor } from '@/utils/helpers'
+import { formatCurrency, getStageColor, cn } from '@/utils/helpers'
 import type { Deal, Pipeline as PipelineType } from '@/types'
 
 export default function Pipeline() {
