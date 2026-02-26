@@ -22,6 +22,7 @@ import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
 import { getToken, getAuthHeader, getCurrentUser } from '@/services/auth'
+import { useDemoMode } from '@/hooks/useDemoMode'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 
@@ -250,6 +251,7 @@ function EditModal({
 /* ── Main Component ──────────────────────────────────────────── */
 
 export default function AdminPage() {
+  const { isDemoMode } = useDemoMode()
   const [user, setUser] = useState<any>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
@@ -292,8 +294,21 @@ export default function AdminPage() {
       .finally(() => setAuthLoading(false))
   }, [])
 
-  // Fetch stats
+  // Fetch stats (skip in demo mode — no backend)
   useEffect(() => {
+    if (isDemoMode) {
+      setIsLoading(false)
+      setStats({
+        total_users: 6,
+        active_users: 4,
+        trialing_users: 2,
+        past_due_users: 0,
+        canceled_users: 0,
+        mrr_cents: 29700,
+        plan_breakdown: { starter: 2, pro: 3, team: 1 },
+      } as AdminStats)
+      return
+    }
     let cancelled = false
     setIsLoading(true)
     getStats()
@@ -307,7 +322,7 @@ export default function AdminPage() {
         if (!cancelled) setIsLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [isDemoMode])
 
   // Fetch subscribers when tab, filters, or page change
   const fetchSubscribers = useCallback(async () => {
@@ -484,7 +499,7 @@ export default function AdminPage() {
 
   /* ── Superadmin access gate (early return) ────────────────── */
 
-  if (authLoading) {
+  if (authLoading && !isDemoMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-gray-500">Loading…</p>
@@ -492,7 +507,7 @@ export default function AdminPage() {
     )
   }
 
-  if (!user?.is_superadmin) {
+  if (!user?.is_superadmin && !isDemoMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center p-8">
