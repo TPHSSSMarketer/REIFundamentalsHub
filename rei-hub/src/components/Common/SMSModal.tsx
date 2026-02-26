@@ -14,15 +14,15 @@ export default function SMSModal() {
   const [message, setMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredContacts = contactsData?.contacts.filter(
+  const filteredContacts = contactsData?.filter(
     (c) =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.includes(searchQuery)
+      (c.phone && c.phone.includes(searchQuery))
   )
 
   const selectedContact =
     smsTargetContact ||
-    contactsData?.contacts.find((c) => c.id === selectedContactId)
+    contactsData?.find((c) => c.id === selectedContactId)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
