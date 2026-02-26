@@ -17,6 +17,7 @@ import {
   type Subscriber,
 } from '@/services/adminApi'
 import AiProviderSettings from './AiProviderSettings'
+import SuperAdminCredentials from './SuperAdminCredentials'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
@@ -50,7 +51,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -708,6 +709,9 @@ export default function AdminPage() {
 
       {/* ── AI Providers Tab ──────────────────────────────────── */}
       {tab === 'AI Providers' && <AiProviderSettings />}
+
+      {/* ── Credentials Tab ──────────────────────────────────── */}
+      {tab === 'Credentials' && <SuperAdminCredentials />}
 
       {/* ── Loan Servicing Tab ──────────────────────────────── */}
       {tab === 'Loan Servicing' && (

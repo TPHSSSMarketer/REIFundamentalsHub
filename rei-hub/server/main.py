@@ -32,6 +32,7 @@ from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
 from rei.api.plaid_routes import plaid_router
 from rei.api.plugin_routes import plugin_router
+from rei.api.superadmin_routes import superadmin_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -217,6 +218,7 @@ app.include_router(bank_negotiation_router)
 app.include_router(analytics_router)
 app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
+app.include_router(superadmin_router, prefix="/api")
 
 
 @app.get("/health")
