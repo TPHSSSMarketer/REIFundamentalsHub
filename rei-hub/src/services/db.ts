@@ -9,7 +9,15 @@ const CONTACTS_KEY = 'rei_contacts'
 export async function getDeals(_userId: string): Promise<Deal[]> {
   const raw = localStorage.getItem(DEALS_KEY)
   if (raw) {
-    return JSON.parse(raw) as Deal[]
+    const existing = JSON.parse(raw) as Deal[]
+    // Reseed if mockData has grown (new deals added in an update)
+    if (existing.length < mockDeals.length) {
+      const existingIds = new Set(existing.map((d) => d.id))
+      const merged = [...existing, ...mockDeals.filter((d) => !existingIds.has(d.id))]
+      localStorage.setItem(DEALS_KEY, JSON.stringify(merged))
+      return merged
+    }
+    return existing
   }
   // Seed from mockData on first access
   localStorage.setItem(DEALS_KEY, JSON.stringify(mockDeals))
