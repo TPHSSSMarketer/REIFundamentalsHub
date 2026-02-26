@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { login } from '@/services/auth'
+import { useDemoMode } from '@/hooks/useDemoMode'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { enableDemoMode } = useDemoMode()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -102,6 +104,28 @@ export default function LoginPage() {
             {submitting ? 'Signing in\u2026' : 'Sign In'}
           </button>
         </form>
+
+        {/* Demo Mode */}
+        <div className="mt-4">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <span className="relative bg-slate-50 px-3 text-xs text-slate-400 uppercase">or</span>
+          </div>
+          <button
+            onClick={() => {
+              enableDemoMode()
+              navigate('/pipeline')
+            }}
+            className="mt-4 w-full rounded-lg border-2 border-dashed border-slate-300 text-slate-600 py-2.5 text-sm font-medium hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+          >
+            Try Demo Mode
+          </button>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Explore all features with sample data — no account needed
+          </p>
+        </div>
 
         {/* Footer link */}
         <p className="mt-6 text-center text-sm text-slate-500">
