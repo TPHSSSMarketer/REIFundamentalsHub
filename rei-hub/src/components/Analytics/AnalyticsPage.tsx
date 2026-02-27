@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser, getToken } from '@/services/auth'
+import { useDemoMode } from '@/hooks/useDemoMode'
 import OverviewTab from './tabs/OverviewTab'
 import PipelineTab from './tabs/PipelineTab'
 import PortfolioTab from './tabs/PortfolioTab'
@@ -47,6 +48,7 @@ const TABS: TabDef[] = [
 ]
 
 export default function AnalyticsPage() {
+  const { isDemoMode } = useDemoMode()
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('30d')
   const [startDate, setStartDate] = useState('')
@@ -56,12 +58,18 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (isDemoMode) {
+      setToken('demo-token')
+      setUser({ is_superadmin: false, loan_servicing_enabled: false, bank_negotiation_enabled: false })
+      setLoading(false)
+      return
+    }
     setToken(getToken())
     getCurrentUser()
       .then((u) => setUser(u))
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [isDemoMode])
 
   if (loading) {
     return (
