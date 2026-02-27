@@ -2,6 +2,55 @@ import { getAuthHeader } from './auth'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
+// ── Demo Mode Helpers ──────────────────────────────────────
+
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
+async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promise<T> {
+  if (isDemoMode()) {
+    try {
+      return await apiFn()
+    } catch {
+      return demoData
+    }
+  }
+  return apiFn()
+}
+
+// ── Demo Data ──────────────────────────────────────────────
+
+const DEMO_AI_USER_CONFIG: AiUserConfig = {
+  active_provider: 'anthropic',
+  active_model: 'claude-3-5-sonnet',
+  available_providers: [
+    { id: 'anthropic', display_name: 'Claude (Anthropic)', models: ['claude-3-5-sonnet', 'claude-3-opus'] },
+    { id: 'openai', display_name: 'OpenAI', models: ['gpt-4-turbo', 'gpt-4'] },
+  ],
+  can_override: true,
+  can_bring_own_key: true,
+  has_own_keys: false,
+  override_enabled: false,
+  own_anthropic_configured: false,
+  own_nvidia_configured: false,
+}
+
+const DEMO_AI_TEST_RESPONSE: AiTestResponse = {
+  response: 'This is a demo response. In production, Claude would analyze your real estate market data and provide investment insights.',
+  provider: 'anthropic',
+  model: 'claude-3-5-sonnet',
+  tokens_used: 145,
+  latency_ms: 289,
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface AiProvider {
@@ -84,10 +133,13 @@ async function handleResponse<T>(res: Response): Promise<T> {
 // ── User endpoints ──────────────────────────────────────────────────
 
 export async function getAiConfig(): Promise<AiUserConfig> {
-  const res = await fetch(`${BASE_URL}/api/ai/config`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<AiUserConfig>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/config`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<AiUserConfig>(res)),
+    DEMO_AI_USER_CONFIG
+  )
 }
 
 export async function updateAiConfig(data: {
@@ -96,42 +148,72 @@ export async function updateAiConfig(data: {
   ai_own_anthropic_key?: string
   ai_own_nvidia_key?: string
 }): Promise<{ active_provider: string; active_model: string; override_enabled: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/ai/config`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify(data),
-  })
-  return handleResponse(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(data),
+      }).then((res) => handleResponse(res)),
+    { active_provider: 'anthropic', active_model: 'claude-3-5-sonnet', override_enabled: false }
+  )
 }
 
 export async function testAiProvider(message: string): Promise<AiTestResponse> {
-  const res = await fetch(`${BASE_URL}/api/ai/test`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify({ message }),
-  })
-  return handleResponse<AiTestResponse>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ message }),
+      }).then((res) => handleResponse<AiTestResponse>(res)),
+    DEMO_AI_TEST_RESPONSE
+  )
 }
 
 export async function runResearch(
   query: string,
   context?: string
 ): Promise<{ content: string; provider: string; model: string }> {
-  const res = await fetch(`${BASE_URL}/api/ai/research`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify({ query, context: context ?? '' }),
-  })
-  return handleResponse(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ query, context: context ?? '' }),
+      }).then((res) => handleResponse(res)),
+    {
+      content: 'Real estate market analysis indicates opportunities in undervalued properties with strong appreciation potential. Consider diversifying across multiple markets and property types.',
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet',
+    }
+  )
 }
 
 // ── Admin endpoints ─────────────────────────────────────────────────
 
 export async function getAdminAiConfig(): Promise<AiAdminConfig> {
-  const res = await fetch(`${BASE_URL}/api/ai/admin/config`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<AiAdminConfig>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/admin/config`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<AiAdminConfig>(res)),
+    {
+      id: 'admin-ai-config-001',
+      active_provider: 'anthropic',
+      active_model: 'claude-3-5-sonnet',
+      anthropic_api_key: '',
+      anthropic_configured: false,
+      nvidia_api_key: '',
+      nvidia_configured: false,
+      allow_user_override: true,
+      user_can_bring_own_key: true,
+      total_requests: 342,
+      total_tokens: 89234,
+      created_at: '2024-01-15T10:00:00Z',
+      updated_at: '2024-02-20T14:30:00Z',
+    }
+  )
 }
 
 export async function updateAdminAiConfig(data: {
@@ -142,26 +224,78 @@ export async function updateAdminAiConfig(data: {
   allow_user_override?: boolean
   user_can_bring_own_key?: boolean
 }): Promise<AiAdminConfig> {
-  const res = await fetch(`${BASE_URL}/api/ai/admin/config`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify(data),
-  })
-  return handleResponse<AiAdminConfig>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/admin/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(data),
+      }).then((res) => handleResponse<AiAdminConfig>(res)),
+    {
+      id: 'admin-ai-config-001',
+      active_provider: data.active_provider || 'anthropic',
+      active_model: data.active_model || 'claude-3-5-sonnet',
+      anthropic_api_key: '',
+      anthropic_configured: false,
+      nvidia_api_key: '',
+      nvidia_configured: false,
+      allow_user_override: data.allow_user_override ?? true,
+      user_can_bring_own_key: data.user_can_bring_own_key ?? true,
+      total_requests: 342,
+      total_tokens: 89234,
+      created_at: '2024-01-15T10:00:00Z',
+      updated_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function getAiUsage(): Promise<AiUsage> {
-  const res = await fetch(`${BASE_URL}/api/ai/admin/usage`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<AiUsage>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/admin/usage`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<AiUsage>(res)),
+    {
+      total_requests: 342,
+      total_tokens: 89234,
+      per_user: [
+        { user_id: 1, email: 'alex.chen@realestate.com', provider: 'anthropic', model: 'claude-3-5-sonnet', requests: 125, tokens: 32145 },
+        { user_id: 2, email: 'sarah.martinez@investmentgroup.com', provider: 'anthropic', model: 'claude-3-5-sonnet', requests: 89, tokens: 28934 },
+        { user_id: 3, email: 'john.wilson@deals.com', provider: 'anthropic', model: 'claude-3-5-sonnet', requests: 128, tokens: 28155 },
+      ],
+    }
+  )
 }
 
 export async function getAllUsersAiSettings(): Promise<AiUserSetting[]> {
-  const res = await fetch(`${BASE_URL}/api/ai/admin/users`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<AiUserSetting[]>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/admin/users`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<AiUserSetting[]>(res)),
+    [
+      {
+        user_id: 1,
+        email: 'alex.chen@realestate.com',
+        full_name: 'Alex Chen',
+        ai_provider_override: null,
+        ai_model_override: null,
+        ai_override_enabled: false,
+        effective_provider: 'anthropic',
+        effective_model: 'claude-3-5-sonnet',
+      },
+      {
+        user_id: 2,
+        email: 'sarah.martinez@investmentgroup.com',
+        full_name: 'Sarah Martinez',
+        ai_provider_override: null,
+        ai_model_override: null,
+        ai_override_enabled: false,
+        effective_provider: 'anthropic',
+        effective_model: 'claude-3-5-sonnet',
+      },
+    ]
+  )
 }
 
 export async function updateUserAiSettings(
@@ -172,10 +306,13 @@ export async function updateUserAiSettings(
     ai_override_enabled?: boolean
   }
 ): Promise<{ ok: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/ai/admin/users/${userId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify(data),
-  })
-  return handleResponse<{ ok: boolean }>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(data),
+      }).then((res) => handleResponse<{ ok: boolean }>(res)),
+    { ok: true }
+  )
 }

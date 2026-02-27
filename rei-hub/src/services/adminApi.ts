@@ -2,6 +2,82 @@ import { getAuthHeader } from './auth'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
+// ── Demo Mode Helpers ──────────────────────────────────────
+
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
+async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promise<T> {
+  if (isDemoMode()) {
+    try {
+      return await apiFn()
+    } catch {
+      return demoData
+    }
+  }
+  return apiFn()
+}
+
+// ── Demo Data ──────────────────────────────────────────────
+
+const DEMO_ADMIN_STATS: AdminStats = {
+  total_subscribers: 145,
+  active: 98,
+  trialing: 32,
+  past_due: 8,
+  canceled: 7,
+  mrr_cents: 287500,
+  by_plan: {
+    starter: 45,
+    pro: 72,
+    team: 18,
+  },
+  helm_addon_count: 52,
+}
+
+const DEMO_SUBSCRIBERS_RESPONSE: SubscribersResponse = {
+  subscribers: [
+    {
+      user_id: 1,
+      email: 'alex.chen@realestate.com',
+      plan: 'pro',
+      billing_interval: 'monthly',
+      subscription_status: 'active',
+      trial_ends_at: null,
+      helm_addon_active: true,
+    },
+    {
+      user_id: 2,
+      email: 'sarah.martinez@investmentgroup.com',
+      plan: 'team',
+      billing_interval: 'annual',
+      subscription_status: 'active',
+      trial_ends_at: null,
+      helm_addon_active: true,
+    },
+    {
+      user_id: 3,
+      email: 'john.wilson@deals.com',
+      plan: 'starter',
+      billing_interval: 'monthly',
+      subscription_status: 'trialing',
+      trial_ends_at: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+      helm_addon_active: false,
+    },
+  ],
+  total: 145,
+  page: 1,
+  per_page: 50,
+}
+
 export interface Subscriber {
   user_id: number
   email: string
@@ -62,24 +138,31 @@ export async function getSubscribers(filters: {
   page?: number
   per_page?: number
 } = {}): Promise<SubscribersResponse> {
-  const params = new URLSearchParams()
-  if (filters.status) params.set('status', filters.status)
-  if (filters.plan) params.set('plan', filters.plan)
-  if (filters.page) params.set('page', String(filters.page))
-  if (filters.per_page) params.set('per_page', String(filters.per_page))
+  return withDemoFallback(
+    () => {
+      const params = new URLSearchParams()
+      if (filters.status) params.set('status', filters.status)
+      if (filters.plan) params.set('plan', filters.plan)
+      if (filters.page) params.set('page', String(filters.page))
+      if (filters.per_page) params.set('per_page', String(filters.per_page))
 
-  const qs = params.toString()
-  const res = await fetch(`${BASE_URL}/api/admin/subscribers${qs ? `?${qs}` : ''}`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<SubscribersResponse>(res)
+      const qs = params.toString()
+      return fetch(`${BASE_URL}/api/admin/subscribers${qs ? `?${qs}` : ''}`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<SubscribersResponse>(res))
+    },
+    DEMO_SUBSCRIBERS_RESPONSE
+  )
 }
 
 export async function getSubscriber(userId: string): Promise<Subscriber> {
-  const res = await fetch(`${BASE_URL}/api/admin/subscribers/${userId}`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<Subscriber>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/admin/subscribers/${userId}`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<Subscriber>(res)),
+    DEMO_SUBSCRIBERS_RESPONSE.subscribers[0]
+  )
 }
 
 export async function adjustPlan(
@@ -91,25 +174,34 @@ export async function adjustPlan(
     helm_addon_active?: boolean
   }
 ): Promise<{ ok: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/admin/subscribers/${userId}/adjust-plan`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify(data),
-  })
-  return handleResponse<{ ok: boolean }>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/admin/subscribers/${userId}/adjust-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(data),
+      }).then((res) => handleResponse<{ ok: boolean }>(res)),
+    { ok: true }
+  )
 }
 
 export async function cancelSubscriber(userId: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${BASE_URL}/api/admin/subscribers/${userId}/cancel`, {
-    method: 'POST',
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<{ ok: boolean }>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/admin/subscribers/${userId}/cancel`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<{ ok: boolean }>(res)),
+    { ok: true }
+  )
 }
 
 export async function getStats(): Promise<AdminStats> {
-  const res = await fetch(`${BASE_URL}/api/admin/stats`, {
-    headers: { ...getAuthHeader() },
-  })
-  return handleResponse<AdminStats>(res)
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/admin/stats`, {
+        headers: { ...getAuthHeader() },
+      }).then((res) => handleResponse<AdminStats>(res)),
+    DEMO_ADMIN_STATS
+  )
 }

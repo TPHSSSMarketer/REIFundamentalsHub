@@ -1,6 +1,30 @@
 // localStorage-based Email Marketing API with REI demo data
 // All functions are async to match the page component's expectations
 
+// ── Demo Mode Helpers ──────────────────────────────────────
+
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
+async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promise<T> {
+  if (isDemoMode()) {
+    try {
+      return await apiFn()
+    } catch {
+      return demoData
+    }
+  }
+  return apiFn()
+}
+
 // ── Types ─────────────────────────────────────────────────
 
 interface Domain {
@@ -507,11 +531,19 @@ export async function getDomains(): Promise<{
   domains: Domain[]
   current_provider: string
 }> {
-  const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
-  return {
-    domains,
-    current_provider: 'resend',
-  }
+  return withDemoFallback(
+    () => {
+      const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
+      return Promise.resolve({
+        domains,
+        current_provider: 'resend',
+      })
+    },
+    {
+      domains: getMockDomains(),
+      current_provider: 'resend',
+    }
+  )
 }
 
 export async function addDomain(data: {
@@ -519,47 +551,75 @@ export async function addDomain(data: {
   from_name: string
   from_email: string
 }): Promise<Record<string, unknown>> {
-  const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
-  const newDomain: Domain = {
-    id: crypto.randomUUID(),
-    domain: data.domain,
-    from_name: data.from_name,
-    from_email: data.from_email,
-    status: 'pending',
-    provider: 'resend',
-    dns_records: null,
-    verified_at: null,
-    created_at: new Date().toISOString(),
-  }
-  domains.push(newDomain)
-  setData(DOMAINS_KEY, domains)
-  return newDomain
+  return withDemoFallback(
+    () => {
+      const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
+      const newDomain: Domain = {
+        id: crypto.randomUUID(),
+        domain: data.domain,
+        from_name: data.from_name,
+        from_email: data.from_email,
+        status: 'pending',
+        provider: 'resend',
+        dns_records: null,
+        verified_at: null,
+        created_at: new Date().toISOString(),
+      }
+      domains.push(newDomain)
+      setData(DOMAINS_KEY, domains)
+      return Promise.resolve(newDomain)
+    },
+    {
+      id: crypto.randomUUID(),
+      domain: data.domain,
+      from_name: data.from_name,
+      from_email: data.from_email,
+      status: 'pending',
+      provider: 'resend',
+      dns_records: null,
+      verified_at: null,
+      created_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function verifyDomain(
   domainId: string
 ): Promise<{ verified: boolean; message: string }> {
-  const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
-  const domain = domains.find((d) => d.id === domainId)
-  if (!domain) {
-    throw new Error('Domain not found')
-  }
-  domain.status = 'verified'
-  domain.verified_at = new Date().toISOString()
-  setData(DOMAINS_KEY, domains)
-  return {
-    verified: true,
-    message: 'Domain verified successfully',
-  }
+  return withDemoFallback(
+    () => {
+      const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
+      const domain = domains.find((d) => d.id === domainId)
+      if (!domain) {
+        return Promise.reject(new Error('Domain not found'))
+      }
+      domain.status = 'verified'
+      domain.verified_at = new Date().toISOString()
+      setData(DOMAINS_KEY, domains)
+      return Promise.resolve({
+        verified: true,
+        message: 'Domain verified successfully',
+      })
+    },
+    {
+      verified: true,
+      message: 'Domain verified successfully',
+    }
+  )
 }
 
 export async function deleteDomain(
   domainId: string
 ): Promise<{ success: boolean }> {
-  const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
-  const filtered = domains.filter((d) => d.id !== domainId)
-  setData(DOMAINS_KEY, filtered)
-  return { success: true }
+  return withDemoFallback(
+    () => {
+      const domains = getOrInit<Domain[]>(DOMAINS_KEY, getMockDomains())
+      const filtered = domains.filter((d) => d.id !== domainId)
+      setData(DOMAINS_KEY, filtered)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
+  )
 }
 
 // ── Lists ────────────────────────────────────────────────
@@ -567,41 +627,67 @@ export async function deleteDomain(
 export async function getLists(): Promise<{
   lists: EmailListItem[]
 }> {
-  const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
-  // Dynamically update subscriber counts
-  const listsWithCounts = lists.map((list) => ({
-    ...list,
-    subscriber_count: getSubscriberCount(list.id),
-  }))
-  return { lists: listsWithCounts }
+  return withDemoFallback(
+    () => {
+      const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
+      // Dynamically update subscriber counts
+      const listsWithCounts = lists.map((list) => ({
+        ...list,
+        subscriber_count: getSubscriberCount(list.id),
+      }))
+      return Promise.resolve({ lists: listsWithCounts })
+    },
+    {
+      lists: getMockLists().map((list) => ({
+        ...list,
+        subscriber_count: getMockSubscribers(list.id).length,
+      })),
+    }
+  )
 }
 
 export async function createList(data: {
   name: string
   description?: string
 }): Promise<Record<string, unknown>> {
-  const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
-  const newList: EmailListItem = {
-    id: crypto.randomUUID(),
-    name: data.name,
-    description: data.description || null,
-    subscriber_count: 0,
-    created_at: new Date().toISOString(),
-  }
-  lists.push(newList)
-  setData(LISTS_KEY, lists)
-  localStorage.setItem(`rei-email-subs-${newList.id}`, JSON.stringify([]))
-  return newList
+  return withDemoFallback(
+    () => {
+      const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
+      const newList: EmailListItem = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        description: data.description || null,
+        subscriber_count: 0,
+        created_at: new Date().toISOString(),
+      }
+      lists.push(newList)
+      setData(LISTS_KEY, lists)
+      localStorage.setItem(`rei-email-subs-${newList.id}`, JSON.stringify([]))
+      return Promise.resolve(newList)
+    },
+    {
+      id: crypto.randomUUID(),
+      name: data.name,
+      description: data.description || null,
+      subscriber_count: 0,
+      created_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function deleteList(
   listId: string
 ): Promise<{ success: boolean }> {
-  const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
-  const filtered = lists.filter((l) => l.id !== listId)
-  setData(LISTS_KEY, filtered)
-  localStorage.removeItem(`rei-email-subs-${listId}`)
-  return { success: true }
+  return withDemoFallback(
+    () => {
+      const lists = getOrInit<EmailListItem[]>(LISTS_KEY, getMockLists())
+      const filtered = lists.filter((l) => l.id !== listId)
+      setData(LISTS_KEY, filtered)
+      localStorage.removeItem(`rei-email-subs-${listId}`)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
+  )
 }
 
 // ── Subscribers ──────────────────────────────────────────
@@ -616,20 +702,37 @@ export async function getSubscribers(
   page: number
   per_page: number
 }> {
-  const subscribers = getOrInit<Subscriber[]>(
-    `rei-email-subs-${listId}`,
-    getMockSubscribers(listId)
+  return withDemoFallback(
+    () => {
+      const subscribers = getOrInit<Subscriber[]>(
+        `rei-email-subs-${listId}`,
+        getMockSubscribers(listId)
+      )
+      const total = subscribers.length
+      const start = (page - 1) * perPage
+      const end = start + perPage
+      const paginated = subscribers.slice(start, end)
+      return Promise.resolve({
+        subscribers: paginated,
+        total,
+        page,
+        per_page: perPage,
+      })
+    },
+    (() => {
+      const subscribers = getMockSubscribers(listId)
+      const total = subscribers.length
+      const start = (page - 1) * perPage
+      const end = start + perPage
+      const paginated = subscribers.slice(start, end)
+      return {
+        subscribers: paginated,
+        total,
+        page,
+        per_page: perPage,
+      }
+    })()
   )
-  const total = subscribers.length
-  const start = (page - 1) * perPage
-  const end = start + perPage
-  const paginated = subscribers.slice(start, end)
-  return {
-    subscribers: paginated,
-    total,
-    page,
-    per_page: perPage,
-  }
 }
 
 export async function addSubscriber(
@@ -641,79 +744,102 @@ export async function addSubscriber(
     phone?: string
   }
 ): Promise<Record<string, unknown>> {
-  const subscribers = getOrInit<Subscriber[]>(
-    `rei-email-subs-${listId}`,
-    getMockSubscribers(listId)
+  return withDemoFallback(
+    () => {
+      const subscribers = getOrInit<Subscriber[]>(
+        `rei-email-subs-${listId}`,
+        getMockSubscribers(listId)
+      )
+      const newSubscriber: Subscriber = {
+        id: crypto.randomUUID(),
+        email: data.email,
+        first_name: data.first_name || null,
+        last_name: data.last_name || null,
+        phone: data.phone || null,
+        status: 'subscribed',
+        subscribed_at: new Date().toISOString(),
+      }
+      subscribers.push(newSubscriber)
+      setData(`rei-email-subs-${listId}`, subscribers)
+      return Promise.resolve(newSubscriber)
+    },
+    {
+      id: crypto.randomUUID(),
+      email: data.email,
+      first_name: data.first_name || null,
+      last_name: data.last_name || null,
+      phone: data.phone || null,
+      status: 'subscribed',
+      subscribed_at: new Date().toISOString(),
+    }
   )
-  const newSubscriber: Subscriber = {
-    id: crypto.randomUUID(),
-    email: data.email,
-    first_name: data.first_name || null,
-    last_name: data.last_name || null,
-    phone: data.phone || null,
-    status: 'subscribed',
-    subscribed_at: new Date().toISOString(),
-  }
-  subscribers.push(newSubscriber)
-  setData(`rei-email-subs-${listId}`, subscribers)
-  return newSubscriber
 }
 
 export async function importSubscribers(
   listId: string,
   rows: Array<Record<string, string>>
 ): Promise<{ added: number; skipped: number; errors: number }> {
-  const subscribers = getOrInit<Subscriber[]>(
-    `rei-email-subs-${listId}`,
-    getMockSubscribers(listId)
+  return withDemoFallback(
+    () => {
+      const subscribers = getOrInit<Subscriber[]>(
+        `rei-email-subs-${listId}`,
+        getMockSubscribers(listId)
+      )
+      let added = 0
+      let skipped = 0
+      let errors = 0
+
+      for (const row of rows) {
+        try {
+          const email = row.email || row.Email
+          if (!email) {
+            errors++
+            continue
+          }
+          // Check if email already exists
+          if (subscribers.some((s) => s.email === email)) {
+            skipped++
+            continue
+          }
+          const newSubscriber: Subscriber = {
+            id: crypto.randomUUID(),
+            email,
+            first_name: row.first_name || row.firstName || null,
+            last_name: row.last_name || row.lastName || null,
+            phone: row.phone || row.Phone || null,
+            status: 'subscribed',
+            subscribed_at: new Date().toISOString(),
+          }
+          subscribers.push(newSubscriber)
+          added++
+        } catch {
+          errors++
+        }
+      }
+
+      setData(`rei-email-subs-${listId}`, subscribers)
+      return Promise.resolve({ added, skipped, errors })
+    },
+    { added: rows.length, skipped: 0, errors: 0 }
   )
-  let added = 0
-  let skipped = 0
-  let errors = 0
-
-  for (const row of rows) {
-    try {
-      const email = row.email || row.Email
-      if (!email) {
-        errors++
-        continue
-      }
-      // Check if email already exists
-      if (subscribers.some((s) => s.email === email)) {
-        skipped++
-        continue
-      }
-      const newSubscriber: Subscriber = {
-        id: crypto.randomUUID(),
-        email,
-        first_name: row.first_name || row.firstName || null,
-        last_name: row.last_name || row.lastName || null,
-        phone: row.phone || row.Phone || null,
-        status: 'subscribed',
-        subscribed_at: new Date().toISOString(),
-      }
-      subscribers.push(newSubscriber)
-      added++
-    } catch {
-      errors++
-    }
-  }
-
-  setData(`rei-email-subs-${listId}`, subscribers)
-  return { added, skipped, errors }
 }
 
 export async function deleteSubscriber(
   listId: string,
   subId: string
 ): Promise<{ success: boolean }> {
-  const subscribers = getOrInit<Subscriber[]>(
-    `rei-email-subs-${listId}`,
-    getMockSubscribers(listId)
+  return withDemoFallback(
+    () => {
+      const subscribers = getOrInit<Subscriber[]>(
+        `rei-email-subs-${listId}`,
+        getMockSubscribers(listId)
+      )
+      const filtered = subscribers.filter((s) => s.id !== subId)
+      setData(`rei-email-subs-${listId}`, filtered)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
   )
-  const filtered = subscribers.filter((s) => s.id !== subId)
-  setData(`rei-email-subs-${listId}`, filtered)
-  return { success: true }
 }
 
 // ── Templates ────────────────────────────────────────────
@@ -721,8 +847,13 @@ export async function deleteSubscriber(
 export async function getTemplates(): Promise<{
   templates: Template[]
 }> {
-  const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
-  return { templates }
+  return withDemoFallback(
+    () => {
+      const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
+      return Promise.resolve({ templates })
+    },
+    { templates: getMockTemplates() }
+  )
 }
 
 export async function createTemplate(data: {
@@ -733,47 +864,73 @@ export async function createTemplate(data: {
   plain_text?: string
   category?: string
 }): Promise<Record<string, unknown>> {
-  const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
-  const newTemplate: Template = {
-    id: crypto.randomUUID(),
-    name: data.name,
-    subject: data.subject,
-    preview_text: data.preview_text || null,
-    html_content: data.html_content,
-    plain_text: data.plain_text || null,
-    category: data.category || 'general',
-    is_default: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-  templates.push(newTemplate)
-  setData(TEMPLATES_KEY, templates)
-  return newTemplate
+  return withDemoFallback(
+    () => {
+      const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
+      const newTemplate: Template = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        subject: data.subject,
+        preview_text: data.preview_text || null,
+        html_content: data.html_content,
+        plain_text: data.plain_text || null,
+        category: data.category || 'general',
+        is_default: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      templates.push(newTemplate)
+      setData(TEMPLATES_KEY, templates)
+      return Promise.resolve(newTemplate)
+    },
+    {
+      id: crypto.randomUUID(),
+      name: data.name,
+      subject: data.subject,
+      preview_text: data.preview_text || null,
+      html_content: data.html_content,
+      plain_text: data.plain_text || null,
+      category: data.category || 'general',
+      is_default: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function updateTemplate(
   templateId: string,
   data: Record<string, unknown>
 ): Promise<{ success: boolean }> {
-  const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
-  const template = templates.find((t) => t.id === templateId)
-  if (!template) {
-    throw new Error('Template not found')
-  }
-  Object.assign(template, data, {
-    updated_at: new Date().toISOString(),
-  })
-  setData(TEMPLATES_KEY, templates)
-  return { success: true }
+  return withDemoFallback(
+    () => {
+      const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
+      const template = templates.find((t) => t.id === templateId)
+      if (!template) {
+        return Promise.reject(new Error('Template not found'))
+      }
+      Object.assign(template, data, {
+        updated_at: new Date().toISOString(),
+      })
+      setData(TEMPLATES_KEY, templates)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
+  )
 }
 
 export async function deleteTemplate(
   templateId: string
 ): Promise<{ success: boolean }> {
-  const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
-  const filtered = templates.filter((t) => t.id !== templateId)
-  setData(TEMPLATES_KEY, filtered)
-  return { success: true }
+  return withDemoFallback(
+    () => {
+      const templates = getOrInit<Template[]>(TEMPLATES_KEY, getMockTemplates())
+      const filtered = templates.filter((t) => t.id !== templateId)
+      setData(TEMPLATES_KEY, filtered)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
+  )
 }
 
 // ── Campaigns ────────────────────────────────────────────
@@ -781,8 +938,13 @@ export async function deleteTemplate(
 export async function getCampaigns(): Promise<{
   campaigns: Campaign[]
 }> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  return { campaigns }
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      return Promise.resolve({ campaigns })
+    },
+    { campaigns: getMockCampaigns() }
+  )
 }
 
 export async function createCampaign(data: {
@@ -794,72 +956,107 @@ export async function createCampaign(data: {
   from_domain_id: string
   list_id: string
 }): Promise<Record<string, unknown>> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  const newCampaign: Campaign = {
-    id: crypto.randomUUID(),
-    name: data.name,
-    subject: data.subject,
-    status: 'draft',
-    from_domain_id: data.from_domain_id,
-    list_id: data.list_id,
-    provider_used: null,
-    scheduled_at: null,
-    sent_at: null,
-    total_sent: 0,
-    total_delivered: 0,
-    total_opened: 0,
-    total_clicked: 0,
-    total_bounced: 0,
-    total_unsubscribed: 0,
-    created_at: new Date().toISOString(),
-  }
-  campaigns.push(newCampaign)
-  setData(CAMPAIGNS_KEY, campaigns)
-  return newCampaign
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      const newCampaign: Campaign = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        subject: data.subject,
+        status: 'draft',
+        from_domain_id: data.from_domain_id,
+        list_id: data.list_id,
+        provider_used: null,
+        scheduled_at: null,
+        sent_at: null,
+        total_sent: 0,
+        total_delivered: 0,
+        total_opened: 0,
+        total_clicked: 0,
+        total_bounced: 0,
+        total_unsubscribed: 0,
+        created_at: new Date().toISOString(),
+      }
+      campaigns.push(newCampaign)
+      setData(CAMPAIGNS_KEY, campaigns)
+      return Promise.resolve(newCampaign)
+    },
+    {
+      id: crypto.randomUUID(),
+      name: data.name,
+      subject: data.subject,
+      status: 'draft',
+      from_domain_id: data.from_domain_id,
+      list_id: data.list_id,
+      provider_used: null,
+      scheduled_at: null,
+      sent_at: null,
+      total_sent: 0,
+      total_delivered: 0,
+      total_opened: 0,
+      total_clicked: 0,
+      total_bounced: 0,
+      total_unsubscribed: 0,
+      created_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function sendCampaign(
   campaignId: string
 ): Promise<{ queued: number }> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  const campaign = campaigns.find((c) => c.id === campaignId)
-  if (!campaign) {
-    throw new Error('Campaign not found')
-  }
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      const campaign = campaigns.find((c) => c.id === campaignId)
+      if (!campaign) {
+        return Promise.reject(new Error('Campaign not found'))
+      }
 
-  // Get subscriber count for the list
-  const subs = getOrInit<Subscriber[]>(
-    `rei-email-subs-${campaign.list_id}`,
-    []
+      // Get subscriber count for the list
+      const subs = getOrInit<Subscriber[]>(
+        `rei-email-subs-${campaign.list_id}`,
+        []
+      )
+      const queued = subs.length
+
+      campaign.status = 'sent'
+      campaign.sent_at = new Date().toISOString()
+      campaign.total_sent = queued
+      campaign.total_delivered = queued
+      campaign.provider_used = 'resend'
+
+      setData(CAMPAIGNS_KEY, campaigns)
+      return Promise.resolve({ queued })
+    },
+    { queued: 8 }
   )
-  const queued = subs.length
-
-  campaign.status = 'sent'
-  campaign.sent_at = new Date().toISOString()
-  campaign.total_sent = queued
-  campaign.total_delivered = queued
-  campaign.provider_used = 'resend'
-
-  setData(CAMPAIGNS_KEY, campaigns)
-  return { queued }
 }
 
 export async function scheduleCampaign(
   campaignId: string,
   scheduledAt: string
 ): Promise<{ scheduled: boolean; scheduled_at: string }> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  const campaign = campaigns.find((c) => c.id === campaignId)
-  if (!campaign) {
-    throw new Error('Campaign not found')
-  }
-  campaign.status = 'scheduled'
-  campaign.scheduled_at = scheduledAt
-  setData(CAMPAIGNS_KEY, campaigns)
-  return {
-    scheduled: true,
-    scheduled_at: scheduledAt,
-  }
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      const campaign = campaigns.find((c) => c.id === campaignId)
+      if (!campaign) {
+        return Promise.reject(new Error('Campaign not found'))
+      }
+      campaign.status = 'scheduled'
+      campaign.scheduled_at = scheduledAt
+      setData(CAMPAIGNS_KEY, campaigns)
+      return Promise.resolve({
+        scheduled: true,
+        scheduled_at: scheduledAt,
+      })
+    },
+    {
+      scheduled: true,
+      scheduled_at: scheduledAt,
+    }
+  )
 }
 
 export async function getCampaignStats(campaignId: string): Promise<{
@@ -870,42 +1067,59 @@ export async function getCampaignStats(campaignId: string): Promise<{
   total_bounced: number
   unsubscribe_rate: number
 }> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  const campaign = campaigns.find((c) => c.id === campaignId)
-  if (!campaign) {
-    throw new Error('Campaign not found')
-  }
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      const campaign = campaigns.find((c) => c.id === campaignId)
+      if (!campaign) {
+        return Promise.reject(new Error('Campaign not found'))
+      }
 
-  const openRate =
-    campaign.total_sent > 0
-      ? Math.round((campaign.total_opened / campaign.total_sent) * 100)
-      : 0
-  const clickRate =
-    campaign.total_sent > 0
-      ? Math.round((campaign.total_clicked / campaign.total_sent) * 100)
-      : 0
-  const unsubscribeRate =
-    campaign.total_sent > 0
-      ? Math.round((campaign.total_unsubscribed / campaign.total_sent) * 100)
-      : 0
+      const openRate =
+        campaign.total_sent > 0
+          ? Math.round((campaign.total_opened / campaign.total_sent) * 100)
+          : 0
+      const clickRate =
+        campaign.total_sent > 0
+          ? Math.round((campaign.total_clicked / campaign.total_sent) * 100)
+          : 0
+      const unsubscribeRate =
+        campaign.total_sent > 0
+          ? Math.round((campaign.total_unsubscribed / campaign.total_sent) * 100)
+          : 0
 
-  return {
-    total_sent: campaign.total_sent,
-    total_delivered: campaign.total_delivered,
-    open_rate: openRate,
-    click_rate: clickRate,
-    total_bounced: campaign.total_bounced,
-    unsubscribe_rate: unsubscribeRate,
-  }
+      return Promise.resolve({
+        total_sent: campaign.total_sent,
+        total_delivered: campaign.total_delivered,
+        open_rate: openRate,
+        click_rate: clickRate,
+        total_bounced: campaign.total_bounced,
+        unsubscribe_rate: unsubscribeRate,
+      })
+    },
+    {
+      total_sent: 47,
+      total_delivered: 47,
+      open_rate: 45,
+      click_rate: 11,
+      total_bounced: 1,
+      unsubscribe_rate: 0,
+    }
+  )
 }
 
 export async function deleteCampaign(
   campaignId: string
 ): Promise<{ success: boolean }> {
-  const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
-  const filtered = campaigns.filter((c) => c.id !== campaignId)
-  setData(CAMPAIGNS_KEY, filtered)
-  return { success: true }
+  return withDemoFallback(
+    () => {
+      const campaigns = getOrInit<Campaign[]>(CAMPAIGNS_KEY, getMockCampaigns())
+      const filtered = campaigns.filter((c) => c.id !== campaignId)
+      setData(CAMPAIGNS_KEY, filtered)
+      return Promise.resolve({ success: true })
+    },
+    { success: true }
+  )
 }
 
 // ── Sequences ────────────────────────────────────────────
@@ -913,8 +1127,13 @@ export async function deleteCampaign(
 export async function getSequences(): Promise<{
   sequences: Sequence[]
 }> {
-  const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
-  return { sequences }
+  return withDemoFallback(
+    () => {
+      const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
+      return Promise.resolve({ sequences })
+    },
+    { sequences: getMockSequences() }
+  )
 }
 
 export async function createSequence(data: {
@@ -922,20 +1141,34 @@ export async function createSequence(data: {
   list_id: string
   from_domain_id: string
 }): Promise<Record<string, unknown>> {
-  const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
-  const newSequence: Sequence = {
-    id: crypto.randomUUID(),
-    name: data.name,
-    list_id: data.list_id,
-    from_domain_id: data.from_domain_id,
-    is_active: false,
-    step_count: 0,
-    enrollment_count: 0,
-    created_at: new Date().toISOString(),
-  }
-  sequences.push(newSequence)
-  setData(SEQUENCES_KEY, sequences)
-  return newSequence
+  return withDemoFallback(
+    () => {
+      const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
+      const newSequence: Sequence = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        list_id: data.list_id,
+        from_domain_id: data.from_domain_id,
+        is_active: false,
+        step_count: 0,
+        enrollment_count: 0,
+        created_at: new Date().toISOString(),
+      }
+      sequences.push(newSequence)
+      setData(SEQUENCES_KEY, sequences)
+      return Promise.resolve(newSequence)
+    },
+    {
+      id: crypto.randomUUID(),
+      name: data.name,
+      list_id: data.list_id,
+      from_domain_id: data.from_domain_id,
+      is_active: false,
+      step_count: 0,
+      enrollment_count: 0,
+      created_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function addSequenceStep(
@@ -948,61 +1181,89 @@ export async function addSequenceStep(
     plain_text?: string
   }
 ): Promise<Record<string, unknown>> {
-  const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
-  const sequence = sequences.find((s) => s.id === sequenceId)
-  if (!sequence) {
-    throw new Error('Sequence not found')
-  }
+  return withDemoFallback(
+    () => {
+      const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
+      const sequence = sequences.find((s) => s.id === sequenceId)
+      if (!sequence) {
+        return Promise.reject(new Error('Sequence not found'))
+      }
 
-  const steps = getOrInit<SequenceStep[]>(SEQUENCE_STEPS_KEY, getMockSequenceSteps())
-  const newStep: SequenceStep = {
-    id: crypto.randomUUID(),
-    sequence_id: sequenceId,
-    step_number: data.step_number,
-    delay_days: data.delay_days,
-    subject: data.subject,
-    html_content: data.html_content,
-    plain_text: data.plain_text || null,
-    created_at: new Date().toISOString(),
-  }
-  steps.push(newStep)
-  setData(SEQUENCE_STEPS_KEY, steps)
+      const steps = getOrInit<SequenceStep[]>(SEQUENCE_STEPS_KEY, getMockSequenceSteps())
+      const newStep: SequenceStep = {
+        id: crypto.randomUUID(),
+        sequence_id: sequenceId,
+        step_number: data.step_number,
+        delay_days: data.delay_days,
+        subject: data.subject,
+        html_content: data.html_content,
+        plain_text: data.plain_text || null,
+        created_at: new Date().toISOString(),
+      }
+      steps.push(newStep)
+      setData(SEQUENCE_STEPS_KEY, steps)
 
-  sequence.step_count = steps.filter((s) => s.sequence_id === sequenceId).length
-  setData(SEQUENCES_KEY, sequences)
+      sequence.step_count = steps.filter((s) => s.sequence_id === sequenceId).length
+      setData(SEQUENCES_KEY, sequences)
 
-  return newStep
+      return Promise.resolve(newStep)
+    },
+    {
+      id: crypto.randomUUID(),
+      sequence_id: sequenceId,
+      step_number: data.step_number,
+      delay_days: data.delay_days,
+      subject: data.subject,
+      html_content: data.html_content,
+      plain_text: data.plain_text || null,
+      created_at: new Date().toISOString(),
+    }
+  )
 }
 
 export async function activateSequence(
   sequenceId: string
 ): Promise<{ is_active: boolean }> {
-  const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
-  const sequence = sequences.find((s) => s.id === sequenceId)
-  if (!sequence) {
-    throw new Error('Sequence not found')
-  }
-  sequence.is_active = true
-  setData(SEQUENCES_KEY, sequences)
-  return { is_active: true }
+  return withDemoFallback(
+    () => {
+      const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
+      const sequence = sequences.find((s) => s.id === sequenceId)
+      if (!sequence) {
+        return Promise.reject(new Error('Sequence not found'))
+      }
+      sequence.is_active = true
+      setData(SEQUENCES_KEY, sequences)
+      return Promise.resolve({ is_active: true })
+    },
+    { is_active: true }
+  )
 }
 
 export async function enrollSubscriber(
   sequenceId: string,
   subscriberId: string
 ): Promise<Record<string, unknown>> {
-  const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
-  const sequence = sequences.find((s) => s.id === sequenceId)
-  if (!sequence) {
-    throw new Error('Sequence not found')
-  }
-  sequence.enrollment_count += 1
-  setData(SEQUENCES_KEY, sequences)
-  return {
-    subscriber_id: subscriberId,
-    sequence_id: sequenceId,
-    enrolled_at: new Date().toISOString(),
-  }
+  return withDemoFallback(
+    () => {
+      const sequences = getOrInit<Sequence[]>(SEQUENCES_KEY, getMockSequences())
+      const sequence = sequences.find((s) => s.id === sequenceId)
+      if (!sequence) {
+        return Promise.reject(new Error('Sequence not found'))
+      }
+      sequence.enrollment_count += 1
+      setData(SEQUENCES_KEY, sequences)
+      return Promise.resolve({
+        subscriber_id: subscriberId,
+        sequence_id: sequenceId,
+        enrolled_at: new Date().toISOString(),
+      })
+    },
+    {
+      subscriber_id: subscriberId,
+      sequence_id: sequenceId,
+      enrolled_at: new Date().toISOString(),
+    }
+  )
 }
 
 // ── Usage ────────────────────────────────────────────────
@@ -1016,6 +1277,11 @@ export async function getUsage(): Promise<{
   overage_rate: string
   current_provider: string
 }> {
-  const usage = getOrInit(USAGE_KEY, getMockUsage())
-  return usage
+  return withDemoFallback(
+    () => {
+      const usage = getOrInit(USAGE_KEY, getMockUsage())
+      return Promise.resolve(usage)
+    },
+    getMockUsage()
+  )
 }
