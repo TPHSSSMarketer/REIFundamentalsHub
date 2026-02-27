@@ -34,94 +34,316 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
   throw new Error(body.detail ?? fallbackMsg)
 }
 
+// ── Demo Mode Helpers ──────────────────────────────────────────────
+
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
+async function withDemoFallback<T>(
+  realApiFn: () => Promise<T>,
+  demoData: T
+): Promise<T> {
+  if (!isDemoMode()) {
+    return realApiFn()
+  }
+  try {
+    return await realApiFn()
+  } catch {
+    return demoData
+  }
+}
+
 // ── Pipeline ──────────────────────────────────────────────────────
 
+const pipelineOverviewDemo = {
+  total_deals: 12,
+  active_deals: 6,
+  closed_won: 4,
+  closed_lost: 2,
+  total_value: 2105000,
+  avg_deal_size: 175417,
+  conversion_rate: 66.7,
+  avg_days_to_close: 32,
+  deals_by_stage: {
+    lead: 1,
+    analysis: 1,
+    offer: 1,
+    under_contract: 1,
+    due_diligence: 1,
+    closing: 1,
+    closed_won: 4,
+    closed_lost: 2,
+  },
+  deals_by_source: {
+    'Direct Mail': 4,
+    'Facebook Ads': 3,
+    'Referral': 2,
+    'Driving for Dollars': 2,
+    'Cold Call': 1,
+  },
+}
+
+const pipelineTrendDemo = [
+  {
+    month: 'Sep 2025',
+    deals_created: 2,
+    deals_closed: 1,
+    revenue: 175000,
+  },
+  {
+    month: 'Oct 2025',
+    deals_created: 3,
+    deals_closed: 1,
+    revenue: 185000,
+  },
+  {
+    month: 'Nov 2025',
+    deals_created: 2,
+    deals_closed: 2,
+    revenue: 360000,
+  },
+  {
+    month: 'Dec 2025',
+    deals_created: 1,
+    deals_closed: 0,
+    revenue: 0,
+  },
+  {
+    month: 'Jan 2026',
+    deals_created: 2,
+    deals_closed: 1,
+    revenue: 195000,
+  },
+  {
+    month: 'Feb 2026',
+    deals_created: 2,
+    deals_closed: 1,
+    revenue: 190000,
+  },
+]
+
+const pipelineFunnelDemo = [
+  { stage: 'Lead', count: 1, conversion_rate: 100 },
+  { stage: 'Analysis', count: 1, conversion_rate: 100 },
+  { stage: 'Offer', count: 1, conversion_rate: 100 },
+  { stage: 'Under Contract', count: 1, conversion_rate: 100 },
+  { stage: 'Due Diligence', count: 1, conversion_rate: 100 },
+  { stage: 'Closing', count: 1, conversion_rate: 100 },
+  { stage: 'Closed Won', count: 4, conversion_rate: 66.7 },
+]
+
 export async function getPipelineOverview(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/pipeline/overview?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch pipeline overview')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/pipeline/overview?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch pipeline overview')
+    },
+    pipelineOverviewDemo
+  )
 }
 
 export async function getPipelineTrend(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/pipeline/trend?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch pipeline trend')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/pipeline/trend?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch pipeline trend')
+    },
+    pipelineTrendDemo
+  )
 }
 
 export async function getPipelineFunnel(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/pipeline/funnel?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch pipeline funnel')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/pipeline/funnel?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch pipeline funnel')
+    },
+    pipelineFunnelDemo
+  )
 }
 
 // ── Portfolio ─────────────────────────────────────────────────────
 
+const portfolioOverviewDemo = {
+  total_properties: 4,
+  total_equity: 312000,
+  monthly_cash_flow: 2850,
+  avg_cap_rate: 9.2,
+  avg_coc_return: 18.5,
+  occupancy_rate: 92,
+}
+
+const portfolioPropertiesDemo = [
+  {
+    id: 1,
+    address: '412 Oak Street, Memphis, TN 38103',
+    purchase_price: 95000,
+    current_value: 165000,
+    monthly_rent: 1200,
+    cap_rate: 8.5,
+    coc_return: 16.2,
+  },
+  {
+    id: 2,
+    address: '327 Main Avenue, Cincinnati, OH 45202',
+    purchase_price: 110000,
+    current_value: 198000,
+    monthly_rent: 1450,
+    cap_rate: 9.8,
+    coc_return: 19.3,
+  },
+  {
+    id: 3,
+    address: '1805 Elm Drive, Cleveland, OH 44114',
+    purchase_price: 87000,
+    current_value: 142000,
+    monthly_rent: 950,
+    cap_rate: 8.0,
+    coc_return: 15.6,
+  },
+  {
+    id: 4,
+    address: '642 Pine Road, Indianapolis, IN 46204',
+    purchase_price: 105000,
+    current_value: 167000,
+    monthly_rent: 1100,
+    cap_rate: 11.0,
+    coc_return: 22.4,
+  },
+]
+
 export async function getPortfolioOverview(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/portfolio/overview?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch portfolio overview')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/portfolio/overview?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch portfolio overview')
+    },
+    portfolioOverviewDemo
+  )
 }
 
 export async function getPortfolioProperties(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/portfolio/properties?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch portfolio properties')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/portfolio/properties?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch portfolio properties')
+    },
+    portfolioPropertiesDemo
+  )
 }
 
 // ── Loans ─────────────────────────────────────────────────────────
 
+const loansOverviewDemo = {
+  total_loans: 0,
+  active_loans: 0,
+  total_outstanding: 0,
+}
+
+const loanPaymentsDemo = []
+
 export async function getLoansOverview(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/loans/overview?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch loans overview')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/loans/overview?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch loans overview')
+    },
+    loansOverviewDemo
+  )
 }
 
 export async function getLoanPayments(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/loans/payments?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch loan payments')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/loans/payments?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch loan payments')
+    },
+    loanPaymentsDemo
+  )
 }
 
 // ── Negotiations ──────────────────────────────────────────────────
 
+const negotiationsOverviewDemo = {
+  active_negotiations: 0,
+  total_value: 0,
+}
+
 export async function getNegotiationsOverview(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/negotiations/overview?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch negotiations overview')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/negotiations/overview?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch negotiations overview')
+    },
+    negotiationsOverviewDemo
+  )
 }
 
 // ── Revenue (superadmin) ──────────────────────────────────────────
 
+const revenueOverviewDemo = {
+  total_revenue: 0,
+  active_users: 0,
+}
+
+const revenueSubscribersDemo = []
+
 export async function getRevenueOverview(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/revenue/overview?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch revenue overview')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/revenue/overview?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch revenue overview')
+    },
+    revenueOverviewDemo
+  )
 }
 
 export async function getRevenueSubscribers(token: string, params?: Record<string, string>) {
-  const qs = new URLSearchParams(params || {})
-  const res = await fetch(`${BASE_URL}/api/analytics/revenue/subscribers?${qs}`, {
-    headers: authHeaders(token),
-  })
-  return handleResponse(res, 'Failed to fetch revenue subscribers')
+  return withDemoFallback(
+    async () => {
+      const qs = new URLSearchParams(params || {})
+      const res = await fetch(`${BASE_URL}/api/analytics/revenue/subscribers?${qs}`, {
+        headers: authHeaders(token),
+      })
+      return handleResponse(res, 'Failed to fetch revenue subscribers')
+    },
+    revenueSubscribersDemo
+  )
 }
 
 // ── Exports ───────────────────────────────────────────────────────
