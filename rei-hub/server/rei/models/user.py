@@ -641,6 +641,8 @@ class SmsCampaign(Base):
     message_template: Mapped[str] = mapped_column(Text)
     phone_number_id: Mapped[str] = mapped_column(ForeignKey("phone_numbers.id"))
     list_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_numbers: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # JSON list of phone numbers, e.g. '["+15551234567","+15559876543"]'
     status: Mapped[str] = mapped_column(String, default="draft")
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

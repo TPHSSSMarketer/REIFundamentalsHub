@@ -700,6 +700,7 @@ function SmsTab() {
   const [campName, setCampName] = useState('')
   const [campNumberId, setCampNumberId] = useState('')
   const [campTemplate, setCampTemplate] = useState('')
+  const [campContactNumbers, setCampContactNumbers] = useState('')
   const [campSaving, setCampSaving] = useState(false)
 
   useEffect(() => {
@@ -762,19 +763,33 @@ function SmsTab() {
     }
     setCampSaving(true)
     try {
+      // Parse contact numbers from textarea (one per line or comma-separated)
+      const parsedNumbers = campContactNumbers
+        .split(/[\n,]+/)
+        .map((n) => n.trim())
+        .filter(Boolean)
+
+      if (sendNow && parsedNumbers.length === 0) {
+        toast.error('Please enter at least one phone number to send to')
+        setCampSaving(false)
+        return
+      }
+
       const result = await phoneApi.createSmsCampaign({
         name: campName,
         message_template: campTemplate,
         phone_number_id: campNumberId,
+        contact_numbers: parsedNumbers.length > 0 ? parsedNumbers : undefined,
       })
       if (sendNow && result.id) {
         await phoneApi.sendSmsCampaign(result.id as string)
-        toast.success('Campaign created and sending!')
+        toast.success(`Campaign sending to ${parsedNumbers.length} contacts!`)
       } else {
         toast.success('Campaign saved as draft')
       }
       setCampName('')
       setCampTemplate('')
+      setCampContactNumbers('')
       setShowCampaignForm(false)
       loadData()
     } catch (e: any) {
@@ -933,6 +948,19 @@ function SmsTab() {
                 <option key={n.id} value={n.id}>{n.friendly_name} ({n.number})</option>
               ))}
             </select>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Recipient Phone Numbers</label>
+              <textarea
+                rows={3}
+                value={campContactNumbers}
+                onChange={(e) => setCampContactNumbers(e.target.value)}
+                placeholder="Enter phone numbers (one per line or comma-separated)&#10;+15551234567&#10;+15559876543"
+                className="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                {campContactNumbers.split(/[\n,]+/).filter((n) => n.trim()).length} numbers entered
+              </p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Message Template</label>
               <textarea

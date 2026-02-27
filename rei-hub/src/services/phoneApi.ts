@@ -459,6 +459,7 @@ export async function createSmsCampaign(data: {
   message_template: string
   phone_number_id: string
   list_id?: string
+  contact_numbers?: string[]
   scheduled_at?: string
 }) {
   return withDemoFallback(

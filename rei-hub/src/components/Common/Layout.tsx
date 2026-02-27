@@ -5,6 +5,7 @@ import NewDealModal from './NewDealModal'
 import NewContactModal from './NewContactModal'
 import SMSModal from './SMSModal'
 import TrialBanner from './TrialBanner'
+import Softphone from '@/components/Phone/Softphone'
 import { useStore } from '@/hooks/useStore'
 import { useDemoMode } from '@/hooks/useDemoMode'
 import { Beaker, X } from 'lucide-react'
@@ -59,6 +60,9 @@ export default function Layout({ children }: LayoutProps) {
       <NewDealModal />
       <NewContactModal />
       <SMSModal />
+
+      {/* Floating Softphone Widget */}
+      <Softphone />
     </div>
   )
 }

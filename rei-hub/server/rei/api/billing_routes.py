@@ -407,8 +407,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 async def _handle_stripe_checkout_completed(data_object: dict, db: AsyncSession) -> None:
     metadata = data_object.get("metadata", {})
     user_id = metadata.get("user_id")
-    subscription_id = data_object.get("subscription")
-    customer_id = data_object.get("customer")
+    checkout_type = metadata.get("type", "subscription")
 
     if not user_id:
         logger.warning("checkout.session.completed: no user_id in metadata")
@@ -419,6 +418,23 @@ async def _handle_stripe_checkout_completed(data_object: dict, db: AsyncSession)
     if not user:
         logger.warning("checkout.session.completed: user %s not found", user_id)
         return
+
+    # ── Phone credits purchase ──────────────────────────────────────
+    if checkout_type == "phone_credits":
+        credits_cents = int(metadata.get("credits_cents", "0"))
+        bundle = metadata.get("bundle", "unknown")
+        if credits_cents > 0:
+            user.phone_credits_cents = (user.phone_credits_cents or 0) + credits_cents
+            await db.commit()
+            logger.info(
+                "User %s purchased phone credits: bundle=%s, credits_cents=%d, new_balance=%d",
+                user_id, bundle, credits_cents, user.phone_credits_cents,
+            )
+        return
+
+    # ── Subscription checkout (original logic) ──────────────────────
+    subscription_id = data_object.get("subscription")
+    customer_id = data_object.get("customer")
 
     # Read plan details from subscription metadata
     sub_metadata = data_object.get("subscription_data", {}).get("metadata", metadata)

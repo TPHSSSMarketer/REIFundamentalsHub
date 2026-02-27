@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -96,6 +97,7 @@ class CreateSmsCampaignRequest(BaseModel):
     message_template: str
     phone_number_id: str
     list_id: Optional[str] = None
+    contact_numbers: Optional[list[str]] = None  # list of phone numbers to send to
     scheduled_at: Optional[str] = None
 
 
@@ -745,6 +747,7 @@ async def create_sms_campaign(
         message_template=body.message_template,
         phone_number_id=body.phone_number_id,
         list_id=body.list_id,
+        contact_numbers=json.dumps(body.contact_numbers) if body.contact_numbers else None,
     )
     if body.scheduled_at:
         campaign.scheduled_at = datetime.fromisoformat(body.scheduled_at)
@@ -768,12 +771,126 @@ async def send_sms_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # Parse contact numbers from the campaign
+    numbers: list[str] = []
+    if campaign.contact_numbers:
+        try:
+            numbers = json.loads(campaign.contact_numbers)
+        except json.JSONDecodeError:
+            pass
+
+    if not numbers:
+        raise HTTPException(status_code=400, detail="No contact numbers in campaign")
+
+    # Get the from-number
+    pn_result = await db.execute(
+        select(PhoneNumber).where(
+            PhoneNumber.id == campaign.phone_number_id,
+            PhoneNumber.user_id == user.id,
+        )
+    )
+    phone = pn_result.scalar_one_or_none()
+    if not phone:
+        raise HTTPException(status_code=404, detail="Phone number not found")
+
+    # Estimate cost
+    estimated_cost = len(numbers) * PHONE_PRICING["outbound_sms"]
+
     campaign.status = "sending"
     campaign.sent_at = datetime.utcnow()
     await db.commit()
 
-    # Actual sending would be handled by a background task
-    return {"queued": 0, "estimated_cost": 0.00, "campaign_id": campaign.id}
+    # Launch background task to send each SMS
+    asyncio.create_task(
+        _bg_send_sms_campaign(
+            campaign_id=campaign.id,
+            user_id=user.id,
+            from_number=phone.number,
+            phone_number_id=phone.id,
+            subaccount_sid=user.twilio_subaccount_sid or settings.twilio_account_sid,
+            message_template=campaign.message_template,
+            numbers=numbers,
+        )
+    )
+
+    return {
+        "queued": len(numbers),
+        "estimated_cost": round(estimated_cost, 2),
+        "campaign_id": campaign.id,
+    }
+
+
+async def _bg_send_sms_campaign(
+    campaign_id: str,
+    user_id: int,
+    from_number: str,
+    phone_number_id: str,
+    subaccount_sid: str,
+    message_template: str,
+    numbers: list[str],
+) -> None:
+    """Background task: iterate through numbers and send SMS via Twilio."""
+    from rei.database import async_session_factory
+
+    sent = 0
+    total_cost = 0.0
+
+    async with async_session_factory() as db:
+        try:
+            # Fetch user for credit deduction
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            if not user:
+                logger.error("SMS campaign %s: user %s not found", campaign_id, user_id)
+                return
+
+            for to_number in numbers:
+                to_number = to_number.strip()
+                if not to_number:
+                    continue
+
+                try:
+                    result = await twilio_service.send_sms(
+                        from_number, to_number, message_template, subaccount_sid, settings
+                    )
+
+                    # Deduct SMS from allotment/credits
+                    cost = _deduct_sms(user)
+                    total_cost += cost
+
+                    # Log the message
+                    sms = SmsMessage(
+                        user_id=user_id,
+                        phone_number_id=phone_number_id,
+                        twilio_message_sid=result.get("message_sid", ""),
+                        direction="outbound",
+                        from_number=from_number,
+                        to_number=to_number,
+                        body=message_template,
+                        status="sent",
+                        cost=cost,
+                    )
+                    db.add(sms)
+                    sent += 1
+
+                except Exception as exc:
+                    logger.warning("SMS campaign %s: failed to send to %s: %s", campaign_id, to_number, exc)
+
+            # Update campaign totals
+            camp_result = await db.execute(
+                select(SmsCampaign).where(SmsCampaign.id == campaign_id)
+            )
+            campaign = camp_result.scalar_one_or_none()
+            if campaign:
+                campaign.total_sent = sent
+                campaign.cost = total_cost
+                campaign.status = "sent" if sent > 0 else "failed"
+
+            await db.commit()
+            logger.info("SMS campaign %s: sent %d/%d messages", campaign_id, sent, len(numbers))
+
+        except Exception:
+            logger.exception("SMS campaign %s: background task failed", campaign_id)
 
 
 # ── VOICEMAIL DROPS ───────────────────────────────────────────────────
@@ -1084,14 +1201,24 @@ async def purchase_credits(
     if not bundle:
         raise HTTPException(status_code=400, detail="Invalid bundle name")
 
-    # In production, create Stripe checkout session and handle via webhook
-    # For now, simulate immediate purchase
+    # Demo mode: if no Stripe key configured, return demo checkout URL
+    if not settings.stripe_secret_key:
+        logger.info("Credits purchase (demo mode): bundle=%s user=%s", body.bundle, user.id)
+        return {"checkout_url": "#demo-checkout"}
+
     import stripe
 
     stripe.api_key = settings.stripe_secret_key
 
+    # If user doesn't have a Stripe customer ID yet, create one
     if not user.stripe_customer_id:
-        raise HTTPException(status_code=400, detail="No Stripe customer. Complete billing setup first.")
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=user.full_name or user.email,
+            metadata={"user_id": str(user.id)},
+        )
+        user.stripe_customer_id = customer.id
+        await db.commit()
 
     checkout_session = stripe.checkout.Session.create(
         customer=user.stripe_customer_id,
@@ -1103,6 +1230,7 @@ async def purchase_credits(
                     "unit_amount": bundle["price_cents"],
                     "product_data": {
                         "name": f"Phone Credits - {body.bundle.title()} Pack",
+                        "description": f"${bundle['credits_cents'] / 100:.2f} in phone credits",
                     },
                 },
                 "quantity": 1,
