@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { X, DollarSign } from 'lucide-react'
+import { X, DollarSign, ChevronDown, ChevronUp, Percent } from 'lucide-react'
 import { useCreateDeal } from '@/hooks/useApi'
 import type { Deal, Contact } from '@/types'
 
@@ -36,6 +36,16 @@ export default function NewDealModal({ isOpen, onClose, contacts }: NewDealModal
   const [contactId, setContactId] = useState('')
   const [contactSearch, setContactSearch] = useState('')
   const [showContactDropdown, setShowContactDropdown] = useState(false)
+  const [offerPrice, setOfferPrice] = useState('')
+  const [downPayment, setDownPayment] = useState('')
+  const [earnestMoney, setEarnestMoney] = useState('')
+  const [closingCostsBuyer, setClosingCostsBuyer] = useState('')
+  const [loanAmount, setLoanAmount] = useState('')
+  const [interestRate, setInterestRate] = useState('')
+  const [loanTermMonths, setLoanTermMonths] = useState('360')
+  const [propertyTaxAnnual, setPropertyTaxAnnual] = useState('')
+  const [insuranceAnnual, setInsuranceAnnual] = useState('')
+  const [showFinancials, setShowFinancials] = useState(false)
   const [source, setSource] = useState('')
   const [notes, setNotes] = useState('')
   const [isUrgent, setIsUrgent] = useState(false)
@@ -63,6 +73,16 @@ export default function NewDealModal({ isOpen, onClose, contacts }: NewDealModal
     setContactId('')
     setContactSearch('')
     setShowContactDropdown(false)
+    setOfferPrice('')
+    setDownPayment('')
+    setEarnestMoney('')
+    setClosingCostsBuyer('')
+    setLoanAmount('')
+    setInterestRate('')
+    setLoanTermMonths('360')
+    setPropertyTaxAnnual('')
+    setInsuranceAnnual('')
+    setShowFinancials(false)
     setSource('')
     setNotes('')
     setIsUrgent(false)
@@ -102,6 +122,15 @@ export default function NewDealModal({ isOpen, onClose, contacts }: NewDealModal
         monthlyRent: monthlyRent ? parseFloat(monthlyRent) : undefined,
         contactId: contactId || undefined,
         contactName: selectedContact?.name,
+        offerPrice: offerPrice ? parseFloat(offerPrice) : undefined,
+        downPayment: downPayment ? parseFloat(downPayment) : undefined,
+        earnestMoney: earnestMoney ? parseFloat(earnestMoney) : undefined,
+        closingCostsBuyer: closingCostsBuyer ? parseFloat(closingCostsBuyer) : undefined,
+        loanAmount: loanAmount ? parseFloat(loanAmount) : undefined,
+        interestRate: interestRate ? parseFloat(interestRate) : undefined,
+        loanTermMonths: loanTermMonths ? parseInt(loanTermMonths) : undefined,
+        propertyTaxAnnual: propertyTaxAnnual ? parseFloat(propertyTaxAnnual) : undefined,
+        insuranceAnnual: insuranceAnnual ? parseFloat(insuranceAnnual) : undefined,
         source: source.trim() || undefined,
         notes: notes.trim() || undefined,
         isUrgent,
@@ -288,6 +317,179 @@ export default function NewDealModal({ isOpen, onClose, contacts }: NewDealModal
                 className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
               />
             </div>
+          </div>
+
+          {/* ── Financial Details (collapsible) ── */}
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowFinancials(!showFinancials)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+            >
+              <span className="text-sm font-semibold text-slate-700">
+                Financial Details
+                <span className="ml-2 text-xs font-normal text-slate-400">(optional)</span>
+              </span>
+              {showFinancials ? (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              )}
+            </button>
+
+            {showFinancials && (
+              <div className="p-4 space-y-4 border-t border-slate-200">
+                {/* Offer Price */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Offer Price</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="number"
+                      value={offerPrice}
+                      onChange={(e) => setOfferPrice(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Down Payment / Earnest Money */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Down Payment</label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={downPayment}
+                        onChange={(e) => setDownPayment(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Earnest Money</label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={earnestMoney}
+                        onChange={(e) => setEarnestMoney(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Closing Costs / Loan Amount */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Closing Costs</label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={closingCostsBuyer}
+                        onChange={(e) => setClosingCostsBuyer(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Loan Amount</label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={loanAmount}
+                        onChange={(e) => setLoanAmount(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interest Rate / Loan Term */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={interestRate}
+                        onChange={(e) => setInterestRate(e.target.value)}
+                        placeholder="7.0"
+                        min="0"
+                        step="0.125"
+                        className="w-full pl-3 pr-9 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                      <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Loan Term</label>
+                    <select
+                      value={loanTermMonths}
+                      onChange={(e) => setLoanTermMonths(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    >
+                      <option value="360">30 years</option>
+                      <option value="240">20 years</option>
+                      <option value="180">15 years</option>
+                      <option value="120">10 years</option>
+                      <option value="60">5 years</option>
+                      <option value="12">1 year</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Property Tax / Insurance */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Property Tax <span className="text-xs text-slate-400">/yr</span></label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={propertyTaxAnnual}
+                        onChange={(e) => setPropertyTaxAnnual(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Insurance <span className="text-xs text-slate-400">/yr</span></label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="number"
+                        value={insuranceAnnual}
+                        onChange={(e) => setInsuranceAnnual(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 italic">
+                  You can add more details later on the Expenditures tab.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Contact (searchable) */}
