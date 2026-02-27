@@ -174,16 +174,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — allow hub frontend + any origin for public lead capture form submissions
 if settings.environment == "development":
     _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 else:
     _cors_origins = [settings.hub_url]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # Public form submissions need any origin
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -217,6 +217,15 @@ async def rate_limit_middleware(request: Request, call_next):
                 content={"detail": "Too many AI requests. Please try again in 1 minute."},
             )
 
+    # Lead form submissions: 10 per minute per IP (also rate-limited in the route)
+    if path.endswith("/submit") and path.startswith("/sites/") and method == "POST":
+        if not check_rate_limit(rl_ip_key(ip, "lead_submit"), max_requests=10, window_seconds=60):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many submissions. Please try again later."},
+            )
+
     # General rate limit: 100 requests/minute per IP
     if not check_rate_limit(rl_ip_key(ip, "general"), max_requests=100, window_seconds=60):
         from fastapi.responses import JSONResponse
@@ -232,14 +241,18 @@ async def rate_limit_middleware(request: Request, call_next):
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
+    path = request.url.path
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = (
         "geolocation=(), microphone=(), camera=()"
     )
-    # Don't add CSP here — breaks Stripe and other third-party scripts
+    # Public lead capture sites should be embeddable; API routes should not
+    if path.startswith("/sites/"):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    else:
+        response.headers["X-Frame-Options"] = "DENY"
     return response
 
 
