@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import { toast } from 'sonner'
 import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, helmSaveContentToCloud, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
 import PublishHistory, { PublishEntry } from './PublishHistory'
@@ -387,7 +388,7 @@ export default function ContentHub() {
           <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
             {activeTab === 'blog_post' ? (
               <div
-                dangerouslySetInnerHTML={{ __html: waterfall[activeTab] }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(waterfall[activeTab]) }}
                 className="prose prose-sm max-w-none"
               />
             ) : (

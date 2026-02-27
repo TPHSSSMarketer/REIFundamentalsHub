@@ -3,6 +3,7 @@ import {
   Globe, List, Send, GitBranch, FileText, Plus, Trash2, Check,
   Copy, ChevronDown, Upload, Eye, Code, X, BarChart3, Clock, Play, Pause,
 } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import * as api from '@/services/emailMarketingApi'
 
 // ── Types ─────────────────────────────────────────────────────
@@ -615,7 +616,7 @@ function CampaignsTab() {
           {!previewMode ? (
             <textarea rows={10} placeholder="HTML content..." value={form.html_content} onChange={(e) => setForm({ ...form, html_content: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono" />
           ) : (
-            <div className="border border-slate-300 rounded-lg p-4 min-h-[200px] prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: form.html_content }} />
+            <div className="border border-slate-300 rounded-lg p-4 min-h-[200px] prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(form.html_content) }} />
           )}
 
           <textarea rows={3} placeholder="Plain text version (optional)" value={form.plain_text} onChange={(e) => setForm({ ...form, plain_text: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />

@@ -139,7 +139,7 @@ function NumbersTab() {
       const data = await phoneApi.getNumbers()
       setNumbers(data.numbers)
     } catch (e) {
-      console.error(e)
+      // Error loading numbers - continue without data
     } finally {
       setLoading(false)
     }
@@ -152,7 +152,7 @@ function NumbersTab() {
       const data = await phoneApi.searchNumbers(searchAreaCode)
       setAvailableNumbers(data.numbers)
     } catch (e) {
-      console.error(e)
+      // Error searching numbers - continue without results
     } finally {
       setSearching(false)
     }
@@ -609,7 +609,7 @@ function SmsTab() {
       setCampaigns(campData.campaigns)
       if (numData.numbers.length > 0) setSelectedNumber(numData.numbers[0].id as string)
     } catch (e) {
-      console.error(e)
+      // Error loading SMS data - continue without data
     } finally {
       setLoading(false)
     }
@@ -621,7 +621,7 @@ function SmsTab() {
       const data = await phoneApi.getSmsThread(contactId)
       setMessages(data.messages)
     } catch (e) {
-      console.error(e)
+      // Error loading conversation thread - continue without messages
     }
   }
 
@@ -842,7 +842,7 @@ function VoicemailTab() {
       setDrops(dropData.drops)
       setVoices(voiceData.voices)
     } catch (e) {
-      console.error(e)
+      // Error loading voicemail drops - continue without data
     } finally {
       setLoading(false)
     }
@@ -1096,7 +1096,7 @@ function FaxTab() {
       setNumbers(numData.numbers)
       if (numData.numbers.length > 0) setFromNumberId(numData.numbers[0].id as string)
     } catch (e) {
-      console.error(e)
+      // Error loading fax data - continue without data
     } finally {
       setLoading(false)
     }

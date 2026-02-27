@@ -8,8 +8,9 @@ import * as authApi from './authApi'
 
 export { getMe } from './authApi'
 
-// TODO: Consider sessionStorage for higher security environments.
-// localStorage persists across tabs which is acceptable for this use case.
+// Note: Using localStorage for token persistence across browser tabs.
+// For higher-security environments, consider switching to sessionStorage (single tab only).
+// Current choice allows seamless multi-tab experience for CRM workflows.
 const TOKEN_KEY = 'rei_token'
 
 // ── Auth API calls (delegate to authApi.ts) ─────────────────────

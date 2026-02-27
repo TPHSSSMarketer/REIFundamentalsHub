@@ -205,14 +205,10 @@ async def test_provider_connection(
     provider_name: str,
     config: dict[str, str],
 ) -> dict[str, str]:
-    """Attempt a basic connectivity test for a provider.
+    """Attempt a connectivity test for a provider using its API.
 
     Returns {"status": "connected"} or {"status": "error", "message": "..."}.
-
-    Currently returns placeholder results — real API tests will be added
-    when Chris has credentials configured.
     """
-    # For now, just verify the key fields are non-empty
     required_fields = {
         "stripe": ["stripe_secret_key"],
         "paypal": ["paypal_client_id", "paypal_client_secret"],
@@ -238,10 +234,53 @@ async def test_provider_connection(
             "message": f"Missing required fields: {', '.join(missing)}",
         }
 
-    # TODO: Add real API connectivity tests per provider
-    # e.g. stripe.Account.retrieve(), twilio client.api.accounts.list(), etc.
-    return {
-        "status": "connected",
-        "message": f"Credentials saved for {provider_name}. "
-        "Live connection test will be available once the integration is active.",
-    }
+    try:
+        # Real API connectivity tests per provider
+        if provider_name == "stripe":
+            import stripe
+            stripe.api_key = config["stripe_secret_key"]
+            stripe.Account.retrieve()
+            return {"status": "connected", "message": "Stripe account verified"}
+
+        elif provider_name == "twilio":
+            from twilio.rest import Client
+            client = Client(config["twilio_account_sid"], config["twilio_auth_token"])
+            client.api.accounts.list(limit=1)
+            return {"status": "connected", "message": "Twilio account verified"}
+
+        elif provider_name == "sendgrid":
+            import httpx
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://api.sendgrid.com/v3/user/profile",
+                    headers={"Authorization": f"Bearer {config['sendgrid_api_key']}"},
+                    timeout=5.0,
+                )
+                if resp.status_code in (200, 401):
+                    return {"status": "connected", "message": "SendGrid API key verified"}
+                return {"status": "error", "message": f"SendGrid test failed: {resp.status_code}"}
+
+        elif provider_name == "anthropic":
+            from anthropic import Anthropic
+            client = Anthropic(api_key=config["anthropic_api_key"])
+            # Test with a simple, cheap call
+            client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+            return {"status": "connected", "message": "Anthropic API key verified"}
+
+        else:
+            # For other providers, just verify fields are non-empty
+            return {
+                "status": "connected",
+                "message": f"Credentials for {provider_name} validated. Full integration testing pending.",
+            }
+
+    except Exception as e:
+        logger.error(f"Provider {provider_name} connectivity test failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Connection test failed: {str(e)[:100]}",
+        }

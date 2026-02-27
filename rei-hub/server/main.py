@@ -13,6 +13,8 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from rei.services.security import check_rate_limit, rl_ip_key
+
 from rei.api.admin_routes import admin_router
 from rei.api.ai_routes import ai_router
 from rei.api.analytics_routes import router as analytics_router
@@ -182,6 +184,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Apply rate limiting based on endpoint and IP address."""
+    ip = request.client.host if request.client else "unknown"
+    path = request.url.path
+    method = request.method
+
+    # Skip health check
+    if path == "/health":
+        return await call_next(request)
+
+    # Auth endpoints: 5 requests/minute per IP
+    if path.startswith("/api/auth/") and method in ["POST"]:
+        if not check_rate_limit(rl_ip_key(ip, "auth"), max_requests=5, window_seconds=60):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many authentication attempts. Please try again in 1 minute."},
+            )
+
+    # AI endpoints: 20 requests/minute per IP
+    if path.startswith("/api/ai/") and method in ["POST"]:
+        if not check_rate_limit(rl_ip_key(ip, "ai"), max_requests=20, window_seconds=60):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many AI requests. Please try again in 1 minute."},
+            )
+
+    # General rate limit: 100 requests/minute per IP
+    if not check_rate_limit(rl_ip_key(ip, "general"), max_requests=100, window_seconds=60):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please try again in 1 minute."},
+        )
+
+    response = await call_next(request)
+    return response
 
 
 @app.middleware("http")

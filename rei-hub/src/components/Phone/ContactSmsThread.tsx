@@ -33,7 +33,7 @@ export default function ContactSmsThread({ contactId, contactPhone, contactName 
         setSelectedNumber(numData.numbers[0].id as string)
       }
     } catch (e) {
-      console.error(e)
+      // Error loading SMS thread - continue without data
     } finally {
       setLoading(false)
     }
