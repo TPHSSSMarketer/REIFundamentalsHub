@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+  <!-- House shape -->
+  <g transform="translate(10, 8) scale(0.85)">
+    <!-- House body -->
+    <path d="M15 45 L50 15 L85 45 L85 85 L15 85 Z" fill="#1a2b4a" opacity="0.9"/>
+    <!-- Roof -->
+    <path d="M10 48 L50 10 L90 48" fill="none" stroke="#1a2b4a" stroke-width="4" stroke-linecap="round"/>
+    <!-- Chimney -->
+    <rect x="70" y="20" width="10" height="20" fill="#1a2b4a"/>
+    <!-- Door -->
+    <rect x="40" y="58" width="20" height="27" rx="2" fill="#cc0000" opacity="0.85"/>
+    <!-- Network nodes overlay -->
+    <circle cx="30" cy="40" r="5" fill="#cc0000"/>
+    <circle cx="50" cy="55" r="5" fill="#1a2b4a"/>
+    <circle cx="70" cy="40" r="5" fill="#cc0000"/>
+    <circle cx="40" cy="70" r="4" fill="#cc0000"/>
+    <circle cx="60" cy="70" r="4" fill="#1a2b4a"/>
+    <circle cx="50" cy="30" r="4" fill="#cc0000"/>
+    <!-- Network lines -->
+    <line x1="30" y1="40" x2="50" y2="55" stroke="#cc0000" stroke-width="2" opacity="0.6"/>
+    <line x1="70" y1="40" x2="50" y2="55" stroke="#cc0000" stroke-width="2" opacity="0.6"/>
+    <line x1="30" y1="40" x2="50" y2="30" stroke="#1a2b4a" stroke-width="2" opacity="0.6"/>
+    <line x1="70" y1="40" x2="50" y2="30" stroke="#1a2b4a" stroke-width="2" opacity="0.6"/>
+    <line x1="40" y1="70" x2="60" y2="70" stroke="#cc0000" stroke-width="2" opacity="0.6"/>
+    <line x1="30" y1="40" x2="70" y2="40" stroke="#1a2b4a" stroke-width="1.5" opacity="0.4"/>
+  </g>
+  <!-- Text -->
+  <text x="100" y="42" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="28">
+    <tspan fill="#1a2b4a">REI </tspan><tspan fill="#cc0000">Fundamentals</tspan>
+  </text>
+  <text x="100" y="78" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="38" fill="#1a2b4a">Hub</text>
+  <!-- Tagline -->
+  <text x="100" y="95" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#888888" letter-spacing="0.5">Power Up Your Real Estate Business</text>
+</svg>
