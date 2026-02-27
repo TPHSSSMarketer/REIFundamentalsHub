@@ -75,10 +75,13 @@ export function isAuthenticated(): boolean {
 }
 
 /**
- * Check if the current JWT token is expired.
- * If expired, clear auth state and redirect to login.
- * Only redirects if the token actually has an exp claim and it's past.
+ * Check if the current JWT token is expired or about to expire.
+ * If within 5 minutes of expiry, attempt a background refresh.
+ * If already expired and refresh fails, clear auth state and redirect.
  */
+let _refreshing: Promise<void> | null = null
+const REFRESH_BUFFER_MS = 5 * 60 * 1000 // 5 minutes before expiry
+
 function checkTokenExpiry(): void {
   const token = getToken()
   if (!token) return
@@ -89,12 +92,35 @@ function checkTokenExpiry(): void {
     const payload = JSON.parse(
       atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
     )
-    if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
-      localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+    if (typeof payload.exp !== 'number') return
+
+    const expiresAtMs = payload.exp * 1000
+    const now = Date.now()
+
+    if (expiresAtMs < now) {
+      // Token already expired — try refresh, fallback to logout
+      if (!_refreshing) {
+        _refreshing = tryRefreshToken(token).finally(() => { _refreshing = null })
+      }
+    } else if (expiresAtMs - now < REFRESH_BUFFER_MS) {
+      // Token expiring soon — proactively refresh in background
+      if (!_refreshing) {
+        _refreshing = tryRefreshToken(token).finally(() => { _refreshing = null })
+      }
     }
   } catch {
     // Malformed token — don't redirect mid-session, let API call handle it
+  }
+}
+
+async function tryRefreshToken(currentToken: string): Promise<void> {
+  try {
+    const data = await authApi.refreshToken(currentToken)
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+  } catch {
+    // Refresh failed — force logout
+    localStorage.removeItem(TOKEN_KEY)
+    window.location.href = '/login'
   }
 }
 

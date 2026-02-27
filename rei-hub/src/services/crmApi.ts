@@ -3,24 +3,11 @@
 
 import type { Contact, Deal, PortfolioProperty } from '@/types'
 import { mockContacts, mockDeals } from '@/data/mockData'
+import { getAuthHeader } from '@/services/auth'
 
 // ── Configuration ─────────────────────────────────────────
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
-
-function getAuthHeader(): Record<string, string> {
-  try {
-    const stored = localStorage.getItem('rei-hub-auth')
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      const token = parsed?.state?.token
-      if (token) return { Authorization: `Bearer ${token}` }
-    }
-  } catch {
-    /* ignore */
-  }
-  return {}
-}
 
 // ── Demo Mode Helpers ──────────────────────────────────────
 

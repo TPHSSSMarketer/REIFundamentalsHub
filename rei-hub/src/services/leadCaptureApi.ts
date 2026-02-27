@@ -1,23 +1,11 @@
 // Lead Capture API — talks to the real FastAPI backend with demo fallback
 // All functions are async to match page component expectations
 
+import { getAuthHeader } from '@/services/auth'
+
 // ── Configuration ─────────────────────────────────────────
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
-
-function getAuthHeader(): Record<string, string> {
-  try {
-    const stored = localStorage.getItem('rei-hub-auth')
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      const token = parsed?.state?.token
-      if (token) return { Authorization: `Bearer ${token}` }
-    }
-  } catch {
-    /* ignore */
-  }
-  return {}
-}
 
 // ── Demo Mode Helpers ──────────────────────────────────────
 
@@ -398,9 +386,13 @@ export async function addLead(
 }
 
 export async function deleteLead(id: string): Promise<void> {
-  // Lead deletion not yet implemented in the backend
-  // This is a no-op for now
-  return
+  return withDemoFallback(async () => {
+    const res = await fetch(`${BASE_URL}/api/lead-capture/submissions/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeader(),
+    })
+    if (!res.ok) throw new Error('Failed to delete lead')
+  }, undefined)
 }
 
 export async function downloadWebsiteHTML(id: string): Promise<string> {

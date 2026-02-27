@@ -405,6 +405,35 @@ async def update_submission(
     return _submission_to_dict(sub)
 
 
+@lead_capture_router.delete("/submissions/{submission_id}")
+async def delete_submission(
+    submission_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a lead submission (hard delete)."""
+    result = await db.execute(
+        select(LeadSubmission).where(LeadSubmission.id == submission_id)
+    )
+    sub = result.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # Verify the site belongs to this user
+    site_result = await db.execute(
+        select(LeadCaptureSite).where(
+            LeadCaptureSite.id == sub.site_id,
+            LeadCaptureSite.user_id == user.id,
+        )
+    )
+    if not site_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    await db.delete(sub)
+    await db.commit()
+    return {"detail": "Lead deleted"}
+
+
 # ── Analytics Routes (auth required) ──────────────────────────────
 
 
