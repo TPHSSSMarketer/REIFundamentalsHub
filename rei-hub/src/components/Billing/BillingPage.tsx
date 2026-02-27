@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useDemoMode } from '@/hooks/useDemoMode'
 import {
   getBillingStatus,
   getPlans,
@@ -103,7 +104,9 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 /* ── Main Component ──────────────────────────────────────────── */
 
 export default function BillingPage() {
-  const { token } = useAuth()
+  const { token: authToken } = useAuth()
+  const { isDemoMode } = useDemoMode()
+  const token = authToken || (isDemoMode ? 'demo-token' : null)
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [plans, setPlans] = useState<Record<string, PlanInfo> | null>(null)
   const [trialDays, setTrialDays] = useState(7)
