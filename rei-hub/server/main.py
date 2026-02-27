@@ -218,7 +218,7 @@ async def rate_limit_middleware(request: Request, call_next):
             )
 
     # Lead form submissions: 10 per minute per IP (also rate-limited in the route)
-    if path.endswith("/submit") and path.startswith("/sites/") and method == "POST":
+    if path.endswith("/submit") and "/sites/" in path and method == "POST":
         if not check_rate_limit(rl_ip_key(ip, "lead_submit"), max_requests=10, window_seconds=60):
             from fastapi.responses import JSONResponse
             return JSONResponse(
@@ -249,7 +249,7 @@ async def security_headers_middleware(request: Request, call_next):
         "geolocation=(), microphone=(), camera=()"
     )
     # Public lead capture sites should be embeddable; API routes should not
-    if path.startswith("/sites/"):
+    if path.startswith("/sites/") or "/sites/" in path:
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
     else:
         response.headers["X-Frame-Options"] = "DENY"

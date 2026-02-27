@@ -13,6 +13,7 @@ import AIWebsiteBuilder from './AIWebsiteBuilder'
 // ── Configuration ─────────────────────────────────────────
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+const SITES_URL = import.meta.env.VITE_SITES_URL ?? BASE_URL
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -1100,7 +1101,7 @@ export default function LeadCaptureWebsitesPage() {
                         <td className="px-6 py-3 text-slate-600 text-sm">
                           {website.slug ? (
                             <a
-                              href={website.company_slug ? `${BASE_URL}/${website.company_slug}/sites/${website.slug}` : `${BASE_URL}/sites/${website.slug}`}
+                              href={website.company_slug ? `${SITES_URL}/${website.company_slug}/sites/${website.slug}` : `${SITES_URL}/sites/${website.slug}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-700 flex items-center gap-1"

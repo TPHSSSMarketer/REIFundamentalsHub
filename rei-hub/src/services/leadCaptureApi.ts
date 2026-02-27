@@ -1,4 +1,4 @@
-// localStorage-based Lead Capture API with REI demo data
+// Lead Capture API — talks to the real FastAPI backend with demo fallback
 // All functions are async to match page component expectations
 
 // ── Configuration ─────────────────────────────────────────
@@ -11,9 +11,11 @@ function getAuthHeader(): Record<string, string> {
     if (stored) {
       const parsed = JSON.parse(stored)
       const token = parsed?.state?.token
-      if (token) return { 'Authorization': `Bearer ${token}` }
+      if (token) return { Authorization: `Bearer ${token}` }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return {}
 }
 
@@ -92,6 +94,40 @@ export interface CapturedLead {
   address?: string
   message?: string
   capturedAt: string
+}
+
+// ── Helper: map backend response → PublishedWebsite ──────
+
+function mapSiteResponse(s: Record<string, unknown>): PublishedWebsite {
+  const config = (s.config ?? {}) as WebsiteConfig
+  return {
+    id: String(s.id),
+    name: (s.name as string) || config.company_name || '',
+    templateId: (s.template_type as string) || config.templateId || '',
+    config,
+    html: '', // HTML is rendered client-side; backend stores it in published_html
+    status: (s.status as 'draft' | 'published') || 'draft',
+    createdAt: (s.created_at as string) || new Date().toISOString(),
+    updatedAt: (s.updated_at as string) || new Date().toISOString(),
+    leadCount: (s.submission_count as number) || 0,
+    slug: s.slug as string | undefined,
+    company_slug: s.company_slug as string | undefined,
+  }
+}
+
+function mapSubmissionResponse(s: Record<string, unknown>, siteName: string): CapturedLead {
+  const formData = (s.form_data ?? {}) as Record<string, string>
+  return {
+    id: String(s.id),
+    websiteId: String(s.site_id),
+    websiteName: siteName,
+    name: (s.lead_name as string) || formData.name || undefined,
+    email: (s.lead_email as string) || formData.email || undefined,
+    phone: (s.lead_phone as string) || formData.phone || undefined,
+    address: (s.lead_address as string) || formData.address || undefined,
+    message: formData.message || undefined,
+    capturedAt: (s.submitted_at as string) || new Date().toISOString(),
+  }
 }
 
 // ── Demo Data ──────────────────────────────────────────────
@@ -201,95 +237,57 @@ const DEMO_LEADS: CapturedLead[] = [
   },
 ]
 
-// ── localStorage Helpers ───────────────────────────────────
-
-const WEBSITES_KEY = 'rei_lead_capture_websites'
-const LEADS_KEY = 'rei_lead_capture_leads'
-
-function getStoredWebsites(): PublishedWebsite[] {
-  try {
-    const stored = localStorage.getItem(WEBSITES_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-function setStoredWebsites(websites: PublishedWebsite[]): void {
-  localStorage.setItem(WEBSITES_KEY, JSON.stringify(websites))
-}
-
-function getStoredLeads(): CapturedLead[] {
-  try {
-    const stored = localStorage.getItem(LEADS_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-function setStoredLeads(leads: CapturedLead[]): void {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads))
-}
-
 // ── API Functions ──────────────────────────────────────────
 
 export async function getTemplates(): Promise<LeadCaptureTemplate[]> {
-  return withDemoFallback(async () => {
-    // In a real app, this would fetch from the server
-    // For now, templates are imported directly in the component
-    return []
-  }, [])
+  // Templates are imported directly in the component — this is a no-op
+  return []
 }
 
 export async function getWebsites(): Promise<PublishedWebsite[]> {
-  return withDemoFallback(
-    async () => {
-      const stored = getStoredWebsites()
-      return stored.length > 0 ? stored : DEMO_WEBSITES
-    },
-    DEMO_WEBSITES
-  )
+  return withDemoFallback(async () => {
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      headers: getAuthHeader(),
+    })
+    if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`)
+    const data = await res.json()
+    return (data as Record<string, unknown>[]).map(mapSiteResponse)
+  }, DEMO_WEBSITES)
 }
 
 export async function createWebsite(config: WebsiteConfig): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const id = `web-${Date.now()}`
-    const now = new Date().toISOString()
-
-    const website: PublishedWebsite = {
-      id,
-      name: config.company_name,
-      templateId: config.templateId,
-      config,
-      html: '<html>...</html>', // Will be generated on publish
-      status: 'draft',
-      createdAt: now,
-      updatedAt: now,
-      leadCount: 0,
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({
+        name: config.company_name,
+        template_type: config.templateId,
+        config,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error((err as Record<string, string>).detail || `Create failed: ${res.status}`)
     }
-
-    websites.push(website)
-    setStoredWebsites(websites)
-    return website
+    const data = await res.json()
+    return mapSiteResponse(data as Record<string, unknown>)
   }, {} as PublishedWebsite)
 }
 
 export async function updateWebsite(id: string, config: WebsiteConfig): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const index = websites.findIndex((w) => w.id === id)
-
-    if (index === -1) throw new Error('Website not found')
-
-    const website = websites[index]
-    website.config = config
-    website.updatedAt = new Date().toISOString()
-
-    websites[index] = website
-    setStoredWebsites(websites)
-    return website
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({
+        name: config.company_name,
+        config,
+      }),
+    })
+    if (!res.ok) throw new Error(`Update failed: ${res.status}`)
+    const data = await res.json()
+    return mapSiteResponse(data as Record<string, unknown>)
   }, {} as PublishedWebsite)
 }
 
@@ -298,116 +296,129 @@ export async function publishWebsite(
   generateHtml: (config: WebsiteConfig) => string
 ): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const index = websites.findIndex((w) => w.id === id)
+    // First get the latest site config from the server
+    const siteRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      headers: getAuthHeader(),
+    })
+    if (!siteRes.ok) throw new Error(`Failed to fetch sites: ${siteRes.status}`)
+    const sites = (await siteRes.json()) as Record<string, unknown>[]
+    const site = sites.find((s) => String(s.id) === id)
+    if (!site) throw new Error('Site not found')
 
-    if (index === -1) throw new Error('Website not found')
+    const config = site.config as WebsiteConfig
+    const html = generateHtml(config)
 
-    const website = websites[index]
-    let html = generateHtml(website.config)
-
-    // Replace all placeholders in HTML
-    html = html
-      .replace(/{{HEADLINE}}/g, website.config.headline)
-      .replace(/{{DESCRIPTION}}/g, website.config.description)
-      .replace(/{{COMPANY_NAME}}/g, website.config.company_name)
-      .replace(/{{PHONE}}/g, website.config.phone)
-      .replace(/{{EMAIL}}/g, website.config.email)
-      .replace(/{{PRIMARY_COLOR}}/g, website.config.primary_color)
-      .replace(/{{WEBHOOK_URL}}/g, website.config.webhook_url || 'https://example.com/webhooks/leads')
-
-    website.html = html
-    website.status = 'published'
-    website.updatedAt = new Date().toISOString()
-
-    websites[index] = website
-    setStoredWebsites(websites)
-    return website
+    // Send the generated HTML to the publish endpoint
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ html }),
+    })
+    if (!res.ok) throw new Error(`Publish failed: ${res.status}`)
+    const data = await res.json()
+    return mapSiteResponse(data as Record<string, unknown>)
   }, {} as PublishedWebsite)
 }
 
 export async function deleteWebsite(id: string): Promise<void> {
   return withDemoFallback(async () => {
-    let websites = getStoredWebsites()
-    websites = websites.filter((w) => w.id !== id)
-    setStoredWebsites(websites)
-
-    // Also delete associated leads
-    let leads = getStoredLeads()
-    leads = leads.filter((l) => l.websiteId !== id)
-    setStoredLeads(leads)
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeader(),
+    })
+    if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
   }, undefined)
 }
 
 export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
-  return withDemoFallback(
-    async () => {
-      const stored = getStoredLeads()
-      const leads = stored.length > 0 ? stored : DEMO_LEADS
+  return withDemoFallback(async () => {
+    // If a specific website is requested, fetch submissions for it
+    if (websiteId) {
+      const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${websiteId}/submissions`, {
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error(`Failed to fetch submissions: ${res.status}`)
+      const data = (await res.json()) as Record<string, unknown>[]
+      // We need the site name — fetch sites list
+      const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+        headers: getAuthHeader(),
+      })
+      const sites = sitesRes.ok ? ((await sitesRes.json()) as Record<string, unknown>[]) : []
+      const site = sites.find((s) => String(s.id) === websiteId)
+      const siteName = (site?.name as string) || 'Unknown Site'
+      return data.map((s) => mapSubmissionResponse(s, siteName))
+    }
 
-      if (websiteId) {
-        return leads.filter((l) => l.websiteId === websiteId)
+    // No specific site — fetch submissions for ALL sites
+    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      headers: getAuthHeader(),
+    })
+    if (!sitesRes.ok) throw new Error(`Failed to fetch sites: ${sitesRes.status}`)
+    const sites = (await sitesRes.json()) as Record<string, unknown>[]
+
+    const allLeads: CapturedLead[] = []
+    for (const site of sites) {
+      try {
+        const res = await fetch(
+          `${BASE_URL}/api/lead-capture/sites/${site.id}/submissions`,
+          { headers: getAuthHeader() }
+        )
+        if (res.ok) {
+          const subs = (await res.json()) as Record<string, unknown>[]
+          const siteName = (site.name as string) || 'Unknown Site'
+          allLeads.push(...subs.map((s) => mapSubmissionResponse(s, siteName)))
+        }
+      } catch {
+        // Skip failed site fetches
       }
-      return leads
-    },
-    websiteId ? DEMO_LEADS.filter((l) => l.websiteId === websiteId) : DEMO_LEADS
-  )
+    }
+    return allLeads.sort(
+      (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime()
+    )
+  }, websiteId ? DEMO_LEADS.filter((l) => l.websiteId === websiteId) : DEMO_LEADS)
 }
 
-export async function addLead(websiteId: string, leadData: Omit<CapturedLead, 'id' | 'capturedAt'>): Promise<CapturedLead> {
-  return withDemoFallback(async () => {
-    const leads = getStoredLeads()
-    const id = `lead-${Date.now()}`
-    const now = new Date().toISOString()
-
-    const lead: CapturedLead = {
-      ...leadData,
-      id,
-      capturedAt: now,
-    }
-
-    leads.push(lead)
-    setStoredLeads(leads)
-
-    // Update website lead count
-    const websites = getStoredWebsites()
-    const website = websites.find((w) => w.id === websiteId)
-    if (website) {
-      website.leadCount += 1
-      setStoredWebsites(websites)
-    }
-
-    return lead
-  }, {} as CapturedLead)
+export async function addLead(
+  websiteId: string,
+  leadData: Omit<CapturedLead, 'id' | 'capturedAt'>
+): Promise<CapturedLead> {
+  // Leads are created through the public form submission endpoint, not the API
+  // This is kept for demo mode compatibility
+  return {
+    ...leadData,
+    id: `lead-${Date.now()}`,
+    capturedAt: new Date().toISOString(),
+  }
 }
 
 export async function deleteLead(id: string): Promise<void> {
-  return withDemoFallback(async () => {
-    let leads = getStoredLeads()
-    const lead = leads.find((l) => l.id === id)
-
-    leads = leads.filter((l) => l.id !== id)
-    setStoredLeads(leads)
-
-    // Update website lead count
-    if (lead) {
-      const websites = getStoredWebsites()
-      const website = websites.find((w) => w.id === lead.websiteId)
-      if (website && website.leadCount > 0) {
-        website.leadCount -= 1
-        setStoredWebsites(websites)
-      }
-    }
-  }, undefined)
+  // Lead deletion not yet implemented in the backend
+  // This is a no-op for now
+  return
 }
 
 export async function downloadWebsiteHTML(id: string): Promise<string> {
   return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const website = websites.find((w) => w.id === id)
+    // Fetch the site, get its slug, then fetch the published HTML
+    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      headers: getAuthHeader(),
+    })
+    if (!sitesRes.ok) throw new Error('Failed to fetch sites')
+    const sites = (await sitesRes.json()) as Record<string, unknown>[]
+    const site = sites.find((s) => String(s.id) === id)
+    if (!site) throw new Error('Site not found')
 
-    if (!website) throw new Error('Website not found')
-    return website.html
+    // Fetch the published HTML via the public endpoint
+    const slug = site.slug as string
+    if (!slug) throw new Error('Site has no slug')
+
+    const companySlug = site.company_slug as string
+    const url = companySlug
+      ? `${BASE_URL}/${companySlug}/sites/${slug}`
+      : `${BASE_URL}/sites/${slug}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Failed to fetch published HTML')
+    return res.text()
   }, '')
 }
 
@@ -416,7 +427,6 @@ export async function exportLeadsToCSV(websiteId?: string): Promise<string> {
 
   if (leads.length === 0) return ''
 
-  // Get all unique field names
   const fields = new Set<string>()
   leads.forEach((lead) => {
     Object.keys(lead).forEach((key) => {
@@ -438,55 +448,49 @@ export async function exportLeadsToCSV(websiteId?: string): Promise<string> {
 // ── Embed Code Generation ──────────────────────────────────────
 
 export async function generateEmbedCode(websiteId: string, config: WebsiteConfig): Promise<string> {
-  return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const website = websites.find((w) => w.id === websiteId)
-    if (!website) throw new Error('Website not found')
+  const embedId = `rei-form-${websiteId}`
+  const webhookUrl = config.webhook_url || `${BASE_URL}/sites/${config.slug}/submit`
 
-    // Generate a unique ID for this embed instance
-    const embedId = `rei-form-${websiteId}`
-    const webhookUrl = config.webhook_url || 'https://example.com/webhooks/leads'
-
-    const formFields = config.form_fields
-      .map((field) => {
-        switch (field) {
-          case 'name':
-            return `
+  const formFields = config.form_fields
+    .map((field) => {
+      switch (field) {
+        case 'name':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-name" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Full Name *</label>
           <input type="text" id="${embedId}-name" name="name" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'phone':
-            return `
+        case 'phone':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-phone" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Phone Number *</label>
           <input type="tel" id="${embedId}-phone" name="phone" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'email':
-            return `
+        case 'email':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-email" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Email Address *</label>
           <input type="email" id="${embedId}-email" name="email" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'address':
-            return `
+        case 'address':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-address" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Property Address</label>
           <input type="text" id="${embedId}-address" name="address" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'message':
-            return `
+        case 'message':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-message" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Tell Us About Your Property</label>
           <textarea id="${embedId}-message" name="message" rows="3" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
         </div>`
-          default:
-            return ''
-        }
-      })
-      .join('')
+        default:
+          return ''
+      }
+    })
+    .join('')
 
-    return `<!-- REI Fundamentals Hub Lead Capture Form -->
+  return `<!-- REI Fundamentals Hub Lead Capture Form -->
 <div id="${embedId}"></div>
 <script>
 (function() {
@@ -497,26 +501,21 @@ export async function generateEmbedCode(websiteId: string, config: WebsiteConfig
   const primaryColor = '${config.primary_color}';
   const webhookUrl = '${webhookUrl}';
 
-  // Create wrapper div
   const wrapper = document.createElement('div');
   wrapper.id = containerId + '-wrapper';
   wrapper.style.cssText = 'max-width: 400px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
 
-  // Create form
   const form = document.createElement('form');
   form.id = containerId + '-form';
   form.style.cssText = 'background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
 
-  // Title
   const title = document.createElement('h3');
   title.textContent = 'Get in Touch';
   title.style.cssText = 'margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #111827;';
   form.appendChild(title);
 
-  // Form fields HTML
   form.innerHTML += \`${formFields}\`;
 
-  // Submit button
   const submitBtn = document.createElement('button');
   submitBtn.type = 'submit';
   submitBtn.textContent = 'Submit';
@@ -525,28 +524,20 @@ export async function generateEmbedCode(websiteId: string, config: WebsiteConfig
   submitBtn.onmouseout = function() { this.style.opacity = '1'; };
   form.appendChild(submitBtn);
 
-  // Handle form submission
   form.onsubmit = function(e) {
     e.preventDefault();
-
     const formData = new FormData(form);
     const data = {};
-    formData.forEach((value, key) => {
-      data[key] = value;
-    });
+    formData.forEach((value, key) => { data[key] = value; });
 
-    // Try to send to webhook
     if (webhookUrl) {
       fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      }).catch(() => {
-        // Silently fail if webhook not available
-      });
+      }).catch(() => {});
     }
 
-    // Show thank you message
     form.style.display = 'none';
     const thankYou = document.createElement('div');
     thankYou.style.cssText = 'background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 24px; text-align: center; color: #166534;';
@@ -558,58 +549,52 @@ export async function generateEmbedCode(websiteId: string, config: WebsiteConfig
   container.appendChild(wrapper);
 })();
 </script>`
-  }, '')
 }
 
 export async function generateEmbedPopupCode(websiteId: string, config: WebsiteConfig): Promise<string> {
-  return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const website = websites.find((w) => w.id === websiteId)
-    if (!website) throw new Error('Website not found')
+  const embedId = `rei-popup-${websiteId}`
+  const webhookUrl = config.webhook_url || `${BASE_URL}/sites/${config.slug}/submit`
 
-    const embedId = `rei-popup-${websiteId}`
-    const webhookUrl = config.webhook_url || 'https://example.com/webhooks/leads'
-
-    const formFields = config.form_fields
-      .map((field) => {
-        switch (field) {
-          case 'name':
-            return `
+  const formFields = config.form_fields
+    .map((field) => {
+      switch (field) {
+        case 'name':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-name" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Full Name *</label>
           <input type="text" id="${embedId}-name" name="name" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'phone':
-            return `
+        case 'phone':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-phone" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Phone Number *</label>
           <input type="tel" id="${embedId}-phone" name="phone" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'email':
-            return `
+        case 'email':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-email" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Email Address *</label>
           <input type="email" id="${embedId}-email" name="email" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'address':
-            return `
+        case 'address':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-address" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Property Address</label>
           <input type="text" id="${embedId}-address" name="address" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
         </div>`
-          case 'message':
-            return `
+        case 'message':
+          return `
         <div style="margin-bottom: 16px;">
           <label for="${embedId}-message" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Tell Us About Your Property</label>
           <textarea id="${embedId}-message" name="message" rows="3" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
         </div>`
-          default:
-            return ''
-        }
-      })
-      .join('')
+        default:
+          return ''
+      }
+    })
+    .join('')
 
-    return `<!-- REI Fundamentals Hub Popup Lead Form -->
+  return `<!-- REI Fundamentals Hub Popup Lead Form -->
 <div id="${embedId}-button"></div>
 <script>
 (function() {
@@ -618,7 +603,6 @@ export async function generateEmbedPopupCode(websiteId: string, config: WebsiteC
   const primaryColor = '${config.primary_color}';
   const webhookUrl = '${webhookUrl}';
 
-  // Create button
   const buttonContainer = document.getElementById(buttonId);
   if (!buttonContainer) return;
 
@@ -628,36 +612,29 @@ export async function generateEmbedPopupCode(websiteId: string, config: WebsiteC
   button.onmouseover = function() { this.style.opacity = '0.9'; };
   button.onmouseout = function() { this.style.opacity = '1'; };
 
-  // Create modal
   const modal = document.createElement('div');
   modal.id = modalId;
   modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
 
-  // Modal content
   const modalContent = document.createElement('div');
   modalContent.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 20px 25px rgba(0,0,0,0.15); max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;';
 
-  // Close button
   const closeBtn = document.createElement('button');
   closeBtn.innerHTML = '&times;';
   closeBtn.style.cssText = 'position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;';
   closeBtn.onclick = () => { modal.style.display = 'none'; };
 
-  // Form
   const form = document.createElement('form');
   form.id = modalId + '-form';
   form.style.cssText = 'padding: 32px;';
 
-  // Title
   const title = document.createElement('h2');
   title.textContent = 'Get in Touch';
   title.style.cssText = 'margin: 0 0 24px 0; font-size: 20px; font-weight: 600; color: #111827;';
   form.appendChild(title);
 
-  // Fields
   form.innerHTML += \`${formFields}\`;
 
-  // Submit button
   const submitBtn = document.createElement('button');
   submitBtn.type = 'submit';
   submitBtn.textContent = 'Submit';
@@ -668,12 +645,9 @@ export async function generateEmbedPopupCode(websiteId: string, config: WebsiteC
 
   form.onsubmit = function(e) {
     e.preventDefault();
-
     const formData = new FormData(form);
     const data = {};
-    formData.forEach((value, key) => {
-      data[key] = value;
-    });
+    formData.forEach((value, key) => { data[key] = value; });
 
     if (webhookUrl) {
       fetch(webhookUrl, {
@@ -700,30 +674,35 @@ export async function generateEmbedPopupCode(websiteId: string, config: WebsiteC
   document.body.appendChild(modal);
 })();
 </script>`
-  }, '')
 }
 
 export async function updateCustomDomain(websiteId: string, domain: string): Promise<void> {
   return withDemoFallback(async () => {
-    const websites = getStoredWebsites()
-    const index = websites.findIndex((w) => w.id === websiteId)
+    // Update the config with the custom domain
+    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      headers: getAuthHeader(),
+    })
+    if (!sitesRes.ok) throw new Error('Failed to fetch sites')
+    const sites = (await sitesRes.json()) as Record<string, unknown>[]
+    const site = sites.find((s) => String(s.id) === websiteId)
+    if (!site) throw new Error('Site not found')
 
-    if (index === -1) throw new Error('Website not found')
-
-    const website = websites[index]
-    website.config.custom_domain = domain
-    website.updatedAt = new Date().toISOString()
-
-    websites[index] = website
-    setStoredWebsites(websites)
+    const config = { ...(site.config as WebsiteConfig), custom_domain: domain }
+    await fetch(`${BASE_URL}/api/lead-capture/sites/${websiteId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ config }),
+    })
   }, undefined)
 }
 
-export async function checkDomainStatus(domain: string): Promise<'not_configured' | 'pending' | 'active'> {
+export async function checkDomainStatus(
+  domain: string
+): Promise<'not_configured' | 'pending' | 'active'> {
   return withDemoFallback(async () => {
-    // In demo mode, always return active for demo sites
-    if (isDemoMode()) return 'active'
-    // In a real app, this would check DNS records
+    // In a real setup, this could check DNS records or a domain verification service
+    // For now, return not_configured unless it's our known subdomain
+    if (domain === 'sites.reifundamentalshub.com') return 'active'
     return 'not_configured'
   }, 'active')
 }
