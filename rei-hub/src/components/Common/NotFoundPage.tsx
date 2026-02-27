@@ -12,7 +12,7 @@ export default function NotFoundPage() {
           The page you're looking for doesn't exist.
         </p>
         <button
-          onClick={() => navigate('/pipeline')}
+          onClick={() => navigate('/dashboard')}
           className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
         >
           Go to Dashboard
