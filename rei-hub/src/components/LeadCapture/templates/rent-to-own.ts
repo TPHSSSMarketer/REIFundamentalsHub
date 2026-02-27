@@ -1,34 +1,64 @@
 import { TemplateConfig } from './index'
+import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
 
 export function generateHTML(config: TemplateConfig): string {
+  const color = config.primary_color || '#7c3aed'
+  const colorDark = adjustBrightness(color, -20)
+  const colorLight = adjustBrightness(color, 20)
+  const heroImage = heroImages.rent_to_own
+  const avatars = avatarImages.rent_to_own
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${config.company_name} - Rent-to-Own Homes</title>
+  <meta name="description" content="${config.description}">
+  <meta property="og:title" content="${config.headline}">
+  <meta property="og:description" content="${config.description}">
+  <meta property="og:image" content="${heroImage}">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="${color}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --primary: ${color};
+      --primary-dark: ${colorDark};
+      --primary-light: ${colorLight};
+      --primary-10: ${hexToRgba(color, 0.1)};
+      --primary-20: ${hexToRgba(color, 0.2)};
+      --accent: #f59e0b;
+      --text-dark: #1f2937;
+      --text-medium: #4b5563;
+      --text-light: #6b7280;
+      --bg-light: #f9fafb;
+      --bg-white: #ffffff;
+      --border: #e5e7eb;
+      --success: #10b981;
+      --star-color: #fbbf24;
     }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      color: #333;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-dark);
       line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
     }
 
+    /* ===== HEADER ===== */
     header {
-      background: white;
-      padding: 1.5rem 0;
-      border-bottom: 2px solid #7c3aed;
+      background: var(--bg-white);
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-
     .header-container {
       max-width: 1200px;
       margin: 0 auto;
@@ -37,547 +67,744 @@ export function generateHTML(config: TemplateConfig): string {
       justify-content: space-between;
       align-items: center;
     }
-
     .logo {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #7c3aed;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
-
-    .header-links {
+    .logo img { height: 40px; border-radius: 4px; }
+    .header-nav {
       display: flex;
       gap: 2rem;
       align-items: center;
     }
-
-    .header-links a {
+    .header-nav a {
       text-decoration: none;
-      color: #666;
+      color: var(--text-medium);
       font-size: 0.95rem;
+      font-weight: 500;
       transition: color 0.3s;
     }
-
-    .header-links a:hover {
-      color: #7c3aed;
-    }
-
+    .header-nav a:hover { color: var(--primary); }
     .header-phone {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 1.05rem;
+    }
+    .header-phone svg { width: 18px; height: 18px; }
+    .mobile-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-dark);
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-white);
+      z-index: 200;
+      padding: 2rem;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .mobile-menu.active { display: flex; }
+    .mobile-menu a {
+      font-size: 1.2rem;
+      color: var(--text-dark);
+      text-decoration: none;
       font-weight: 600;
-      color: #7c3aed;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mobile-close {
+      align-self: flex-end;
+      background: none;
+      border: none;
+      color: var(--text-dark);
+      cursor: pointer;
+      padding: 0.5rem;
     }
 
+    /* ===== HERO ===== */
     .hero {
-      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
-      color: white;
-      padding: 5rem 2rem;
+      background-image: url('${heroImage}');
+      background-size: cover;
+      background-position: center;
       position: relative;
-      overflow: hidden;
+      min-height: 650px;
+      display: flex;
+      align-items: center;
+      padding: 4rem 2rem;
     }
-
-    .hero::after {
+    .hero::before {
       content: '';
       position: absolute;
-      top: 10%;
-      right: -15%;
-      width: 500px;
-      height: 500px;
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 50%;
+      inset: 0;
+      background: linear-gradient(135deg, ${hexToRgba(color, 0.85)} 0%, rgba(0,0,0,0.6) 100%);
       z-index: 1;
     }
-
     .hero-container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 0 2rem;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.1fr 1fr;
       gap: 3rem;
       align-items: center;
       position: relative;
       z-index: 2;
+      width: 100%;
     }
-
-    .hero-content h1 {
-      font-size: 3rem;
-      font-weight: 800;
+    .hero-content { color: white; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(4px);
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
       margin-bottom: 1.5rem;
-      line-height: 1.2;
+      color: white;
     }
-
+    .hero-badge svg { width: 16px; height: 16px; }
+    .hero-content h1 {
+      font-size: 3.2rem;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
     .hero-content p {
       font-size: 1.2rem;
       margin-bottom: 2rem;
       opacity: 0.95;
+      line-height: 1.7;
+      max-width: 540px;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 2.5rem;
+      margin-top: 2rem;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat .number {
+      font-size: 2rem;
+      font-weight: 800;
+      display: block;
+    }
+    .hero-stat .label {
+      font-size: 0.85rem;
+      opacity: 0.85;
     }
 
-    .form-section {
-      background: white;
+    /* ===== FORM ===== */
+    .form-card {
+      background: var(--bg-white);
       padding: 2.5rem;
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      border-radius: 16px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.3);
     }
-
     .form-title {
-      color: #7c3aed;
-      font-size: 1.5rem;
+      color: var(--primary);
+      font-size: 1.4rem;
       font-weight: 700;
-      margin-bottom: 1.5rem;
+      margin-bottom: 0.5rem;
       text-align: center;
     }
-
-    .form-group {
-      margin-bottom: 1.2rem;
+    .form-subtitle {
+      color: var(--text-light);
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
     }
-
+    .form-group { margin-bottom: 1rem; }
     .form-group label {
       display: block;
-      color: #333;
+      color: var(--text-dark);
       font-weight: 600;
-      margin-bottom: 0.5rem;
-      font-size: 0.95rem;
+      margin-bottom: 0.4rem;
+      font-size: 0.9rem;
     }
-
-    .form-group input,
-    .form-group textarea {
+    .form-group input, .form-group textarea {
       width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      border: 2px solid var(--border);
+      border-radius: 10px;
       font-family: inherit;
       font-size: 1rem;
-      transition: border-color 0.3s;
+      transition: all 0.3s;
+      background: var(--bg-light);
     }
-
-    .form-group input:focus,
-    .form-group textarea:focus {
+    .form-group input:focus, .form-group textarea:focus {
       outline: none;
-      border-color: #7c3aed;
-      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--primary-10);
+      background: white;
     }
-
-    .form-group textarea {
-      resize: vertical;
-      min-height: 80px;
-    }
-
+    .form-group textarea { resize: vertical; min-height: 80px; }
     .submit-btn {
       width: 100%;
       padding: 1rem;
-      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
       border: none;
-      border-radius: 6px;
+      border-radius: 10px;
       font-size: 1.1rem;
       font-weight: 700;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: all 0.3s;
+      margin-top: 0.5rem;
+      letter-spacing: 0.3px;
     }
-
     .submit-btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(124, 58, 237, 0.3);
+      box-shadow: 0 10px 30px ${hexToRgba(color, 0.4)};
     }
-
-    .how-it-works {
-      background: #f5f3ff;
-      padding: 5rem 2rem;
+    .form-note {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-light);
+      margin-top: 0.75rem;
     }
+    .form-note svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+    .success-msg, .error-msg {
+      display: none;
+      padding: 1rem;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+    .success-msg { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .error-msg { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
-    .section-container {
+    /* ===== TRUST BAR ===== */
+    .trust-bar {
+      background: var(--bg-light);
+      padding: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .trust-bar-container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 0 2rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 3rem;
+      flex-wrap: wrap;
     }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-medium);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .trust-item svg { color: var(--primary); width: 22px; height: 22px; }
+    .trust-item .stars { color: var(--star-color); display: flex; gap: 2px; }
+    .trust-item .stars svg { width: 16px; height: 16px; }
+    .trust-item strong { color: var(--primary); font-size: 1.1rem; }
 
+    /* ===== SECTIONS COMMON ===== */
+    .section { padding: 5rem 2rem; }
+    .section-container { max-width: 1200px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 3.5rem; }
+    .section-label {
+      display: inline-block;
+      background: var(--primary-10);
+      color: var(--primary);
+      padding: 0.4rem 1rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 1rem;
+    }
     .section-title {
-      text-align: center;
       font-size: 2.5rem;
       font-weight: 800;
-      color: #7c3aed;
-      margin-bottom: 4rem;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-light);
+      max-width: 600px;
+      margin: 0 auto;
     }
 
+    /* ===== HOW IT WORKS ===== */
+    .how-it-works { background: var(--bg-white); }
     .steps-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
+      gap: 2.5rem;
     }
-
-    .step {
-      text-align: center;
-    }
-
+    .step { text-align: center; position: relative; padding: 2rem 1.5rem; }
     .step-number {
-      width: 60px;
-      height: 60px;
-      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-      color: white;
-      border-radius: 50%;
+      position: absolute;
+      top: 0; right: 1.5rem;
+      font-size: 4rem;
+      font-weight: 800;
+      color: var(--primary-10);
+      line-height: 1;
+    }
+    .step-icon {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.8rem;
-      font-weight: 800;
       margin: 0 auto 1.5rem;
+      color: white;
+      box-shadow: 0 8px 20px ${hexToRgba(color, 0.3)};
     }
+    .step-icon svg { width: 36px; height: 36px; }
+    .step h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-dark); }
+    .step p { color: var(--text-light); font-size: 0.95rem; line-height: 1.6; }
 
-    .step h3 {
-      color: #7c3aed;
-      font-size: 1.3rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .step p {
-      color: #666;
-      line-height: 1.6;
-    }
-
-    .benefits {
-      padding: 5rem 2rem;
-      background: white;
-    }
-
-    .benefits-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 2rem;
-    }
-
+    /* ===== BENEFITS ===== */
+    .benefits { background: var(--bg-light); }
+    .benefits-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
     .benefit-card {
-      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      background: var(--bg-white);
       padding: 2rem;
       border-radius: 12px;
-      border-right: 4px solid #7c3aed;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
-      transition: transform 0.3s;
+      border: 1px solid var(--border);
+      display: flex;
+      gap: 1.25rem;
+      transition: all 0.3s;
     }
-
     .benefit-card:hover {
-      transform: translateY(-5px);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+      border-color: var(--primary);
     }
-
-    .benefit-card h3 {
-      color: #7c3aed;
-      font-size: 1.1rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .benefit-card p {
-      color: #666;
-      font-size: 0.95rem;
-    }
-
-    .testimonials {
-      background: #f5f3ff;
-      padding: 5rem 2rem;
-    }
-
-    .testimonials-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-    }
-
-    .testimonial-card {
-      background: white;
-      padding: 2rem;
+    .benefit-icon {
+      width: 52px; height: 52px; min-width: 52px;
+      background: var(--primary-10);
       border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      border-bottom: 4px solid #7c3aed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
     }
+    .benefit-icon svg { width: 26px; height: 26px; }
+    .benefit-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-dark); }
+    .benefit-card p { color: var(--text-light); font-size: 0.95rem; line-height: 1.6; }
 
-    .testimonial-text {
-      color: #333;
-      font-size: 0.95rem;
-      margin-bottom: 1.5rem;
-      line-height: 1.7;
-      font-style: italic;
+    /* ===== TESTIMONIALS ===== */
+    .testimonials { background: var(--bg-white); }
+    .testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+    .testimonial-card {
+      background: var(--bg-light);
+      padding: 2rem;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
     }
+    .testimonial-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+    .testimonial-stars { color: var(--star-color); display: flex; gap: 2px; margin-bottom: 1rem; }
+    .testimonial-stars svg { width: 18px; height: 18px; }
+    .testimonial-text { color: var(--text-medium); font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem; font-style: italic; }
+    .testimonial-author { display: flex; align-items: center; gap: 1rem; }
+    .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-20); }
+    .testimonial-name { font-weight: 700; font-size: 0.95rem; color: var(--text-dark); }
+    .testimonial-title { font-size: 0.8rem; color: var(--text-light); }
 
-    .testimonial-author {
-      color: #7c3aed;
-      font-weight: 600;
+    /* ===== FAQ ===== */
+    .faq { background: var(--bg-light); }
+    .faq-list { max-width: 800px; margin: 0 auto; }
+    .faq-item { margin-bottom: 1rem; }
+    .faq-question {
+      width: 100%; padding: 1.25rem 1.5rem;
+      background: var(--bg-white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: left; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      font-weight: 600; font-size: 1rem; color: var(--text-dark);
+      transition: all 0.3s; font-family: inherit;
     }
-
-    .testimonial-title {
-      color: #999;
-      font-size: 0.85rem;
+    .faq-question:hover { border-color: var(--primary); box-shadow: 0 4px 12px var(--primary-10); }
+    .faq-question.active { background: var(--primary); color: white; border-color: var(--primary); border-radius: 12px 12px 0 0; }
+    .faq-question svg { width: 20px; height: 20px; transition: transform 0.3s; flex-shrink: 0; }
+    .faq-question.active svg { transform: rotate(180deg); }
+    .faq-answer {
+      display: none; padding: 1.25rem 1.5rem;
+      background: var(--bg-white);
+      border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 12px 12px;
+      color: var(--text-medium); line-height: 1.7; font-size: 0.95rem;
     }
+    .faq-answer.active { display: block; }
 
-    footer {
-      background: #7c3aed;
-      color: white;
-      padding: 3rem 2rem;
+    /* ===== CTA BANNER ===== */
+    .cta-banner {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white; padding: 5rem 2rem; text-align: center;
+      position: relative; overflow: hidden;
     }
-
-    .footer-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-      margin-bottom: 2rem;
+    .cta-banner::before {
+      content: ''; position: absolute; top: -50%; right: -10%;
+      width: 400px; height: 400px; background: rgba(255,255,255,0.08); border-radius: 50%;
     }
-
-    .footer-section h4 {
-      font-size: 1.1rem;
-      margin-bottom: 1rem;
+    .cta-banner h2 { font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem; position: relative; z-index: 1; }
+    .cta-banner p { font-size: 1.15rem; opacity: 0.9; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto; position: relative; z-index: 1; }
+    .cta-btn {
+      display: inline-block; padding: 1rem 2.5rem; background: var(--accent); color: white;
+      border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 700; cursor: pointer;
+      transition: all 0.3s; text-decoration: none; position: relative; z-index: 1;
     }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); background: #e08e09; }
 
-    .footer-section p {
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 0.95rem;
-      margin-bottom: 0.5rem;
+    /* ===== FOOTER ===== */
+    footer { background: #111827; color: #d1d5db; padding: 4rem 2rem 2rem; }
+    .footer-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 3rem; }
+    .footer-brand h3 { font-size: 1.4rem; font-weight: 800; color: white; margin-bottom: 1rem; }
+    .footer-brand p { font-size: 0.9rem; line-height: 1.7; color: #9ca3af; margin-bottom: 1.5rem; }
+    .footer-social { display: flex; gap: 1rem; }
+    .footer-social a { width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #d1d5db; transition: all 0.3s; text-decoration: none; }
+    .footer-social a:hover { background: var(--primary); color: white; }
+    .footer-social svg { width: 18px; height: 18px; }
+    footer h4 { color: white; font-weight: 700; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem; }
+    .footer-links { list-style: none; }
+    .footer-links li { margin-bottom: 0.75rem; }
+    .footer-links a { color: #9ca3af; text-decoration: none; font-size: 0.9rem; transition: color 0.3s; }
+    .footer-links a:hover { color: white; }
+    .footer-contact li { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .footer-contact svg { width: 18px; height: 18px; color: var(--primary-light); flex-shrink: 0; }
+    .footer-contact a { color: #9ca3af; text-decoration: none; transition: color 0.3s; }
+    .footer-contact a:hover { color: white; }
+    .footer-bottom { max-width: 1200px; margin: 3rem auto 0; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; font-size: 0.85rem; color: #6b7280; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .hero-container { grid-template-columns: 1fr; max-width: 600px; }
+      .hero-content h1 { font-size: 2.5rem; }
+      .benefits-grid { grid-template-columns: 1fr; }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .footer-container { grid-template-columns: 1fr 1fr; }
     }
-
-    .footer-section a {
-      color: rgba(255, 255, 255, 0.85);
-      text-decoration: none;
-    }
-
-    .footer-section a:hover {
-      color: white;
-    }
-
-    .footer-bottom {
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-      padding-top: 2rem;
-      text-align: center;
-      font-size: 0.85rem;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .thank-you-message {
-      display: none;
-      background: #d1fae5;
-      color: #065f46;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    .error-message {
-      display: none;
-      background: #fee2e2;
-      color: #991b1b;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      text-align: center;
-      font-weight: 600;
-    }
-
     @media (max-width: 768px) {
-      .hero-container {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-content h1 {
-        font-size: 2rem;
-      }
-
-      .steps-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .benefits-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .testimonials-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .footer-container {
-        grid-template-columns: 1fr;
-      }
-
-      .header-links {
-        display: none;
-      }
+      .header-nav { display: none; }
+      .mobile-toggle { display: block; }
+      .hero { min-height: auto; padding: 3rem 1.5rem; }
+      .hero-content h1 { font-size: 2rem; }
+      .hero-stats { gap: 1.5rem; }
+      .hero-stat .number { font-size: 1.5rem; }
+      .steps-grid { grid-template-columns: 1fr; gap: 2rem; }
+      .section { padding: 3.5rem 1.5rem; }
+      .section-title { font-size: 2rem; }
+      .trust-bar-container { gap: 1.5rem; }
+      .cta-banner h2 { font-size: 1.8rem; }
+      .footer-container { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
+  <!-- HEADER -->
   <header>
     <div class="header-container">
-      <div class="logo">${config.logo_url ? `<img src="${config.logo_url}" alt="${config.company_name}" style="height: 40px;">` : config.company_name}</div>
-      <div class="header-links">
+      <a href="#" class="logo">
+        ${config.logo_url ? `<img src="${config.logo_url}" alt="${config.company_name}">` : `${renderIcon('home', 22)} ${config.company_name}`}
+      </a>
+      <nav class="header-nav">
         <a href="#how-it-works">How It Works</a>
-        <a href="#benefits">Benefits</a>
-        <a href="#contact">Contact</a>
-        <span class="header-phone">${config.phone}</span>
-      </div>
+        <a href="#benefits">Why Us</a>
+        <a href="#testimonials">Reviews</a>
+        <a href="#faq">FAQ</a>
+        <a href="tel:${config.phone}" class="header-phone">${renderIcon('phone', 18)} ${config.phone}</a>
+      </nav>
+      <button class="mobile-toggle" onclick="document.getElementById('mobileMenu').classList.add('active')" aria-label="Open menu">
+        ${renderIcon('menu', 24)}
+      </button>
     </div>
   </header>
 
+  <!-- MOBILE MENU -->
+  <div id="mobileMenu" class="mobile-menu">
+    <button class="mobile-close" onclick="document.getElementById('mobileMenu').classList.remove('active')" aria-label="Close menu">
+      ${renderIcon('x', 28)}
+    </button>
+    <a href="#how-it-works" onclick="document.getElementById('mobileMenu').classList.remove('active')">How It Works</a>
+    <a href="#benefits" onclick="document.getElementById('mobileMenu').classList.remove('active')">Why Us</a>
+    <a href="#testimonials" onclick="document.getElementById('mobileMenu').classList.remove('active')">Reviews</a>
+    <a href="#faq" onclick="document.getElementById('mobileMenu').classList.remove('active')">FAQ</a>
+    <a href="tel:${config.phone}" style="color: var(--primary);">${config.phone}</a>
+  </div>
+
+  <!-- HERO -->
   <section class="hero">
     <div class="hero-container">
       <div class="hero-content">
+        <div class="hero-badge">${renderIcon('key', 16)} Path to Homeownership</div>
         <h1>${config.headline}</h1>
         <p>${config.description}</p>
+        <div class="hero-stats">
+          <div class="hero-stat"><span class="number">100+</span><span class="label">Families Housed</span></div>
+          <div class="hero-stat"><span class="number">No Credit</span><span class="label">Check Required</span></div>
+          <div class="hero-stat"><span class="number">30 Day</span><span class="label">Move In</span></div>
+        </div>
       </div>
-      <div class="form-section">
-        <div class="form-title">Apply Today</div>
-        <div class="thank-you-message" id="thankYou">Thank you! We'll contact you to discuss options.</div>
-        <div class="error-message" id="error">Something went wrong. Please try again.</div>
+      <div class="form-card">
+        <h2 class="form-title">Apply for Rent-to-Own</h2>
+        <p class="form-subtitle">No bank needed. Start your path to homeownership today.</p>
         <form id="leadForm">
           ${generateFormFields(config.form_fields)}
-          <button type="submit" class="submit-btn">Apply for Rent-to-Own</button>
+          <button type="submit" class="submit-btn">Apply Now →</button>
+          <p class="form-note">${renderIcon('shieldCheck', 14)} Your info is private and never shared.</p>
         </form>
+        <div class="success-msg" id="successMsg">Thank you! We'll be in touch within 24 hours.</div>
+        <div class="error-msg" id="errorMsg">Something went wrong. Please try again or call us directly.</div>
       </div>
     </div>
   </section>
 
-  <section class="how-it-works" id="how-it-works">
+  <!-- TRUST BAR -->
+  <section class="trust-bar">
+    <div class="trust-bar-container">
+      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
+      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Resident Reviews</span></div>
+      <div class="trust-item">${renderIcon('home', 22)} <span><strong>100+</strong> Families Housed</span></div>
+      <div class="trust-item">${renderIcon('clock', 22)} <span>Move in as fast as <strong>30 days</strong></span></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section how-it-works" id="how-it-works">
     <div class="section-container">
-      <h2 class="section-title">How It Works</h2>
+      <div class="section-header">
+        <span class="section-label">Simple Process</span>
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Three simple steps to start your journey to homeownership.</p>
+      </div>
       <div class="steps-grid">
         <div class="step">
-          <div class="step-number">1</div>
-          <h3>Apply Now</h3>
-          <p>Submit your application. Takes just a few minutes to get started.</p>
+          <span class="step-number">01</span>
+          <div class="step-icon">${renderIcon('clipboard', 36)}</div>
+          <h3>Submit Application</h3>
+          <p>Fill out our simple application. We evaluate your situation and work with you based on your circumstances, not just credit scores.</p>
         </div>
         <div class="step">
-          <div class="step-number">2</div>
-          <h3>Get Approved</h3>
-          <p>Quick approval process. We work with all credit situations.</p>
+          <span class="step-number">02</span>
+          <div class="step-icon">${renderIcon('home', 36)}</div>
+          <h3>Choose Your Home</h3>
+          <p>Browse our available rent-to-own homes. We'll work with you to find properties that fit your budget and lifestyle needs.</p>
         </div>
         <div class="step">
-          <div class="step-number">3</div>
-          <h3>Move In</h3>
-          <p>Start building equity immediately. Your path to ownership begins.</p>
+          <span class="step-number">03</span>
+          <div class="step-icon">${renderIcon('key', 36)}</div>
+          <h3>Move In & Build Equity</h3>
+          <p>Move into your home and start building equity. A portion of your monthly rent goes directly toward your purchase price.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="benefits" id="benefits">
+  <!-- BENEFITS -->
+  <section class="section benefits" id="benefits">
     <div class="section-container">
-      <h2 class="section-title">Why Rent-to-Own</h2>
+      <div class="section-header">
+        <span class="section-label">Why Choose Us</span>
+        <h2 class="section-title">The Path to Homeownership Made Easy</h2>
+        <p class="section-subtitle">Get into your dream home today, even without perfect credit. Build wealth while you rent.</p>
+      </div>
       <div class="benefits-grid">
         <div class="benefit-card">
-          <h3>No Bank Needed</h3>
-          <p>Don't have perfect credit? We help people who banks turned down.</p>
+          <div class="benefit-icon">${renderIcon('shieldCheck', 26)}</div>
+          <div><h3>No Bank Qualification</h3><p>No bank loans required. We work with you based on your income and willingness to commit, not credit scores.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Build Equity</h3>
-          <p>Part of your rent goes toward the down payment on your home.</p>
+          <div class="benefit-icon">${renderIcon('trendingUp', 26)}</div>
+          <div><h3>Build Credit While Renting</h3><p>Your monthly payments are reported to credit bureaus. Build your credit score while you live in your home.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Lock In Price</h3>
-          <p>Purchase price locked in now. Peace of mind for your future.</p>
+          <div class="benefit-icon">${renderIcon('clock', 26)}</div>
+          <div><h3>Flexible Lease Terms</h3><p>Choose lease terms that work for you. Whether it's 2 years or 5 years, we customize the agreement to your timeline.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Path to Ownership</h3>
-          <p>Prove yourself as a homeowner before you even take title.</p>
+          <div class="benefit-icon">${renderIcon('dollar', 26)}</div>
+          <div><h3>Rent Applied to Purchase</h3><p>A percentage of your monthly rent payment goes toward the purchase price. Every month, you're building equity.</p></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="testimonials">
+  <!-- TESTIMONIALS -->
+  <section class="section testimonials" id="testimonials">
     <div class="section-container">
-      <h2 class="section-title">Happy Tenants</h2>
+      <div class="section-header">
+        <span class="section-label">Real Stories</span>
+        <h2 class="section-title">Families Achieving Homeownership</h2>
+        <p class="section-subtitle">See how families like yours became homeowners through rent-to-own.</p>
+      </div>
       <div class="testimonials-grid">
         <div class="testimonial-card">
-          <div class="testimonial-text">"I never thought I could own a home. This rent-to-own program gave me the opportunity. Now I'm building equity and my credit!"</div>
-          <div class="testimonial-author">Jessica Brown</div>
-          <div class="testimonial-title">Rent-to-Own Tenant</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"I never thought I could buy a home with my credit score. They gave me a real chance to become a homeowner. Building equity every month feels amazing!"</p>
+          <div class="testimonial-author">
+            <img src="${avatars[0]}" alt="Marcus D." class="testimonial-avatar">
+            <div><div class="testimonial-name">Marcus D.</div><div class="testimonial-title">Tenant-Buyer${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
         <div class="testimonial-card">
-          <div class="testimonial-text">"The whole process was so simple and fair. They treated me with respect and really cared about my success."</div>
-          <div class="testimonial-author">Michael Green</div>
-          <div class="testimonial-title">Future Homeowner</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"We were stuck renting for years. Now we have a path to homeownership. Our kids have their own rooms and we're building something real for our family."</p>
+          <div class="testimonial-author">
+            <img src="${avatars[1]}" alt="Jennifer K." class="testimonial-avatar">
+            <div><div class="testimonial-name">Jennifer K.</div><div class="testimonial-title">Family of 4${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
         <div class="testimonial-card">
-          <div class="testimonial-text">"Finally found a way to homeownership. This company made my dream real. Can't recommend them enough!"</div>
-          <div class="testimonial-author">Keisha Wright</div>
-          <div class="testimonial-title">Rent-to-Own Program</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"The whole process was transparent and fair. They treated us like partners, not problems. I'm excited to finish my lease and own this home outright!"</p>
+          <div class="testimonial-author">
+            <img src="${avatars[2]}" alt="Robert T." class="testimonial-avatar">
+            <div><div class="testimonial-name">Robert T.</div><div class="testimonial-title">Rent-to-Own Owner${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <footer id="contact">
+  <!-- FAQ -->
+  <section class="section faq" id="faq">
+    <div class="section-container">
+      <div class="section-header">
+        <span class="section-label">Common Questions</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">What credit score do I need? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">We work with people of all credit backgrounds. Even if your credit isn't perfect, we can find a solution. We evaluate the whole picture, not just a number.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">How long are the typical lease terms? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">Lease terms are typically 2-5 years, depending on what works for you. We customize the agreement so you have time to save for a down payment and improve your credit if needed.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">What percentage of rent goes toward the purchase? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">Typically, 15-25% of your monthly rent payment is credited toward your eventual purchase price. The exact percentage depends on the home and your agreement.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">What happens if I need to move during the lease? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">We understand life happens. Let's discuss your options. There may be early termination options, or we can work with you on your specific situation.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Who is responsible for maintenance and repairs? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">As the tenant-buyer, you're responsible for standard maintenance like any other homeowner would be. We handle major structural issues covered by insurance.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA BANNER -->
+  <section class="cta-banner">
+    <h2>Ready to Own Your Dream Home?</h2>
+    <p>Start your journey to homeownership today. No bank needed, no perfect credit required.</p>
+    <a href="#" class="cta-btn" onclick="document.getElementById('leadForm').scrollIntoView({behavior:'smooth'});return false;">Apply Now →</a>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
     <div class="footer-container">
-      <div class="footer-section">
-        <h4>${config.company_name}</h4>
-        <p>Making homeownership accessible through rent-to-own programs.</p>
-        <p style="margin-top: 1rem; font-weight: 600;">Your Path to Ownership</p>
+      <div class="footer-brand">
+        <h3>${config.company_name}</h3>
+        <p>We help families achieve homeownership through rent-to-own programs. No bank qualifications needed. Build credit while you rent. Start your journey to home ownership today${config.market ? `. Proudly serving ${config.market} and surrounding areas` : ''}.</p>
+        <div class="footer-social">
+          <a href="#" aria-label="Facebook">${renderIcon('facebook', 18)}</a>
+          <a href="#" aria-label="Instagram">${renderIcon('instagram', 18)}</a>
+          <a href="#" aria-label="Website">${renderIcon('globe', 18)}</a>
+        </div>
       </div>
-      <div class="footer-section">
+      <div>
         <h4>Quick Links</h4>
-        <p><a href="#how-it-works">How It Works</a></p>
-        <p><a href="#benefits">Benefits</a></p>
-        <p><a href="#contact">Contact Us</a></p>
+        <ul class="footer-links">
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#benefits">Why Choose Us</a></li>
+          <li><a href="#testimonials">Reviews</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
       </div>
-      <div class="footer-section">
-        <h4>Get in Touch</h4>
-        <p>Phone: <a href="tel:${config.phone}">${config.phone}</a></p>
-        <p>Email: <a href="mailto:${config.email}">${config.email}</a></p>
-        ${config.market ? `<p>Market: ${config.market}</p>` : ''}
+      <div>
+        <h4>Contact Us</h4>
+        <ul class="footer-links footer-contact">
+          <li>${renderIcon('phone', 18)} <a href="tel:${config.phone}">${config.phone}</a></li>
+          <li>${renderIcon('mail', 18)} <a href="mailto:${config.email}">${config.email}</a></li>
+          ${config.market ? `<li>${renderIcon('mapPin', 18)} <span>${config.market}</span></li>` : ''}
+        </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© 2026 ${config.company_name}. All rights reserved. Rent-to-own specialist.</p>
+      <p>&copy; ${new Date().getFullYear()} ${config.company_name}. All rights reserved.</p>
     </div>
   </footer>
 
   <script>
-    window.REI_SUBMIT_URL = window.REI_SUBMIT_URL || '/api/leads';
-
-    function generateFormFields(fields) {
-      const fieldLabels = {
-        name: 'Full Name',
-        phone: 'Phone Number',
-        email: 'Email Address',
-        address: 'Preferred Location',
-        message: 'Tell Us About Your Situation'
-      };
-      
-      return fields.map(field => {
-        const label = fieldLabels[field] || field;
-        const isTextarea = field === 'message';
-        return isTextarea 
-          ? \`<div class="form-group"><label for="\${field}">\${label}</label><textarea id="\${field}" name="\${field}" placeholder=""></textarea></div>\`
-          : \`<div class="form-group"><label for="\${field}">\${label}</label><input type="\${field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text'}" id="\${field}" name="\${field}" placeholder="" required></input></div>\`;
-      }).join('');
-    }
-
-    document.getElementById('leadForm').addEventListener('submit', async function(e) {
+    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const formData = new FormData(this);
-      const data = Object.fromEntries(formData);
-      
-      try {
-        const response = await fetch(window.REI_SUBMIT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-          document.getElementById('thankYou').style.display = 'block';
-          document.getElementById('error').style.display = 'none';
-          this.reset();
-          setTimeout(() => {
-            document.getElementById('thankYou').style.display = 'none';
-          }, 5000);
-        } else {
-          throw new Error('Form submission failed');
-        }
-      } catch (err) {
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('thankYou').style.display = 'none';
-        setTimeout(() => {
-          document.getElementById('error').style.display = 'none';
-        }, 5000);
-      }
+      var form = e.target;
+      var btn = form.querySelector('.submit-btn');
+      var data = {};
+      new FormData(form).forEach(function(val, key) { data[key] = val; });
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      fetch(submitUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Failed');
+        document.getElementById('successMsg').style.display = 'block';
+        document.getElementById('errorMsg').style.display = 'none';
+        form.reset();
+        setTimeout(function() { document.getElementById('successMsg').style.display = 'none'; }, 5000);
+      })
+      .catch(function() {
+        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('successMsg').style.display = 'none';
+        setTimeout(function() { document.getElementById('errorMsg').style.display = 'none'; }, 5000);
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Apply Now \\u2192';
+      });
+    });
+    function toggleFAQ(btn) {
+      var answer = btn.nextElementSibling;
+      var isActive = btn.classList.contains('active');
+      document.querySelectorAll('.faq-question').forEach(function(q) {
+        q.classList.remove('active');
+        if (q.nextElementSibling) q.nextElementSibling.classList.remove('active');
+      });
+      if (!isActive) { btn.classList.add('active'); answer.classList.add('active'); }
+    }
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+      a.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
     });
   </script>
 </body>
@@ -585,24 +812,25 @@ export function generateHTML(config: TemplateConfig): string {
 }
 
 function generateFormFields(fields: string[]): string {
-  const fieldLabels: Record<string, string> = {
-    name: 'Full Name',
-    phone: 'Phone Number',
-    email: 'Email Address',
-    address: 'Preferred Location',
-    message: 'Tell Us About Your Situation'
-  };
+  const fieldConfig: Record<string, { label: string; type: string; placeholder: string; required: boolean }> = {
+    name: { label: 'Full Name', type: 'text', placeholder: 'John Smith', required: true },
+    phone: { label: 'Phone Number', type: 'tel', placeholder: '(555) 123-4567', required: true },
+    email: { label: 'Email Address', type: 'email', placeholder: 'john@example.com', required: true },
+    address: { label: 'Preferred Neighborhood or Area', type: 'text', placeholder: 'e.g., Downtown, Suburbs, Near Schools', required: true },
+    message: { label: 'Tell Us About Your Situation (Optional)', type: 'textarea', placeholder: 'Current renting situation, timeline to purchase, family size...', required: false },
+  }
 
   return fields.map(field => {
-    const label = fieldLabels[field] || field;
-    const isTextarea = field === 'message';
-    const required = field !== 'message' ? 'required' : '';
-    
-    if (isTextarea) {
-      return `<div class="form-group"><label for="${field}">${label}</label><textarea id="${field}" name="${field}" placeholder=""></textarea></div>`;
+    const cfg = fieldConfig[field] || { label: field, type: 'text', placeholder: '', required: false }
+    if (cfg.type === 'textarea') {
+      return `<div class="form-group">
+            <label for="${field}">${cfg.label}</label>
+            <textarea id="${field}" name="${field}" placeholder="${cfg.placeholder}" rows="3"></textarea>
+          </div>`
     }
-    
-    const inputType = field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text';
-    return `<div class="form-group"><label for="${field}">${label}</label><input type="${inputType}" id="${field}" name="${field}" placeholder="" ${required}></input></div>`;
-  }).join('');
+    return `<div class="form-group">
+          <label for="${field}">${cfg.label}</label>
+          <input type="${cfg.type}" id="${field}" name="${field}" placeholder="${cfg.placeholder}" ${cfg.required ? 'required' : ''}>
+        </div>`
+  }).join('\n          ')
 }

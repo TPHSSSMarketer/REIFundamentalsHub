@@ -1,583 +1,451 @@
 import { TemplateConfig } from './index'
+import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
 
 export function generateHTML(config: TemplateConfig): string {
+  const color = config.primary_color || '#475569'
+  const colorDark = adjustBrightness(color, -20)
+  const colorLight = adjustBrightness(color, 20)
+  const heroImage = heroImages.note_buying
+  const avatars = avatarImages.note_buying
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${config.company_name} - Mortgage Note Buyers</title>
+  <title>${config.company_name} - Sell Your Mortgage Note</title>
+  <meta name="description" content="${config.description}">
+  <meta property="og:title" content="${config.headline}">
+  <meta property="og:description" content="${config.description}">
+  <meta property="og:image" content="${heroImage}">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="${color}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --primary: ${color};
+      --primary-dark: ${colorDark};
+      --primary-light: ${colorLight};
+      --primary-10: ${hexToRgba(color, 0.1)};
+      --primary-20: ${hexToRgba(color, 0.2)};
+      --accent: #f59e0b;
+      --text-dark: #1f2937;
+      --text-medium: #4b5563;
+      --text-light: #6b7280;
+      --bg-light: #f9fafb;
+      --bg-white: #ffffff;
+      --border: #e5e7eb;
+      --success: #10b981;
+      --star-color: #fbbf24;
     }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      color: #333;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-dark);
       line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
     }
 
-    header {
-      background: white;
-      padding: 1.5rem 0;
-      border-bottom: 2px solid #64748b;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
+    header { background: var(--bg-white); padding: 1rem 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .header-container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 1.4rem; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .logo img { height: 40px; border-radius: 4px; }
+    .header-nav { display: flex; gap: 2rem; align-items: center; }
+    .header-nav a { text-decoration: none; color: var(--text-medium); font-size: 0.95rem; font-weight: 500; transition: color 0.3s; }
+    .header-nav a:hover { color: var(--primary); }
+    .header-phone { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--primary); text-decoration: none; font-size: 1.05rem; }
+    .header-phone svg { width: 18px; height: 18px; }
+    .mobile-toggle { display: none; background: none; border: none; color: var(--text-dark); cursor: pointer; padding: 0.5rem; }
+    .mobile-menu { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-white); z-index: 200; padding: 2rem; flex-direction: column; gap: 1.5rem; }
+    .mobile-menu.active { display: flex; }
+    .mobile-menu a { font-size: 1.2rem; color: var(--text-dark); text-decoration: none; font-weight: 600; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+    .mobile-close { align-self: flex-end; background: none; border: none; color: var(--text-dark); cursor: pointer; padding: 0.5rem; }
 
-    .header-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    .hero { background-image: url('${heroImage}'); background-size: cover; background-position: center; position: relative; min-height: 650px; display: flex; align-items: center; padding: 4rem 2rem; }
+    .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, ${hexToRgba(color, 0.85)} 0%, rgba(0,0,0,0.6) 100%); z-index: 1; }
+    .hero-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.1fr 1fr; gap: 3rem; align-items: center; position: relative; z-index: 2; width: 100%; }
+    .hero-content { color: white; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); padding: 0.5rem 1rem; border-radius: 50px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1.5rem; color: white; }
+    .hero-badge svg { width: 16px; height: 16px; }
+    .hero-content h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.15; margin-bottom: 1.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+    .hero-content p { font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.95; line-height: 1.7; max-width: 540px; }
+    .hero-stats { display: flex; gap: 2.5rem; margin-top: 2rem; }
+    .hero-stat { text-align: center; }
+    .hero-stat .number { font-size: 2rem; font-weight: 800; display: block; }
+    .hero-stat .label { font-size: 0.85rem; opacity: 0.85; }
 
-    .logo {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #475569;
-    }
+    .form-card { background: var(--bg-white); padding: 2.5rem; border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.3); }
+    .form-title { color: var(--primary); font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; text-align: center; }
+    .form-subtitle { color: var(--text-light); font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; color: var(--text-dark); font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; }
+    .form-group input, .form-group textarea { width: 100%; padding: 0.85rem 1rem; border: 2px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 1rem; transition: all 0.3s; background: var(--bg-light); }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-10); background: white; }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .submit-btn { width: 100%; padding: 1rem; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; margin-top: 0.5rem; letter-spacing: 0.3px; }
+    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px ${hexToRgba(color, 0.4)}; }
+    .form-note { text-align: center; font-size: 0.8rem; color: var(--text-light); margin-top: 0.75rem; }
+    .form-note svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+    .success-msg, .error-msg { display: none; padding: 1rem; border-radius: 10px; text-align: center; font-weight: 600; margin-top: 1rem; }
+    .success-msg { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .error-msg { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
-    .header-links {
-      display: flex;
-      gap: 2rem;
-      align-items: center;
-    }
+    .trust-bar { background: var(--bg-light); padding: 2rem; border-bottom: 1px solid var(--border); }
+    .trust-bar-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: center; align-items: center; gap: 3rem; flex-wrap: wrap; }
+    .trust-item { display: flex; align-items: center; gap: 0.75rem; color: var(--text-medium); font-weight: 600; font-size: 0.95rem; }
+    .trust-item svg { color: var(--primary); width: 22px; height: 22px; }
+    .trust-item .stars { color: var(--star-color); display: flex; gap: 2px; }
+    .trust-item .stars svg { width: 16px; height: 16px; }
+    .trust-item strong { color: var(--primary); font-size: 1.1rem; }
 
-    .header-links a {
-      text-decoration: none;
-      color: #666;
-      font-size: 0.95rem;
-      transition: color 0.3s;
-    }
+    .section { padding: 5rem 2rem; }
+    .section-container { max-width: 1200px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 3.5rem; }
+    .section-label { display: inline-block; background: var(--primary-10); color: var(--primary); padding: 0.4rem 1rem; border-radius: 50px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
+    .section-title { font-size: 2.5rem; font-weight: 800; color: var(--text-dark); margin-bottom: 1rem; line-height: 1.2; }
+    .section-subtitle { font-size: 1.1rem; color: var(--text-light); max-width: 600px; margin: 0 auto; }
 
-    .header-links a:hover {
-      color: #475569;
-    }
+    .how-it-works { background: var(--bg-white); }
+    .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem; }
+    .step { text-align: center; position: relative; padding: 2rem 1.5rem; }
+    .step-number { position: absolute; top: 0; right: 1.5rem; font-size: 4rem; font-weight: 800; color: var(--primary-10); line-height: 1; }
+    .step-icon { width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: white; box-shadow: 0 8px 20px ${hexToRgba(color, 0.3)}; }
+    .step-icon svg { width: 36px; height: 36px; }
+    .step h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-dark); }
+    .step p { color: var(--text-light); font-size: 0.95rem; line-height: 1.6; }
 
-    .header-phone {
-      font-weight: 600;
-      color: #475569;
-    }
+    .benefits { background: var(--bg-light); }
+    .benefits-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+    .benefit-card { background: var(--bg-white); padding: 2rem; border-radius: 12px; border: 1px solid var(--border); display: flex; gap: 1.25rem; transition: all 0.3s; }
+    .benefit-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: var(--primary); }
+    .benefit-icon { width: 52px; height: 52px; min-width: 52px; background: var(--primary-10); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--primary); }
+    .benefit-icon svg { width: 26px; height: 26px; }
+    .benefit-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-dark); }
+    .benefit-card p { color: var(--text-light); font-size: 0.95rem; line-height: 1.6; }
 
-    .hero {
-      background: linear-gradient(135deg, #475569 0%, #64748b 50%, #78716c 100%);
-      color: white;
-      padding: 5rem 2rem;
-      position: relative;
-      overflow: hidden;
-    }
+    .testimonials { background: var(--bg-white); }
+    .testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+    .testimonial-card { background: var(--bg-light); padding: 2rem; border-radius: 16px; border: 1px solid var(--border); transition: all 0.3s; }
+    .testimonial-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+    .testimonial-stars { color: var(--star-color); display: flex; gap: 2px; margin-bottom: 1rem; }
+    .testimonial-stars svg { width: 18px; height: 18px; }
+    .testimonial-text { color: var(--text-medium); font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem; font-style: italic; }
+    .testimonial-author { display: flex; align-items: center; gap: 1rem; }
+    .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-20); }
+    .testimonial-name { font-weight: 700; font-size: 0.95rem; color: var(--text-dark); }
+    .testimonial-title { font-size: 0.8rem; color: var(--text-light); }
 
-    .hero::before {
-      content: '';
-      position: absolute;
-      bottom: -30%;
-      right: -10%;
-      width: 500px;
-      height: 500px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 50%;
-      z-index: 1;
-    }
+    .faq { background: var(--bg-light); }
+    .faq-list { max-width: 800px; margin: 0 auto; }
+    .faq-item { margin-bottom: 1rem; }
+    .faq-question { width: 100%; padding: 1.25rem 1.5rem; background: var(--bg-white); border: 1px solid var(--border); border-radius: 12px; text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 1rem; color: var(--text-dark); transition: all 0.3s; font-family: inherit; }
+    .faq-question:hover { border-color: var(--primary); box-shadow: 0 4px 12px var(--primary-10); }
+    .faq-question.active { background: var(--primary); color: white; border-color: var(--primary); border-radius: 12px 12px 0 0; }
+    .faq-question svg { width: 20px; height: 20px; transition: transform 0.3s; flex-shrink: 0; }
+    .faq-question.active svg { transform: rotate(180deg); }
+    .faq-answer { display: none; padding: 1.25rem 1.5rem; background: var(--bg-white); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; color: var(--text-medium); line-height: 1.7; font-size: 0.95rem; }
+    .faq-answer.active { display: block; }
 
-    .hero-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 3rem;
-      align-items: center;
-      position: relative;
-      z-index: 2;
-    }
+    .cta-banner { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 5rem 2rem; text-align: center; position: relative; overflow: hidden; }
+    .cta-banner::before { content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px; background: rgba(255,255,255,0.08); border-radius: 50%; }
+    .cta-banner h2 { font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem; position: relative; z-index: 1; }
+    .cta-banner p { font-size: 1.15rem; opacity: 0.9; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto; position: relative; z-index: 1; }
+    .cta-btn { display: inline-block; padding: 1rem 2.5rem; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; text-decoration: none; position: relative; z-index: 1; }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); background: #e08e09; }
 
-    .hero-content h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      margin-bottom: 1.5rem;
-      line-height: 1.2;
-    }
+    footer { background: #111827; color: #d1d5db; padding: 4rem 2rem 2rem; }
+    .footer-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 3rem; }
+    .footer-brand h3 { font-size: 1.4rem; font-weight: 800; color: white; margin-bottom: 1rem; }
+    .footer-brand p { font-size: 0.9rem; line-height: 1.7; color: #9ca3af; margin-bottom: 1.5rem; }
+    .footer-social { display: flex; gap: 1rem; }
+    .footer-social a { width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #d1d5db; transition: all 0.3s; text-decoration: none; }
+    .footer-social a:hover { background: var(--primary); color: white; }
+    .footer-social svg { width: 18px; height: 18px; }
+    footer h4 { color: white; font-weight: 700; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem; }
+    .footer-links { list-style: none; }
+    .footer-links li { margin-bottom: 0.75rem; }
+    .footer-links a { color: #9ca3af; text-decoration: none; font-size: 0.9rem; transition: color 0.3s; }
+    .footer-links a:hover { color: white; }
+    .footer-contact li { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .footer-contact svg { width: 18px; height: 18px; color: var(--primary-light); flex-shrink: 0; }
+    .footer-contact a { color: #9ca3af; text-decoration: none; transition: color 0.3s; }
+    .footer-contact a:hover { color: white; }
+    .footer-bottom { max-width: 1200px; margin: 3rem auto 0; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; font-size: 0.85rem; color: #6b7280; }
 
-    .hero-content p {
-      font-size: 1.2rem;
-      margin-bottom: 2rem;
-      opacity: 0.95;
-    }
-
-    .form-section {
-      background: white;
-      padding: 2.5rem;
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .form-title {
-      color: #475569;
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 1.5rem;
-      text-align: center;
-    }
-
-    .form-group {
-      margin-bottom: 1.2rem;
-    }
-
-    .form-group label {
-      display: block;
-      color: #333;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      font-size: 0.95rem;
-    }
-
-    .form-group input,
-    .form-group textarea {
-      width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 1rem;
-      transition: border-color 0.3s;
-    }
-
-    .form-group input:focus,
-    .form-group textarea:focus {
-      outline: none;
-      border-color: #475569;
-      box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.1);
-    }
-
-    .form-group textarea {
-      resize: vertical;
-      min-height: 80px;
-    }
-
-    .submit-btn {
-      width: 100%;
-      padding: 1rem;
-      background: linear-gradient(135deg, #475569 0%, #64748b 100%);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 1.1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    .submit-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(71, 85, 105, 0.3);
-    }
-
-    .how-it-works {
-      background: #f1f5f9;
-      padding: 5rem 2rem;
-    }
-
-    .section-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 2.5rem;
-      font-weight: 800;
-      color: #475569;
-      margin-bottom: 4rem;
-    }
-
-    .steps-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-    }
-
-    .step {
-      text-align: center;
-    }
-
-    .step-number {
-      width: 60px;
-      height: 60px;
-      background: linear-gradient(135deg, #475569 0%, #64748b 100%);
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.8rem;
-      font-weight: 800;
-      margin: 0 auto 1.5rem;
-    }
-
-    .step h3 {
-      color: #475569;
-      font-size: 1.3rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .step p {
-      color: #666;
-      line-height: 1.6;
-    }
-
-    .benefits {
-      padding: 5rem 2rem;
-      background: white;
-    }
-
-    .benefits-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 2rem;
-    }
-
-    .benefit-card {
-      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-      padding: 2rem;
-      border-radius: 12px;
-      border-right: 4px solid #475569;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
-      transition: transform 0.3s;
-    }
-
-    .benefit-card:hover {
-      transform: translateY(-5px);
-    }
-
-    .benefit-card h3 {
-      color: #475569;
-      font-size: 1.1rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .benefit-card p {
-      color: #666;
-      font-size: 0.95rem;
-    }
-
-    .testimonials {
-      background: #f1f5f9;
-      padding: 5rem 2rem;
-    }
-
-    .testimonials-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-    }
-
-    .testimonial-card {
-      background: white;
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      border-left: 4px solid #475569;
-    }
-
-    .testimonial-text {
-      color: #333;
-      font-size: 0.95rem;
-      margin-bottom: 1.5rem;
-      line-height: 1.7;
-      font-style: italic;
-    }
-
-    .testimonial-author {
-      color: #475569;
-      font-weight: 600;
-    }
-
-    .testimonial-title {
-      color: #999;
-      font-size: 0.85rem;
-    }
-
-    footer {
-      background: #475569;
-      color: white;
-      padding: 3rem 2rem;
-    }
-
-    .footer-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-      margin-bottom: 2rem;
-    }
-
-    .footer-section h4 {
-      font-size: 1.1rem;
-      margin-bottom: 1rem;
-    }
-
-    .footer-section p {
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 0.95rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .footer-section a {
-      color: rgba(255, 255, 255, 0.85);
-      text-decoration: none;
-    }
-
-    .footer-section a:hover {
-      color: white;
-    }
-
-    .footer-bottom {
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-      padding-top: 2rem;
-      text-align: center;
-      font-size: 0.85rem;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .thank-you-message {
-      display: none;
-      background: #d1fae5;
-      color: #065f46;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    .error-message {
-      display: none;
-      background: #fee2e2;
-      color: #991b1b;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    @media (max-width: 768px) {
-      .hero-container {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-content h1 {
-        font-size: 2rem;
-      }
-
-      .steps-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .benefits-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .testimonials-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .footer-container {
-        grid-template-columns: 1fr;
-      }
-
-      .header-links {
-        display: none;
-      }
-    }
+    @media (max-width: 1024px) { .hero-container { grid-template-columns: 1fr; max-width: 600px; } .hero-content h1 { font-size: 2.5rem; } .benefits-grid { grid-template-columns: 1fr; } .testimonials-grid { grid-template-columns: 1fr; } .footer-container { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 768px) { .header-nav { display: none; } .mobile-toggle { display: block; } .hero { min-height: auto; padding: 3rem 1.5rem; } .hero-content h1 { font-size: 2rem; } .hero-stats { gap: 1.5rem; } .hero-stat .number { font-size: 1.5rem; } .steps-grid { grid-template-columns: 1fr; gap: 2rem; } .section { padding: 3.5rem 1.5rem; } .section-title { font-size: 2rem; } .trust-bar-container { gap: 1.5rem; } .cta-banner h2 { font-size: 1.8rem; } .footer-container { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
     <div class="header-container">
-      <div class="logo">${config.logo_url ? `<img src="${config.logo_url}" alt="${config.company_name}" style="height: 40px;">` : config.company_name}</div>
-      <div class="header-links">
-        <a href="#how-it-works">How It Works</a>
-        <a href="#benefits">Benefits</a>
-        <a href="#contact">Contact</a>
-        <span class="header-phone">${config.phone}</span>
-      </div>
+      <a href="#" class="logo">${config.logo_url ? `<img src="${config.logo_url}" alt="${config.company_name}">` : `${renderIcon('fileText', 22)} ${config.company_name}`}</a>
+      <nav class="header-nav">
+        <a href="#how-it-works">How It Works</a><a href="#benefits">Why Us</a><a href="#testimonials">Reviews</a><a href="#faq">FAQ</a>
+        <a href="tel:${config.phone}" class="header-phone">${renderIcon('phone', 18)} ${config.phone}</a>
+      </nav>
+      <button class="mobile-toggle" onclick="document.getElementById('mobileMenu').classList.add('active')" aria-label="Open menu">${renderIcon('menu', 24)}</button>
     </div>
   </header>
+
+  <div id="mobileMenu" class="mobile-menu">
+    <button class="mobile-close" onclick="document.getElementById('mobileMenu').classList.remove('active')" aria-label="Close menu">${renderIcon('x', 28)}</button>
+    <a href="#how-it-works" onclick="document.getElementById('mobileMenu').classList.remove('active')">How It Works</a>
+    <a href="#benefits" onclick="document.getElementById('mobileMenu').classList.remove('active')">Why Us</a>
+    <a href="#testimonials" onclick="document.getElementById('mobileMenu').classList.remove('active')">Reviews</a>
+    <a href="#faq" onclick="document.getElementById('mobileMenu').classList.remove('active')">FAQ</a>
+    <a href="tel:${config.phone}" style="color: var(--primary);">${config.phone}</a>
+  </div>
 
   <section class="hero">
     <div class="hero-container">
       <div class="hero-content">
+        <div class="hero-badge">${renderIcon('fileText', 16)} Note Buying Experts</div>
         <h1>${config.headline}</h1>
         <p>${config.description}</p>
+        <div class="hero-stats">
+          <div class="hero-stat"><span class="number">$10M+</span><span class="label">Notes Purchased</span></div>
+          <div class="hero-stat"><span class="number">All Note</span><span class="label">Types</span></div>
+          <div class="hero-stat"><span class="number">Close In</span><span class="label">21 Days</span></div>
+        </div>
       </div>
-      <div class="form-section">
-        <div class="form-title">Get Your Quote</div>
-        <div class="thank-you-message" id="thankYou">Thank you! We'll review and contact you with an offer.</div>
-        <div class="error-message" id="error">Something went wrong. Please try again.</div>
+      <div class="form-card">
+        <h2 class="form-title">Get a Note Quote</h2>
+        <p class="form-subtitle">Performing or non-performing. Get a competitive cash offer.</p>
         <form id="leadForm">
           ${generateFormFields(config.form_fields)}
-          <button type="submit" class="submit-btn">Get a Note Quote</button>
+          <button type="submit" class="submit-btn">Get My Quote →</button>
+          <p class="form-note">${renderIcon('shieldCheck', 14)} Your info is private and never shared.</p>
         </form>
+        <div class="success-msg" id="successMsg">Thank you! We'll be in touch within 24 hours.</div>
+        <div class="error-msg" id="errorMsg">Something went wrong. Please try again or call us directly.</div>
       </div>
     </div>
   </section>
 
-  <section class="how-it-works" id="how-it-works">
+  <section class="trust-bar">
+    <div class="trust-bar-container">
+      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
+      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Seller Reviews</span></div>
+      <div class="trust-item">${renderIcon('dollar', 22)} <span><strong>$10M+</strong> In Notes Bought</span></div>
+      <div class="trust-item">${renderIcon('clock', 22)} <span>Close in <strong>21 days</strong></span></div>
+    </div>
+  </section>
+
+  <section class="section how-it-works" id="how-it-works">
     <div class="section-container">
-      <h2 class="section-title">How It Works</h2>
+      <div class="section-header">
+        <span class="section-label">Simple Process</span>
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Get cash for your note in three simple steps.</p>
+      </div>
       <div class="steps-grid">
         <div class="step">
-          <div class="step-number">1</div>
+          <span class="step-number">01</span>
+          <div class="step-icon">${renderIcon('fileText', 36)}</div>
           <h3>Submit Note Details</h3>
-          <p>Provide information about your mortgage note. Principal, rate, terms, payor info.</p>
+          <p>Provide basic information about your note including loan balance, interest rate, and remaining term.</p>
         </div>
         <div class="step">
-          <div class="step-number">2</div>
-          <h3>Receive Quote</h3>
-          <p>We analyze your note and send a competitive cash quote within 24-48 hours.</p>
+          <span class="step-number">02</span>
+          <div class="step-icon">${renderIcon('dollar', 36)}</div>
+          <h3>Get Cash Quote</h3>
+          <p>We evaluate your note and provide a competitive cash offer within 24-48 hours.</p>
         </div>
         <div class="step">
-          <div class="step-number">3</div>
-          <h3>Get Paid</h3>
-          <p>Fast closing. Get your cash and eliminate the ongoing management headaches.</p>
+          <span class="step-number">03</span>
+          <div class="step-icon">${renderIcon('zap', 36)}</div>
+          <h3>Close & Get Paid</h3>
+          <p>Close quickly and receive your cash. No delays. No hassles.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="benefits" id="benefits">
+  <section class="section benefits" id="benefits">
     <div class="section-container">
-      <h2 class="section-title">Why Sell Your Note</h2>
+      <div class="section-header">
+        <span class="section-label">Why Choose Us</span>
+        <h2 class="section-title">The Smart Way to Cash Out Your Note</h2>
+        <p class="section-subtitle">Get paid immediately instead of waiting for monthly payments.</p>
+      </div>
       <div class="benefits-grid">
         <div class="benefit-card">
-          <h3>Fast Closing</h3>
-          <p>Get your cash quickly. No months of waiting. Close in days.</p>
+          <div class="benefit-icon">${renderIcon('checkCircle', 26)}</div>
+          <div><h3>Performing & Non-Performing</h3><p>We buy all note types. Whether current or in default, we can help you cash out.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Competitive Offers</h3>
-          <p>We offer fair market value for your note. Transparent pricing.</p>
+          <div class="benefit-icon">${renderIcon('dollar', 26)}</div>
+          <div><h3>Competitive Pricing</h3><p>We offer fair market prices for your notes. No lowball offers.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Any Note Type</h3>
-          <p>Performing or non-performing. Any terms. Any situation.</p>
+          <div class="benefit-icon">${renderIcon('clock', 26)}</div>
+          <div><h3>Fast Evaluation</h3><p>Get quoted quickly. We evaluate notes and make offers in 24-48 hours.</p></div>
         </div>
         <div class="benefit-card">
-          <h3>Free Evaluation</h3>
-          <p>No obligation. No upfront costs. Get a free quote today.</p>
+          <div class="benefit-icon">${renderIcon('shieldCheck', 26)}</div>
+          <div><h3>Confidential Process</h3><p>Your transaction is handled confidentially. Professional service from start to finish.</p></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="testimonials">
+  <section class="section testimonials" id="testimonials">
     <div class="section-container">
-      <h2 class="section-title">Note Seller Testimonials</h2>
+      <div class="section-header">
+        <span class="section-label">Real Stories</span>
+        <h2 class="section-title">Sellers Who Cashed Out Their Notes</h2>
+        <p class="section-subtitle">See how real note holders got the cash they needed.</p>
+      </div>
       <div class="testimonials-grid">
         <div class="testimonial-card">
-          <div class="testimonial-text">"Tired of managing mortgage payments every month. Sold my note and now have my cash without the hassle. Great experience!"</div>
-          <div class="testimonial-author">Edward Thompson</div>
-          <div class="testimonial-title">Note Seller</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"I had a note paying slowly and needed cash now. They made the process simple and I got my money in 21 days."</p>
+          <div class="testimonial-author">
+            <img src="${avatars[0]}" alt="John T." class="testimonial-avatar">
+            <div><div class="testimonial-name">John T.</div><div class="testimonial-title">Note Seller${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
         <div class="testimonial-card">
-          <div class="testimonial-text">"Professional team, fair offer, fast closing. They explained everything clearly and made the process painless."</div>
-          <div class="testimonial-author">Linda Foster</div>
-          <div class="testimonial-title">Mortgage Note Owner</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"They bought my non-performing note for more than I expected. Professional team and a smooth closing."</p>
+          <div class="testimonial-author">
+            <img src="${avatars[1]}" alt="Patricia L." class="testimonial-avatar">
+            <div><div class="testimonial-name">Patricia L.</div><div class="testimonial-title">Real Estate Investor${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
         <div class="testimonial-card">
-          <div class="testimonial-text">"Competitive quote, no headaches. The team knew mortgages and treated me fairly. Highly recommend to anyone with a note!"</div>
-          <div class="testimonial-author">Gary Mitchell</div>
-          <div class="testimonial-title">Note Seller</div>
+          <div class="testimonial-stars">${renderStars(5)}</div>
+          <p class="testimonial-text">"Finally got out of a bad note situation. They paid me fairly and handled all the paperwork. Highly recommend!"</p>
+          <div class="testimonial-author">
+            <img src="${avatars[2]}" alt="Michael S." class="testimonial-avatar">
+            <div><div class="testimonial-name">Michael S.</div><div class="testimonial-title">Former Note Holder${config.market ? `, ${config.market}` : ''}</div></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <footer id="contact">
+  <section class="section faq" id="faq">
+    <div class="section-container">
+      <div class="section-header">
+        <span class="section-label">Common Questions</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">What types of notes do you buy? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">We buy all types of mortgage notes including performing, non-performing, partial notes, seasoned notes, and notes with various loan terms.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">How is my note valued? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">We consider loan balance, interest rate, payment history, property value, and remaining term. You'll get a detailed quote explaining our valuation.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Can you buy partial notes? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">Yes! We can purchase a portion of your note, allowing you to receive partial proceeds while keeping part of the income stream.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Do you buy non-performing notes? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">Absolutely. We specialize in non-performing and problem notes. We handle these professionally and fairly.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">How long does the process take? ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">We can close in as little as 21 days from initial submission to payment. Timeline depends on your note complexity.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-banner">
+    <h2>Ready to Cash Out Your Note?</h2>
+    <p>Get a competitive quote today. No obligations. Fast process. Fair pricing.</p>
+    <a href="#" class="cta-btn" onclick="document.getElementById('leadForm').scrollIntoView({behavior:'smooth'});return false;">Get My Quote →</a>
+  </section>
+
+  <footer>
     <div class="footer-container">
-      <div class="footer-section">
-        <h4>${config.company_name}</h4>
-        <p>Professional mortgage note buyers paying cash for your notes.</p>
-        <p style="margin-top: 1rem; font-weight: 600;">Trusted Note Buyers</p>
+      <div class="footer-brand">
+        <h3>${config.company_name}</h3>
+        <p>We buy mortgage notes and help sellers convert their income streams to cash. Fast, fair, and confidential. Over $10M in notes purchased${config.market ? `. Proudly serving ${config.market} and surrounding areas` : ''}.</p>
+        <div class="footer-social">
+          <a href="#" aria-label="Facebook">${renderIcon('facebook', 18)}</a>
+          <a href="#" aria-label="Instagram">${renderIcon('instagram', 18)}</a>
+          <a href="#" aria-label="Website">${renderIcon('globe', 18)}</a>
+        </div>
       </div>
-      <div class="footer-section">
+      <div>
         <h4>Quick Links</h4>
-        <p><a href="#how-it-works">How It Works</a></p>
-        <p><a href="#benefits">Benefits</a></p>
-        <p><a href="#contact">Contact Us</a></p>
+        <ul class="footer-links">
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#benefits">Why Choose Us</a></li>
+          <li><a href="#testimonials">Reviews</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
       </div>
-      <div class="footer-section">
-        <h4>Get in Touch</h4>
-        <p>Phone: <a href="tel:${config.phone}">${config.phone}</a></p>
-        <p>Email: <a href="mailto:${config.email}">${config.email}</a></p>
-        ${config.market ? `<p>Market: ${config.market}</p>` : ''}
+      <div>
+        <h4>Contact Us</h4>
+        <ul class="footer-links footer-contact">
+          <li>${renderIcon('phone', 18)} <a href="tel:${config.phone}">${config.phone}</a></li>
+          <li>${renderIcon('mail', 18)} <a href="mailto:${config.email}">${config.email}</a></li>
+          ${config.market ? `<li>${renderIcon('mapPin', 18)} <span>${config.market}</span></li>` : ''}
+        </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© 2026 ${config.company_name}. All rights reserved. Mortgage note buyers.</p>
+      <p>&copy; ${new Date().getFullYear()} ${config.company_name}. All rights reserved.</p>
     </div>
   </footer>
 
   <script>
-    window.REI_SUBMIT_URL = window.REI_SUBMIT_URL || '/api/leads';
-
-    function generateFormFields(fields) {
-      const fieldLabels = {
-        name: 'Full Name',
-        phone: 'Phone Number',
-        email: 'Email Address',
-        address: 'Note Location/Property Address',
-        message: 'Note Details (Principal, Rate, Terms)'
-      };
-      
-      return fields.map(field => {
-        const label = fieldLabels[field] || field;
-        const isTextarea = field === 'message';
-        return isTextarea 
-          ? \`<div class="form-group"><label for="\${field}">\${label}</label><textarea id="\${field}" name="\${field}" placeholder=""></textarea></div>\`
-          : \`<div class="form-group"><label for="\${field}">\${label}</label><input type="\${field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text'}" id="\${field}" name="\${field}" placeholder="" required></input></div>\`;
-      }).join('');
-    }
-
-    document.getElementById('leadForm').addEventListener('submit', async function(e) {
+    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const formData = new FormData(this);
-      const data = Object.fromEntries(formData);
-      
-      try {
-        const response = await fetch(window.REI_SUBMIT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-          document.getElementById('thankYou').style.display = 'block';
-          document.getElementById('error').style.display = 'none';
-          this.reset();
-          setTimeout(() => {
-            document.getElementById('thankYou').style.display = 'none';
-          }, 5000);
-        } else {
-          throw new Error('Form submission failed');
-        }
-      } catch (err) {
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('thankYou').style.display = 'none';
-        setTimeout(() => {
-          document.getElementById('error').style.display = 'none';
-        }, 5000);
-      }
+      var form = e.target;
+      var btn = form.querySelector('.submit-btn');
+      var data = {};
+      new FormData(form).forEach(function(val, key) { data[key] = val; });
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      fetch(submitUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Failed');
+        document.getElementById('successMsg').style.display = 'block';
+        document.getElementById('errorMsg').style.display = 'none';
+        form.reset();
+        setTimeout(function() { document.getElementById('successMsg').style.display = 'none'; }, 5000);
+      })
+      .catch(function() {
+        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('successMsg').style.display = 'none';
+        setTimeout(function() { document.getElementById('errorMsg').style.display = 'none'; }, 5000);
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Get My Quote \\u2192';
+      });
+    });
+    function toggleFAQ(btn) {
+      var answer = btn.nextElementSibling;
+      var isActive = btn.classList.contains('active');
+      document.querySelectorAll('.faq-question').forEach(function(q) {
+        q.classList.remove('active');
+        if (q.nextElementSibling) q.nextElementSibling.classList.remove('active');
+      });
+      if (!isActive) { btn.classList.add('active'); answer.classList.add('active'); }
+    }
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+      a.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
     });
   </script>
 </body>
@@ -585,24 +453,25 @@ export function generateHTML(config: TemplateConfig): string {
 }
 
 function generateFormFields(fields: string[]): string {
-  const fieldLabels: Record<string, string> = {
-    name: 'Full Name',
-    phone: 'Phone Number',
-    email: 'Email Address',
-    address: 'Note Location/Property Address',
-    message: 'Note Details (Principal, Rate, Terms)'
-  };
+  const fieldConfig: Record<string, { label: string; type: string; placeholder: string; required: boolean }> = {
+    name: { label: 'Full Name', type: 'text', placeholder: 'John Smith', required: true },
+    phone: { label: 'Phone Number', type: 'tel', placeholder: '(555) 123-4567', required: true },
+    email: { label: 'Email Address', type: 'email', placeholder: 'john@example.com', required: true },
+    address: { label: 'Property Address Securing the Note', type: 'text', placeholder: '123 Main St, City, State', required: true },
+    message: { label: 'Note Details (Balance, Rate, Terms)', type: 'textarea', placeholder: 'Loan balance, interest rate, remaining term, borrower status...', required: false },
+  }
 
   return fields.map(field => {
-    const label = fieldLabels[field] || field;
-    const isTextarea = field === 'message';
-    const required = field !== 'message' ? 'required' : '';
-    
-    if (isTextarea) {
-      return `<div class="form-group"><label for="${field}">${label}</label><textarea id="${field}" name="${field}" placeholder=""></textarea></div>`;
+    const cfg = fieldConfig[field] || { label: field, type: 'text', placeholder: '', required: false }
+    if (cfg.type === 'textarea') {
+      return `<div class="form-group">
+            <label for="${field}">${cfg.label}</label>
+            <textarea id="${field}" name="${field}" placeholder="${cfg.placeholder}" rows="3"></textarea>
+          </div>`
     }
-    
-    const inputType = field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text';
-    return `<div class="form-group"><label for="${field}">${label}</label><input type="${inputType}" id="${field}" name="${field}" placeholder="" ${required}></input></div>`;
-  }).join('');
+    return `<div class="form-group">
+          <label for="${field}">${cfg.label}</label>
+          <input type="${cfg.type}" id="${field}" name="${field}" placeholder="${cfg.placeholder}" ${cfg.required ? 'required' : ''}>
+        </div>`
+  }).join('\n          ')
 }

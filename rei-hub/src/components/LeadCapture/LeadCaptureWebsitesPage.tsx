@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner'
 import * as api from '@/services/leadCaptureApi'
 import { templates, getTemplateById, TemplateConfig, TemplateInfo } from './templates'
+import { heroImages } from './templates/icons'
 import AIWebsiteBuilder from './AIWebsiteBuilder'
 
 // ── Configuration ─────────────────────────────────────────
@@ -460,10 +461,18 @@ export default function LeadCaptureWebsitesPage() {
               className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
             >
               <div
-                className="h-32 bg-gradient-to-br flex items-center justify-center"
+                className="h-32 relative overflow-hidden"
                 style={{ background: `linear-gradient(135deg, ${template.defaultColor} 0%, ${template.defaultColor}cc 100%)` }}
               >
-                <Globe className="w-12 h-12 text-white/50" />
+                <img
+                  src={heroImages[template.id] || ''}
+                  alt={template.name}
+                  className="w-full h-full object-cover"
+                  style={{ opacity: 0.85 }}
+                  loading="lazy"
+                />
+                <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${template.defaultColor}dd 0%, transparent 100%)` }} />
+                <span className="absolute bottom-2 left-3 text-white text-xs font-semibold drop-shadow-lg">{template.name}</span>
               </div>
               <div className="p-4 flex flex-col flex-grow">
                 <h3 className="text-base font-bold text-slate-900">{template.name}</h3>
