@@ -21,8 +21,14 @@ import {
   Lock,
   Sparkles,
   ArrowRight,
+  Clock,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Megaphone,
+  Users,
 } from 'lucide-react'
 import * as phoneApi from '@/services/phoneApi'
+import { toast } from 'sonner'
 
 type TabKey = 'numbers' | 'dialer' | 'sms' | 'voicemail' | 'fax' | 'credits'
 
@@ -400,9 +406,13 @@ function DialerTab() {
   const [toNumber, setToNumber] = useState('')
   const [callActive, setCallActive] = useState(false)
   const [callTimer, setCallTimer] = useState(0)
+  const [muted, setMuted] = useState(false)
   const [disposition, setDisposition] = useState('')
   const [notes, setNotes] = useState('')
   const [callLogId, setCallLogId] = useState('')
+  const [callHistory, setCallHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [savingDisposition, setSavingDisposition] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -410,8 +420,20 @@ function DialerTab() {
       setNumbers(d.numbers)
       if (d.numbers.length > 0) setSelectedNumber(d.numbers[0].id as string)
     })
+    loadCallHistory()
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [])
+
+  async function loadCallHistory() {
+    try {
+      const data = await phoneApi.getCalls()
+      setCallHistory(data.calls || [])
+    } catch {
+      // continue without history
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   async function handleDial() {
     if (!toNumber || !selectedNumber) return
@@ -420,21 +442,53 @@ function DialerTab() {
       setCallActive(true)
       setCallLogId(result.call_log_id)
       setCallTimer(0)
+      setMuted(false)
       timerRef.current = setInterval(() => setCallTimer((t) => t + 1), 1000)
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to place call')
     }
   }
 
   function handleHangUp() {
     setCallActive(false)
+    setMuted(false)
     if (timerRef.current) clearInterval(timerRef.current)
+  }
+
+  async function handleSaveDisposition() {
+    if (!callLogId) return
+    setSavingDisposition(true)
+    try {
+      await phoneApi.updateCall(callLogId, {
+        disposition: disposition || undefined,
+        notes: notes || undefined,
+      })
+      toast.success('Call disposition saved')
+      setCallLogId('')
+      setDisposition('')
+      setNotes('')
+      setToNumber('')
+      loadCallHistory()
+    } catch {
+      toast.error('Failed to save disposition')
+    } finally {
+      setSavingDisposition(false)
+    }
   }
 
   function formatTimer(secs: number) {
     const m = Math.floor(secs / 60).toString().padStart(2, '0')
     const s = (secs % 60).toString().padStart(2, '0')
     return `${m}:${s}`
+  }
+
+  function formatPhone(num: string) {
+    if (!num) return ''
+    const digits = num.replace(/\D/g, '')
+    if (digits.length === 11 && digits[0] === '1') {
+      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
+    }
+    return num
   }
 
   return (
@@ -497,13 +551,18 @@ function DialerTab() {
                 <p className="text-sm text-green-600 mt-1">Connected to {toNumber}</p>
               </div>
               <div className="flex justify-center gap-3 mt-4">
-                <button className="p-3 bg-slate-100 rounded-full hover:bg-slate-200">
-                  <Mic className="w-5 h-5 text-slate-600" />
+                <button
+                  onClick={() => setMuted(!muted)}
+                  className={`p-3 rounded-full ${muted ? 'bg-red-100 ring-2 ring-red-400' : 'bg-slate-100 hover:bg-slate-200'}`}
+                  title={muted ? 'Unmute' : 'Mute'}
+                >
+                  <Mic className={`w-5 h-5 ${muted ? 'text-red-600' : 'text-slate-600'}`} />
                 </button>
                 <button onClick={handleHangUp} className="p-3 bg-red-600 rounded-full hover:bg-red-700">
                   <PhoneOff className="w-5 h-5 text-white" />
                 </button>
               </div>
+              {muted && <p className="text-xs text-red-500 text-center mt-2">Microphone muted</p>}
             </div>
           )}
 
@@ -528,15 +587,11 @@ function DialerTab() {
                 className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
               />
               <button
-                onClick={() => {
-                  setCallLogId('')
-                  setDisposition('')
-                  setNotes('')
-                  setToNumber('')
-                }}
-                className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                onClick={handleSaveDisposition}
+                disabled={savingDisposition}
+                className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
-                Save & Done
+                {savingDisposition ? 'Saving...' : 'Save & Done'}
               </button>
             </div>
           )}
@@ -574,6 +629,56 @@ function DialerTab() {
           </button>
         </div>
       )}
+
+      {/* Call History */}
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Call History</h2>
+        {historyLoading ? (
+          <div className="animate-pulse h-32 bg-slate-100 rounded-lg" />
+        ) : callHistory.length === 0 ? (
+          <div className="bg-slate-50 rounded-lg p-8 text-center">
+            <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm text-slate-400">No call history yet. Make your first call above.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-2.5 px-3 text-slate-500 font-medium">Direction</th>
+                  <th className="text-left py-2.5 px-3 text-slate-500 font-medium">Number</th>
+                  <th className="text-left py-2.5 px-3 text-slate-500 font-medium">Duration</th>
+                  <th className="text-left py-2.5 px-3 text-slate-500 font-medium">Disposition</th>
+                  <th className="text-left py-2.5 px-3 text-slate-500 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {callHistory.map((c: any) => (
+                  <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="py-2.5 px-3">
+                      {c.direction === 'outbound' ? (
+                        <span className="flex items-center gap-1 text-xs text-blue-700"><PhoneOutgoing className="w-3.5 h-3.5" /> Out</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-green-700"><PhoneIncoming className="w-3.5 h-3.5" /> In</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-700">{formatPhone(c.to_number || c.from_number || '')}</td>
+                    <td className="py-2.5 px-3 text-slate-700">{c.duration ? formatTimer(c.duration) : '—'}</td>
+                    <td className="py-2.5 px-3">
+                      {c.disposition ? (
+                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full capitalize">{c.disposition.replace(/_/g, ' ')}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-500">{c.started_at ? new Date(c.started_at).toLocaleString() : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -592,6 +697,10 @@ function SmsTab() {
   const [loading, setLoading] = useState(true)
   const [showCampaignForm, setShowCampaignForm] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
+  const [campName, setCampName] = useState('')
+  const [campNumberId, setCampNumberId] = useState('')
+  const [campTemplate, setCampTemplate] = useState('')
+  const [campSaving, setCampSaving] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -607,7 +716,10 @@ function SmsTab() {
       setConversations(convData.conversations)
       setNumbers(numData.numbers)
       setCampaigns(campData.campaigns)
-      if (numData.numbers.length > 0) setSelectedNumber(numData.numbers[0].id as string)
+      if (numData.numbers.length > 0) {
+        setSelectedNumber(numData.numbers[0].id as string)
+        setCampNumberId(numData.numbers[0].id as string)
+      }
     } catch (e) {
       // Error loading SMS data - continue without data
     } finally {
@@ -636,9 +748,49 @@ function SmsTab() {
         contact_id: selectedContact,
       })
       setCompose('')
+      toast.success('Message sent')
       selectConversation(selectedContact)
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to send message')
+    }
+  }
+
+  async function handleSaveCampaign(sendNow: boolean) {
+    if (!campName || !campTemplate) {
+      toast.error('Campaign name and message template are required')
+      return
+    }
+    setCampSaving(true)
+    try {
+      const result = await phoneApi.createSmsCampaign({
+        name: campName,
+        message_template: campTemplate,
+        phone_number_id: campNumberId,
+      })
+      if (sendNow && result.id) {
+        await phoneApi.sendSmsCampaign(result.id as string)
+        toast.success('Campaign created and sending!')
+      } else {
+        toast.success('Campaign saved as draft')
+      }
+      setCampName('')
+      setCampTemplate('')
+      setShowCampaignForm(false)
+      loadData()
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to create campaign')
+    } finally {
+      setCampSaving(false)
+    }
+  }
+
+  async function handleSendCampaign(id: string) {
+    try {
+      await phoneApi.sendSmsCampaign(id)
+      toast.success('Campaign is sending!')
+      loadData()
+    } catch {
+      toast.error('Failed to send campaign')
     }
   }
 
@@ -765,24 +917,63 @@ function SmsTab() {
 
         {showCampaignForm && (
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mb-4 space-y-4">
-            <input type="text" placeholder="Campaign Name" className="w-full border rounded-lg px-3 py-2 text-sm" />
-            <select className="w-full border rounded-lg px-3 py-2 text-sm">
+            <input
+              type="text"
+              value={campName}
+              onChange={(e) => setCampName(e.target.value)}
+              placeholder="Campaign Name"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+            />
+            <select
+              value={campNumberId}
+              onChange={(e) => setCampNumberId(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+            >
               {numbers.map((n: any) => (
                 <option key={n.id} value={n.id}>{n.friendly_name} ({n.number})</option>
               ))}
             </select>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Message Template</label>
-              <textarea rows={4} placeholder="Hi {{first_name}}, ..." className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <div className="flex gap-2 mt-1">
-                {['{{first_name}}', '{{city}}', '{{property_address}}'].map((f) => (
-                  <button key={f} className="text-xs text-primary-600 hover:underline">{f}</button>
-                ))}
+              <textarea
+                rows={4}
+                value={campTemplate}
+                onChange={(e) => setCampTemplate(e.target.value)}
+                placeholder="Hi {{first_name}}, ..."
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex gap-2">
+                  {['{{first_name}}', '{{city}}', '{{property_address}}'].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setCampTemplate((t) => t + ' ' + f)}
+                      className="text-xs text-primary-600 hover:underline"
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+                <span className={`text-xs ${campTemplate.length > 160 ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
+                  {campTemplate.length}/160
+                </span>
               </div>
             </div>
             <div className="flex gap-3">
-              <button className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">Save Draft</button>
-              <button className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Send Now</button>
+              <button
+                onClick={() => handleSaveCampaign(false)}
+                disabled={campSaving || !campName || !campTemplate}
+                className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {campSaving ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                onClick={() => handleSaveCampaign(true)}
+                disabled={campSaving || !campName || !campTemplate}
+                className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                Send Now
+              </button>
               <button onClick={() => setShowCampaignForm(false)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">Cancel</button>
             </div>
           </div>
@@ -796,7 +987,7 @@ function SmsTab() {
               <div key={c.id} className="border border-slate-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-sm text-slate-900">{c.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === 'sent' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === 'sent' ? 'bg-green-100 text-green-700' : c.status === 'sending' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
                     {c.status}
                   </span>
                 </div>
@@ -805,7 +996,17 @@ function SmsTab() {
                   <span>Delivered: {c.total_delivered}</span>
                   <span>Replied: {c.total_replied}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Cost: ${c.cost?.toFixed(2)}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-slate-500">Cost: ${c.cost?.toFixed(2)}</p>
+                  {c.status === 'draft' && (
+                    <button
+                      onClick={() => handleSendCampaign(c.id)}
+                      className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
+                    >
+                      <Send className="w-3 h-3" /> Send
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -822,12 +1023,22 @@ function SmsTab() {
 function VoicemailTab() {
   const [drops, setDrops] = useState<any[]>([])
   const [voices, setVoices] = useState<any[]>([])
+  const [numbers, setNumbers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', drop_type: 'recorded', script_template: '', elevenlabs_voice_id: '', audio_url: '' })
   const [recording, setRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  // Campaign state
+  const [showCampaignForm, setShowCampaignForm] = useState(false)
+  const [campName, setCampName] = useState('')
+  const [campDropId, setCampDropId] = useState('')
+  const [campNumberId, setCampNumberId] = useState('')
+  const [campContactNumbers, setCampContactNumbers] = useState('')
+  const [campSending, setCampSending] = useState(false)
+  const [vmSubTab, setVmSubTab] = useState<'drops' | 'campaigns'>('drops')
+  const [vmCampaigns, setVmCampaigns] = useState<any[]>([])
 
   useEffect(() => {
     loadData()
@@ -835,12 +1046,16 @@ function VoicemailTab() {
 
   async function loadData() {
     try {
-      const [dropData, voiceData] = await Promise.all([
+      const [dropData, voiceData, numData] = await Promise.all([
         phoneApi.getVoicemailDrops(),
         phoneApi.getVoices().catch(() => ({ voices: [] })),
+        phoneApi.getNumbers(),
       ])
       setDrops(dropData.drops)
       setVoices(voiceData.voices)
+      setNumbers(numData.numbers)
+      if (numData.numbers.length > 0) setCampNumberId(numData.numbers[0].id as string)
+      if (dropData.drops.length > 0) setCampDropId(dropData.drops[0].id)
     } catch (e) {
       // Error loading voicemail drops - continue without data
     } finally {
@@ -857,11 +1072,12 @@ function VoicemailTab() {
         elevenlabs_voice_id: form.elevenlabs_voice_id || undefined,
         audio_url: form.audio_url || undefined,
       })
+      toast.success('Voicemail drop created')
       setShowForm(false)
       setForm({ name: '', drop_type: 'recorded', script_template: '', elevenlabs_voice_id: '', audio_url: '' })
       loadData()
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to create drop')
     }
   }
 
@@ -869,10 +1085,48 @@ function VoicemailTab() {
     if (!confirm('Delete this voicemail drop?')) return
     try {
       await phoneApi.deleteVoicemailDrop(id)
+      toast.success('Voicemail drop deleted')
       loadData()
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to delete drop')
     }
+  }
+
+  async function handleSendCampaign() {
+    if (!campName || !campDropId || !campNumberId) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    setCampSending(true)
+    try {
+      // Parse contact numbers as contact_ids (in a full implementation these would be real contact IDs)
+      const contactIds = campContactNumbers.split('\n').map((s) => s.trim()).filter(Boolean)
+      if (contactIds.length === 0) {
+        toast.error('Please enter at least one contact number')
+        setCampSending(false)
+        return
+      }
+      await phoneApi.sendVoicemailCampaign({
+        name: campName,
+        voicemail_drop_id: campDropId,
+        phone_number_id: campNumberId,
+        contact_ids: contactIds,
+      })
+      toast.success('Voicemail campaign launched!')
+      setCampName('')
+      setCampContactNumbers('')
+      setShowCampaignForm(false)
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to launch campaign')
+    } finally {
+      setCampSending(false)
+    }
+  }
+
+  function handleSendCampaignFromDrop(dropId: string) {
+    setCampDropId(dropId)
+    setShowCampaignForm(true)
+    setVmSubTab('campaigns')
   }
 
   async function handleStartRecord() {
@@ -915,6 +1169,24 @@ function VoicemailTab() {
 
   return (
     <div className="space-y-6">
+      {/* Sub-tab toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setVmSubTab('drops')}
+          className={`px-4 py-2 text-sm rounded-lg ${vmSubTab === 'drops' ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+        >
+          My Drops
+        </button>
+        <button
+          onClick={() => setVmSubTab('campaigns')}
+          className={`px-4 py-2 text-sm rounded-lg ${vmSubTab === 'campaigns' ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+        >
+          Campaigns
+        </button>
+      </div>
+
+      {vmSubTab === 'drops' && (
+        <>
       {/* My Drops */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">My Drops</h2>
@@ -946,7 +1218,10 @@ function VoicemailTab() {
                   <Play className="w-3.5 h-3.5" /> Preview
                 </button>
               )}
-              <button className="w-full mt-3 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-100">
+              <button
+                onClick={() => handleSendCampaignFromDrop(d.id)}
+                className="w-full mt-3 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-100"
+              >
                 Send Campaign
               </button>
             </div>
@@ -1066,6 +1341,103 @@ function VoicemailTab() {
           </div>
         </div>
       )}
+        </>
+      )}
+
+      {/* Campaigns Sub-tab */}
+      {vmSubTab === 'campaigns' && (
+        <>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Voicemail Campaigns</h2>
+            <button
+              onClick={() => setShowCampaignForm(!showCampaignForm)}
+              className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+            >
+              <Megaphone className="w-4 h-4" /> New Campaign
+            </button>
+          </div>
+
+          {showCampaignForm && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-700">Launch Voicemail Campaign</h3>
+              <input
+                type="text"
+                value={campName}
+                onChange={(e) => setCampName(e.target.value)}
+                placeholder="Campaign Name (e.g. Absentee Owner Outreach)"
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Voicemail Drop</label>
+                <select
+                  value={campDropId}
+                  onChange={(e) => setCampDropId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select a voicemail drop...</option>
+                  {drops.map((d: any) => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.drop_type})</option>
+                  ))}
+                </select>
+                {drops.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No drops yet — create one in the Drops tab first.</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">From Number</label>
+                <select
+                  value={campNumberId}
+                  onChange={(e) => setCampNumberId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  {numbers.map((n: any) => (
+                    <option key={n.id} value={n.id}>{n.friendly_name} ({n.number})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Contact Numbers <span className="text-slate-400 font-normal">(one per line)</span>
+                </label>
+                <textarea
+                  value={campContactNumbers}
+                  onChange={(e) => setCampContactNumbers(e.target.value)}
+                  rows={5}
+                  placeholder={'+15551234567\n+15559876543\n+15551112222'}
+                  className="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  {campContactNumbers.split('\n').filter((s) => s.trim()).length} numbers entered &middot; Est. cost: $
+                  {(campContactNumbers.split('\n').filter((s) => s.trim()).length * 0.25).toFixed(2)} credits
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSendCampaign}
+                  disabled={campSending || !campName || !campDropId || !campNumberId}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" /> {campSending ? 'Launching...' : 'Launch Campaign'}
+                </button>
+                <button
+                  onClick={() => setShowCampaignForm(false)}
+                  className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!showCampaignForm && (
+            <div className="bg-slate-50 rounded-lg p-8 text-center">
+              <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">Create a campaign to mass-deliver voicemail drops to your contact list.</p>
+              <p className="text-xs text-slate-400 mt-1">Each drop costs $0.25 in credits (AI Personalized) or $0.05 (Standard)</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -1110,11 +1482,12 @@ function FaxTab() {
         from_number_id: fromNumberId,
         media_url: mediaUrl,
       })
+      toast.success('Fax sent successfully')
       setToNumber('')
       setMediaUrl('')
       loadData()
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to send fax')
     }
   }
 
@@ -1238,14 +1611,21 @@ function CreditsTab() {
     phoneApi.getCredits().then((d) => { setCredits(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
+  const [purchasing, setPurchasing] = useState('')
+
   async function handlePurchase(bundle: string) {
+    setPurchasing(bundle)
     try {
       const data = await phoneApi.purchaseCredits(bundle)
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url
+      if (data.checkout_url && data.checkout_url !== '#demo-checkout') {
+        window.open(data.checkout_url, '_blank')
+      } else {
+        toast.success('Credit purchase — Stripe checkout coming soon!')
       }
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message || 'Failed to purchase credits')
+    } finally {
+      setPurchasing('')
     }
   }
 
@@ -1324,9 +1704,10 @@ function CreditsTab() {
               </span>
               <button
                 onClick={() => handlePurchase(b.key)}
-                className="w-full mt-4 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                disabled={!!purchasing}
+                className="w-full mt-4 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
-                Purchase
+                {purchasing === b.key ? 'Processing...' : 'Purchase'}
               </button>
             </div>
           ))}

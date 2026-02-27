@@ -318,3 +318,163 @@ export function useUpdateDealNotes() {
     },
   })
 }
+
+// ============ PHONE SYSTEM HOOKS ============
+
+import * as phoneApi from '@/services/phoneApi'
+
+// ── Call History ─────────────────────────────────────────────
+
+export function useCallHistory(contactId?: string) {
+  return useQuery({
+    queryKey: ['phone', 'calls', contactId],
+    queryFn: () => phoneApi.getCalls(contactId),
+  })
+}
+
+export function useUpdateCall() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { disposition?: string; notes?: string } }) =>
+      phoneApi.updateCall(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'calls'] })
+      toast.success('Call updated')
+    },
+    onError: () => {
+      toast.error('Failed to update call')
+    },
+  })
+}
+
+// ── SMS Campaigns ────────────────────────────────────────────
+
+export function useSmsCampaigns() {
+  return useQuery({
+    queryKey: ['phone', 'sms', 'campaigns'],
+    queryFn: () => phoneApi.getSmsCampaigns(),
+  })
+}
+
+export function useCreateSmsCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      name: string
+      message_template: string
+      phone_number_id: string
+      list_id?: string
+      scheduled_at?: string
+    }) => phoneApi.createSmsCampaign(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'sms', 'campaigns'] })
+      toast.success('SMS campaign created')
+    },
+    onError: () => {
+      toast.error('Failed to create SMS campaign')
+    },
+  })
+}
+
+export function useSendSmsCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (campaignId: string) => phoneApi.sendSmsCampaign(campaignId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'sms', 'campaigns'] })
+      toast.success('SMS campaign sent!')
+    },
+    onError: () => {
+      toast.error('Failed to send SMS campaign')
+    },
+  })
+}
+
+// ── Voicemail Campaigns ──────────────────────────────────────
+
+export function useVoicemailDrops() {
+  return useQuery({
+    queryKey: ['phone', 'voicemail', 'drops'],
+    queryFn: () => phoneApi.getVoicemailDrops(),
+  })
+}
+
+export function useSendVoicemailCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      name: string
+      voicemail_drop_id: string
+      phone_number_id: string
+      contact_ids: string[]
+    }) => phoneApi.sendVoicemailCampaign(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'voicemail'] })
+      toast.success('Voicemail campaign launched!')
+    },
+    onError: () => {
+      toast.error('Failed to send voicemail campaign')
+    },
+  })
+}
+
+// ── Fax ──────────────────────────────────────────────────────
+
+export function useFaxHistory() {
+  return useQuery({
+    queryKey: ['phone', 'fax'],
+    queryFn: () => phoneApi.getFaxHistory(),
+  })
+}
+
+export function useSendFax() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      to_number: string
+      from_number_id: string
+      media_url: string
+      contact_id?: string
+    }) => phoneApi.sendFax(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'fax'] })
+      toast.success('Fax sent successfully')
+    },
+    onError: () => {
+      toast.error('Failed to send fax')
+    },
+  })
+}
+
+// ── Credits ──────────────────────────────────────────────────
+
+export function usePhoneCredits() {
+  return useQuery({
+    queryKey: ['phone', 'credits'],
+    queryFn: () => phoneApi.getCredits(),
+  })
+}
+
+export function usePurchaseCredits() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (bundle: string) => phoneApi.purchaseCredits(bundle),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['phone', 'credits'] })
+      if (data.checkout_url && data.checkout_url !== '#demo-checkout') {
+        window.open(data.checkout_url, '_blank')
+      } else {
+        toast.success('Credits purchase — Stripe checkout coming soon!')
+      }
+    },
+    onError: () => {
+      toast.error('Failed to purchase credits')
+    },
+  })
+}
