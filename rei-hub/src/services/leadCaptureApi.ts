@@ -46,6 +46,7 @@ export interface WebsiteConfig {
   primary_color: string
   form_fields: string[] // ['name', 'phone', 'email', 'address', 'message']
   webhook_url?: string
+  custom_domain?: string
 }
 
 export interface PublishedWebsite {
@@ -407,4 +408,297 @@ export async function exportLeadsToCSV(websiteId?: string): Promise<string> {
   const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
 
   return csv
+}
+
+// ── Embed Code Generation ──────────────────────────────────────
+
+export async function generateEmbedCode(websiteId: string, config: WebsiteConfig): Promise<string> {
+  return withDemoFallback(async () => {
+    const websites = getStoredWebsites()
+    const website = websites.find((w) => w.id === websiteId)
+    if (!website) throw new Error('Website not found')
+
+    // Generate a unique ID for this embed instance
+    const embedId = `rei-form-${websiteId}`
+    const webhookUrl = config.webhook_url || 'https://example.com/webhooks/leads'
+
+    const formFields = config.form_fields
+      .map((field) => {
+        switch (field) {
+          case 'name':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-name" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Full Name *</label>
+          <input type="text" id="${embedId}-name" name="name" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'phone':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-phone" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Phone Number *</label>
+          <input type="tel" id="${embedId}-phone" name="phone" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'email':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-email" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Email Address *</label>
+          <input type="email" id="${embedId}-email" name="email" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'address':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-address" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Property Address</label>
+          <input type="text" id="${embedId}-address" name="address" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'message':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-message" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Tell Us About Your Property</label>
+          <textarea id="${embedId}-message" name="message" rows="3" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
+        </div>`
+          default:
+            return ''
+        }
+      })
+      .join('')
+
+    return `<!-- REI Fundamentals Hub Lead Capture Form -->
+<div id="${embedId}"></div>
+<script>
+(function() {
+  const containerId = '${embedId}';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const primaryColor = '${config.primary_color}';
+  const webhookUrl = '${webhookUrl}';
+
+  // Create wrapper div
+  const wrapper = document.createElement('div');
+  wrapper.id = containerId + '-wrapper';
+  wrapper.style.cssText = 'max-width: 400px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
+
+  // Create form
+  const form = document.createElement('form');
+  form.id = containerId + '-form';
+  form.style.cssText = 'background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+
+  // Title
+  const title = document.createElement('h3');
+  title.textContent = 'Get in Touch';
+  title.style.cssText = 'margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #111827;';
+  form.appendChild(title);
+
+  // Form fields HTML
+  form.innerHTML += \`${formFields}\`;
+
+  // Submit button
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = 'Submit';
+  submitBtn.style.cssText = \`width: 100%; padding: 10px; background-color: \${primaryColor}; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px;\`;
+  submitBtn.onmouseover = function() { this.style.opacity = '0.9'; };
+  submitBtn.onmouseout = function() { this.style.opacity = '1'; };
+  form.appendChild(submitBtn);
+
+  // Handle form submission
+  form.onsubmit = function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const data = {};
+    formData.forEach((value, key) => {
+      data[key] = value;
+    });
+
+    // Try to send to webhook
+    if (webhookUrl) {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(() => {
+        // Silently fail if webhook not available
+      });
+    }
+
+    // Show thank you message
+    form.style.display = 'none';
+    const thankYou = document.createElement('div');
+    thankYou.style.cssText = 'background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 24px; text-align: center; color: #166534;';
+    thankYou.innerHTML = '<p style="margin: 0; font-weight: 600;">Thank you for your submission!</p><p style="margin: 8px 0 0 0; font-size: 14px;">We will be in touch soon.</p>';
+    wrapper.appendChild(thankYou);
+  };
+
+  wrapper.appendChild(form);
+  container.appendChild(wrapper);
+})();
+</script>`
+  }, '')
+}
+
+export async function generateEmbedPopupCode(websiteId: string, config: WebsiteConfig): Promise<string> {
+  return withDemoFallback(async () => {
+    const websites = getStoredWebsites()
+    const website = websites.find((w) => w.id === websiteId)
+    if (!website) throw new Error('Website not found')
+
+    const embedId = `rei-popup-${websiteId}`
+    const webhookUrl = config.webhook_url || 'https://example.com/webhooks/leads'
+
+    const formFields = config.form_fields
+      .map((field) => {
+        switch (field) {
+          case 'name':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-name" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Full Name *</label>
+          <input type="text" id="${embedId}-name" name="name" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'phone':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-phone" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Phone Number *</label>
+          <input type="tel" id="${embedId}-phone" name="phone" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'email':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-email" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Email Address *</label>
+          <input type="email" id="${embedId}-email" name="email" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'address':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-address" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Property Address</label>
+          <input type="text" id="${embedId}-address" name="address" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;">
+        </div>`
+          case 'message':
+            return `
+        <div style="margin-bottom: 16px;">
+          <label for="${embedId}-message" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Tell Us About Your Property</label>
+          <textarea id="${embedId}-message" name="message" rows="3" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
+        </div>`
+          default:
+            return ''
+        }
+      })
+      .join('')
+
+    return `<!-- REI Fundamentals Hub Popup Lead Form -->
+<div id="${embedId}-button"></div>
+<script>
+(function() {
+  const buttonId = '${embedId}-button';
+  const modalId = '${embedId}-modal';
+  const primaryColor = '${config.primary_color}';
+  const webhookUrl = '${webhookUrl}';
+
+  // Create button
+  const buttonContainer = document.getElementById(buttonId);
+  if (!buttonContainer) return;
+
+  const button = document.createElement('button');
+  button.textContent = 'Contact Us';
+  button.style.cssText = \`background-color: \${primaryColor}; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;\`;
+  button.onmouseover = function() { this.style.opacity = '0.9'; };
+  button.onmouseout = function() { this.style.opacity = '1'; };
+
+  // Create modal
+  const modal = document.createElement('div');
+  modal.id = modalId;
+  modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
+
+  // Modal content
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 20px 25px rgba(0,0,0,0.15); max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;';
+
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.style.cssText = 'position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;';
+  closeBtn.onclick = () => { modal.style.display = 'none'; };
+
+  // Form
+  const form = document.createElement('form');
+  form.id = modalId + '-form';
+  form.style.cssText = 'padding: 32px;';
+
+  // Title
+  const title = document.createElement('h2');
+  title.textContent = 'Get in Touch';
+  title.style.cssText = 'margin: 0 0 24px 0; font-size: 20px; font-weight: 600; color: #111827;';
+  form.appendChild(title);
+
+  // Fields
+  form.innerHTML += \`${formFields}\`;
+
+  // Submit button
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = 'Submit';
+  submitBtn.style.cssText = \`width: 100%; padding: 10px; background-color: \${primaryColor}; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px;\`;
+  submitBtn.onmouseover = function() { this.style.opacity = '0.9'; };
+  submitBtn.onmouseout = function() { this.style.opacity = '1'; };
+  form.appendChild(submitBtn);
+
+  form.onsubmit = function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const data = {};
+    formData.forEach((value, key) => {
+      data[key] = value;
+    });
+
+    if (webhookUrl) {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(() => {});
+    }
+
+    form.style.display = 'none';
+    const thankYou = document.createElement('div');
+    thankYou.style.cssText = 'padding: 32px; text-align: center; color: #166534;';
+    thankYou.innerHTML = '<p style="margin: 0; font-weight: 600; font-size: 18px;">Thank you!</p><p style="margin: 8px 0 0 0; font-size: 14px; color: #4b5563;">We will be in touch soon.</p><button onclick="document.getElementById(\\'' + modalId + '\\').style.display = \\'none\\';" style="margin-top: 16px; padding: 8px 16px; background: #e5e7eb; border: none; border-radius: 6px; cursor: pointer; font-family: inherit;">Close</button>';
+    modalContent.appendChild(thankYou);
+  };
+
+  modalContent.appendChild(closeBtn);
+  modalContent.appendChild(form);
+  modal.appendChild(modalContent);
+
+  button.onclick = () => { modal.style.display = 'block'; };
+
+  buttonContainer.appendChild(button);
+  document.body.appendChild(modal);
+})();
+</script>`
+  }, '')
+}
+
+export async function updateCustomDomain(websiteId: string, domain: string): Promise<void> {
+  return withDemoFallback(async () => {
+    const websites = getStoredWebsites()
+    const index = websites.findIndex((w) => w.id === websiteId)
+
+    if (index === -1) throw new Error('Website not found')
+
+    const website = websites[index]
+    website.config.custom_domain = domain
+    website.updatedAt = new Date().toISOString()
+
+    websites[index] = website
+    setStoredWebsites(websites)
+  }, undefined)
+}
+
+export async function checkDomainStatus(domain: string): Promise<'not_configured' | 'pending' | 'active'> {
+  return withDemoFallback(async () => {
+    // In demo mode, always return active for demo sites
+    if (isDemoMode()) return 'active'
+    // In a real app, this would check DNS records
+    return 'not_configured'
+  }, 'active')
 }

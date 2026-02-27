@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Globe, Layout, Eye, Download, Trash2, Plus, Edit, Users, Mail, Phone, MapPin,
-  FileText, Palette, ExternalLink, ChevronDown, Save, Zap, X,
+  FileText, Palette, ExternalLink, ChevronDown, Save, Zap, X, Code, Copy, Check,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as api from '@/services/leadCaptureApi'
@@ -9,7 +9,7 @@ import { templates, getTemplateById } from '@/components/LeadCapture/templates'
 
 // ── Types ─────────────────────────────────────────────────
 
-type Tab = 'templates' | 'builder' | 'sites' | 'leads'
+type Tab = 'templates' | 'builder' | 'sites' | 'leads' | 'embed'
 
 interface FormState {
   templateId: string
@@ -21,6 +21,7 @@ interface FormState {
   primary_color: string
   form_fields: string[]
   webhook_url: string
+  custom_domain: string
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -43,9 +44,16 @@ export default function LeadCaptureWebsitesPage() {
     primary_color: '#2563eb',
     form_fields: ['name', 'phone', 'email', 'address', 'message'],
     webhook_url: '',
+    custom_domain: '',
   })
 
   const [editingWebsiteId, setEditingWebsiteId] = useState<string | null>(null)
+  const [selectedWebsiteForEmbed, setSelectedWebsiteForEmbed] = useState<string>('')
+  const [embedInlineCode, setEmbedInlineCode] = useState<string>('')
+  const [embedPopupCode, setEmbedPopupCode] = useState<string>('')
+  const [copiedCode, setCopiedCode] = useState<'inline' | 'popup' | null>(null)
+  const [domainStatus, setDomainStatus] = useState<Record<string, 'not_configured' | 'pending' | 'active'>>({})
+  const [loadingEmbed, setLoadingEmbed] = useState(false)
 
   // Load initial data
   useEffect(() => {
@@ -252,8 +260,66 @@ export default function LeadCaptureWebsitesPage() {
       primary_color: '#2563eb',
       form_fields: ['name', 'phone', 'email', 'address', 'message'],
       webhook_url: '',
+      custom_domain: '',
     })
     setEditingWebsiteId(null)
+  }
+
+  async function loadEmbedCode(websiteId: string) {
+    if (!websiteId) return
+    try {
+      setLoadingEmbed(true)
+      const website = websites.find((w) => w.id === websiteId)
+      if (!website) return
+
+      const inlineCode = await api.generateEmbedCode(websiteId, website.config)
+      const popupCode = await api.generateEmbedPopupCode(websiteId, website.config)
+
+      setEmbedInlineCode(inlineCode)
+      setEmbedPopupCode(popupCode)
+
+      // Check domain status
+      if (website.config.custom_domain) {
+        const status = await api.checkDomainStatus(website.config.custom_domain)
+        setDomainStatus((prev) => ({
+          ...prev,
+          [website.config.custom_domain || '']: status,
+        }))
+      }
+    } catch (error) {
+      toast.error('Failed to generate embed code')
+    } finally {
+      setLoadingEmbed(false)
+    }
+  }
+
+  function copyToClipboard(text: string, type: 'inline' | 'popup') {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedCode(type)
+      toast.success('Embed code copied!')
+      setTimeout(() => setCopiedCode(null), 2000)
+    })
+  }
+
+  async function handleUpdateCustomDomain(websiteId: string, domain: string) {
+    if (!domain) {
+      toast.error('Please enter a domain')
+      return
+    }
+    try {
+      setLoading(true)
+      await api.updateCustomDomain(websiteId, domain)
+      toast.success('Custom domain updated!')
+      await loadWebsites()
+
+      if (selectedWebsiteForEmbed === websiteId) {
+        await loadEmbedCode(websiteId)
+      }
+    } catch (error) {
+      toast.error('Failed to update domain')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredLeads =
@@ -315,6 +381,17 @@ export default function LeadCaptureWebsitesPage() {
         >
           <Users className="w-4 h-4 inline mr-2" />
           Leads ({leads.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('embed')}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+            activeTab === 'embed'
+              ? 'border-primary-600 text-primary-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Code className="w-4 h-4 inline mr-2" />
+          Embed
         </button>
       </div>
 
@@ -537,6 +614,48 @@ export default function LeadCaptureWebsitesPage() {
                 />
               </div>
 
+              {/* Custom Domain */}
+              <div className="border-t border-slate-200 pt-4 mt-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  Custom Domain (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="leads.mycompany.com"
+                  value={formState.custom_domain}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      custom_domain: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                  Point your domain's CNAME record to <code className="bg-slate-100 px-1 rounded">pages.reifundamentalshub.com</code>, then enter it here
+                </p>
+                {editingWebsiteId && (
+                  <div className="mt-3">
+                    {domainStatus[formState.custom_domain] === 'active' && (
+                      <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-1 rounded">
+                        ✓ Active
+                      </span>
+                    )}
+                    {domainStatus[formState.custom_domain] === 'pending' && (
+                      <span className="text-xs font-semibold text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+                        ⏳ Pending DNS
+                      </span>
+                    )}
+                    {!domainStatus[formState.custom_domain] && (
+                      <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                        ○ Not configured
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Buttons */}
               <div className="flex gap-2 pt-4">
                 <button
@@ -594,6 +713,7 @@ export default function LeadCaptureWebsitesPage() {
                     <tr>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Name</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Template</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Domain</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Status</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Leads</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Created</th>
@@ -606,6 +726,13 @@ export default function LeadCaptureWebsitesPage() {
                         <td className="px-6 py-3 text-slate-900 font-medium">{website.name}</td>
                         <td className="px-6 py-3 text-slate-600">
                           {templates.find((t) => t.id === website.templateId)?.name || website.templateId}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600 text-sm">
+                          {website.config.custom_domain ? (
+                            <span className="font-medium">{website.config.custom_domain}</span>
+                          ) : (
+                            <span className="text-slate-500">Default</span>
+                          )}
                         </td>
                         <td className="px-6 py-3">
                           <span
@@ -731,6 +858,192 @@ export default function LeadCaptureWebsitesPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Embed Tab ── */}
+      {activeTab === 'embed' && (
+        <div className="space-y-6">
+          {/* Website Selector */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Select Website to Embed</label>
+            <select
+              value={selectedWebsiteForEmbed}
+              onChange={(e) => {
+                const websiteId = e.target.value
+                setSelectedWebsiteForEmbed(websiteId)
+                if (websiteId) {
+                  loadEmbedCode(websiteId)
+                }
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+            >
+              <option value="">Choose a published website...</option>
+              {websites
+                .filter((w) => w.status === 'published')
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {selectedWebsiteForEmbed && (
+            <>
+              {/* Inline Form Section */}
+              <div className="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Code className="w-5 h-5" />
+                  Inline Form
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Paste this code into your website's HTML where you want the form to appear
+                </p>
+
+                {/* Preview */}
+                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                  <p className="text-xs font-medium text-slate-500 mb-3">Preview</p>
+                  <div
+                    className="bg-white rounded border border-slate-200 p-4"
+                    style={{ maxWidth: '400px' }}
+                    dangerouslySetInnerHTML={{
+                      __html: `
+                        <div style="max-width: 400px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                          <div style="background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #111827;">Get in Touch</h3>
+                            <form style="display: flex; flex-direction: column; gap: 12px;">
+                              <div>
+                                <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">Full Name *</label>
+                                <input type="text" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box;" disabled>
+                              </div>
+                              <button type="submit" style="padding: 10px; background-color: ${websites.find((w) => w.id === selectedWebsiteForEmbed)?.config.primary_color || '#2563eb'}; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px;">Submit</button>
+                            </form>
+                          </div>
+                        </div>
+                      `,
+                    }}
+                  />
+                </div>
+
+                {/* Code Block */}
+                {embedInlineCode && (
+                  <>
+                    <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto">
+                      <pre className="text-xs text-slate-100 font-mono">{embedInlineCode}</pre>
+                    </div>
+
+                    {/* Copy Button */}
+                    <button
+                      onClick={() => copyToClipboard(embedInlineCode, 'inline')}
+                      className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2"
+                    >
+                      {copiedCode === 'inline' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy Code
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Popup Form Section */}
+              <div className="bg-white rounded-lg border border-slate-200 p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Code className="w-5 h-5" />
+                  Popup Form
+                </h3>
+                <p className="text-sm text-slate-600">
+                  This creates a floating button that opens a form modal when clicked
+                </p>
+
+                {/* Preview */}
+                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                  <p className="text-xs font-medium text-slate-500 mb-3">Preview</p>
+                  <button
+                    style={{
+                      backgroundColor: websites.find((w) => w.id === selectedWebsiteForEmbed)?.config.primary_color || '#2563eb',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+                    onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+                    disabled
+                  >
+                    Contact Us
+                  </button>
+                </div>
+
+                {/* Code Block */}
+                {embedPopupCode && (
+                  <>
+                    <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto">
+                      <pre className="text-xs text-slate-100 font-mono">{embedPopupCode}</pre>
+                    </div>
+
+                    {/* Copy Button */}
+                    <button
+                      onClick={() => copyToClipboard(embedPopupCode, 'popup')}
+                      className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2"
+                    >
+                      {copiedCode === 'popup' ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy Code
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Custom Domain Info */}
+              {(() => {
+                const selectedWebsite = websites.find((w) => w.id === selectedWebsiteForEmbed)
+                return selectedWebsite ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 text-sm mb-2">Domain Information</h4>
+                    <p className="text-sm text-blue-800">
+                      {selectedWebsite.config.custom_domain ? (
+                        <>
+                          Your form is accessible at: <code className="bg-blue-100 px-2 py-1 rounded font-mono text-xs">https://{selectedWebsite.config.custom_domain}</code>
+                        </>
+                      ) : (
+                        <>
+                          No custom domain configured. Edit this website in the Builder to add one.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                ) : null
+              })()}
+            </>
+          )}
+
+          {!selectedWebsiteForEmbed && (
+            <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-200">
+              <Code className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">Select a published website to generate embed code</p>
             </div>
           )}
         </div>
