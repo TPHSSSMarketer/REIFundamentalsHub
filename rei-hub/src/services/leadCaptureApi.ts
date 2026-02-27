@@ -1,6 +1,22 @@
 // localStorage-based Lead Capture API with REI demo data
 // All functions are async to match page component expectations
 
+// ── Configuration ─────────────────────────────────────────
+
+const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+
+function getAuthHeader(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem('rei-hub-auth')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      const token = parsed?.state?.token
+      if (token) return { 'Authorization': `Bearer ${token}` }
+    }
+  } catch { /* ignore */ }
+  return {}
+}
+
 // ── Demo Mode Helpers ──────────────────────────────────────
 
 function isDemoMode(): boolean {
@@ -31,7 +47,7 @@ export interface LeadCaptureTemplate {
   id: string
   name: string
   description: string
-  category: 'seller' | 'buyer' | 'evaluation' | 'wholesale'
+  category: 'seller' | 'buyer' | 'hybrid' | 'agent' | 'branding' | 'notes'
   previewColor: string
   generateHtml: (config: WebsiteConfig) => string
 }
@@ -47,6 +63,9 @@ export interface WebsiteConfig {
   form_fields: string[] // ['name', 'phone', 'email', 'address', 'message']
   webhook_url?: string
   custom_domain?: string
+  market?: string
+  logo_url?: string
+  slug?: string
 }
 
 export interface PublishedWebsite {
@@ -59,6 +78,7 @@ export interface PublishedWebsite {
   createdAt: string
   updatedAt: string
   leadCount: number
+  slug?: string
 }
 
 export interface CapturedLead {
@@ -79,13 +99,14 @@ const DEMO_WEBSITES: PublishedWebsite[] = [
   {
     id: 'web-1',
     name: 'San Antonio Cash Buyers',
-    templateId: 'motivated-seller',
+    templateId: 'cash_buyers',
+    slug: 'san-antonio-cash-buyers-abc12345',
     status: 'published',
     createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     leadCount: 18,
     config: {
-      templateId: 'motivated-seller',
+      templateId: 'cash_buyers',
       company_name: 'San Antonio Property Solutions',
       headline: 'Sell Your House Fast for Cash',
       description: 'Get a fair cash offer for your home in 24 hours. No repairs needed, no waiting.',
@@ -94,19 +115,21 @@ const DEMO_WEBSITES: PublishedWebsite[] = [
       primary_color: '#2563eb',
       form_fields: ['name', 'phone', 'email', 'address', 'message'],
       webhook_url: 'https://example.com/webhooks/leads',
+      slug: 'san-antonio-cash-buyers-abc12345',
     },
     html: '<html>...</html>',
   },
   {
     id: 'web-2',
     name: 'Birmingham Motivated Sellers',
-    templateId: 'cash-buyer',
+    templateId: 'motivated_sellers',
+    slug: 'birmingham-motivated-sellers-def67890',
     status: 'published',
     createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     leadCount: 12,
     config: {
-      templateId: 'cash-buyer',
+      templateId: 'motivated_sellers',
       company_name: 'Birmingham Investment Group',
       headline: 'Find Off-Market Deals',
       description: 'Get instant notifications for the best wholesale opportunities in your market.',
@@ -115,6 +138,7 @@ const DEMO_WEBSITES: PublishedWebsite[] = [
       primary_color: '#1e293b',
       form_fields: ['name', 'phone', 'email', 'address'],
       webhook_url: 'https://example.com/webhooks/leads',
+      slug: 'birmingham-motivated-sellers-def67890',
     },
     html: '<html>...</html>',
   },

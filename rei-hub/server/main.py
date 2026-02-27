@@ -27,6 +27,7 @@ from rei.api.contacts_routes import contacts_router
 from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
 from rei.api.email_marketing_routes import email_marketing_router
+from rei.api.lead_capture_routes import lead_capture_router, lead_capture_public_router
 from rei.api.loan_routes_payments import router as loan_payments_router
 from rei.api.loan_routes_properties import router as loan_properties_router
 from rei.api.onboarding_routes import onboarding_router
@@ -39,6 +40,7 @@ from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
 from rei.models.user import User
+from rei.models.lead_capture import LeadCaptureSite, LeadSubmission  # noqa: F401
 from rei.tasks.reminder_processor import process_reminders
 from rei.tasks.sequence_processor import process_sequence_steps, reset_email_credits
 from rei.tasks.state_law_processor import process_pending_state_research
@@ -262,6 +264,8 @@ app.include_router(analytics_router)
 app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 app.include_router(superadmin_router, prefix="/api")
+app.include_router(lead_capture_router, prefix="/api")
+app.include_router(lead_capture_public_router)
 
 
 @app.get("/health")

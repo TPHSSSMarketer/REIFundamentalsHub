@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Globe, Layout, Eye, Download, Trash2, Plus, Edit, Users, Mail, Phone, MapPin,
-  FileText, Palette, ExternalLink, ChevronDown, Save, Zap, X, Code, Copy, Check,
+  FileText, Palette, ExternalLink, ChevronDown, Save, Zap, X, Code, Copy, Check, Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as api from '@/services/leadCaptureApi'
-import { templates, getTemplateById } from '@/components/LeadCapture/templates'
+import { templates, getTemplateById, TemplateConfig, TemplateInfo } from './templates'
+import AIWebsiteBuilder from './AIWebsiteBuilder'
+
+// ── Configuration ─────────────────────────────────────────
+
+const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -22,6 +27,9 @@ interface FormState {
   form_fields: string[]
   webhook_url: string
   custom_domain: string
+  market?: string
+  logo_url?: string
+  slug?: string
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -35,7 +43,7 @@ export default function LeadCaptureWebsitesPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const [formState, setFormState] = useState<FormState>({
-    templateId: 'motivated-seller',
+    templateId: 'motivated_sellers',
     company_name: 'My Real Estate Company',
     headline: 'Sell Your House Fast for Cash',
     description: 'Get a fair cash offer for your home in 24 hours.',
@@ -45,6 +53,8 @@ export default function LeadCaptureWebsitesPage() {
     form_fields: ['name', 'phone', 'email', 'address', 'message'],
     webhook_url: '',
     custom_domain: '',
+    market: '',
+    logo_url: '',
   })
 
   const [editingWebsiteId, setEditingWebsiteId] = useState<string | null>(null)
@@ -54,6 +64,7 @@ export default function LeadCaptureWebsitesPage() {
   const [copiedCode, setCopiedCode] = useState<'inline' | 'popup' | null>(null)
   const [domainStatus, setDomainStatus] = useState<Record<string, 'not_configured' | 'pending' | 'active'>>({})
   const [loadingEmbed, setLoadingEmbed] = useState(false)
+  const [showAIBuilder, setShowAIBuilder] = useState(false)
 
   // Load initial data
   useEffect(() => {
@@ -95,7 +106,20 @@ export default function LeadCaptureWebsitesPage() {
     const template = getTemplateById(formState.templateId)
     if (!template) return
 
-    let html = template.generateHtml(formState)
+    const templateConfig: TemplateConfig = {
+      company_name: formState.company_name,
+      headline: formState.headline,
+      description: formState.description,
+      phone: formState.phone,
+      email: formState.email,
+      primary_color: formState.primary_color,
+      form_fields: formState.form_fields,
+      market: formState.market,
+      logo_url: formState.logo_url,
+      slug: formState.slug,
+    }
+
+    let html = template.generateHTML(templateConfig)
 
     // Replace placeholders
     html = html
@@ -111,23 +135,27 @@ export default function LeadCaptureWebsitesPage() {
   }
 
   function loadTemplateIntoBuilder(templateId: string) {
-    const template = templates.find((t) => t.id === templateId)
+    const template = getTemplateById(templateId)
     if (!template) return
 
     setFormState((prev) => ({
       ...prev,
       templateId,
-      headline: template.name === 'We Buy Houses' ? 'Sell Your House Fast for Cash' :
-                template.name === 'Find Off-Market Deals' ? 'Find Exclusive Off-Market Deals' :
-                template.name === 'Property Evaluation' ? "What's My Property Worth?" :
-                'Get Exclusive Wholesale Deal Alerts',
-      description: template.description,
-      primary_color: template.previewColor,
+      headline: template.defaultHeadline,
+      description: template.defaultDescription,
+      primary_color: template.defaultColor,
     }))
 
     setEditingWebsiteId(null)
     setActiveTab('builder')
     toast.success('Template loaded!')
+  }
+
+  function handleAIBuilderComplete(config: FormState, templateId: string) {
+    setFormState(config)
+    setEditingWebsiteId(null)
+    setActiveTab('builder')
+    toast.success('Website configured with AI!')
   }
 
   async function handleSaveAsDraft() {
@@ -155,17 +183,32 @@ export default function LeadCaptureWebsitesPage() {
     try {
       setLoading(true)
 
+      const template = getTemplateById(formState.templateId)
+      if (!template) {
+        toast.error('Template not found')
+        return
+      }
+
+      const templateConfig: TemplateConfig = {
+        company_name: formState.company_name,
+        headline: formState.headline,
+        description: formState.description,
+        phone: formState.phone,
+        email: formState.email,
+        primary_color: formState.primary_color,
+        form_fields: formState.form_fields,
+        market: formState.market,
+        logo_url: formState.logo_url,
+        slug: formState.slug,
+      }
+
+      const generateHtmlFn = () => template.generateHTML(templateConfig)
+
       if (!editingWebsiteId) {
         const website = await api.createWebsite(formState)
-        const template = getTemplateById(formState.templateId)
-        if (template) {
-          await api.publishWebsite(website.id, template.generateHtml)
-        }
+        await api.publishWebsite(website.id, generateHtmlFn)
       } else {
-        const template = getTemplateById(formState.templateId)
-        if (template) {
-          await api.publishWebsite(editingWebsiteId, template.generateHtml)
-        }
+        await api.publishWebsite(editingWebsiteId, generateHtmlFn)
       }
 
       toast.success('Website published!')
@@ -251,7 +294,7 @@ export default function LeadCaptureWebsitesPage() {
 
   function handleResetForm() {
     setFormState({
-      templateId: 'motivated-seller',
+      templateId: 'motivated_sellers',
       company_name: 'My Real Estate Company',
       headline: 'Sell Your House Fast for Cash',
       description: 'Get a fair cash offer for your home in 24 hours.',
@@ -261,6 +304,8 @@ export default function LeadCaptureWebsitesPage() {
       form_fields: ['name', 'phone', 'email', 'address', 'message'],
       webhook_url: '',
       custom_domain: '',
+      market: '',
+      logo_url: '',
     })
     setEditingWebsiteId(null)
   }
@@ -397,24 +442,40 @@ export default function LeadCaptureWebsitesPage() {
 
       {/* ── Templates Tab ── */}
       {activeTab === 'templates' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {/* AI Builder Button */}
+          <button
+            onClick={() => setShowAIBuilder(true)}
+            className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          >
+            <Sparkles className="w-5 h-5" />
+            Build with AI
+          </button>
+
+          {/* Templates Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {templates.map((template) => (
             <div
               key={template.id}
-              className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
+              className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
             >
               <div
-                className="h-40 bg-gradient-to-br flex items-center justify-center"
-                style={{ background: `linear-gradient(135deg, ${template.previewColor} 0%, ${template.previewColor}cc 100%)` }}
+                className="h-32 bg-gradient-to-br flex items-center justify-center"
+                style={{ background: `linear-gradient(135deg, ${template.defaultColor} 0%, ${template.defaultColor}cc 100%)` }}
               >
-                <Globe className="w-16 h-16 text-white/50" />
+                <Globe className="w-12 h-12 text-white/50" />
               </div>
-              <div className="p-6">
-                <h3 className="text-lg font-bold text-slate-900">{template.name}</h3>
-                <p className="text-slate-500 text-sm mt-2">{template.description}</p>
+              <div className="p-4 flex flex-col flex-grow">
+                <h3 className="text-base font-bold text-slate-900">{template.name}</h3>
+                <p className="text-slate-500 text-xs mt-1 flex-grow">{template.description}</p>
+                <div className="mt-3 mb-3">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 rounded">
+                    {template.targetLead}
+                  </span>
+                </div>
                 <button
                   onClick={() => loadTemplateIntoBuilder(template.id)}
-                  className="mt-4 w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2"
+                  className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Use This Template
@@ -422,6 +483,7 @@ export default function LeadCaptureWebsitesPage() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 
@@ -462,6 +524,26 @@ export default function LeadCaptureWebsitesPage() {
                     setFormState((prev) => ({
                       ...prev,
                       company_name: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Market / City */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <MapPin className="w-4 h-4 inline mr-2" />
+                  Market / City
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., San Antonio, TX"
+                  value={formState.market || ''}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      market: e.target.value,
                     }))
                   }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
@@ -717,6 +799,7 @@ export default function LeadCaptureWebsitesPage() {
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Status</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Leads</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Created</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Link</th>
                       <th className="px-6 py-3 text-right font-semibold text-slate-900">Actions</th>
                     </tr>
                   </thead>
@@ -748,6 +831,22 @@ export default function LeadCaptureWebsitesPage() {
                         <td className="px-6 py-3 text-slate-900 font-medium">{website.leadCount}</td>
                         <td className="px-6 py-3 text-slate-600 text-xs">
                           {new Date(website.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600 text-sm">
+                          {website.slug ? (
+                            <a
+                              href={`${BASE_URL}/sites/${website.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                              title="View Live"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                              View Live
+                            </a>
+                          ) : (
+                            <span className="text-slate-500 text-xs">Demo Only</span>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-right space-x-2">
                           <button
@@ -1048,6 +1147,13 @@ export default function LeadCaptureWebsitesPage() {
           )}
         </div>
       )}
+
+      {/* AI Website Builder Modal */}
+      <AIWebsiteBuilder
+        isOpen={showAIBuilder}
+        onClose={() => setShowAIBuilder(false)}
+        onComplete={handleAIBuilderComplete}
+      />
     </div>
   )
 }
