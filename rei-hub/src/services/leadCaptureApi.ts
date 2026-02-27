@@ -759,7 +759,7 @@ export async function updateSubmissionCRM(
  */
 export async function syncLeadsToCRM(leads: CapturedLead[]): Promise<void> {
   // Dynamic import to avoid circular dependency
-  const { createContact, createDeal, getContacts } = await import('@/services/db')
+  const { createContact, createDeal, getContacts } = await import('@/services/crmApi')
 
   const existingContacts = await getContacts('local-user')
   const existingEmails = new Set(

@@ -24,6 +24,9 @@ from rei.api.bank_negotiation_routes import router as bank_negotiation_router
 from rei.api.billing_routes import billing_router
 from rei.api.calendar_routes import calendar_router
 from rei.api.contacts_routes import contacts_router
+from rei.api.crm_contacts_routes import crm_contacts_router
+from rei.api.crm_deals_routes import crm_deals_router
+from rei.api.crm_portfolio_routes import crm_portfolio_router
 from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
 from rei.api.email_marketing_routes import email_marketing_router
@@ -279,6 +282,9 @@ app.include_router(audit_router, prefix="/api")
 app.include_router(superadmin_router, prefix="/api")
 app.include_router(lead_capture_router, prefix="/api")
 app.include_router(lead_capture_public_router)
+app.include_router(crm_contacts_router, prefix="/api")
+app.include_router(crm_deals_router, prefix="/api")
+app.include_router(crm_portfolio_router, prefix="/api")
 
 
 @app.get("/health")

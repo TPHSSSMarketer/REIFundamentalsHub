@@ -24,7 +24,7 @@ import {
   cancelRequest,
   getCertificate,
 } from '@/services/plaidApi'
-import { getDeals } from '@/services/db'
+import { getDeals } from '@/services/crmApi'
 import { getCurrentUser } from '@/services/auth'
 import type { Deal } from '@/types'
 

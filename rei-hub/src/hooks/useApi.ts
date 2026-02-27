@@ -12,7 +12,8 @@ import {
   createContact,
   updateContact,
   deleteContact,
-} from '@/services/db'
+  updateDealStage as apiUpdateDealStage,
+} from '@/services/crmApi'
 import { mockPipelines } from '@/data/mockData'
 import type { Contact, Deal } from '@/types'
 import { toast } from 'sonner'
@@ -148,7 +149,7 @@ export function useUpdateDealStage() {
 
   return useMutation({
     mutationFn: ({ dealId, stageId }: { dealId: string; stageId: string }) =>
-      updateDeal(dealId, { stage: stageId as Deal['stage'] }),
+      apiUpdateDealStage(dealId, stageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] })
     },

@@ -19,6 +19,7 @@ from rei.models.user import (
 from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
 from rei.models.credentials import ProviderCredentials
+from rei.models.crm import CrmContact, CrmDeal, CrmPortfolioProperty
 
 __all__ = [
     "User",
@@ -40,4 +41,7 @@ __all__ = [
     "NegotiationFollowUp",
     "AuditLog",
     "ProviderCredentials",
+    "CrmContact",
+    "CrmDeal",
+    "CrmPortfolioProperty",
 ]

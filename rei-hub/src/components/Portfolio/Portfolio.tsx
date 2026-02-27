@@ -7,7 +7,7 @@ import {
   createPortfolioProperty,
   updatePortfolioProperty,
   deletePortfolioProperty,
-} from '@/services/db'
+} from '@/services/crmApi'
 
 // ============ HELPERS ============
 
