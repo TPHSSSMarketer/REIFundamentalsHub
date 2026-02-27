@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#2d2d2d'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.cash_buyers
   const avatars = avatarImages.cash_buyers
+  const defaults = getTemplateDefaults('cash_buyers')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -581,10 +586,7 @@ export function generateHTML(config: TemplateConfig): string {
   <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Google Reviews</span></div>
-      <div class="trust-item">${renderIcon('trendingUp', 22)} <span><strong>200+</strong> Deals Closed</span></div>
-      <div class="trust-item">${renderIcon('target', 22)} <span>Average <strong>35% Discount</strong></span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -657,30 +659,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">Successful investors who found their best deals through our network.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I've closed 12 deals this year alone. Their below-market deals saved me tens of thousands. This is the only list I use for sourcing."</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="Michael R." class="testimonial-avatar">
-            <div><div class="testimonial-name">Michael R.</div><div class="testimonial-title">Real Estate Investor${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"The quality of deals is amazing. I got 8-10 legitimate opportunities per month. Already flipped 3 properties with an average 40% ROI."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Jennifer T." class="testimonial-avatar">
-            <div><div class="testimonial-name">Jennifer T.</div><div class="testimonial-title">Fix & Flip Specialist${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"Building my rental portfolio has never been easier. Their investment properties are cash-flowing from day one. Best decision I made."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="David P." class="testimonial-avatar">
-            <div><div class="testimonial-name">David P.</div><div class="testimonial-title">Buy & Hold Investor${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -693,26 +679,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What is the minimum investment required? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">There's no minimum investment required to join our list. We work with investors of all experience levels and capital amounts, from beginner investors to experienced portfolio holders.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What types of properties do you find? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We source single-family homes, multi-family properties, commercial buildings, and land deals. Tell us your investment strategy and we'll find properties that match your criteria.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How often do you send deals? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">VIP members typically receive 8-15 qualified deals per month, depending on market conditions and available inventory. Premium members get priority access to the best opportunities.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What markets do you cover? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We have partnerships across the entire region. Whether you're looking to invest locally or in surrounding markets, we can source properties in your target areas.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What if a property needs a lot of work? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">That's exactly what we specialize in! Our network includes distressed properties, fixer-uppers, and properties requiring renovation. Perfect for experienced fix-and-flip investors.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -760,7 +730,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

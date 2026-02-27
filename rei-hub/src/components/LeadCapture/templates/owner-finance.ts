@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#dc2626'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.owner_finance
   const avatars = avatarImages.owner_finance
+  const defaults = getTemplateDefaults('owner_finance')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -228,10 +233,7 @@ export function generateHTML(config: TemplateConfig): string {
 
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Buyer Reviews</span></div>
-      <div class="trust-item">${renderIcon('home', 22)} <span><strong>75+</strong> Homes Financed</span></div>
-      <div class="trust-item">${renderIcon('clock', 22)} <span>Close in as few as <strong>21 days</strong></span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -301,30 +303,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">See how real people became homeowners through owner financing.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"No bank would touch my application. They worked with me directly and I became a homeowner in 30 days!"</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="David P." class="testimonial-avatar">
-            <div><div class="testimonial-name">David P.</div><div class="testimonial-title">Owner-Financed Homeowner${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"The whole process was transparent and fair. They worked with me on a payment plan I could actually afford."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Michelle R." class="testimonial-avatar">
-            <div><div class="testimonial-name">Michelle R.</div><div class="testimonial-title">Home Owner${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"Finally, a path to homeownership that doesn't require perfect credit. Highly recommend!"</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Carlos T." class="testimonial-avatar">
-            <div><div class="testimonial-name">Carlos T.</div><div class="testimonial-title">Property Owner${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -336,26 +322,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What interest rate do I pay? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Interest rates are competitive and depend on the property and your agreement. We'll discuss rates transparently before you commit.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How much down payment do I need? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Down payments are flexible, typically ranging from 5-20% depending on the property and your situation. Much lower than traditional mortgages.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What if I have bad credit? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Credit scores don't disqualify you. We evaluate your whole situation including income, stability, and ability to make payments.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Can I refinance with a bank later? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Yes! Many of our buyers build equity and improve their credit, allowing them to refinance with traditional mortgages.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What's the condition of the homes? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We offer a range of properties. All are habitable and well-maintained. Full inspections are encouraged.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -401,7 +371,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

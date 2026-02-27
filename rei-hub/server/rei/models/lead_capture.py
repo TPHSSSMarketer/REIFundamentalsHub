@@ -18,6 +18,7 @@ class LeadCaptureSite(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     slug: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    company_slug: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     template_type: Mapped[str] = mapped_column(String, nullable=False)
     # 'motivated_sellers', 'cash_buyers', 'investor_agent', 'agent', 'company_credibility',

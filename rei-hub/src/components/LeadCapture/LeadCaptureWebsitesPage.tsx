@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Globe, Layout, Eye, Download, Trash2, Plus, Edit, Users, Mail, Phone, MapPin,
-  FileText, Palette, ExternalLink, ChevronDown, Save, Zap, X, Code, Copy, Check, Sparkles,
+  FileText, Palette, ExternalLink, ChevronDown, ChevronUp, Save, Zap, X, Code, Copy, Check, Sparkles, Star, MessageSquare, HelpCircle, Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as api from '@/services/leadCaptureApi'
-import { templates, getTemplateById, TemplateConfig, TemplateInfo } from './templates'
+import { templates, getTemplateById, TemplateConfig, TemplateInfo, TrustBadge, Testimonial, FAQItem } from './templates'
 import { heroImages } from './templates/icons'
+import { getTemplateDefaults } from './templates/defaults'
 import AIWebsiteBuilder from './AIWebsiteBuilder'
 
 // ── Configuration ─────────────────────────────────────────
@@ -31,6 +32,52 @@ interface FormState {
   market?: string
   logo_url?: string
   slug?: string
+  trust_badges?: TrustBadge[]
+  testimonials?: Testimonial[]
+  faq_items?: FAQItem[]
+}
+
+// Available icon names for the trust badge icon dropdown
+const ICON_OPTIONS = [
+  'award', 'star', 'home', 'clock', 'dollar', 'shieldCheck', 'users',
+  'trendingUp', 'key', 'phone', 'mail', 'mapPin', 'check', 'handshake',
+]
+
+// ── Section Editor (collapsible panel for trust bar / testimonials / FAQ) ──
+
+function SectionEditor({ title, icon, onReset, children }: {
+  title: string
+  icon: React.ReactNode
+  onReset: () => void
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          {icon} {title}
+        </span>
+        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+      {open && (
+        <div className="p-4 space-y-3 border-t border-slate-200">
+          {children}
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-slate-500 hover:text-slate-700 underline"
+          >
+            Reset to template defaults
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -118,20 +165,13 @@ export default function LeadCaptureWebsitesPage() {
       market: formState.market,
       logo_url: formState.logo_url,
       slug: formState.slug,
+      company_slug: formState.company_name ? formState.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : undefined,
+      trust_badges: formState.trust_badges,
+      testimonials: formState.testimonials,
+      faq_items: formState.faq_items,
     }
 
-    let html = template.generateHTML(templateConfig)
-
-    // Replace placeholders
-    html = html
-      .replace(/{{HEADLINE}}/g, formState.headline)
-      .replace(/{{DESCRIPTION}}/g, formState.description)
-      .replace(/{{COMPANY_NAME}}/g, formState.company_name)
-      .replace(/{{PHONE}}/g, formState.phone)
-      .replace(/{{EMAIL}}/g, formState.email)
-      .replace(/{{PRIMARY_COLOR}}/g, formState.primary_color)
-      .replace(/{{WEBHOOK_URL}}/g, 'https://example.com/webhooks/leads')
-
+    const html = template.generateHTML(templateConfig)
     iframeRef.current.srcdoc = html
   }
 
@@ -139,12 +179,16 @@ export default function LeadCaptureWebsitesPage() {
     const template = getTemplateById(templateId)
     if (!template) return
 
+    const defaults = getTemplateDefaults(templateId)
     setFormState((prev) => ({
       ...prev,
       templateId,
       headline: template.defaultHeadline,
       description: template.defaultDescription,
       primary_color: template.defaultColor,
+      trust_badges: defaults.trust_badges,
+      testimonials: defaults.testimonials,
+      faq_items: defaults.faq_items,
     }))
 
     setEditingWebsiteId(null)
@@ -201,6 +245,10 @@ export default function LeadCaptureWebsitesPage() {
         market: formState.market,
         logo_url: formState.logo_url,
         slug: formState.slug,
+        company_slug: formState.company_name ? formState.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : undefined,
+        trust_badges: formState.trust_badges,
+        testimonials: formState.testimonials,
+        faq_items: formState.faq_items,
       }
 
       const generateHtmlFn = () => template.generateHTML(templateConfig)
@@ -688,6 +736,214 @@ export default function LeadCaptureWebsitesPage() {
                 </div>
               </div>
 
+              {/* ── TRUST BAR EDITOR ── */}
+              <SectionEditor
+                title="Trust Bar Badges"
+                icon={<Shield className="w-4 h-4" />}
+                onReset={() => {
+                  const defaults = getTemplateDefaults(formState.templateId)
+                  setFormState(prev => ({ ...prev, trust_badges: defaults.trust_badges }))
+                }}
+              >
+                {(formState.trust_badges || []).map((badge, idx) => (
+                  <div key={idx} className="flex gap-2 items-start bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <select
+                      value={badge.icon}
+                      onChange={(e) => {
+                        const updated = [...(formState.trust_badges || [])]
+                        updated[idx] = { ...updated[idx], icon: e.target.value }
+                        setFormState(prev => ({ ...prev, trust_badges: updated }))
+                      }}
+                      className="w-28 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    >
+                      {ICON_OPTIONS.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Bold text"
+                      value={badge.bold || ''}
+                      onChange={(e) => {
+                        const updated = [...(formState.trust_badges || [])]
+                        updated[idx] = { ...updated[idx], bold: e.target.value }
+                        setFormState(prev => ({ ...prev, trust_badges: updated }))
+                      }}
+                      className="w-20 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Badge text"
+                      value={badge.text}
+                      onChange={(e) => {
+                        const updated = [...(formState.trust_badges || [])]
+                        updated[idx] = { ...updated[idx], text: e.target.value }
+                        setFormState(prev => ({ ...prev, trust_badges: updated }))
+                      }}
+                      className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        const updated = (formState.trust_badges || []).filter((_, i) => i !== idx)
+                        setFormState(prev => ({ ...prev, trust_badges: updated }))
+                      }}
+                      className="text-red-400 hover:text-red-600 p-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {(formState.trust_badges || []).length < 5 && (
+                  <button
+                    onClick={() => {
+                      const updated = [...(formState.trust_badges || []), { icon: 'award', bold: '', text: 'New Badge' }]
+                      setFormState(prev => ({ ...prev, trust_badges: updated }))
+                    }}
+                    className="w-full py-1.5 text-xs text-primary-600 border border-dashed border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    + Add Badge
+                  </button>
+                )}
+              </SectionEditor>
+
+              {/* ── TESTIMONIALS EDITOR ── */}
+              <SectionEditor
+                title="Testimonials"
+                icon={<MessageSquare className="w-4 h-4" />}
+                onReset={() => {
+                  const defaults = getTemplateDefaults(formState.templateId)
+                  setFormState(prev => ({ ...prev, testimonials: defaults.testimonials }))
+                }}
+              >
+                {(formState.testimonials || []).map((testimonial, idx) => (
+                  <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Name"
+                        value={testimonial.name}
+                        onChange={(e) => {
+                          const updated = [...(formState.testimonials || [])]
+                          updated[idx] = { ...updated[idx], name: e.target.value }
+                          setFormState(prev => ({ ...prev, testimonials: updated }))
+                        }}
+                        className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Title (e.g. Homeowner)"
+                        value={testimonial.title}
+                        onChange={(e) => {
+                          const updated = [...(formState.testimonials || [])]
+                          updated[idx] = { ...updated[idx], title: e.target.value }
+                          setFormState(prev => ({ ...prev, testimonials: updated }))
+                        }}
+                        className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                      />
+                      <select
+                        value={testimonial.stars || 5}
+                        onChange={(e) => {
+                          const updated = [...(formState.testimonials || [])]
+                          updated[idx] = { ...updated[idx], stars: parseInt(e.target.value) }
+                          setFormState(prev => ({ ...prev, testimonials: updated }))
+                        }}
+                        className="w-16 px-1 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                      >
+                        {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ★</option>)}
+                      </select>
+                      <button
+                        onClick={() => {
+                          const updated = (formState.testimonials || []).filter((_, i) => i !== idx)
+                          setFormState(prev => ({ ...prev, testimonials: updated }))
+                        }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <textarea
+                      placeholder="Testimonial quote..."
+                      value={testimonial.quote}
+                      onChange={(e) => {
+                        const updated = [...(formState.testimonials || [])]
+                        updated[idx] = { ...updated[idx], quote: e.target.value }
+                        setFormState(prev => ({ ...prev, testimonials: updated }))
+                      }}
+                      rows={2}
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+                {(formState.testimonials || []).length < 5 && (
+                  <button
+                    onClick={() => {
+                      const updated = [...(formState.testimonials || []), { name: 'New Client', title: 'Client', quote: 'Great experience working with this team!', stars: 5 }]
+                      setFormState(prev => ({ ...prev, testimonials: updated }))
+                    }}
+                    className="w-full py-1.5 text-xs text-primary-600 border border-dashed border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    + Add Testimonial
+                  </button>
+                )}
+              </SectionEditor>
+
+              {/* ── FAQ EDITOR ── */}
+              <SectionEditor
+                title="FAQ Items"
+                icon={<HelpCircle className="w-4 h-4" />}
+                onReset={() => {
+                  const defaults = getTemplateDefaults(formState.templateId)
+                  setFormState(prev => ({ ...prev, faq_items: defaults.faq_items }))
+                }}
+              >
+                {(formState.faq_items || []).map((faq, idx) => (
+                  <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Question"
+                        value={faq.question}
+                        onChange={(e) => {
+                          const updated = [...(formState.faq_items || [])]
+                          updated[idx] = { ...updated[idx], question: e.target.value }
+                          setFormState(prev => ({ ...prev, faq_items: updated }))
+                        }}
+                        className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none font-medium"
+                      />
+                      <button
+                        onClick={() => {
+                          const updated = (formState.faq_items || []).filter((_, i) => i !== idx)
+                          setFormState(prev => ({ ...prev, faq_items: updated }))
+                        }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <textarea
+                      placeholder="Answer..."
+                      value={faq.answer}
+                      onChange={(e) => {
+                        const updated = [...(formState.faq_items || [])]
+                        updated[idx] = { ...updated[idx], answer: e.target.value }
+                        setFormState(prev => ({ ...prev, faq_items: updated }))
+                      }}
+                      rows={2}
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+                {(formState.faq_items || []).length < 8 && (
+                  <button
+                    onClick={() => {
+                      const updated = [...(formState.faq_items || []), { question: 'New question?', answer: 'Answer goes here.' }]
+                      setFormState(prev => ({ ...prev, faq_items: updated }))
+                    }}
+                    className="w-full py-1.5 text-xs text-primary-600 border border-dashed border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    + Add FAQ Item
+                  </button>
+                )}
+              </SectionEditor>
+
               {/* Webhook URL */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Webhook URL (Optional)</label>
@@ -844,7 +1100,7 @@ export default function LeadCaptureWebsitesPage() {
                         <td className="px-6 py-3 text-slate-600 text-sm">
                           {website.slug ? (
                             <a
-                              href={`${BASE_URL}/sites/${website.slug}`}
+                              href={website.company_slug ? `${BASE_URL}/${website.company_slug}/sites/${website.slug}` : `${BASE_URL}/sites/${website.slug}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-700 flex items-center gap-1"

@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#475569'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.note_buying
   const avatars = avatarImages.note_buying
+  const defaults = getTemplateDefaults('note_buying')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -228,10 +233,7 @@ export function generateHTML(config: TemplateConfig): string {
 
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Seller Reviews</span></div>
-      <div class="trust-item">${renderIcon('dollar', 22)} <span><strong>$10M+</strong> In Notes Bought</span></div>
-      <div class="trust-item">${renderIcon('clock', 22)} <span>Close in <strong>21 days</strong></span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -301,30 +303,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">See how real note holders got the cash they needed.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I had a note paying slowly and needed cash now. They made the process simple and I got my money in 21 days."</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="John T." class="testimonial-avatar">
-            <div><div class="testimonial-name">John T.</div><div class="testimonial-title">Note Seller${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"They bought my non-performing note for more than I expected. Professional team and a smooth closing."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Patricia L." class="testimonial-avatar">
-            <div><div class="testimonial-name">Patricia L.</div><div class="testimonial-title">Real Estate Investor${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"Finally got out of a bad note situation. They paid me fairly and handled all the paperwork. Highly recommend!"</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Michael S." class="testimonial-avatar">
-            <div><div class="testimonial-name">Michael S.</div><div class="testimonial-title">Former Note Holder${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -336,26 +322,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What types of notes do you buy? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We buy all types of mortgage notes including performing, non-performing, partial notes, seasoned notes, and notes with various loan terms.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How is my note valued? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We consider loan balance, interest rate, payment history, property value, and remaining term. You'll get a detailed quote explaining our valuation.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Can you buy partial notes? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Yes! We can purchase a portion of your note, allowing you to receive partial proceeds while keeping part of the income stream.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Do you buy non-performing notes? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Absolutely. We specialize in non-performing and problem notes. We handle these professionally and fairly.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How long does the process take? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We can close in as little as 21 days from initial submission to payment. Timeline depends on your note complexity.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -401,7 +371,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

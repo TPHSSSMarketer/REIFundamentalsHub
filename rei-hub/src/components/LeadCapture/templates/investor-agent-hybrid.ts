@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#0d9488'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.investor_agent
   const avatars = avatarImages.investor_agent
+  const defaults = getTemplateDefaults('investor_agent')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -581,10 +586,7 @@ export function generateHTML(config: TemplateConfig): string {
   <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>15+</strong> Years In Business</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Ratings</span></div>
-      <div class="trust-item">${renderIcon('users', 22)} <span><strong>1,000+</strong> Happy Clients</span></div>
-      <div class="trust-item">${renderIcon('dollar', 22)} <span><strong>\$50M+</strong> Total Deals</span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -657,30 +659,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">From sellers to investors, here's what our clients have to say about working with us.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I needed to sell my inherited property quickly. They bought it as-is and closed in two weeks. Professional, fair, and hassle-free!"</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="Lisa M." class="testimonial-avatar">
-            <div><div class="testimonial-name">Lisa M.</div><div class="testimonial-title">Property Seller${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"The investment deals they sourced for me are fantastic. Quality properties, below market pricing. Best business decision I've made."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Robert K." class="testimonial-avatar">
-            <div><div class="testimonial-name">Robert K.</div><div class="testimonial-title">Real Estate Investor${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"They helped me both sell my previous home and find an investment property. Seamless coordination, expert guidance throughout."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Angela C." class="testimonial-avatar">
-            <div><div class="testimonial-name">Angela C.</div><div class="testimonial-title">Hybrid Buyer/Seller${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -693,26 +679,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Do you work with real estate agents? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Yes, we collaborate with agents and welcome co-broker relationships. We have experience working alongside agents to create win-win scenarios for all parties involved.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What types of properties do you handle? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We work with all property types: single-family homes, multi-family buildings, commercial real estate, vacant land, and investment properties. Each type receives specialized expertise.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Can I sell AND buy through you? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Absolutely! Many clients use us for both selling their current property and finding their next investment. We can coordinate both transactions seamlessly.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What markets do you serve? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We have deep expertise in our primary market and expanding reach into surrounding regions. Contact us to discuss your specific location and we'll let you know how we can help.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How long does the process take? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Timeline varies based on your goal. Selling for cash can happen in weeks, while finding the perfect investment property takes as long as needed. We work at your pace.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -760,7 +730,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

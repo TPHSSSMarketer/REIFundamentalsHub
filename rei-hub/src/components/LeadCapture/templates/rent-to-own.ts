@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#7c3aed'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.rent_to_own
   const avatars = avatarImages.rent_to_own
+  const defaults = getTemplateDefaults('rent_to_own')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -581,10 +586,7 @@ export function generateHTML(config: TemplateConfig): string {
   <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Resident Reviews</span></div>
-      <div class="trust-item">${renderIcon('home', 22)} <span><strong>100+</strong> Families Housed</span></div>
-      <div class="trust-item">${renderIcon('clock', 22)} <span>Move in as fast as <strong>30 days</strong></span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -657,30 +659,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">See how families like yours became homeowners through rent-to-own.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I never thought I could buy a home with my credit score. They gave me a real chance to become a homeowner. Building equity every month feels amazing!"</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="Marcus D." class="testimonial-avatar">
-            <div><div class="testimonial-name">Marcus D.</div><div class="testimonial-title">Tenant-Buyer${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"We were stuck renting for years. Now we have a path to homeownership. Our kids have their own rooms and we're building something real for our family."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Jennifer K." class="testimonial-avatar">
-            <div><div class="testimonial-name">Jennifer K.</div><div class="testimonial-title">Family of 4${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"The whole process was transparent and fair. They treated us like partners, not problems. I'm excited to finish my lease and own this home outright!"</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Robert T." class="testimonial-avatar">
-            <div><div class="testimonial-name">Robert T.</div><div class="testimonial-title">Rent-to-Own Owner${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -693,26 +679,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What credit score do I need? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We work with people of all credit backgrounds. Even if your credit isn't perfect, we can find a solution. We evaluate the whole picture, not just a number.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How long are the typical lease terms? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Lease terms are typically 2-5 years, depending on what works for you. We customize the agreement so you have time to save for a down payment and improve your credit if needed.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What percentage of rent goes toward the purchase? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Typically, 15-25% of your monthly rent payment is credited toward your eventual purchase price. The exact percentage depends on the home and your agreement.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What happens if I need to move during the lease? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We understand life happens. Let's discuss your options. There may be early termination options, or we can work with you on your specific situation.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Who is responsible for maintenance and repairs? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">As the tenant-buyer, you're responsible for standard maintenance like any other homeowner would be. We handle major structural issues covered by insurance.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -760,7 +730,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

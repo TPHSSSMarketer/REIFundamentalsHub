@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#d97706'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.mobile_homes
   const avatars = avatarImages.mobile_homes
+  const defaults = getTemplateDefaults('mobile_homes')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -580,10 +585,7 @@ export function generateHTML(config: TemplateConfig): string {
   <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Google Reviews</span></div>
-      <div class="trust-item">${renderIcon('shieldCheck', 22)} <span><strong>15+</strong> Years Trusted</span></div>
-      <div class="trust-item">${renderIcon('users', 22)} <span>Over <strong>1,000</strong> Happy Clients</span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -656,30 +658,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">Don't just take our word for it. Here's what real clients have to say about working with us.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I was struggling to sell my old mobile home. These guys made it easy and fair. I got my cash in a week!"</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="Robert Jackson" class="testimonial-avatar">
-            <div><div class="testimonial-name">Robert Jackson</div><div class="testimonial-title">Mobile Home Seller${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"The best part? They handled everything. All the paperwork, the cleanup, everything. I was blown away by the professionalism."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="Christine Adams" class="testimonial-avatar">
-            <div><div class="testimonial-name">Christine Adams</div><div class="testimonial-title">Happy Seller${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"Fast, honest, and professional. They paid what they promised. Can't ask for better than that. Highly recommended!"</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Donald Pierce" class="testimonial-avatar">
-            <div><div class="testimonial-name">Donald Pierce</div><div class="testimonial-title">Mobile Home Owner${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -692,26 +678,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How long has your company been in business? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We've been serving our community for over 15 years. In that time, we've helped more than 1,000 clients successfully achieve their real estate goals.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Are all team members licensed and insured? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Yes, absolutely. Every member of our team maintains current licenses and comprehensive insurance coverage. We're fully compliant with all state and federal regulations.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">What areas do you serve? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">${config.market ? `We proudly serve ${config.market} and the surrounding areas.` : 'Contact us to learn about our service areas. We are expanding regularly to better serve our growing client base.'}</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Can you provide references from past clients? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We're happy to provide references from satisfied clients. Our track record speaks for itself with a 4.9/5 Google rating and hundreds of successful transactions.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How are you different from other companies? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Our combination of experience, integrity, and community focus sets us apart. We prioritize transparency, put our clients first, and have the proven results to back up our commitment.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -759,7 +729,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

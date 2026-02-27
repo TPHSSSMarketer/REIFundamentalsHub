@@ -9,6 +9,24 @@ import { generateHTML as rentToOwn } from './rent-to-own'
 import { generateHTML as ownerFinance } from './owner-finance'
 import { generateHTML as noteBuying } from './note-buying'
 
+export interface TrustBadge {
+  icon: string
+  text: string
+  bold?: string
+}
+
+export interface Testimonial {
+  name: string
+  title: string
+  quote: string
+  stars?: number
+}
+
+export interface FAQItem {
+  question: string
+  answer: string
+}
+
 export interface TemplateConfig {
   company_name: string
   headline: string
@@ -20,6 +38,10 @@ export interface TemplateConfig {
   logo_url?: string
   form_fields: string[]
   slug?: string
+  company_slug?: string
+  trust_badges?: TrustBadge[]
+  testimonials?: Testimonial[]
+  faq_items?: FAQItem[]
 }
 
 export interface TemplateInfo {

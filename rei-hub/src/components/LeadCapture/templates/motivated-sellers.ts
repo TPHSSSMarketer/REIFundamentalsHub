@@ -1,5 +1,6 @@
 import { TemplateConfig } from './index'
 import { renderIcon, renderStars, heroImages, avatarImages, adjustBrightness, hexToRgba } from './icons'
+import { getTemplateDefaults } from './defaults'
 
 export function generateHTML(config: TemplateConfig): string {
   const color = config.primary_color || '#1a3a5c'
@@ -7,6 +8,10 @@ export function generateHTML(config: TemplateConfig): string {
   const colorLight = adjustBrightness(color, 20)
   const heroImage = heroImages.motivated_sellers
   const avatars = avatarImages.motivated_sellers
+  const defaults = getTemplateDefaults('motivated_sellers')
+  const trustBadges = config.trust_badges || defaults.trust_badges
+  const testimonials = config.testimonials || defaults.testimonials
+  const faqItems = config.faq_items || defaults.faq_items
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -581,10 +586,7 @@ export function generateHTML(config: TemplateConfig): string {
   <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="trust-bar-container">
-      <div class="trust-item">${renderIcon('award', 22)} <span><strong>A+</strong> BBB Rated</span></div>
-      <div class="trust-item"><span class="stars">${renderStars(5)}</span> <span>4.9/5 Google Reviews</span></div>
-      <div class="trust-item">${renderIcon('home', 22)} <span><strong>500+</strong> Homes Purchased</span></div>
-      <div class="trust-item">${renderIcon('clock', 22)} <span>Close in as few as <strong>7 days</strong></span></div>
+      ${trustBadges.map(badge => `<div class="trust-item">${renderIcon(badge.icon, 22)} <span>${badge.bold ? `<strong>${badge.bold}</strong> ` : ''}${badge.text}</span></div>`).join('\n      ')}
     </div>
   </section>
 
@@ -657,30 +659,14 @@ export function generateHTML(config: TemplateConfig): string {
         <p class="section-subtitle">Don't just take our word for it. Here's what real homeowners have to say.</p>
       </div>
       <div class="testimonials-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I was facing foreclosure and didn't know what to do. They gave me a fair offer and we closed in 10 days. Saved my credit and gave me a fresh start."</p>
+        ${testimonials.map((t, i) => `<div class="testimonial-card">
+          <div class="testimonial-stars">${renderStars(t.stars || 5)}</div>
+          <p class="testimonial-text">"${t.quote}"</p>
           <div class="testimonial-author">
-            <img src="${avatars[0]}" alt="Sarah M." class="testimonial-avatar">
-            <div><div class="testimonial-name">Sarah M.</div><div class="testimonial-title">Homeowner${config.market ? `, ${config.market}` : ''}</div></div>
+            <img src="${avatars[i % avatars.length]}" alt="${t.name}" class="testimonial-avatar">
+            <div><div class="testimonial-name">${t.name}</div><div class="testimonial-title">${t.title}${config.market ? `, ${config.market}` : ''}</div></div>
           </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"I inherited a house that needed a ton of work. They bought it as-is and I didn't have to lift a finger. The whole process was smooth and professional."</p>
-          <div class="testimonial-author">
-            <img src="${avatars[1]}" alt="James T." class="testimonial-avatar">
-            <div><div class="testimonial-name">James T.</div><div class="testimonial-title">Inherited Property${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">${renderStars(5)}</div>
-          <p class="testimonial-text">"After my divorce, I needed to sell quickly and move on. They made a fair offer the same day I called and we closed in two weeks. Highly recommend!"</p>
-          <div class="testimonial-author">
-            <img src="${avatars[2]}" alt="Maria G." class="testimonial-avatar">
-            <div><div class="testimonial-name">Maria G.</div><div class="testimonial-title">Quick Sale${config.market ? `, ${config.market}` : ''}</div></div>
-          </div>
-        </div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -693,26 +679,10 @@ export function generateHTML(config: TemplateConfig): string {
         <h2 class="section-title">Frequently Asked Questions</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Do you really buy houses in any condition? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Yes! We buy houses in any condition — damaged, outdated, fire damage, foundation issues, hoarding situations, you name it. We handle all repairs ourselves after closing.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How fast can you close? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We can close in as few as 7 days, or on whatever timeline works best for you. Need 30 or 60 days? No problem. You pick the closing date and we'll make it happen.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Are there any fees or commissions? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Absolutely not. There are zero fees, zero commissions, and zero closing costs. The cash offer we make is the amount you receive. No surprises.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">How is the offer price determined? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">We evaluate your property based on location, condition, comparable sales, and current market conditions. Our goal is to make a fair, competitive offer that works for both sides.</div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question" onclick="toggleFAQ(this)">Am I obligated to accept your offer? ${renderIcon('chevronDown', 20)}</button>
-          <div class="faq-answer">Not at all. Our offers are 100% no-obligation. If the number doesn't work for you, there's no pressure and no hard feelings.</div>
-        </div>
+        ${faqItems.map(faq => `<div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">${faq.question} ${renderIcon('chevronDown', 20)}</button>
+          <div class="faq-answer">${faq.answer}</div>
+        </div>`).join('\n        ')}
       </div>
     </div>
   </section>
@@ -760,7 +730,7 @@ export function generateHTML(config: TemplateConfig): string {
   </footer>
 
   <script>
-    var submitUrl = window.REI_SUBMIT_URL || '${config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
+    var submitUrl = window.REI_SUBMIT_URL || '${config.company_slug && config.slug ? `/${config.company_slug}/sites/${config.slug}/submit` : config.slug ? `/sites/${config.slug}/submit` : '/api/leads'}';
     document.getElementById('leadForm').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = e.target;

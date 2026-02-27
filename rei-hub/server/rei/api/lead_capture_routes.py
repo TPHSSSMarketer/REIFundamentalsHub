@@ -61,10 +61,16 @@ def _generate_slug(name: str) -> str:
     return f"{slug}-{short_id}"
 
 
+def _generate_company_slug(company_name: str) -> str:
+    """Generate URL-friendly company slug from company name."""
+    return re.sub(r'[^a-z0-9]+', '-', company_name.lower()).strip('-')
+
+
 def _site_to_dict(site: LeadCaptureSite) -> dict:
     return {
         "id": site.id,
         "slug": site.slug,
+        "company_slug": site.company_slug,
         "name": site.name,
         "template_type": site.template_type,
         "config": json.loads(site.config_json) if site.config_json else {},
@@ -108,9 +114,14 @@ async def create_site(
     if existing.scalar_one_or_none():
         slug = _generate_slug(body.name)  # Regenerate
 
+    # Generate company slug from company_name in config (if available)
+    company_name = body.config.get("company_name", body.name) if isinstance(body.config, dict) else body.name
+    company_slug = _generate_company_slug(company_name)
+
     site = LeadCaptureSite(
         user_id=user.id,
         slug=slug,
+        company_slug=company_slug,
         name=body.name,
         template_type=body.template_type,
         config_json=json.dumps(body.config),
@@ -347,6 +358,115 @@ async def submit_form(slug: str, request: Request):
 @lead_capture_public_router.options("/sites/{slug}/submit")
 async def submit_form_options(slug: str):
     """CORS preflight for form submission."""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    )
+
+
+# ── New URL structure: /{company_slug}/sites/{slug} ──────────────
+
+
+@lead_capture_public_router.get("/{company_slug}/sites/{slug}", response_class=HTMLResponse)
+async def serve_site_by_company(company_slug: str, slug: str):
+    """Serve a published lead capture website by company_slug + slug."""
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(LeadCaptureSite).where(
+                LeadCaptureSite.company_slug == company_slug,
+                LeadCaptureSite.slug == slug,
+                LeadCaptureSite.status == "published",
+                LeadCaptureSite.is_deleted == False,
+            )
+        )
+        site = result.scalar_one_or_none()
+
+    if not site or not site.published_html:
+        return HTMLResponse(
+            content="<html><body><h1>Site not found</h1><p>This page does not exist or has been unpublished.</p></body></html>",
+            status_code=404,
+        )
+
+    return HTMLResponse(content=site.published_html)
+
+
+@lead_capture_public_router.post("/{company_slug}/sites/{slug}/submit")
+async def submit_form_by_company(company_slug: str, slug: str, request: Request):
+    """
+    PUBLIC endpoint — receive form submission via company_slug URL.
+    No authentication required. Rate limited to 10/min per IP.
+    """
+    ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(rl_ip_key(ip, "lead_submit"), max_requests=10, window_seconds=60):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many submissions. Please try again later."},
+        )
+
+    try:
+        form_data = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Invalid form data"},
+        )
+
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(LeadCaptureSite).where(
+                LeadCaptureSite.company_slug == company_slug,
+                LeadCaptureSite.slug == slug,
+                LeadCaptureSite.status == "published",
+                LeadCaptureSite.is_deleted == False,
+            )
+        )
+        site = result.scalar_one_or_none()
+        if not site:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Site not found"},
+            )
+
+        submission = LeadSubmission(
+            site_id=site.id,
+            form_data_json=json.dumps(form_data),
+            lead_name=form_data.get("name", ""),
+            lead_email=form_data.get("email", ""),
+            lead_phone=form_data.get("phone", ""),
+            lead_address=form_data.get("address", ""),
+            source_ip=ip,
+        )
+        db.add(submission)
+        await db.commit()
+
+        logger.info(
+            "Lead captured: site=%s company=%s slug=%s name=%s email=%s",
+            site.id, company_slug, slug,
+            form_data.get("name", "N/A"),
+            form_data.get("email", "N/A"),
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "success": True,
+            "message": "Thank you! We'll be in touch soon.",
+        },
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    )
+
+
+@lead_capture_public_router.options("/{company_slug}/sites/{slug}/submit")
+async def submit_form_options_by_company(company_slug: str, slug: str):
+    """CORS preflight for form submission via company_slug URL."""
     return JSONResponse(
         content={},
         headers={

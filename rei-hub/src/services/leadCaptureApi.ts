@@ -79,6 +79,7 @@ export interface PublishedWebsite {
   updatedAt: string
   leadCount: number
   slug?: string
+  company_slug?: string
 }
 
 export interface CapturedLead {
