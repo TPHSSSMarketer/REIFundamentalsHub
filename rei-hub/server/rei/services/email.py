@@ -297,3 +297,51 @@ async def send_pof_completed_email(
         html_content=_build_html(body),
         settings=settings,
     )
+
+
+# ── Lead Capture Notifications ─────────────────────────────────────────
+
+
+async def send_lead_notification_email(
+    to_email: str,
+    to_name: str,
+    lead_name: str,
+    lead_email: str,
+    lead_phone: str,
+    lead_address: str,
+    site_name: str,
+    settings: Settings,
+) -> bool:
+    """Notify the site owner when a new lead submits a form."""
+    details = []
+    if lead_name:
+        details.append(f"<strong>Name:</strong> {lead_name}")
+    if lead_email:
+        details.append(f"<strong>Email:</strong> {lead_email}")
+    if lead_phone:
+        details.append(f"<strong>Phone:</strong> {lead_phone}")
+    if lead_address:
+        details.append(f"<strong>Address:</strong> {lead_address}")
+    details_html = "<br>".join(details) if details else "<em>No details provided</em>"
+
+    dashboard_url = f"{settings.hub_url}/lead-capture"
+
+    body = (
+        f"<p>Hi {to_name or 'there'},</p>"
+        f"<p>You have a <strong>new lead</strong> from your site "
+        f"<strong>{site_name}</strong>!</p>"
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;'
+        f'border-radius:8px;padding:16px;margin:16px 0;">'
+        f"{details_html}"
+        f"</div>"
+        f"<p>Log in to your dashboard to follow up.</p>"
+        f"{_cta_button('View Lead in Dashboard', dashboard_url)}"
+    )
+
+    return await send_email(
+        to_email=to_email,
+        to_name=to_name or "",
+        subject=f"New Lead from {site_name}",
+        html_content=_build_html(body),
+        settings=settings,
+    )

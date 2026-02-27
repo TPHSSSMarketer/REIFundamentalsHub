@@ -144,6 +144,18 @@ export default function LeadCaptureWebsitesPage() {
     try {
       const data = await api.getLeads()
       setLeads(data)
+      // Auto-sync new leads to CRM (Contact + Deal in localStorage)
+      const unsynced = data.filter((l) => !l.crmContactId)
+      if (unsynced.length > 0) {
+        try {
+          await api.syncLeadsToCRM(unsynced)
+          // Reload leads to get updated CRM IDs
+          const updated = await api.getLeads()
+          setLeads(updated)
+        } catch {
+          // CRM sync is best-effort — don't block lead display
+        }
+      }
     } catch (error) {
       toast.error('Failed to load leads')
     }
@@ -1063,7 +1075,9 @@ export default function LeadCaptureWebsitesPage() {
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Template</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Domain</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Status</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Views</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Leads</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Conv. Rate</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Created</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Link</th>
                       <th className="px-6 py-3 text-right font-semibold text-slate-900">Actions</th>
@@ -1094,7 +1108,13 @@ export default function LeadCaptureWebsitesPage() {
                             {website.status}
                           </span>
                         </td>
+                        <td className="px-6 py-3 text-slate-600">{website.totalViews || 0}</td>
                         <td className="px-6 py-3 text-slate-900 font-medium">{website.leadCount}</td>
+                        <td className="px-6 py-3 text-slate-600">
+                          {website.totalViews > 0
+                            ? `${((website.leadCount / website.totalViews) * 100).toFixed(1)}%`
+                            : '—'}
+                        </td>
                         <td className="px-6 py-3 text-slate-600 text-xs">
                           {new Date(website.createdAt).toLocaleDateString()}
                         </td>
@@ -1194,6 +1214,7 @@ export default function LeadCaptureWebsitesPage() {
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Phone</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Address</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Source</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">CRM</th>
                       <th className="px-6 py-3 text-left font-semibold text-slate-900">Date</th>
                       <th className="px-6 py-3 text-right font-semibold text-slate-900">Actions</th>
                     </tr>
@@ -1206,6 +1227,17 @@ export default function LeadCaptureWebsitesPage() {
                         <td className="px-6 py-3 text-slate-600 text-sm">{lead.phone || '—'}</td>
                         <td className="px-6 py-3 text-slate-600 text-sm max-w-xs truncate">{lead.address || '—'}</td>
                         <td className="px-6 py-3 text-slate-600 text-xs font-medium">{lead.websiteName}</td>
+                        <td className="px-6 py-3">
+                          {lead.crmContactId ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              <Check className="w-3 h-3" /> Synced
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                              Pending
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-3 text-slate-600 text-xs">
                           {new Date(lead.capturedAt).toLocaleDateString()}
                         </td>

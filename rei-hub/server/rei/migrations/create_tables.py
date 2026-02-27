@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Each entry: (table, column, sql_type)
 _COLUMN_MIGRATIONS = [
     ("lead_capture_sites", "company_slug", "VARCHAR(100)"),
+    ("lead_capture_sites", "total_views", "INTEGER DEFAULT 0"),
 ]
 
 

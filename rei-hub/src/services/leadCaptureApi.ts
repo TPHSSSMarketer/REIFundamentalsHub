@@ -80,6 +80,7 @@ export interface PublishedWebsite {
   createdAt: string
   updatedAt: string
   leadCount: number
+  totalViews: number
   slug?: string
   company_slug?: string
 }
@@ -94,6 +95,8 @@ export interface CapturedLead {
   address?: string
   message?: string
   capturedAt: string
+  crmContactId?: string
+  crmDealId?: string
 }
 
 // ── Helper: map backend response → PublishedWebsite ──────
@@ -110,6 +113,7 @@ function mapSiteResponse(s: Record<string, unknown>): PublishedWebsite {
     createdAt: (s.created_at as string) || new Date().toISOString(),
     updatedAt: (s.updated_at as string) || new Date().toISOString(),
     leadCount: (s.submission_count as number) || 0,
+    totalViews: (s.total_views as number) || 0,
     slug: s.slug as string | undefined,
     company_slug: s.company_slug as string | undefined,
   }
@@ -127,6 +131,8 @@ function mapSubmissionResponse(s: Record<string, unknown>, siteName: string): Ca
     address: (s.lead_address as string) || formData.address || undefined,
     message: formData.message || undefined,
     capturedAt: (s.submitted_at as string) || new Date().toISOString(),
+    crmContactId: (s.crm_contact_id as string) || undefined,
+    crmDealId: (s.crm_deal_id as string) || undefined,
   }
 }
 
@@ -705,4 +711,109 @@ export async function checkDomainStatus(
     if (domain === 'sites.reifundamentalshub.com') return 'active'
     return 'not_configured'
   }, 'active')
+}
+
+// ── Analytics ──────────────────────────────────────────────────────
+
+export interface SiteAnalytics {
+  total_views: number
+  total_submissions: number
+  conversion_rate: number
+  daily: { date: string; views: number; submissions: number; unique_visitors: number }[]
+}
+
+export async function getAnalytics(siteId: string, days = 30): Promise<SiteAnalytics> {
+  return withDemoFallback(async () => {
+    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${siteId}/analytics?days=${days}`, {
+      headers: getAuthHeader(),
+    })
+    if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`)
+    return res.json()
+  }, { total_views: 0, total_submissions: 0, conversion_rate: 0, daily: [] })
+}
+
+// ── CRM Sync ───────────────────────────────────────────────────────
+
+export async function updateSubmissionCRM(
+  submissionId: string,
+  crmContactId: string,
+  crmDealId: string
+): Promise<void> {
+  try {
+    await fetch(`${BASE_URL}/api/lead-capture/submissions/${submissionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({
+        crm_contact_id: crmContactId,
+        crm_deal_id: crmDealId,
+      }),
+    })
+  } catch {
+    // Silently fail — CRM sync is best-effort
+  }
+}
+
+/**
+ * Sync leads to the subscriber's CRM (localStorage Contacts + Deals).
+ * For each lead that doesn't have a crm_contact_id, create a Contact and Deal.
+ */
+export async function syncLeadsToCRM(leads: CapturedLead[]): Promise<void> {
+  // Dynamic import to avoid circular dependency
+  const { createContact, createDeal, getContacts } = await import('@/services/db')
+
+  const existingContacts = await getContacts('local-user')
+  const existingEmails = new Set(
+    existingContacts.map((c) => c.email?.toLowerCase()).filter(Boolean)
+  )
+
+  for (const lead of leads) {
+    // Skip if already synced
+    if (lead.crmContactId) continue
+
+    // Skip if no identifying info
+    if (!lead.email && !lead.name) continue
+
+    // Check if contact already exists by email
+    if (lead.email && existingEmails.has(lead.email.toLowerCase())) continue
+
+    // Parse first/last name
+    const nameParts = (lead.name || '').trim().split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+
+    try {
+      // Create Contact
+      const contact = await createContact('local-user', {
+        firstName,
+        lastName,
+        name: lead.name || `${firstName} ${lastName}`.trim(),
+        email: lead.email,
+        phone: lead.phone,
+        role: 'seller',
+        source: 'Lead Capture',
+        tags: ['lead-capture'],
+      })
+
+      // Create Deal linked to contact
+      const deal = await createDeal('local-user', {
+        title: `${lead.name || 'Lead'} - ${lead.websiteName}`,
+        address: lead.address || '',
+        contactId: contact.id,
+        contactName: contact.name,
+        stage: 'lead',
+        source: 'Lead Capture',
+        notes: lead.message || '',
+      })
+
+      // Track the email so we don't duplicate
+      if (lead.email) existingEmails.add(lead.email.toLowerCase())
+
+      // Update the backend submission with CRM IDs
+      if (lead.id) {
+        await updateSubmissionCRM(lead.id, contact.id, deal.id)
+      }
+    } catch (err) {
+      console.warn('Failed to sync lead to CRM:', err)
+    }
+  }
 }

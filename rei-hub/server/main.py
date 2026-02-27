@@ -40,7 +40,7 @@ from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
 from rei.models.user import User
-from rei.models.lead_capture import LeadCaptureSite, LeadSubmission  # noqa: F401
+from rei.models.lead_capture import LeadCaptureDailyStats, LeadCaptureSite, LeadSubmission  # noqa: F401
 from rei.tasks.reminder_processor import process_reminders
 from rei.tasks.sequence_processor import process_sequence_steps, reset_email_credits
 from rei.tasks.state_law_processor import process_pending_state_research
