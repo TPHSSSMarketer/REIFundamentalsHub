@@ -817,3 +817,33 @@ export async function syncLeadsToCRM(leads: CapturedLead[]): Promise<void> {
     }
   }
 }
+
+// ── Notification Settings ───────────────────────────────────
+
+export interface NotificationSettings {
+  leadEmailNotifications: boolean
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  return withDemoFallback(async () => {
+    const res = await fetch(`${BASE_URL}/api/lead-capture/notification-settings`, {
+      headers: getAuthHeader(),
+    })
+    if (!res.ok) throw new Error('Failed to load notification settings')
+    return res.json()
+  }, { leadEmailNotifications: true })
+}
+
+export async function updateNotificationSettings(
+  settings: NotificationSettings,
+): Promise<NotificationSettings> {
+  return withDemoFallback(async () => {
+    const res = await fetch(`${BASE_URL}/api/lead-capture/notification-settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify(settings),
+    })
+    if (!res.ok) throw new Error('Failed to update notification settings')
+    return res.json()
+  }, settings)
+}

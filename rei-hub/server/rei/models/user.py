@@ -92,6 +92,9 @@ class User(Base):
         String, nullable=True
     )
 
+    # ── Notification Preferences ──────────────────────────────────
+    lead_email_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # ── Deal Analyzer Preferences ─────────────────────────────────
     analyzer_arv_multiplier: Mapped[float] = mapped_column(
         Float, default=0.70)

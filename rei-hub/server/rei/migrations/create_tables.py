@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 _COLUMN_MIGRATIONS = [
     ("lead_capture_sites", "company_slug", "VARCHAR(100)"),
     ("lead_capture_sites", "total_views", "INTEGER DEFAULT 0"),
+    ("users", "lead_email_notifications", "BOOLEAN DEFAULT 1"),
 ]
 
 

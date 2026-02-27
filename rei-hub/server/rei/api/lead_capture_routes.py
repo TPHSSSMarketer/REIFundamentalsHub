@@ -191,6 +191,10 @@ async def _send_owner_notification(site: LeadCaptureSite, form_data: dict) -> No
         if not owner or not owner.email:
             return
 
+        # Respect subscriber's notification preference
+        if not getattr(owner, "lead_email_notifications", True):
+            return
+
         await send_lead_notification_email(
             to_email=owner.email,
             to_name=owner.full_name or "",
@@ -694,3 +698,35 @@ async def submit_form_options_by_company(company_slug: str, slug: str):
             "Access-Control-Allow-Headers": "Content-Type",
         },
     )
+
+
+# ── Notification Settings ────────────────────────────────────
+
+
+class NotificationSettingsBody(BaseModel):
+    leadEmailNotifications: bool
+
+
+@lead_capture_router.get("/notification-settings")
+async def get_notification_settings(
+    user: User = Depends(get_current_user),
+):
+    """Get the subscriber's lead capture notification preferences."""
+    return {
+        "leadEmailNotifications": getattr(user, "lead_email_notifications", True),
+    }
+
+
+@lead_capture_router.patch("/notification-settings")
+async def update_notification_settings(
+    body: NotificationSettingsBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle lead capture email notifications on/off."""
+    user.lead_email_notifications = body.leadEmailNotifications
+    await db.commit()
+    return {
+        "leadEmailNotifications": user.lead_email_notifications,
+        "detail": "Notification settings updated",
+    }

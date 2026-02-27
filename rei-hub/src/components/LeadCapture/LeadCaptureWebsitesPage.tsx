@@ -114,11 +114,13 @@ export default function LeadCaptureWebsitesPage() {
   const [domainStatus, setDomainStatus] = useState<Record<string, 'not_configured' | 'pending' | 'active'>>({})
   const [loadingEmbed, setLoadingEmbed] = useState(false)
   const [showAIBuilder, setShowAIBuilder] = useState(false)
+  const [leadEmailNotifications, setLeadEmailNotifications] = useState(true)
 
   // Load initial data
   useEffect(() => {
     loadWebsites()
     loadLeads()
+    loadNotificationSettings()
   }, [])
 
   // Update preview when form changes
@@ -158,6 +160,27 @@ export default function LeadCaptureWebsitesPage() {
       }
     } catch (error) {
       toast.error('Failed to load leads')
+    }
+  }
+
+  async function loadNotificationSettings() {
+    try {
+      const settings = await api.getNotificationSettings()
+      setLeadEmailNotifications(settings.leadEmailNotifications)
+    } catch {
+      // Default to on
+    }
+  }
+
+  async function toggleLeadEmailNotifications() {
+    const newValue = !leadEmailNotifications
+    setLeadEmailNotifications(newValue)
+    try {
+      await api.updateNotificationSettings({ leadEmailNotifications: newValue })
+      toast.success(newValue ? 'Email notifications turned on' : 'Email notifications turned off')
+    } catch {
+      setLeadEmailNotifications(!newValue) // revert on failure
+      toast.error('Failed to update notification settings')
     }
   }
 
@@ -1187,14 +1210,34 @@ export default function LeadCaptureWebsitesPage() {
                 ))}
               </select>
             </div>
-            <button
-              onClick={handleExportCSV}
-              disabled={filteredLeads.length === 0}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Export to CSV
-            </button>
+            <div className="flex items-center gap-4">
+              {/* Email Notification Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer" title="Get an email each time a lead submits a form">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={leadEmailNotifications}
+                    onChange={toggleLeadEmailNotifications}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-5 rounded-full transition-colors ${leadEmailNotifications ? 'bg-primary-600' : 'bg-slate-300'}`} />
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow ${leadEmailNotifications ? 'translate-x-5' : ''}`} />
+                </div>
+                <span className="text-sm text-slate-600 flex items-center gap-1">
+                  <Mail className="w-3.5 h-3.5" />
+                  Email alerts
+                </span>
+              </label>
+
+              <button
+                onClick={handleExportCSV}
+                disabled={filteredLeads.length === 0}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export to CSV
+              </button>
+            </div>
           </div>
 
           {/* Leads Table */}
