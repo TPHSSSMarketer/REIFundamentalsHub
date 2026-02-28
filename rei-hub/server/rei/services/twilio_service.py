@@ -9,9 +9,13 @@ import json
 import math
 import time
 import uuid
-from typing import Any
+from typing import Any, Optional
+
+import logging
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from rei.config import Settings
 
@@ -136,6 +140,41 @@ async def make_call(
         resp.raise_for_status()
         data = resp.json()
         return {"call_sid": data["sid"]}
+
+
+async def make_outbound_call(
+    to: str,
+    from_: str,
+    twiml: str,
+    settings: Settings,
+) -> Optional[str]:
+    """
+    Initiate an outbound call using inline TwiML (not a URL).
+
+    Used by the callback scheduler and campaign scheduler to make
+    AI outbound calls with ConversationRelay TwiML directly.
+
+    Returns the Twilio CallSid on success, None on failure.
+    """
+    auth = get_auth(settings)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{TWILIO_API_BASE}/Accounts/{settings.TWILIO_ACCOUNT_SID}/Calls.json",
+                auth=auth,
+                data={
+                    "From": from_,
+                    "To": to,
+                    "Twiml": twiml,
+                    "StatusCallback": f"{settings.API_BASE_URL}/api/phone/webhook/call-status",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("sid")
+    except Exception as e:
+        logger.error(f"Failed to make outbound call to {to}: {e}")
+        return None
 
 
 def generate_access_token(identity: str, settings: Settings) -> str:

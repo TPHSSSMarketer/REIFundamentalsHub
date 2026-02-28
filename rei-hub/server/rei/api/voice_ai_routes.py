@@ -29,12 +29,22 @@ from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
 from rei.models.user import (
     AIAgent,
+    CallCampaign,
+    CampaignContact,
     ConversationLog,
     KnowledgeEntry,
+    PhoneNumber,
+    ScheduledCallback,
     User,
 )
 from rei.services import elevenlabs_service
 from rei.services.ai_service import build_voice_agent_prompt
+from rei.services.callback_scheduler import create_callback_from_conversation
+from rei.services.campaign_scheduler import (
+    get_campaign_stats,
+    pause_campaign,
+    start_campaign,
+)
 
 logger = logging.getLogger(__name__)
 voice_ai_router = APIRouter(prefix="/voice-ai", tags=["voice-ai"])
@@ -56,6 +66,42 @@ class CreateKnowledgeRequest(BaseModel):
     name: str
     entry_type: str  # "account_data", "custom_script"
     content: str
+
+
+class CreateCallbackRequest(BaseModel):
+    contact_phone: str
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    property_address: Optional[str] = None
+    scheduled_at: str  # ISO datetime string
+    timezone: str = "America/New_York"
+    callback_type: str = "ai"  # "ai" or "human"
+    agent_id: Optional[str] = None
+    phone_number_id: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class CreateCampaignRequest(BaseModel):
+    name: str
+    agent_id: str
+    phone_number_id: int
+    calling_window_start: str = "09:00"
+    calling_window_end: str = "17:00"
+    calling_days: str = "[1,2,3,4,5]"
+    timezone: str = "America/New_York"
+    seconds_between_calls: int = 30
+
+
+class AddCampaignContactRequest(BaseModel):
+    contact_name: Optional[str] = None
+    contact_phone: str
+    contact_email: Optional[str] = None
+    property_address: Optional[str] = None
+    context_notes: Optional[str] = None
+
+
+class AddCampaignContactsBulkRequest(BaseModel):
+    contacts: list[AddCampaignContactRequest]
 
 
 class UpdateKnowledgeRequest(BaseModel):
@@ -500,3 +546,384 @@ async def _get_agent_knowledge(user_id: int, db: AsyncSession) -> list[dict]:
     )
     entries = result.scalars().all()
     return [{"name": e.name, "content": e.content} for e in entries]
+
+
+# ════════════════════════════════════════════════════════════════════════
+# SCHEDULED CALLBACKS
+# ════════════════════════════════════════════════════════════════════════
+
+
+@voice_ai_router.get("/callbacks")
+async def list_callbacks(
+    status: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all scheduled callbacks for the current user."""
+    query = select(ScheduledCallback).where(
+        ScheduledCallback.user_id == user.id
+    )
+    if status:
+        query = query.where(ScheduledCallback.status == status)
+    query = query.order_by(ScheduledCallback.scheduled_at.desc())
+
+    result = await db.execute(query)
+    callbacks = result.scalars().all()
+
+    return [
+        {
+            "id": cb.id,
+            "contact_name": cb.contact_name,
+            "contact_phone": cb.contact_phone,
+            "contact_email": cb.contact_email,
+            "property_address": cb.property_address,
+            "scheduled_at": cb.scheduled_at.isoformat() if cb.scheduled_at else None,
+            "timezone": cb.timezone,
+            "callback_type": cb.callback_type,
+            "agent_id": cb.agent_id,
+            "status": cb.status,
+            "attempt_count": cb.attempt_count,
+            "max_attempts": cb.max_attempts,
+            "notes": cb.notes,
+            "created_at": cb.created_at.isoformat() if cb.created_at else None,
+        }
+        for cb in callbacks
+    ]
+
+
+@voice_ai_router.post("/callbacks")
+async def create_callback(
+    body: CreateCallbackRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Schedule a new callback (manually or from the dashboard)."""
+    scheduled_at = datetime.fromisoformat(body.scheduled_at)
+
+    callback = await create_callback_from_conversation(
+        user_id=user.id,
+        contact_phone=body.contact_phone,
+        scheduled_at=scheduled_at,
+        db=db,
+        contact_name=body.contact_name,
+        contact_email=body.contact_email,
+        property_address=body.property_address,
+        notes=body.notes,
+        agent_id=body.agent_id,
+        phone_number_id=body.phone_number_id,
+        callback_type=body.callback_type,
+        timezone=body.timezone,
+    )
+
+    return {
+        "id": callback.id,
+        "status": callback.status,
+        "scheduled_at": callback.scheduled_at.isoformat(),
+        "message": "Callback scheduled successfully",
+    }
+
+
+@voice_ai_router.patch("/callbacks/{callback_id}")
+async def update_callback(
+    callback_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    status: Optional[str] = None,
+    scheduled_at: Optional[str] = None,
+    notes: Optional[str] = None,
+):
+    """Update a scheduled callback (reschedule, cancel, add notes)."""
+    result = await db.execute(
+        select(ScheduledCallback).where(
+            and_(
+                ScheduledCallback.id == callback_id,
+                ScheduledCallback.user_id == user.id,
+            )
+        )
+    )
+    callback = result.scalar_one_or_none()
+    if not callback:
+        raise HTTPException(status_code=404, detail="Callback not found")
+
+    if status:
+        callback.status = status
+    if scheduled_at:
+        callback.scheduled_at = datetime.fromisoformat(scheduled_at)
+    if notes:
+        callback.notes = notes
+    callback.updated_at = datetime.utcnow()
+
+    await db.commit()
+    return {"id": callback.id, "status": callback.status, "message": "Updated"}
+
+
+@voice_ai_router.delete("/callbacks/{callback_id}")
+async def cancel_callback(
+    callback_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a scheduled callback."""
+    result = await db.execute(
+        select(ScheduledCallback).where(
+            and_(
+                ScheduledCallback.id == callback_id,
+                ScheduledCallback.user_id == user.id,
+            )
+        )
+    )
+    callback = result.scalar_one_or_none()
+    if not callback:
+        raise HTTPException(status_code=404, detail="Callback not found")
+
+    callback.status = "cancelled"
+    callback.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"message": "Callback cancelled"}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# CALL CAMPAIGNS
+# ════════════════════════════════════════════════════════════════════════
+
+
+@voice_ai_router.get("/campaigns")
+async def list_campaigns(
+    status: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all campaigns for the current user."""
+    query = select(CallCampaign).where(CallCampaign.user_id == user.id)
+    if status:
+        query = query.where(CallCampaign.status == status)
+    query = query.order_by(CallCampaign.created_at.desc())
+
+    result = await db.execute(query)
+    campaigns = result.scalars().all()
+
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "agent_id": c.agent_id,
+            "phone_number_id": c.phone_number_id,
+            "status": c.status,
+            "total_contacts": c.total_contacts,
+            "calls_made": c.calls_made,
+            "calls_answered": c.calls_answered,
+            "calls_no_answer": c.calls_no_answer,
+            "calls_failed": c.calls_failed,
+            "leads_qualified": c.leads_qualified,
+            "appointments_set": c.appointments_set,
+            "calling_window_start": c.calling_window_start,
+            "calling_window_end": c.calling_window_end,
+            "calling_days": c.calling_days,
+            "seconds_between_calls": c.seconds_between_calls,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in campaigns
+    ]
+
+
+@voice_ai_router.post("/campaigns")
+async def create_campaign(
+    body: CreateCampaignRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new calling campaign (starts in draft status)."""
+    campaign = CallCampaign(
+        user_id=user.id,
+        name=body.name,
+        agent_id=body.agent_id,
+        phone_number_id=body.phone_number_id,
+        calling_window_start=body.calling_window_start,
+        calling_window_end=body.calling_window_end,
+        calling_days=body.calling_days,
+        timezone=body.timezone,
+        seconds_between_calls=body.seconds_between_calls,
+        status="draft",
+    )
+    db.add(campaign)
+    await db.commit()
+    await db.refresh(campaign)
+
+    return {
+        "id": campaign.id,
+        "name": campaign.name,
+        "status": campaign.status,
+        "message": "Campaign created in draft status. Add contacts then start it.",
+    }
+
+
+@voice_ai_router.post("/campaigns/{campaign_id}/contacts")
+async def add_campaign_contacts(
+    campaign_id: str,
+    body: AddCampaignContactsBulkRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add contacts to a campaign (bulk)."""
+    # Verify ownership
+    result = await db.execute(
+        select(CallCampaign).where(
+            and_(
+                CallCampaign.id == campaign_id,
+                CallCampaign.user_id == user.id,
+            )
+        )
+    )
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status not in ("draft", "paused"):
+        raise HTTPException(
+            status_code=400,
+            detail="Can only add contacts to draft or paused campaigns",
+        )
+
+    added = 0
+    for contact_data in body.contacts:
+        contact = CampaignContact(
+            campaign_id=campaign_id,
+            contact_name=contact_data.contact_name,
+            contact_phone=contact_data.contact_phone,
+            contact_email=contact_data.contact_email,
+            property_address=contact_data.property_address,
+            context_notes=contact_data.context_notes,
+            status="pending",
+        )
+        db.add(contact)
+        added += 1
+
+    campaign.total_contacts += added
+    await db.commit()
+
+    return {"message": f"Added {added} contacts to campaign", "total": campaign.total_contacts}
+
+
+@voice_ai_router.get("/campaigns/{campaign_id}/contacts")
+async def list_campaign_contacts(
+    campaign_id: str,
+    status: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List contacts in a campaign with their call results."""
+    # Verify ownership
+    result = await db.execute(
+        select(CallCampaign).where(
+            and_(
+                CallCampaign.id == campaign_id,
+                CallCampaign.user_id == user.id,
+            )
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    query = select(CampaignContact).where(
+        CampaignContact.campaign_id == campaign_id
+    )
+    if status:
+        query = query.where(CampaignContact.status == status)
+
+    result = await db.execute(query)
+    contacts = result.scalars().all()
+
+    return [
+        {
+            "id": c.id,
+            "contact_name": c.contact_name,
+            "contact_phone": c.contact_phone,
+            "contact_email": c.contact_email,
+            "property_address": c.property_address,
+            "status": c.status,
+            "attempt_count": c.attempt_count,
+            "outcome": c.outcome,
+            "deal_eagerness": c.deal_eagerness,
+            "called_at": c.called_at.isoformat() if c.called_at else None,
+        }
+        for c in contacts
+    ]
+
+
+@voice_ai_router.post("/campaigns/{campaign_id}/start")
+async def start_campaign_endpoint(
+    campaign_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Start a campaign — begins making calls."""
+    # Verify ownership
+    result = await db.execute(
+        select(CallCampaign).where(
+            and_(
+                CallCampaign.id == campaign_id,
+                CallCampaign.user_id == user.id,
+            )
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    try:
+        campaign = await start_campaign(campaign_id, db)
+        return {
+            "id": campaign.id,
+            "status": campaign.status,
+            "total_contacts": campaign.total_contacts,
+            "message": "Campaign started! Calls will begin within the calling window.",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@voice_ai_router.post("/campaigns/{campaign_id}/pause")
+async def pause_campaign_endpoint(
+    campaign_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pause a running campaign."""
+    result = await db.execute(
+        select(CallCampaign).where(
+            and_(
+                CallCampaign.id == campaign_id,
+                CallCampaign.user_id == user.id,
+            )
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    try:
+        campaign = await pause_campaign(campaign_id, db)
+        return {"id": campaign.id, "status": "paused", "message": "Campaign paused"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@voice_ai_router.get("/campaigns/{campaign_id}/stats")
+async def campaign_stats_endpoint(
+    campaign_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get detailed campaign stats."""
+    # Verify ownership
+    result = await db.execute(
+        select(CallCampaign).where(
+            and_(
+                CallCampaign.id == campaign_id,
+                CallCampaign.user_id == user.id,
+            )
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    stats = await get_campaign_stats(campaign_id, db)
+    return stats

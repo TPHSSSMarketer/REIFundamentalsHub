@@ -604,6 +604,18 @@ class PhoneNumber(Base):
         Boolean, default=True
     )  # Toggle: is the user available to take calls right now?
 
+    # ── Ring Schedule (when softphone/cell should ring) ──────────
+    ring_schedule: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # JSON: controls when each device rings. Example:
+    # {
+    #   "softphone": {"days": [1,2,3,4,5], "start": "08:00", "end": "20:00"},
+    #   "cell":      {"days": [1,2,3,4,5], "start": "09:00", "end": "18:00"},
+    #   "timezone":  "America/New_York"
+    # }
+    # Outside these windows, that device won't ring (AI handles instead)
+
+
 class CallLog(Base):
     __tablename__ = "call_logs"
 
@@ -1670,3 +1682,177 @@ class ConversationLog(Base):
     )  # "in_progress", "completed", "failed"
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+# ── Scheduled Callbacks (AI-booked appointments) ─────────────────────
+
+class ScheduledCallback(Base):
+    """
+    A callback appointment booked by the AI during a call.
+
+    When the AI agent says "I'll have someone call you back Thursday at 2 PM",
+    it creates one of these. The system then triggers an outbound call at the
+    scheduled time — either AI-powered or flagged for the human investor.
+    """
+
+    __tablename__ = "scheduled_callbacks"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_phone: Mapped[str] = mapped_column(String, nullable=False)
+    contact_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    property_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # When to call back
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    timezone: Mapped[str] = mapped_column(String, default="America/New_York")
+
+    # Who makes the callback
+    callback_type: Mapped[str] = mapped_column(
+        String, default="ai"
+    )  # "ai" = AI agent calls, "human" = just notify the investor
+    agent_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("ai_agents.id"), nullable=True
+    )
+    phone_number_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("phone_numbers.id"), nullable=True
+    )
+
+    # Context from original conversation
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # AI's notes about what to discuss
+    original_conversation_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("conversation_logs.id"), nullable=True
+    )
+
+    # Status tracking
+    status: Mapped[str] = mapped_column(
+        String, default="scheduled"
+    )  # "scheduled", "in_progress", "completed", "failed", "cancelled", "no_answer"
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    last_attempt_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    result_conversation_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # Links to the conversation log from the callback call
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ── Call Campaigns (bulk AI outbound calling) ─────────────────────────
+
+class CallCampaign(Base):
+    """
+    A bulk outbound calling campaign.
+
+    The investor uploads a list of contacts (or selects from CRM), picks an
+    AI agent, and schedules the campaign. The system calls each contact
+    automatically with spacing between calls.
+    """
+
+    __tablename__ = "call_campaigns"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    # Campaign configuration
+    agent_id: Mapped[str] = mapped_column(
+        String, ForeignKey("ai_agents.id"), nullable=False
+    )
+    phone_number_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("phone_numbers.id"), nullable=False
+    )
+
+    # Schedule
+    start_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # When to start calling (null = manual start)
+    calling_window_start: Mapped[str] = mapped_column(
+        String, default="09:00"
+    )  # Don't call before this time
+    calling_window_end: Mapped[str] = mapped_column(
+        String, default="17:00"
+    )  # Don't call after this time
+    calling_days: Mapped[str] = mapped_column(
+        String, default="[1,2,3,4,5]"
+    )  # JSON array of days (1=Mon, 7=Sun)
+    timezone: Mapped[str] = mapped_column(String, default="America/New_York")
+    seconds_between_calls: Mapped[int] = mapped_column(
+        Integer, default=30
+    )  # Spacing between calls
+
+    # Stats
+    total_contacts: Mapped[int] = mapped_column(Integer, default=0)
+    calls_made: Mapped[int] = mapped_column(Integer, default=0)
+    calls_answered: Mapped[int] = mapped_column(Integer, default=0)
+    calls_no_answer: Mapped[int] = mapped_column(Integer, default=0)
+    calls_failed: Mapped[int] = mapped_column(Integer, default=0)
+    leads_qualified: Mapped[int] = mapped_column(Integer, default=0)
+    appointments_set: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Status
+    status: Mapped[str] = mapped_column(
+        String, default="draft"
+    )  # "draft", "scheduled", "running", "paused", "completed", "cancelled"
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+
+
+class CampaignContact(Base):
+    """
+    A single contact within a calling campaign.
+
+    Tracks the status and result of each individual call in the campaign.
+    """
+
+    __tablename__ = "campaign_contacts"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    campaign_id: Mapped[str] = mapped_column(
+        String, ForeignKey("call_campaigns.id"), nullable=False
+    )
+    contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_phone: Mapped[str] = mapped_column(String, nullable=False)
+    contact_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    property_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Custom context for this specific contact (injected into AI prompt)
+    context_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Call result
+    status: Mapped[str] = mapped_column(
+        String, default="pending"
+    )  # "pending", "calling", "completed", "no_answer", "failed", "skipped"
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=2)
+
+    # Outcome from the AI call
+    conversation_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("conversation_logs.id"), nullable=True
+    )
+    outcome: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "qualified", "not_qualified", "appointment_set", etc.
+    deal_eagerness: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    called_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

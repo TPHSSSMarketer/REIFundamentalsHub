@@ -57,17 +57,101 @@ ALTER TABLE phone_numbers
     ADD COLUMN IF NOT EXISTS ring_targets TEXT DEFAULT '["softphone"]',
     ADD COLUMN IF NOT EXISTS cell_forward_number TEXT,
     ADD COLUMN IF NOT EXISTS ai_schedule TEXT,
-    ADD COLUMN IF NOT EXISTS user_available BOOLEAN DEFAULT TRUE;
+    ADD COLUMN IF NOT EXISTS user_available BOOLEAN DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS ring_schedule TEXT;  -- JSON: controls when each device rings
+    -- Example ring_schedule:
+    -- {
+    --   "softphone": {"days": [1,2,3,4,5], "start": "08:00", "end": "20:00"},
+    --   "cell":      {"days": [1,2,3,4,5], "start": "09:00", "end": "18:00"},
+    --   "timezone":  "America/New_York"
+    -- }
 
--- 5. Create indexes for performance
+-- 5. Create Scheduled Callbacks table (AI-booked appointments)
+CREATE TABLE IF NOT EXISTS scheduled_callbacks (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    contact_name TEXT,
+    contact_phone TEXT NOT NULL,
+    contact_email TEXT,
+    property_address TEXT,
+    scheduled_at TIMESTAMP NOT NULL,
+    timezone TEXT DEFAULT 'America/New_York',
+    callback_type TEXT DEFAULT 'ai',  -- 'ai' or 'human'
+    agent_id TEXT REFERENCES ai_agents(id),
+    phone_number_id INTEGER REFERENCES phone_numbers(id),
+    notes TEXT,
+    original_conversation_id TEXT REFERENCES conversation_logs(id),
+    status TEXT DEFAULT 'scheduled',  -- 'scheduled', 'in_progress', 'completed', 'failed', 'cancelled', 'no_answer'
+    attempt_count INTEGER DEFAULT 0,
+    max_attempts INTEGER DEFAULT 3,
+    last_attempt_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    result_conversation_id TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 6. Create Call Campaigns table (bulk AI outbound)
+CREATE TABLE IF NOT EXISTS call_campaigns (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    agent_id TEXT NOT NULL REFERENCES ai_agents(id),
+    phone_number_id INTEGER NOT NULL REFERENCES phone_numbers(id),
+    start_at TIMESTAMP,
+    calling_window_start TEXT DEFAULT '09:00',
+    calling_window_end TEXT DEFAULT '17:00',
+    calling_days TEXT DEFAULT '[1,2,3,4,5]',
+    timezone TEXT DEFAULT 'America/New_York',
+    seconds_between_calls INTEGER DEFAULT 30,
+    total_contacts INTEGER DEFAULT 0,
+    calls_made INTEGER DEFAULT 0,
+    calls_answered INTEGER DEFAULT 0,
+    calls_no_answer INTEGER DEFAULT 0,
+    calls_failed INTEGER DEFAULT 0,
+    leads_qualified INTEGER DEFAULT 0,
+    appointments_set INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'draft',  -- 'draft', 'scheduled', 'running', 'paused', 'completed', 'cancelled'
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+
+-- 7. Create Campaign Contacts table
+CREATE TABLE IF NOT EXISTS campaign_contacts (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    campaign_id TEXT NOT NULL REFERENCES call_campaigns(id),
+    contact_name TEXT,
+    contact_phone TEXT NOT NULL,
+    contact_email TEXT,
+    property_address TEXT,
+    context_notes TEXT,
+    status TEXT DEFAULT 'pending',  -- 'pending', 'calling', 'completed', 'no_answer', 'failed', 'skipped'
+    attempt_count INTEGER DEFAULT 0,
+    max_attempts INTEGER DEFAULT 2,
+    conversation_id TEXT REFERENCES conversation_logs(id),
+    outcome TEXT,
+    deal_eagerness INTEGER,
+    called_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 8. Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_ai_agents_user_id ON ai_agents(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_entries_user_id ON knowledge_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_entries_type ON knowledge_entries(entry_type);
 CREATE INDEX IF NOT EXISTS idx_conversation_logs_user_id ON conversation_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_logs_call_log_id ON conversation_logs(call_log_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_logs_agent_id ON conversation_logs(agent_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_callbacks_user_id ON scheduled_callbacks(user_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_callbacks_status ON scheduled_callbacks(status);
+CREATE INDEX IF NOT EXISTS idx_scheduled_callbacks_scheduled_at ON scheduled_callbacks(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_call_campaigns_user_id ON call_campaigns(user_id);
+CREATE INDEX IF NOT EXISTS idx_call_campaigns_status ON call_campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaign_contacts_campaign_id ON campaign_contacts(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_contacts_status ON campaign_contacts(status);
 
--- 6. Seed platform-level knowledge entries (your pre-built scripts)
+-- 9. Seed platform-level knowledge entries (your pre-built scripts)
 INSERT INTO knowledge_entries (id, user_id, name, entry_type, content, is_active) VALUES
 
 -- Lead Qualification Script (used by Maya)

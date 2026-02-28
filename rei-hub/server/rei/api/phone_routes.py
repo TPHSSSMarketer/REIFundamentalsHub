@@ -1314,6 +1314,19 @@ async def webhook_voice(
     else:
         twiml = _route_to_human(phone)
 
+        # If _route_to_human returned voicemail because all devices are
+        # in DND, and we have an AI agent available, route to AI instead
+        if (
+            phone.ai_agent_id
+            and getattr(phone, "ring_schedule", None)
+            and "voicemail" in twiml.lower()
+        ):
+            logger.info(
+                f"All ring targets in DND for phone {phone.id} — "
+                "routing to AI agent instead of voicemail"
+            )
+            twiml = await _route_to_ai_agent(phone, caller, call_log, db)
+
     return Response(content=twiml, media_type="application/xml")
 
 
@@ -1388,13 +1401,91 @@ async def _route_to_ai_agent(
     return twilio_service.generate_conversation_relay_twiml(signed_url)
 
 
+def _is_device_in_ring_window(
+    ring_schedule: dict,
+    device: str,
+) -> bool:
+    """
+    Check if a specific device (softphone or cell) is within its ring window.
+
+    The ring_schedule JSON looks like:
+    {
+      "softphone": {"days": [1,2,3,4,5], "start": "08:00", "end": "20:00"},
+      "cell":      {"days": [1,2,3,4,5], "start": "09:00", "end": "18:00"},
+      "timezone":  "America/New_York"
+    }
+
+    If a device isn't in the schedule, it rings 24/7 (no restrictions).
+    If a device IS in the schedule, it only rings during those hours/days.
+    """
+    device_schedule = ring_schedule.get(device)
+    if not device_schedule:
+        # No schedule for this device = always ring
+        return True
+
+    try:
+        days = device_schedule.get("days", [1, 2, 3, 4, 5, 6, 7])
+        start_str = device_schedule.get("start", "00:00")
+        end_str = device_schedule.get("end", "23:59")
+
+        start_hour, start_min = map(int, start_str.split(":"))
+        end_hour, end_min = map(int, end_str.split(":"))
+
+        now = datetime.utcnow()  # TODO: Convert to user's timezone
+        current_day = now.isoweekday()  # 1=Monday, 7=Sunday
+        current_time = dt_time(now.hour, now.minute)
+        start_time = dt_time(start_hour, start_min)
+        end_time = dt_time(end_hour, end_min)
+
+        if current_day not in days:
+            return False
+
+        return start_time <= current_time <= end_time
+
+    except Exception as e:
+        logger.warning(f"Error parsing ring schedule for {device}: {e}")
+        return True  # Default to ringing if schedule parsing fails
+
+
 def _route_to_human(phone: PhoneNumber) -> str:
-    """Route call to human — softphone, cell, or both simultaneously."""
+    """
+    Route call to human — softphone, cell, or both simultaneously.
+
+    Checks the ring_schedule to determine which devices should ring
+    right now. If a device is outside its ring window, it won't ring.
+    If ALL devices are outside their windows, falls back to AI or voicemail.
+    """
     ring_targets = json.loads(getattr(phone, "ring_targets", '["softphone"]') or '["softphone"]')
     cell_number = getattr(phone, "cell_forward_number", None)
 
-    softphone_identity = f"user-{phone.user_id}" if "softphone" in ring_targets else None
-    cell = cell_number if "cell" in ring_targets and cell_number else None
+    # Parse ring schedule (controls when each device rings)
+    ring_schedule_raw = getattr(phone, "ring_schedule", None)
+    ring_schedule = {}
+    if ring_schedule_raw:
+        try:
+            ring_schedule = (
+                json.loads(ring_schedule_raw)
+                if isinstance(ring_schedule_raw, str)
+                else ring_schedule_raw
+            )
+        except Exception:
+            ring_schedule = {}
+
+    # Determine which devices are allowed to ring right now
+    softphone_identity = None
+    cell = None
+
+    if "softphone" in ring_targets:
+        if _is_device_in_ring_window(ring_schedule, "softphone"):
+            softphone_identity = f"user-{phone.user_id}"
+        else:
+            logger.info(f"Softphone for user {phone.user_id} outside ring window — skipping")
+
+    if "cell" in ring_targets and cell_number:
+        if _is_device_in_ring_window(ring_schedule, "cell"):
+            cell = cell_number
+        else:
+            logger.info(f"Cell for user {phone.user_id} outside ring window — skipping")
 
     if softphone_identity or cell:
         return twilio_service.generate_simultaneous_ring_twiml(
@@ -1403,7 +1494,13 @@ def _route_to_human(phone: PhoneNumber) -> str:
             caller_id=phone.number,
         )
 
-    # Legacy fallback
+    # If ring schedule silenced everything, fall back to voicemail
+    # (The main routing logic in webhook_voice may route to AI instead)
+    if ring_schedule:
+        logger.info(f"All devices outside ring window for phone {phone.id} — voicemail")
+        return twilio_service.generate_voicemail_twiml()
+
+    # Legacy fallback (no ring_targets configured at all)
     if phone.use_softphone:
         return twilio_service.generate_softphone_twiml(f"user-{phone.user_id}")
     elif phone.forward_to:
