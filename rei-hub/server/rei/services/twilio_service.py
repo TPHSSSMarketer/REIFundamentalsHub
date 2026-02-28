@@ -416,7 +416,8 @@ def generate_simultaneous_ring_twiml(
     caller_id: str = "",
     timeout: int = 25,
     record: bool = True,
-    status_callback_url: str = "",
+    phone_number_id: int | None = None,
+    api_base_url: str = "",
 ) -> str:
     """
     Generate TwiML that rings multiple endpoints at the same time.
@@ -424,12 +425,18 @@ def generate_simultaneous_ring_twiml(
     The first person to pick up gets connected to the caller.
     Can ring: softphone only, cell only, or BOTH simultaneously.
 
+    If nobody answers, the call routes to a fallback webhook that
+    connects the caller to the AI agent instead of voicemail.
+
     HOW THIS WORKS (in plain English):
     1. A call comes in and the system decides a human should answer
     2. This TwiML tells Twilio: "Ring all these endpoints at the same time"
     3. The <Client> tag rings the WebRTC softphone in the browser
     4. The <Number> tag rings the cell phone
     5. Whoever picks up first gets the call — the other stops ringing
+    6. If NOBODY picks up, Twilio hits our 'action' URL
+    7. That webhook checks if an AI agent is available → routes to AI
+    8. If no AI agent, THEN it falls back to voicemail
 
     Args:
         softphone_identity: WebRTC client identity (e.g. "user-123")
@@ -437,7 +444,8 @@ def generate_simultaneous_ring_twiml(
         caller_id: The caller ID to display
         timeout: How many seconds to ring before giving up
         record: Whether to record the call
-        status_callback_url: URL for call status updates
+        phone_number_id: The PhoneNumber record ID (for AI fallback routing)
+        api_base_url: Base URL for webhooks (e.g. "https://api.example.com")
     """
     # Build the dial children based on what targets are provided
     dial_children = ""
@@ -449,7 +457,16 @@ def generate_simultaneous_ring_twiml(
         dial_children += f'\n            <Number>{cell_number}</Number>'
 
     record_attr = 'record="record-from-answer-dual"' if record else ""
-    callback_attr = f'action="{status_callback_url}"' if status_callback_url else ""
+
+    # The 'action' URL is where Twilio goes when the Dial completes
+    # (whether answered, no-answer, busy, or failed).
+    # We point it to our dial-fallback webhook which routes to AI.
+    action_attr = ""
+    if phone_number_id and api_base_url:
+        action_attr = (
+            f'action="{api_base_url}/api/phone/webhook/dial-fallback'
+            f'?phone_number_id={phone_number_id}"'
+        )
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -457,7 +474,7 @@ def generate_simultaneous_ring_twiml(
         timeout="{timeout}"
         callerId="{caller_id}"
         {record_attr}
-        {callback_attr}
+        {action_attr}
     >{dial_children}
     </Dial>
     <Say>Sorry, no one is available right now. Please leave a message after the beep.</Say>

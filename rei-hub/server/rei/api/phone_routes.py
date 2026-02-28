@@ -1492,6 +1492,8 @@ def _route_to_human(phone: PhoneNumber) -> str:
             softphone_identity=softphone_identity,
             cell_number=cell,
             caller_id=phone.number,
+            phone_number_id=phone.id,
+            api_base_url=settings.API_BASE_URL,
         )
 
     # If ring schedule silenced everything, fall back to voicemail
@@ -1507,6 +1509,92 @@ def _route_to_human(phone: PhoneNumber) -> str:
         return twilio_service.generate_forward_twiml(phone.forward_to)
     else:
         return twilio_service.generate_voicemail_twiml()
+
+
+# ── Dial Fallback: Unanswered calls → AI agent ─────────────────────
+
+@phone_router.post("/webhook/dial-fallback")
+async def webhook_dial_fallback(
+    request: Request,
+    phone_number_id: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Handle unanswered calls after the <Dial> times out.
+
+    HOW THIS WORKS (in plain English):
+    1. A call comes in → we ring the human's softphone and/or cell
+    2. Nobody picks up within the timeout (25 seconds by default)
+    3. Twilio hits THIS webhook instead of going to voicemail
+    4. We check: does this phone number have an AI agent?
+    5. If YES → connect the caller to the AI agent (same as a fresh AI call)
+    6. If NO → play the standard voicemail prompt
+
+    Twilio sends the DialCallStatus in the form data:
+    - "completed" = someone answered (shouldn't hit this webhook normally)
+    - "no-answer" = rang but nobody picked up
+    - "busy" = line was busy
+    - "failed" = couldn't connect
+    - "canceled" = caller hung up while ringing
+    """
+    form = await request.form()
+    dial_status = form.get("DialCallStatus", "no-answer")
+    call_sid = form.get("CallSid", "")
+    caller = form.get("From", "")
+    called = form.get("To", "")
+
+    logger.info(
+        f"Dial fallback: phone_number_id={phone_number_id}, "
+        f"dial_status={dial_status}, call_sid={call_sid}"
+    )
+
+    # If the call was actually answered, no fallback needed
+    if dial_status == "completed":
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+            media_type="application/xml",
+        )
+
+    # If the caller hung up while ringing, nothing to do
+    if dial_status == "canceled":
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+            media_type="application/xml",
+        )
+
+    # Look up the phone number to see if it has an AI agent
+    phone = None
+    if phone_number_id:
+        result = await db.execute(
+            select(PhoneNumber).where(PhoneNumber.id == phone_number_id)
+        )
+        phone = result.scalar_one_or_none()
+
+    if phone and phone.ai_agent_id:
+        # Route to AI agent — the human didn't answer, so the AI picks up
+        logger.info(
+            f"Human didn't answer (status={dial_status}) — "
+            f"routing to AI agent for phone {phone.id}"
+        )
+
+        # Look up existing call log for this call
+        call_log = None
+        if call_sid:
+            result = await db.execute(
+                select(CallLog).where(CallLog.twilio_call_sid == call_sid)
+            )
+            call_log = result.scalar_one_or_none()
+
+        try:
+            twiml = await _route_to_ai_agent(phone, caller, call_log, db)
+            return Response(content=twiml, media_type="application/xml")
+        except Exception as e:
+            logger.error(f"AI fallback failed: {e}")
+            # If AI routing fails, fall through to voicemail
+
+    # No AI agent available — standard voicemail
+    twiml = twilio_service.generate_voicemail_twiml()
+    return Response(content=twiml, media_type="application/xml")
 
 
 @phone_router.post("/webhook/call-status")
