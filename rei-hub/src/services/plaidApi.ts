@@ -36,7 +36,18 @@ const DEMO_BALANCE_RESPONSE = {
 }
 
 const DEMO_CERTIFICATES = [
-  { id: 'cert-001', account_id: 'acc-001', amount: 125432.50, verified_at: '2024-02-20T10:00:00Z' },
+  {
+    certificate_id: 'cert-001',
+    verified: true,
+    buyer_name: 'Demo User',
+    buyer_email: 'demo@example.com',
+    required_amount: 50000,
+    available_balance: '$125,432.50',
+    property_address: '123 Main St, San Antonio, TX 78201',
+    issued_at: '2024-02-20T10:00:00Z',
+    expires_at: '2025-03-20T10:00:00Z',
+    issuer: 'REIFundamentals Hub',
+  },
 ]
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -172,7 +183,20 @@ export async function getRequests(): Promise<{
       }).then((res) => handleResponse(res)),
     {
       requests: [
-        { id: 'req-001', buyer_name: 'John Buyer', property_address: '123 Main St', required_amount: 200000, status: 'pending', created_at: '2024-02-20T10:00:00Z' },
+        {
+          id: 'req-001',
+          buyer_name: 'John Buyer',
+          buyer_email: 'john@example.com',
+          property_address: '123 Main St, San Antonio, TX',
+          required_amount: 200000,
+          status: 'pending',
+          request_token: 'demo-token-001',
+          expires_at: '2025-03-20T10:00:00Z',
+          completed_at: null,
+          certificate_id: null,
+          notes: null,
+          created_at: '2024-02-20T10:00:00Z',
+        },
       ],
     }
   )

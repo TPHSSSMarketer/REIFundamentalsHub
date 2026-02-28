@@ -157,9 +157,9 @@ function MyVerificationTab({ showToast }: { showToast: (m: string) => void }) {
   const loadCertificates = useCallback(async () => {
     try {
       const data = await getCertificates()
-      setCertificates(data.certificates as Certificate[])
+      setCertificates(Array.isArray(data?.certificates) ? (data.certificates as Certificate[]) : [])
     } catch {
-      // ignore
+      setCertificates([])
     }
   }, [])
 
@@ -390,7 +390,7 @@ function MyVerificationTab({ showToast }: { showToast: (m: string) => void }) {
                         {c.property_address}
                       </td>
                       <td className="py-2.5">
-                        ${c.required_amount.toLocaleString()}
+                        ${(c.required_amount ?? 0).toLocaleString()}
                       </td>
                       <td className="py-2.5">
                         {expired ? (
@@ -450,9 +450,9 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
   const loadRequests = useCallback(async () => {
     try {
       const data = await getRequests()
-      setRequests(data.requests as PofReq[])
+      setRequests(Array.isArray(data?.requests) ? (data.requests as PofReq[]) : [])
     } catch {
-      // ignore
+      setRequests([])
     }
   }, [])
 
@@ -526,7 +526,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
     setLoadingDeals(true)
     try {
       const allDeals = await getDeals('local-user')
-      setDeals(allDeals.filter((d) => d.address))
+      setDeals(Array.isArray(allDeals) ? allDeals.filter((d) => d.address) : [])
       setShowDealPicker(true)
     } catch {
       showToast('Failed to load deals')
@@ -794,7 +794,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
                       {r.property_address}
                     </td>
                     <td className="py-2.5">
-                      ${r.required_amount.toLocaleString()}
+                      ${(r.required_amount ?? 0).toLocaleString()}
                     </td>
                     <td className="py-2.5">{statusBadge(r.status)}</td>
                     <td className="py-2.5 text-slate-500">
@@ -884,7 +884,7 @@ function CertificateCard({
         <div>
           <span className="text-slate-500">Required:</span>{' '}
           <span className="font-semibold text-slate-700">
-            ${cert.required_amount.toLocaleString()}
+            ${(cert.required_amount ?? 0).toLocaleString()}
           </span>
         </div>
         <div>
