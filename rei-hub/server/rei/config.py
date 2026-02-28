@@ -65,8 +65,13 @@ class Settings(BaseSettings):
     twilio_api_key_secret: str = ""
     twilio_twiml_app_sid: str = ""
 
-    # ── ElevenLabs (AI Voicemail) ──────────────────────────────────
+    # ── ElevenLabs (AI Voicemail + Voice AI) ─────────────────────────
     elevenlabs_api_key: str = ""
+
+    # ── ATTOM Data (Property Data) ────────────────────────────────────
+    attom_api_key: str = ""
+    # Register at: api.gateway.attomdata.com
+    # Used for real-time property lookups during AI calls
 
     # ── AI Provider defaults ─────────────────────────────────────────
     default_ai_provider: str = "nvidia_kimi"
@@ -74,6 +79,11 @@ class Settings(BaseSettings):
     ai_encryption_key: str = ""
     # Used for encrypting stored API keys
     # Should be 32 chars — set in .env
+
+    # ── Voice AI (CallCommander) ──────────────────────────────────────
+    api_base_url: str = ""
+    # The public URL for your Railway backend (e.g. https://api.reifundamentalshub.com)
+    # Used for Twilio webhook callbacks during AI calls
 
     # ── TPHS Payment Portal (Stripe Connect) ────────────────────────
     stripe_connect_secret_key: str = ""
@@ -182,6 +192,11 @@ PHONE_PRICING: dict[str, float] = {
     "fax_received_per_page": 0.02,
     "additional_number_per_month": 2.00,
     "ai_voicemail_drop": 0.25,
+    # ── AI Voice Call pricing (ElevenLabs + Claude + Twilio) ──────
+    # These are higher than regular calls because of LLM + voice AI costs
+    "ai_call_inbound_per_min": 0.12,   # AI answers an inbound call
+    "ai_call_outbound_per_min": 0.15,  # AI makes an outbound call (campaign/callback)
+    "ai_property_lookup": 0.02,        # ATTOM property data lookup (per lookup)
 }
 
 PHONE_PLAN_LIMITS: dict[str, dict[str, int]] = {

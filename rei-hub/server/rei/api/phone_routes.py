@@ -196,6 +196,68 @@ def _deduct_credits_cents(user: User, cents: int) -> float:
     return cents / 100
 
 
+async def _bill_ai_call(conv_log: ConversationLog, db: AsyncSession) -> float:
+    """
+    Bill credits for an AI voice call based on duration.
+
+    AI calls are more expensive than regular calls because they use
+    ElevenLabs voice AI ($0.05-0.10/min) + Claude AI ($0.01-0.03/min)
+    + Twilio ($0.02/min) on top. We bundle this into a per-minute rate.
+
+    HOW IT WORKS:
+    1. Calculate duration from started_at to ended_at
+    2. Round up to nearest minute (always charge full minutes)
+    3. Look up whether it was inbound or outbound
+    4. Multiply by the AI rate ($0.12/min inbound, $0.15/min outbound)
+    5. Deduct from the user's credit balance
+
+    Returns the total cost in dollars.
+    """
+    if not conv_log.started_at or not conv_log.ended_at:
+        return 0.00
+
+    # Calculate duration in minutes (round up)
+    duration = conv_log.ended_at - conv_log.started_at
+    total_seconds = max(int(duration.total_seconds()), 0)
+    minutes = math.ceil(total_seconds / 60) if total_seconds > 0 else 1
+
+    # Determine rate based on call direction
+    call_log = None
+    if conv_log.call_log_id:
+        result = await db.execute(
+            select(CallLog).where(CallLog.id == conv_log.call_log_id)
+        )
+        call_log = result.scalar_one_or_none()
+
+    direction = getattr(call_log, "direction", "inbound") if call_log else "inbound"
+
+    if direction == "outbound":
+        rate = PHONE_PRICING.get("ai_call_outbound_per_min", 0.15)
+    else:
+        rate = PHONE_PRICING.get("ai_call_inbound_per_min", 0.12)
+
+    cost_cents = int(minutes * rate * 100)
+
+    # Deduct from user's credits
+    user_result = await db.execute(
+        select(User).where(User.id == conv_log.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+
+    if user and cost_cents > 0:
+        _deduct_credits_cents(user, cost_cents)
+        logger.info(
+            f"AI call billed: user={user.id}, minutes={minutes}, "
+            f"direction={direction}, cost=${cost_cents/100:.2f}"
+        )
+
+        # Also update the call log with the cost
+        if call_log:
+            call_log.cost = cost_cents / 100
+
+    return cost_cents / 100
+
+
 def _webhook_base_url() -> str:
     """Return the base URL for webhooks."""
     return settings.hub_url
@@ -1720,6 +1782,12 @@ async def webhook_conversation_status(
             conv_log.summary = analysis.get("summary", "")
 
         conv_log.status = "completed"
+
+        # ── Bill credits for the AI call ─────────────────────────────
+        # AI calls are billed separately from regular calls because
+        # they use ElevenLabs + Claude which cost more per minute.
+        await _bill_ai_call(conv_log, db)
+
         await db.commit()
 
         logger.info(

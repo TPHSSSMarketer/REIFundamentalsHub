@@ -32,6 +32,7 @@ const CATEGORY_ORDER = [
   'Calendar',
   'Shipping',
   'AI',
+  'Property Data',
 ]
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -42,6 +43,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Calendar: 'border-pink-200 bg-pink-50',
   Shipping: 'border-amber-200 bg-amber-50',
   AI: 'border-green-200 bg-green-50',
+  'Property Data': 'border-cyan-200 bg-cyan-50',
 }
 
 const CATEGORY_HEADER_COLORS: Record<string, string> = {
@@ -52,6 +54,7 @@ const CATEGORY_HEADER_COLORS: Record<string, string> = {
   Calendar: 'text-pink-800',
   Shipping: 'text-amber-800',
   AI: 'text-green-800',
+  'Property Data': 'text-cyan-800',
 }
 
 // ── Main component ──────────────────────────────────────────────────────

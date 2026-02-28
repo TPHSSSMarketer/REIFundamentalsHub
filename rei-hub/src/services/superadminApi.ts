@@ -62,6 +62,11 @@ const PROVIDER_META: Record<
   anthropic: { display_name: 'Anthropic (Claude)', category: 'AI', icon: '🤖' },
   openai: { display_name: 'OpenAI', category: 'AI', icon: '🧠' },
   nvidia: { display_name: 'NVIDIA', category: 'AI', icon: '🎮' },
+  attom: {
+    display_name: 'ATTOM Data',
+    category: 'Property Data',
+    icon: '🏠',
+  },
 }
 
 // Field definitions per provider
@@ -161,6 +166,9 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   ],
   nvidia: [
     { name: 'nvidia_api_key', label: 'API Key', type: 'secret' },
+  ],
+  attom: [
+    { name: 'attom_api_key', label: 'API Key', type: 'secret' },
   ],
 }
 
