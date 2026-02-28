@@ -57,18 +57,11 @@ export default function LoginPage() {
     setSubmitting(false)
   }
 
-  async function handleGoogleSignIn() {
+  function handleGoogleSignIn() {
     setGoogleLoading(true)
     setError(null)
-    try {
-      const res = await fetch(`${BASE_URL}/api/auth/google/url`)
-      if (!res.ok) throw new Error('Failed to get Google auth URL')
-      const data = await res.json()
-      window.location.href = data.url
-    } catch (err) {
-      setError('Failed to initiate Google sign-in')
-      setGoogleLoading(false)
-    }
+    // Navigate directly to the backend redirect endpoint (bypasses CORS)
+    window.location.href = `${BASE_URL}/api/auth/google/redirect`
   }
 
   async function handleGoogleCallback(code: string) {
