@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -317,6 +318,7 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
             try:
                 user = User(
                     email=email,
+                    hashed_password=hash_password(str(uuid.uuid4())),
                     full_name=full_name or "",
                     google_id=google_id,
                     google_avatar_url=google_avatar_url,
@@ -375,3 +377,4 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
         "plan": plan or "",
     })
     return RedirectResponse(url=f"{frontend_url}?{params}", status_code=302)
+
