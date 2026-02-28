@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -223,6 +224,22 @@ async def google_oauth_url():
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return {"url": auth_url}
+
+
+@auth_router.get("/google/redirect")
+async def google_oauth_redirect():
+    """Redirect browser directly to Google OAuth consent screen (avoids CORS)."""
+    import urllib.parse
+
+    params = {
+        "client_id": settings.google_login_client_id,
+        "redirect_uri": settings.google_login_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    return RedirectResponse(url=auth_url)
 
 
 @auth_router.post("/google/callback", response_model=TokenResponse)
