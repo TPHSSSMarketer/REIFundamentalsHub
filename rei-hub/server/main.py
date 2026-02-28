@@ -36,6 +36,7 @@ from rei.api.loan_routes_properties import router as loan_properties_router
 from rei.api.onboarding_routes import onboarding_router
 from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
+from rei.api.voice_ai_routes import voice_ai_router
 from rei.api.plaid_routes import plaid_router
 from rei.api.plugin_routes import plugin_router
 from rei.api.superadmin_routes import superadmin_router
@@ -272,6 +273,7 @@ app.include_router(plugin_router, prefix="/api")
 app.include_router(email_marketing_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(phone_router, prefix="/api")
+app.include_router(voice_ai_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
 app.include_router(loan_properties_router)
 app.include_router(loan_payments_router)

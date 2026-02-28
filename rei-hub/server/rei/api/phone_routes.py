@@ -24,9 +24,14 @@ from rei.config import (
     PHONE_PRICING,
     get_settings,
 )
+from datetime import time as dt_time
+
 from rei.models.user import (
+    AIAgent,
     CallLog,
+    ConversationLog,
     FaxLog,
+    KnowledgeEntry,
     PhoneCredit,
     PhoneNumber,
     SmsCampaign,
@@ -36,6 +41,7 @@ from rei.models.user import (
     VoicemailDropCampaign,
 )
 from rei.services import elevenlabs_service, twilio_service
+from rei.services.ai_service import build_voice_agent_prompt, extract_call_data
 
 logger = logging.getLogger(__name__)
 
@@ -1258,7 +1264,19 @@ async def webhook_voice(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle inbound voice calls from Twilio."""
+    """
+    Handle inbound voice calls from Twilio.
+
+    ROUTING LOGIC:
+    1. Look up which phone number was called
+    2. Check the phone number's ai_mode setting
+    3. Route accordingly:
+       - "off"              → Ring human (softphone/cell/both based on ring_targets)
+       - "always"           → AI agent answers
+       - "when_unavailable" → If user is available → human, else → AI
+       - "after_hours"      → If within business hours → human, else → AI
+    4. If routing to human and no answer → fall back to voicemail
+    """
     form = await request.form()
     called = form.get("Called", "")
     caller = form.get("Caller", "")
@@ -1288,15 +1306,110 @@ async def webhook_voice(
     db.add(call_log)
     await db.commit()
 
-    if phone.use_softphone:
-        identity = f"user-{phone.user_id}"
-        twiml = twilio_service.generate_softphone_twiml(identity)
-    elif phone.forward_to:
-        twiml = twilio_service.generate_forward_twiml(phone.forward_to)
+    # ── Smart routing: AI agent or human? ───────────────────────
+    should_use_ai = _should_route_to_ai(phone)
+
+    if should_use_ai and phone.ai_agent_id:
+        twiml = await _route_to_ai_agent(phone, caller, call_log, db)
     else:
-        twiml = twilio_service.generate_voicemail_twiml()
+        twiml = _route_to_human(phone)
 
     return Response(content=twiml, media_type="application/xml")
+
+
+def _should_route_to_ai(phone: PhoneNumber) -> bool:
+    """Decide whether this call should go to the AI agent or a human."""
+    ai_mode = getattr(phone, "ai_mode", "off") or "off"
+
+    if ai_mode == "off":
+        return False
+    if ai_mode == "always":
+        return True
+    if ai_mode == "when_unavailable":
+        user_available = getattr(phone, "user_available", True)
+        return not user_available
+    if ai_mode == "after_hours":
+        return not _is_within_business_hours(phone)
+    return False
+
+
+def _is_within_business_hours(phone: PhoneNumber) -> bool:
+    """Check if current time falls within configured business hours."""
+    schedule_json = getattr(phone, "ai_schedule", None)
+    if not schedule_json:
+        return True  # No schedule = always business hours
+
+    try:
+        schedule = json.loads(schedule_json) if isinstance(schedule_json, str) else schedule_json
+        start_h, start_m = map(int, schedule.get("start", "09:00").split(":"))
+        end_h, end_m = map(int, schedule.get("end", "17:00").split(":"))
+        days = schedule.get("days", [1, 2, 3, 4, 5])
+
+        now = datetime.utcnow()
+        if now.isoweekday() not in days:
+            return False
+        return dt_time(start_h, start_m) <= dt_time(now.hour, now.minute) <= dt_time(end_h, end_m)
+    except Exception as e:
+        logger.warning(f"Error parsing business hours: {e}")
+        return True
+
+
+async def _route_to_ai_agent(
+    phone: PhoneNumber, caller: str, call_log: CallLog, db: AsyncSession
+) -> str:
+    """Route the call to an AI agent via ElevenLabs ConversationRelay."""
+    result = await db.execute(
+        select(AIAgent).where(AIAgent.id == phone.ai_agent_id)
+    )
+    agent = result.scalar_one_or_none()
+
+    if not agent or not agent.elevenlabs_agent_id:
+        logger.warning(f"No valid AI agent for phone {phone.id}, falling back to voicemail")
+        return twilio_service.generate_voicemail_twiml()
+
+    signed_url = await elevenlabs_service.get_signed_url(
+        agent.elevenlabs_agent_id, settings,
+    )
+    if not signed_url:
+        logger.error("Failed to get ElevenLabs signed URL, falling back to voicemail")
+        return twilio_service.generate_voicemail_twiml()
+
+    # Create conversation log
+    conversation_log = ConversationLog(
+        user_id=phone.user_id,
+        call_log_id=call_log.id,
+        agent_id=agent.id,
+        status="in_progress",
+        started_at=datetime.utcnow(),
+    )
+    db.add(conversation_log)
+    await db.commit()
+
+    return twilio_service.generate_conversation_relay_twiml(signed_url)
+
+
+def _route_to_human(phone: PhoneNumber) -> str:
+    """Route call to human — softphone, cell, or both simultaneously."""
+    ring_targets = json.loads(getattr(phone, "ring_targets", '["softphone"]') or '["softphone"]')
+    cell_number = getattr(phone, "cell_forward_number", None)
+
+    softphone_identity = f"user-{phone.user_id}" if "softphone" in ring_targets else None
+    cell = cell_number if "cell" in ring_targets and cell_number else None
+
+    if softphone_identity or cell:
+        return twilio_service.generate_simultaneous_ring_twiml(
+            softphone_identity=softphone_identity,
+            cell_number=cell,
+            caller_id=phone.number,
+        )
+
+    # Legacy fallback
+    if phone.use_softphone:
+        return twilio_service.generate_softphone_twiml(f"user-{phone.user_id}")
+    elif phone.forward_to:
+        return twilio_service.generate_forward_twiml(phone.forward_to)
+    else:
+        return twilio_service.generate_voicemail_twiml()
 
 
 @phone_router.post("/webhook/call-status")
@@ -1372,6 +1485,70 @@ async def webhook_sms(
     await db.commit()
 
     return Response(content="<Response/>", media_type="application/xml")
+
+
+@phone_router.post("/webhook/conversation-status")
+async def webhook_conversation_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Handle conversation status events when an AI call ends.
+    Triggers post-call data extraction (name, email, property, mood, eagerness).
+    """
+    form = await request.form()
+    call_sid = form.get("CallSid", "")
+    conversation_id = form.get("ConversationSid", "")
+
+    # Find the conversation log for this call
+    result = await db.execute(
+        select(ConversationLog).join(CallLog).where(
+            CallLog.twilio_call_sid == call_sid
+        )
+    )
+    conv_log = result.scalar_one_or_none()
+
+    if not conv_log:
+        logger.warning(f"No conversation log found for call {call_sid}")
+        return {"status": "not_found"}
+
+    try:
+        conv_log.elevenlabs_conversation_id = conversation_id
+        conv_log.ended_at = datetime.utcnow()
+
+        # Get full conversation details from ElevenLabs
+        conv_details = await elevenlabs_service.get_conversation_details(
+            conversation_id, settings
+        )
+
+        if conv_details:
+            transcript = conv_details.get("transcript", [])
+            conv_log.transcript = json.dumps(transcript)
+
+            # Run AI data extraction on the transcript
+            analysis = await extract_call_data(transcript, settings)
+
+            conv_log.extracted_data = json.dumps(analysis.get("extracted_data", {}))
+            conv_log.caller_mood = analysis.get("caller_mood", "unknown")
+            conv_log.deal_eagerness = analysis.get("deal_eagerness", 0)
+            conv_log.outcome = analysis.get("outcome", "unknown")
+            conv_log.summary = analysis.get("summary", "")
+
+        conv_log.status = "completed"
+        await db.commit()
+
+        logger.info(
+            f"Conversation {conversation_id} analyzed: "
+            f"mood={conv_log.caller_mood}, eagerness={conv_log.deal_eagerness}, "
+            f"outcome={conv_log.outcome}"
+        )
+        return {"status": "ok", "outcome": conv_log.outcome}
+
+    except Exception as e:
+        logger.error(f"Failed to process conversation status: {e}")
+        conv_log.status = "failed"
+        await db.commit()
+        return {"status": "error", "detail": str(e)}
 
 
 @phone_router.post("/webhook/fax")

@@ -584,6 +584,26 @@ class PhoneNumber(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+    # ── AI Call Routing ──────────────────────────────────────────
+    ai_mode: Mapped[str] = mapped_column(
+        String, default="off"
+    )  # "off", "always", "when_unavailable", "after_hours"
+    ai_agent_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FK to ai_agents — which AI agent handles calls for this number
+    ring_targets: Mapped[str] = mapped_column(
+        String, default='["softphone"]'
+    )  # JSON: ["softphone"], ["cell"], or ["softphone", "cell"]
+    cell_forward_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # Cell phone number to ring when ring_targets includes "cell"
+    ai_schedule: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # JSON: {"start": "09:00", "end": "17:00", "timezone": "America/New_York", "days": [1,2,3,4,5]}
+    user_available: Mapped[bool] = mapped_column(
+        Boolean, default=True
+    )  # Toggle: is the user available to take calls right now?
+
 class CallLog(Base):
     __tablename__ = "call_logs"
 
@@ -1525,3 +1545,128 @@ class NegotiationFollowUp(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Voice AI Models — AIAgent, KnowledgeEntry, ConversationLog
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ── NEW MODEL: AI Agent ─────────────────────────────────────────────────
+# Stores each AI agent persona (Maya, Marcus, Sofia, or custom agents)
+
+class AIAgent(Base):
+    __tablename__ = "ai_agents"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    # Agent identity
+    name: Mapped[str] = mapped_column(String)  # "Maya", "Marcus", "Sofia"
+    role: Mapped[str] = mapped_column(String)  # "lead_qualifier", "appointment_setter", "follow_up"
+    personality: Mapped[str] = mapped_column(String)  # "Warm & empathetic", "Direct & confident", etc.
+
+    # ElevenLabs voice configuration
+    elevenlabs_voice_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    elevenlabs_agent_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # ElevenLabs Conversational AI agent ID
+
+    # AI brain configuration
+    system_prompt: Mapped[str] = mapped_column(
+        Text,
+        default=""
+    )  # The base instruction prompt for Claude — tells the agent how to behave
+
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+# ── NEW MODEL: Knowledge Base ───────────────────────────────────────────
+# Two-tier knowledge: platform-level scripts + account-level company data
+
+class KnowledgeEntry(Base):
+    __tablename__ = "knowledge_entries"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-level (available to all users)
+
+    # Content
+    name: Mapped[str] = mapped_column(String)  # e.g. "Lead Qualification Script", "Company Info"
+    entry_type: Mapped[str] = mapped_column(
+        String
+    )  # "platform_script", "account_data", "custom_script", "objection_handler"
+    content: Mapped[str] = mapped_column(Text)  # The actual knowledge text / script
+
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+# ── NEW MODEL: Conversation Log ────────────────────────────────────────
+# Records every AI voice conversation with full transcript + analysis
+
+class ConversationLog(Base):
+    __tablename__ = "conversation_logs"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    call_log_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("call_logs.id"), nullable=True
+    )
+    agent_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("ai_agents.id"), nullable=True
+    )
+
+    # Conversation data
+    elevenlabs_conversation_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # ElevenLabs session ID
+    transcript: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON: [{"role": "agent", "text": "..."}, {"role": "caller", "text": "..."}]
+
+    # AI-extracted data from the call
+    extracted_data: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON: {"name": "John", "email": "...", "property_address": "...", "phone": "..."}
+
+    # Mood & deal analysis
+    caller_mood: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "interested", "eager", "skeptical", "frustrated", "neutral"
+    deal_eagerness: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )  # 1-10 scale (10 = very eager to do a deal)
+
+    # Outcome
+    outcome: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "qualified", "not_qualified", "appointment_set", "callback_requested", "transferred_to_human"
+    summary: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # AI-generated call summary paragraph
+
+    # Status
+    status: Mapped[str] = mapped_column(
+        String, default="in_progress"
+    )  # "in_progress", "completed", "failed"
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

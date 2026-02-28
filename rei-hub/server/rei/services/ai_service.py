@@ -439,3 +439,204 @@ async def ai_legal_research(
         "citations": [],  # Could be parsed from response in future
         "provider": result["provider"],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Voice AI Additions — AI Service for Voice Agents
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── System Prompt Builder ───────────────────────────────────────────────
+
+def build_voice_agent_prompt(
+    agent_name: str,
+    agent_role: str,
+    agent_personality: str,
+    custom_system_prompt: str,
+    knowledge_entries: list[dict[str, str]],
+    company_data: dict[str, str] | None = None,
+    contact_data: dict[str, str] | None = None,
+) -> str:
+    """
+    Build the full system prompt for a voice AI agent.
+
+    This combines everything the AI needs to know into one prompt:
+    - Who it is (personality + role)
+    - What company it represents
+    - What scripts/knowledge to follow
+    - What data to collect
+    - How to assess the caller
+
+    This prompt gets sent to Claude via ElevenLabs' Conversational AI.
+    """
+
+    # Start with agent identity
+    prompt = f"""You are {agent_name}, a {agent_role.replace('_', ' ')} for a real estate investment company.
+
+PERSONALITY: You are {agent_personality}. Speak naturally like a real person — use conversational language,
+brief acknowledgments ("mm-hmm", "gotcha", "I see"), and natural transitions. Never sound robotic or scripted.
+Keep your responses concise — this is a phone call, not an essay. Aim for 1-3 sentences per response.
+
+"""
+
+    # Add company info if available
+    if company_data:
+        prompt += "COMPANY INFORMATION:\n"
+        for key, value in company_data.items():
+            if value:
+                prompt += f"- {key}: {value}\n"
+        prompt += "\n"
+
+    # Add contact context if we know who's calling
+    if contact_data:
+        prompt += "CALLER CONTEXT (what we already know about this person):\n"
+        for key, value in contact_data.items():
+            if value and not key.startswith("_"):
+                prompt += f"- {key}: {value}\n"
+        prompt += "\n"
+
+    # Add knowledge base entries (scripts, objection handlers, etc.)
+    if knowledge_entries:
+        prompt += "KNOWLEDGE BASE & SCRIPTS:\n"
+        prompt += "Use the following information to guide the conversation. "
+        prompt += "Follow the scripts naturally — don't read them word for word.\n\n"
+        for entry in knowledge_entries:
+            prompt += f"--- {entry.get('name', 'Script')} ---\n"
+            prompt += f"{entry.get('content', '')}\n\n"
+
+    # Add custom system prompt if the user has one
+    if custom_system_prompt:
+        prompt += f"ADDITIONAL INSTRUCTIONS:\n{custom_system_prompt}\n\n"
+
+    # Add data extraction instructions
+    prompt += """CRITICAL INSTRUCTIONS FOR EVERY CALL:
+1. ALWAYS try to naturally gather these details during conversation:
+   - Caller's full name
+   - Email address
+   - Phone number (if different from calling number)
+   - Property address they're calling about
+   - Their asking price or price expectations
+   - Their motivation for selling
+   - Their timeline for selling
+   - Current mortgage balance (if applicable)
+
+2. ASSESS the caller's mood and deal eagerness throughout the call:
+   - Mood: Are they frustrated, interested, eager, skeptical, or neutral?
+   - Eagerness: On a scale of 1-10, how eager are they to close a deal?
+
+3. TRANSFER TO HUMAN: If the caller is a hot lead (eagerness 7+), say:
+   "This sounds like a great opportunity. Let me connect you with [investor name]
+   right now to discuss the details." Then indicate you want to transfer.
+
+4. NEVER make up information. If you don't know something, say so honestly.
+5. NEVER pretend to be a human. If directly asked, say you're an AI assistant
+   working with the investment company.
+6. Keep responses SHORT — this is a phone call. 1-3 sentences max per turn.
+"""
+
+    return prompt
+
+
+# ── Post-Call Data Extraction ───────────────────────────────────────────
+
+async def extract_call_data(
+    transcript: list[dict[str, str]],
+    settings: Settings,
+) -> dict[str, Any]:
+    """
+    Analyze a completed call transcript and extract structured data.
+
+    This runs AFTER the call ends and uses Claude to parse out:
+    - Caller info (name, email, phone, property address)
+    - Mood assessment
+    - Deal eagerness (1-10)
+    - Call outcome
+    - Summary
+
+    Args:
+        transcript: List of message dicts [{"role": "agent", "text": "..."}, ...]
+        settings: App settings with API keys
+
+    Returns:
+        {
+            "extracted_data": {"name": "...", "email": "...", ...},
+            "caller_mood": "interested",
+            "deal_eagerness": 7,
+            "outcome": "qualified",
+            "summary": "..."
+        }
+    """
+    # Format transcript for analysis
+    transcript_text = ""
+    for msg in transcript:
+        role = "Agent" if msg.get("role") == "agent" else "Caller"
+        transcript_text += f"{role}: {msg.get('text', '')}\n"
+
+    analysis_prompt = f"""Analyze this real estate investment phone call transcript and extract the following information.
+Return your response as a valid JSON object with exactly these fields.
+
+TRANSCRIPT:
+{transcript_text}
+
+Return this exact JSON structure (use null for any information not mentioned):
+{{
+    "extracted_data": {{
+        "caller_name": "<full name or null>",
+        "email": "<email address or null>",
+        "phone": "<phone number if different from calling number, or null>",
+        "property_address": "<full property address or null>",
+        "asking_price": "<their price expectation or null>",
+        "motivation": "<why they want to sell or null>",
+        "timeline": "<when they want to sell or null>",
+        "mortgage_balance": "<approximate mortgage balance or null>",
+        "property_condition": "<condition description or null>",
+        "other_offers": "<any mention of other buyers/realtors or null>"
+    }},
+    "caller_mood": "<one of: eager, interested, neutral, skeptical, frustrated, hostile>",
+    "deal_eagerness": <number 1-10 where 10 is extremely eager to close>,
+    "outcome": "<one of: qualified, not_qualified, appointment_set, callback_requested, transferred_to_human, hung_up, voicemail>",
+    "summary": "<2-3 sentence summary of the call and key takeaways>"
+}}
+
+Return ONLY the JSON object, nothing else."""
+
+    try:
+        # Use the existing ai_complete function from this service
+        result = await ai_complete(
+            prompt=analysis_prompt,
+            user_id=None,
+            db=None,
+            settings=settings,
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+        )
+
+        # Parse the JSON response
+        response_text = result.get("content", "")
+
+        # Clean up potential markdown formatting
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0]
+
+        parsed = json.loads(response_text.strip())
+        return parsed
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse call data extraction JSON: {e}")
+        return {
+            "extracted_data": {},
+            "caller_mood": "unknown",
+            "deal_eagerness": 0,
+            "outcome": "unknown",
+            "summary": "Failed to analyze call transcript.",
+        }
+    except Exception as e:
+        logger.error(f"Call data extraction failed: {e}")
+        return {
+            "extracted_data": {},
+            "caller_mood": "unknown",
+            "deal_eagerness": 0,
+            "outcome": "unknown",
+            "summary": f"Analysis error: {str(e)}",
+        }

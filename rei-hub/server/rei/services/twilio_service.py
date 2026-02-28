@@ -324,3 +324,150 @@ async def upload_media(
         # Return the media URL from the message
         media_url = data.get("media", {}).get("uri", "")
         return media_url
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Voice AI Additions — Twilio Service for ConversationRelay
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── ConversationRelay TwiML ─────────────────────────────────────────────
+
+def generate_conversation_relay_twiml(
+    elevenlabs_signed_url: str,
+    voice: str = "en-US-Standard-F",
+    dtmf_detection: bool = True,
+) -> str:
+    """
+    Generate TwiML that connects an inbound/outbound call to ElevenLabs
+    Conversational AI via Twilio's ConversationRelay.
+
+    HOW THIS WORKS (in plain English):
+    1. Twilio receives/makes a phone call
+    2. This TwiML tells Twilio: "Stream this call's audio to this WebSocket URL"
+    3. The WebSocket URL points to ElevenLabs' Conversational AI
+    4. ElevenLabs handles speech-to-text, sends it to Claude, gets a response,
+       converts it to speech with their voice, and streams it back
+    5. The caller hears a natural AI voice speaking back to them
+
+    Args:
+        elevenlabs_signed_url: The wss:// URL from ElevenLabs get_signed_url()
+        voice: Fallback TTS voice (only used if ElevenLabs connection fails)
+        dtmf_detection: Whether to detect keypad presses during the call
+    """
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <ConversationRelay
+            url="{elevenlabs_signed_url}"
+            voice="{voice}"
+            dtmfDetection="{str(dtmf_detection).lower()}"
+            interruptible="true"
+            welcomeGreeting=""
+        />
+    </Connect>
+</Response>"""
+    return twiml
+
+
+# ── Simultaneous Ring TwiML ─────────────────────────────────────────────
+
+def generate_simultaneous_ring_twiml(
+    softphone_identity: str | None = None,
+    cell_number: str | None = None,
+    caller_id: str = "",
+    timeout: int = 25,
+    record: bool = True,
+    status_callback_url: str = "",
+) -> str:
+    """
+    Generate TwiML that rings multiple endpoints at the same time.
+
+    The first person to pick up gets connected to the caller.
+    Can ring: softphone only, cell only, or BOTH simultaneously.
+
+    HOW THIS WORKS (in plain English):
+    1. A call comes in and the system decides a human should answer
+    2. This TwiML tells Twilio: "Ring all these endpoints at the same time"
+    3. The <Client> tag rings the WebRTC softphone in the browser
+    4. The <Number> tag rings the cell phone
+    5. Whoever picks up first gets the call — the other stops ringing
+
+    Args:
+        softphone_identity: WebRTC client identity (e.g. "user-123")
+        cell_number: Cell phone number in E.164 format (e.g. "+15551234567")
+        caller_id: The caller ID to display
+        timeout: How many seconds to ring before giving up
+        record: Whether to record the call
+        status_callback_url: URL for call status updates
+    """
+    # Build the dial children based on what targets are provided
+    dial_children = ""
+
+    if softphone_identity:
+        dial_children += f'\n            <Client>{softphone_identity}</Client>'
+
+    if cell_number:
+        dial_children += f'\n            <Number>{cell_number}</Number>'
+
+    record_attr = 'record="record-from-answer-dual"' if record else ""
+    callback_attr = f'action="{status_callback_url}"' if status_callback_url else ""
+
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Dial
+        timeout="{timeout}"
+        callerId="{caller_id}"
+        {record_attr}
+        {callback_attr}
+    >{dial_children}
+    </Dial>
+    <Say>Sorry, no one is available right now. Please leave a message after the beep.</Say>
+    <Record maxLength="120" transcribe="true" />
+</Response>"""
+    return twiml
+
+
+# ── Transfer from AI to Human ───────────────────────────────────────────
+
+def generate_transfer_twiml(
+    softphone_identity: str | None = None,
+    cell_number: str | None = None,
+    caller_id: str = "",
+    whisper_message: str = "Incoming transfer from AI agent.",
+) -> str:
+    """
+    Generate TwiML to transfer an active AI call to a human.
+
+    This is used when the AI determines the caller is a hot lead and
+    wants to connect them with the investor immediately.
+
+    HOW THIS WORKS (in plain English):
+    1. AI agent is talking to a caller
+    2. AI decides: "This is a hot lead, let me transfer to the investor"
+    3. The system updates the Twilio call with this new TwiML
+    4. The call gets redirected to the human (softphone, cell, or both)
+    5. The human hears a quick whisper: "Incoming transfer from AI agent"
+    6. Then they're connected to the caller
+
+    Args:
+        softphone_identity: WebRTC client identity for browser softphone
+        cell_number: Cell phone number to transfer to
+        caller_id: Caller ID to display
+        whisper_message: Quick message the human hears before being connected
+    """
+    dial_children = ""
+
+    if softphone_identity:
+        dial_children += f'\n            <Client>{softphone_identity}</Client>'
+
+    if cell_number:
+        dial_children += f'\n            <Number>{cell_number}</Number>'
+
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>{whisper_message}</Say>
+    <Dial callerId="{caller_id}">
+        {dial_children}
+    </Dial>
+</Response>"""
+    return twiml

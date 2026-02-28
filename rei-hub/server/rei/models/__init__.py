@@ -15,6 +15,9 @@ from rei.models.user import (
     NegotiationDocument,
     NegotiationCorrespondence,
     NegotiationFollowUp,
+    AIAgent,
+    KnowledgeEntry,
+    ConversationLog,
 )
 from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
@@ -44,4 +47,7 @@ __all__ = [
     "CrmContact",
     "CrmDeal",
     "CrmPortfolioProperty",
+    "AIAgent",
+    "KnowledgeEntry",
+    "ConversationLog",
 ]
