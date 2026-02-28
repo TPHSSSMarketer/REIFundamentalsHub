@@ -25,6 +25,7 @@ import {
   X,
   MoreHorizontal,
   Globe,
+  LifeBuoy,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
@@ -47,6 +48,7 @@ const navItems = [
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
+  { to: '/help', icon: LifeBuoy, label: 'Help' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

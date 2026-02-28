@@ -104,7 +104,7 @@ export default function ContactDetailPage() {
       setEditName(`${c.firstName || ''} ${c.lastName || ''}`.trim())
       setContactStatus(c.tags?.find(t => STATUS_OPTIONS.includes(t)) || 'Lead')
     } catch {
-      // Contact might not exist in GHL — still load backend data
+      // Contact might not exist yet — still load backend data
     }
   }, [contactId])
 

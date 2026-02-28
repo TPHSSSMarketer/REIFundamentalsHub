@@ -2,8 +2,9 @@ import axios, { AxiosInstance } from 'axios'
 import type { Contact, Deal, Pipeline, PipelineStage, Location, Conversation } from '@/types'
 
 /**
- * REI Fundamentals Hub API Service
- * Wrapper for all CRM REST API interactions
+ * REI Fundamentals Hub — CRM API Service
+ * Wrapper for CRM REST API interactions (contacts, deals, messaging).
+ * The base URL is set via VITE_API_BASE_URL environment variable.
  */
 class ApiService {
   private client: AxiosInstance
@@ -13,7 +14,7 @@ class ApiService {
     this.locationId = import.meta.env.VITE_API_LOCATION_ID || ''
 
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'https://services.leadconnectorhq.com',
+      baseURL: import.meta.env.VITE_API_BASE_URL || '',
       headers: {
         'Authorization': `Bearer ${import.meta.env.VITE_API_KEY}`,
         'Content-Type': 'application/json',

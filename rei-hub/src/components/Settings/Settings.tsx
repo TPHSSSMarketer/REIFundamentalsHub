@@ -499,8 +499,8 @@ export default function Settings() {
         <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
 {`VITE_API_KEY=your_api_key_here
 VITE_API_LOCATION_ID=your_location_id_here
-VITE_API_BASE_URL=https://services.leadconnectorhq.com
-VITE_HELM_HUB_URL=http://localhost:8000`}
+VITE_API_BASE_URL=https://your-crm-api-url.com
+VITE_REI_SERVER_URL=http://localhost:8001`}
         </pre>
       </div>
     </div>

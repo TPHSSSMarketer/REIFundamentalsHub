@@ -77,7 +77,7 @@ cp .env.example .env
 ```env
 VITE_API_KEY=your_api_key
 VITE_API_LOCATION_ID=your_location_id
-VITE_API_BASE_URL=https://services.leadconnectorhq.com
+VITE_API_BASE_URL=https://your-crm-api-url.com
 VITE_API_VERSION=2021-07-28
 ```
 

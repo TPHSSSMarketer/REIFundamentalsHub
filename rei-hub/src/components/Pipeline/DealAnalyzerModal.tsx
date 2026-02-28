@@ -327,12 +327,12 @@ export default function DealAnalyzerModal({
                 </div>
               </div>
 
-              {/* Save to GHL */}
+              {/* Save Analysis */}
               <div className="pt-2 border-t border-slate-200">
                 {saveState === 'saved' ? (
                   <div className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-green-600">
                     <CheckCircle className="w-4 h-4" />
-                    Saved to GHL
+                    Saved
                   </div>
                 ) : (
                   <button

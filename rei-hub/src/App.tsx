@@ -34,6 +34,7 @@ import LoanServicingPage from './components/LoanServicing/LoanServicingPage'
 import BankNegotiationPage from './components/BankNegotiation/BankNegotiationPage'
 import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import AnalyticsPage from './components/Analytics/AnalyticsPage'
+import HelpTicketsPage from './components/HelpTickets/HelpTicketsPage'
 import { isAuthenticated } from './services/auth'
 
 function BillingCompletePage() {
@@ -85,6 +86,7 @@ function AppLayout() {
             <ContentHub />
           </UpgradeGate>
         } />
+        <Route path="/help" element={<HelpTicketsPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/admin" element={<AdminPage />} />

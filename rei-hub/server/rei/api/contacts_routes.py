@@ -314,7 +314,7 @@ async def update_contact_fields(
 ):
     """
     Returns the body as-is. The actual contact update happens in the frontend
-    via the GHL/Supabase API. This endpoint exists for future local storage
+    via the Supabase API. This endpoint exists for future local storage
     of extended contact fields.
     """
     return {"success": True, "contact_id": contact_id, "updated": body.model_dump(exclude_none=True)}
