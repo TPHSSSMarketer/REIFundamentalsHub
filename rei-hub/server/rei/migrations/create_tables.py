@@ -17,6 +17,13 @@ _COLUMN_MIGRATIONS = [
     ("lead_capture_sites", "company_slug", "VARCHAR(100)"),
     ("lead_capture_sites", "total_views", "INTEGER DEFAULT 0"),
     ("users", "lead_email_notifications", "BOOLEAN DEFAULT 1"),
+        # Google OAuth columns for Sign-in with Google
+        ("users", "google_id", "VARCHAR UNIQUE"),
+        ("users", "google_avatar_url", "VARCHAR"),
+        ("users", "google_drive_token", "TEXT"),
+        ("users", "google_drive_connected", "BOOLEAN DEFAULT FALSE"),
+        ("users", "dropbox_token", "TEXT"),
+        ("users", "dropbox_connected", "BOOLEAN DEFAULT FALSE"),
 ]
 
 
