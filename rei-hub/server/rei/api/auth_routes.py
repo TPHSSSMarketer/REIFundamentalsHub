@@ -241,7 +241,7 @@ async def google_oauth_redirect(request: Request):
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    return RedirectResponse(url=auth_url)
+    return RedirectResponse(url=auth_url, status_code=302)
 
 
 @auth_router.get("/google/callback")
@@ -249,12 +249,13 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
     """Handle Google OAuth callback - exchange code, create/login user, redirect to frontend with token."""
     import aiohttp
     import urllib.parse
+    from sqlalchemy.exc import IntegrityError
 
     frontend_url = "https://hub.reifundamentalshub.com/login"
 
     code = request.query_params.get("code")
     if not code:
-        return RedirectResponse(url=f"{frontend_url}?google_error=missing_code")
+        return RedirectResponse(url=f"{frontend_url}?google_error=missing_code", status_code=302)
 
     settings = get_settings()
 
@@ -266,26 +267,30 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
         "redirect_uri": settings.google_login_redirect_uri,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post("https://oauth2.googleapis.com/token", data=token_data) as resp:
-            if resp.status != 200:
-                error_body = await resp.text()
-                print(f"GOOGLE TOKEN EXCHANGE FAILED: status={resp.status}, body={error_body}")
-                print(f"GOOGLE TOKEN EXCHANGE redirect_uri={settings.google_login_redirect_uri}")
-                return RedirectResponse(url=f"{frontend_url}?google_error=code_exchange_failed")
-            tokens = await resp.json()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post("https://oauth2.googleapis.com/token", data=token_data) as resp:
+                if resp.status != 200:
+                    error_body = await resp.text()
+                    print(f"GOOGLE TOKEN EXCHANGE FAILED: status={resp.status}, body={error_body}")
+                    print(f"GOOGLE TOKEN EXCHANGE redirect_uri={settings.google_login_redirect_uri}")
+                    return RedirectResponse(url=f"{frontend_url}?google_error=code_exchange_failed", status_code=302)
+                tokens = await resp.json()
 
-        access_token = tokens.get("access_token")
-        if not access_token:
-            return RedirectResponse(url=f"{frontend_url}?google_error=no_access_token")
+            access_token = tokens.get("access_token")
+            if not access_token:
+                return RedirectResponse(url=f"{frontend_url}?google_error=no_access_token", status_code=302)
 
-        async with session.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"}
-        ) as resp:
-            if resp.status != 200:
-                return RedirectResponse(url=f"{frontend_url}?google_error=userinfo_failed")
-            user_info = await resp.json()
+            async with session.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            ) as resp:
+                if resp.status != 200:
+                    return RedirectResponse(url=f"{frontend_url}?google_error=userinfo_failed", status_code=302)
+                user_info = await resp.json()
+    except Exception as e:
+        print(f"GOOGLE OAUTH HTTP ERROR: {e}")
+        return RedirectResponse(url=f"{frontend_url}?google_error=network_error", status_code=302)
 
     google_id = user_info.get("id")
     email = user_info.get("email")
@@ -293,46 +298,69 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
     google_avatar_url = user_info.get("picture")
 
     if not google_id or not email:
-        return RedirectResponse(url=f"{frontend_url}?google_error=invalid_user_info")
+        return RedirectResponse(url=f"{frontend_url}?google_error=invalid_user_info", status_code=302)
 
-    result = await db.execute(
-        select(User).options(selectinload(User.subscription)).where(User.google_id == google_id)
-    )
-    user = result.scalar_one_or_none()
-
-    if user is None:
+    # --- Find or create user ---
+    try:
         result = await db.execute(
-            select(User).options(selectinload(User.subscription)).where(User.email == email)
+            select(User).options(selectinload(User.subscription)).where(User.google_id == google_id)
         )
         user = result.scalar_one_or_none()
 
-    if user is None:
-        user = User(
-            email=email,
-            full_name=full_name or "",
-            google_id=google_id,
-            google_avatar_url=google_avatar_url,
-            is_active=True,
-            is_verified=True,
-        )
-        db.add(user)
-        await db.flush()
+        if user is None:
+            result = await db.execute(
+                select(User).options(selectinload(User.subscription)).where(User.email == email)
+            )
+            user = result.scalar_one_or_none()
 
-        subscription = Subscription(
-            user_id=user.id,
-            plan="starter",
-            status="active",
-        )
-        db.add(subscription)
-        await db.commit()
-        await db.refresh(user)
-    else:
-        if not user.google_id:
-            user.google_id = google_id
-        if google_avatar_url:
-            user.google_avatar_url = google_avatar_url
-        await db.commit()
-        await db.refresh(user)
+        if user is None:
+            try:
+                user = User(
+                    email=email,
+                    full_name=full_name or "",
+                    google_id=google_id,
+                    google_avatar_url=google_avatar_url,
+                    is_active=True,
+                    is_verified=True,
+                )
+                db.add(user)
+                await db.flush()
+
+                subscription = Subscription(
+                    user_id=user.id,
+                    plan="starter",
+                    status="active",
+                )
+                db.add(subscription)
+                await db.commit()
+                await db.refresh(user)
+                result = await db.execute(
+                    select(User).options(selectinload(User.subscription)).where(User.id == user.id)
+                )
+                user = result.scalar_one_or_none()
+            except IntegrityError:
+                await db.rollback()
+                result = await db.execute(
+                    select(User).options(selectinload(User.subscription)).where(User.email == email)
+                )
+                user = result.scalar_one_or_none()
+                if user is None:
+                    print(f"GOOGLE OAUTH: IntegrityError but user not found for email={email}")
+                    return RedirectResponse(url=f"{frontend_url}?google_error=db_error", status_code=302)
+        else:
+            changed = False
+            if not user.google_id:
+                user.google_id = google_id
+                changed = True
+            if google_avatar_url:
+                user.google_avatar_url = google_avatar_url
+                changed = True
+            if changed:
+                await db.commit()
+                await db.refresh(user)
+    except Exception as e:
+        print(f"GOOGLE OAUTH DB ERROR: {e}")
+        return RedirectResponse(url=f"{frontend_url}?google_error=db_error", status_code=302)
 
     plan = user.subscription.plan if user.subscription else None
     token = create_access_token(
@@ -346,4 +374,4 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
         "email": user.email,
         "plan": plan or "",
     })
-    return RedirectResponse(url=f"{frontend_url}?{params}")
+    return RedirectResponse(url=f"{frontend_url}?{params}", status_code=302)
