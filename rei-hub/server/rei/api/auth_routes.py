@@ -227,13 +227,15 @@ async def google_oauth_url():
 
 
 @auth_router.get("/google/redirect")
-async def google_oauth_redirect():
+async def google_oauth_redirect(request: Request):
     """Redirect browser directly to Google OAuth consent screen (avoids CORS)."""
     import urllib.parse
 
+    callback_url = settings.google_login_redirect_uri
+
     params = {
         "client_id": settings.google_login_client_id,
-        "redirect_uri": settings.google_login_redirect_uri,
+        "redirect_uri": callback_url,
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "online",
@@ -242,17 +244,19 @@ async def google_oauth_redirect():
     return RedirectResponse(url=auth_url)
 
 
-@auth_router.post("/google/callback", response_model=TokenResponse)
-async def google_oauth_callback(body: dict, db: AsyncSession = Depends(get_db)):
-    """Exchange Google auth code for tokens and log in user."""
+@auth_router.get("/google/callback")
+async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle Google OAuth callback - exchange code, create/login user, redirect to frontend with token."""
     import aiohttp
+    import urllib.parse
 
-    code = body.get("code")
+    frontend_url = "https://hub.reifundamentalshub.com/login"
+
+    code = request.query_params.get("code")
     if not code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing authorization code",
-        )
+        return RedirectResponse(url=f"{frontend_url}?google_error=missing_code")
+
+    settings = get_settings()
 
     token_data = {
         "client_id": settings.google_login_client_id,
@@ -265,28 +269,19 @@ async def google_oauth_callback(body: dict, db: AsyncSession = Depends(get_db)):
     async with aiohttp.ClientSession() as session:
         async with session.post("https://oauth2.googleapis.com/token", data=token_data) as resp:
             if resp.status != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to exchange authorization code",
-                )
+                return RedirectResponse(url=f"{frontend_url}?google_error=code_exchange_failed")
             tokens = await resp.json()
 
         access_token = tokens.get("access_token")
         if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to get access token",
-            )
+            return RedirectResponse(url=f"{frontend_url}?google_error=no_access_token")
 
         async with session.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"}
         ) as resp:
             if resp.status != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to fetch user info",
-                )
+                return RedirectResponse(url=f"{frontend_url}?google_error=userinfo_failed")
             user_info = await resp.json()
 
     google_id = user_info.get("id")
@@ -295,34 +290,27 @@ async def google_oauth_callback(body: dict, db: AsyncSession = Depends(get_db)):
     google_avatar_url = user_info.get("picture")
 
     if not google_id or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user info from Google",
-        )
+        return RedirectResponse(url=f"{frontend_url}?google_error=invalid_user_info")
 
-    result = await db.execute(select(User).where(User.google_id == google_id))
+    result = await db.execute(
+        select(User).options(selectinload(User.subscription)).where(User.google_id == google_id)
+    )
     user = result.scalar_one_or_none()
 
-    if not user:
-        result = await db.execute(select(User).where(User.email == email))
+    if user is None:
+        result = await db.execute(
+            select(User).options(selectinload(User.subscription)).where(User.email == email)
+        )
         user = result.scalar_one_or_none()
 
-    if user:
-        user.google_id = google_id
-        if google_avatar_url:
-            user.google_avatar_url = google_avatar_url
-        if full_name and not user.full_name:
-            user.full_name = full_name
-        await db.commit()
-        await db.refresh(user)
-    else:
-        import secrets
+    if user is None:
         user = User(
             email=email,
-            hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=full_name,
+            full_name=full_name or "",
             google_id=google_id,
             google_avatar_url=google_avatar_url,
+            is_active=True,
+            is_verified=True,
         )
         db.add(user)
         await db.flush()
@@ -330,23 +318,29 @@ async def google_oauth_callback(body: dict, db: AsyncSession = Depends(get_db)):
         subscription = Subscription(
             user_id=user.id,
             plan="starter",
-            status="trialing",
-            trial_ends_at=datetime.utcnow() + timedelta(days=7),
+            status="active",
         )
         db.add(subscription)
         await db.commit()
         await db.refresh(user)
+    else:
+        if not user.google_id:
+            user.google_id = google_id
+        if google_avatar_url:
+            user.google_avatar_url = google_avatar_url
+        await db.commit()
+        await db.refresh(user)
 
     plan = user.subscription.plan if user.subscription else None
-
     token = create_access_token(
         data={"sub": user.id},
         expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
     )
 
-    return TokenResponse(
-        access_token=token,
-        user_id=user.id,
-        email=user.email,
-        plan=plan,
-    )
+    params = urllib.parse.urlencode({
+        "google_token": token,
+        "user_id": str(user.id),
+        "email": user.email,
+        "plan": plan or "",
+    })
+    return RedirectResponse(url=f"{frontend_url}?{params}")
