@@ -239,18 +239,23 @@ async def complete_onboarding(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Mark onboarding as completed FIRST and commit immediately
+    # so it persists even if later steps (seeding, Twilio) fail.
     user.onboarding_completed = True
     user.onboarding_step = 6
+    await db.commit()
 
-    # Seed default checklists for all deal types
+    # Seed default checklists for all deal types (best-effort)
     from rei.api.documents_routes import seed_default_checklists
 
     try:
         await seed_default_checklists(user.id, db)
     except Exception:
         logger.exception("Failed to seed default checklists during onboarding")
+        # Rollback the failed seed so the session is clean
+        await db.rollback()
 
-    # Provision Twilio subaccount if not done yet
+    # Provision Twilio subaccount if not done yet (best-effort)
     if not user.twilio_subaccount_sid:
         try:
             sub = await twilio_service.create_subaccount(
@@ -258,10 +263,11 @@ async def complete_onboarding(
             )
             user.twilio_subaccount_sid = sub["sid"]
             user.twilio_subaccount_auth_token = sub["auth_token"]
+            await db.commit()
         except Exception:
             logger.exception("Failed to create Twilio subaccount on completion")
+            await db.rollback()
 
-    await db.commit()
     return {"success": True, "redirect": "/dashboard"}
 
 
