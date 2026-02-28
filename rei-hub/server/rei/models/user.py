@@ -211,6 +211,18 @@ class User(Base):
     bank_negotiation_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
 
+    # ── Google OAuth Login ───────────────────────────────────────
+    google_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, unique=True)
+    google_avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Google Drive (per-user) ──────────────────────────────────
+    google_drive_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON OAuth token
+    google_drive_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # ── Dropbox (per-user) ───────────────────────────────────────
+    dropbox_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dropbox_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # ── Loan Servicing Tenant Config ──────────────────────────
 
     # Stripe Connect (per business)

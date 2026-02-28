@@ -207,3 +207,129 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         email=user.email,
         plan=plan,
     )
+
+
+@auth_router.get("/google/url")
+async def google_oauth_url():
+    """Return the Google OAuth consent URL for login."""
+    import urllib.parse
+
+    params = {
+        "client_id": settings.google_login_client_id,
+        "redirect_uri": settings.google_login_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    return {"url": auth_url}
+
+
+@auth_router.post("/google/callback", response_model=TokenResponse)
+async def google_oauth_callback(body: dict, db: AsyncSession = Depends(get_db)):
+    """Exchange Google auth code for tokens and log in user."""
+    import aiohttp
+
+    code = body.get("code")
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing authorization code",
+        )
+
+    token_data = {
+        "client_id": settings.google_login_client_id,
+        "client_secret": settings.google_login_client_secret,
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": settings.google_login_redirect_uri,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post("https://oauth2.googleapis.com/token", data=token_data) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to exchange authorization code",
+                )
+            tokens = await resp.json()
+
+        access_token = tokens.get("access_token")
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get access token",
+            )
+
+        async with session.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"}
+        ) as resp:
+            if resp.status != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to fetch user info",
+                )
+            user_info = await resp.json()
+
+    google_id = user_info.get("id")
+    email = user_info.get("email")
+    full_name = user_info.get("name")
+    google_avatar_url = user_info.get("picture")
+
+    if not google_id or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user info from Google",
+        )
+
+    result = await db.execute(select(User).where(User.google_id == google_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+    if user:
+        user.google_id = google_id
+        if google_avatar_url:
+            user.google_avatar_url = google_avatar_url
+        if full_name and not user.full_name:
+            user.full_name = full_name
+        await db.commit()
+        await db.refresh(user)
+    else:
+        import secrets
+        user = User(
+            email=email,
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            full_name=full_name,
+            google_id=google_id,
+            google_avatar_url=google_avatar_url,
+        )
+        db.add(user)
+        await db.flush()
+
+        subscription = Subscription(
+            user_id=user.id,
+            plan="starter",
+            status="trialing",
+            trial_ends_at=datetime.utcnow() + timedelta(days=7),
+        )
+        db.add(subscription)
+        await db.commit()
+        await db.refresh(user)
+
+    plan = user.subscription.plan if user.subscription else None
+
+    token = create_access_token(
+        data={"sub": user.id},
+        expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
+    )
+
+    return TokenResponse(
+        access_token=token,
+        user_id=user.id,
+        email=user.email,
+        plan=plan,
+    )

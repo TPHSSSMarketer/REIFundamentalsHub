@@ -1,14 +1,26 @@
 import { useState, useEffect } from 'react'
-import { Save, Key, MapPin, Check, AlertTriangle, Globe, Calculator, Loader2 } from 'lucide-react'
+import { Save, Key, MapPin, Check, AlertTriangle, Globe, Calculator, Loader2, Cloud, HardDrive } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { getConfigStatus, getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import HelmHubConnect from './helmhubconnect'
 import AiProviderUserSettings from './AiProviderUserSettings'
+import {
+  getGoogleDriveAuthUrl,
+  submitGoogleDriveCode,
+  disconnectGoogleDrive,
+  getGoogleDriveStatus,
+  getDropboxAuthUrl,
+  submitDropboxCode,
+  disconnectDropbox,
+  getDropboxStatus,
+} from '@/services/cloudStorageApi'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 export default function Settings() {
   const config = getConfigStatus()
+  const [searchParams] = useSearchParams()
 
   const [settings, setSettings] = useState({
     apiKey: import.meta.env.VITE_API_KEY ? '••••••••••••••••' : '',
@@ -17,6 +29,15 @@ export default function Settings() {
     wpUsername: localStorage.getItem('wp_username') || '',
     wpAppPassword: localStorage.getItem('wp_app_password') || '',
   })
+
+  // Cloud Storage state
+  const [googleDriveStatus, setGoogleDriveStatus] = useState<{ connected: boolean; email?: string } | null>(null)
+  const [dropboxStatus, setDropboxStatus] = useState<{ connected: boolean; email?: string } | null>(null)
+  const [cloudStorageLoading, setCloudStorageLoading] = useState(true)
+  const [googleDriveConnecting, setGoogleDriveConnecting] = useState(false)
+  const [dropboxConnecting, setDropboxConnecting] = useState(false)
+  const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false)
+  const [dropboxDisconnecting, setDropboxDisconnecting] = useState(false)
 
   // ── Deal Analyzer Preferences ──────────────────────────────
   const [analyzerPrefs, setAnalyzerPrefs] = useState({
@@ -77,6 +98,103 @@ export default function Settings() {
     }
     loadAnalyzerPrefs()
   }, [])
+
+  useEffect(() => {
+    loadCloudStorageStatus()
+  }, [])
+
+  useEffect(() => {
+    const driveCode = searchParams.get('drive_code')
+    if (driveCode) {
+      handleGoogleDriveCallback(driveCode)
+    }
+    const dropboxCode = searchParams.get('dropbox_code')
+    if (dropboxCode) {
+      handleDropboxCallback(dropboxCode)
+    }
+  }, [searchParams])
+
+  async function loadCloudStorageStatus() {
+    setCloudStorageLoading(true)
+    try {
+      const [driveRes, dropboxRes] = await Promise.all([
+        getGoogleDriveStatus(),
+        getDropboxStatus(),
+      ])
+      setGoogleDriveStatus(driveRes)
+      setDropboxStatus(dropboxRes)
+    } catch {
+      // use defaults
+    } finally {
+      setCloudStorageLoading(false)
+    }
+  }
+
+  async function handleGoogleDriveConnect() {
+    setGoogleDriveConnecting(true)
+    try {
+      const data = await getGoogleDriveAuthUrl()
+      window.location.href = data.url
+    } catch {
+      toast.error('Failed to initiate Google Drive connection')
+      setGoogleDriveConnecting(false)
+    }
+  }
+
+  async function handleGoogleDriveCallback(code: string) {
+    try {
+      await submitGoogleDriveCode(code)
+      toast.success('Google Drive connected successfully')
+      await loadCloudStorageStatus()
+    } catch {
+      toast.error('Failed to connect Google Drive')
+    }
+  }
+
+  async function handleGoogleDriveDisconnect() {
+    setGoogleDriveDisconnecting(true)
+    try {
+      await disconnectGoogleDrive()
+      toast.success('Google Drive disconnected')
+      await loadCloudStorageStatus()
+    } catch {
+      toast.error('Failed to disconnect Google Drive')
+      setGoogleDriveDisconnecting(false)
+    }
+  }
+
+  async function handleDropboxConnect() {
+    setDropboxConnecting(true)
+    try {
+      const data = await getDropboxAuthUrl()
+      window.location.href = data.url
+    } catch {
+      toast.error('Failed to initiate Dropbox connection')
+      setDropboxConnecting(false)
+    }
+  }
+
+  async function handleDropboxCallback(code: string) {
+    try {
+      await submitDropboxCode(code)
+      toast.success('Dropbox connected successfully')
+      await loadCloudStorageStatus()
+    } catch {
+      toast.error('Failed to connect Dropbox')
+    }
+  }
+
+  async function handleDropboxDisconnect() {
+    setDropboxDisconnecting(true)
+    try {
+      await disconnectDropbox()
+      toast.success('Dropbox disconnected')
+      await loadCloudStorageStatus()
+    } catch {
+      toast.error('Failed to disconnect Dropbox')
+      setDropboxDisconnecting(false)
+    }
+  }
 
   const handleSaveAnalyzerPrefs = async () => {
     setAnalyzerSaving(true)
@@ -484,6 +602,127 @@ export default function Settings() {
             Save WordPress Settings
           </button>
         </div>
+      </div>
+
+      {/* Cloud Storage */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Cloud className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Cloud Storage</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Connect your cloud storage accounts for seamless file syncing.
+        </p>
+
+        {cloudStorageLoading ? (
+          <div className="flex items-center justify-center h-24">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Google Drive */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <HardDrive className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">Google Drive</h3>
+                  {googleDriveStatus?.connected && (
+                    <p className="text-xs text-slate-500">{googleDriveStatus.email}</p>
+                  )}
+                </div>
+                {googleDriveStatus?.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {googleDriveStatus?.connected ? (
+                <button
+                  onClick={handleGoogleDriveDisconnect}
+                  disabled={googleDriveDisconnecting}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {googleDriveDisconnecting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleGoogleDriveConnect}
+                  disabled={googleDriveConnecting}
+                  className="w-full px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {googleDriveConnecting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect Google Drive'
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Dropbox */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Cloud className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">Dropbox</h3>
+                  {dropboxStatus?.connected && (
+                    <p className="text-xs text-slate-500">{dropboxStatus.email}</p>
+                  )}
+                </div>
+                {dropboxStatus?.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {dropboxStatus?.connected ? (
+                <button
+                  onClick={handleDropboxDisconnect}
+                  disabled={dropboxDisconnecting}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {dropboxDisconnecting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleDropboxConnect}
+                  disabled={dropboxConnecting}
+                  className="w-full px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {dropboxConnecting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect Dropbox'
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
     </div>

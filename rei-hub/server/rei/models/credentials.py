@@ -87,6 +87,21 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "google_client_secret", "label": "Client Secret", "type": "secret"},
         {"name": "google_redirect_uri", "label": "Redirect URI", "type": "text"},
     ],
+    "google_login": [
+        {"name": "google_login_client_id", "label": "Client ID", "type": "text"},
+        {"name": "google_login_client_secret", "label": "Client Secret", "type": "secret"},
+        {"name": "google_login_redirect_uri", "label": "Redirect URI", "type": "text"},
+    ],
+    "google_drive_oauth": [
+        {"name": "google_drive_client_id", "label": "Client ID", "type": "text"},
+        {"name": "google_drive_client_secret", "label": "Client Secret", "type": "secret"},
+        {"name": "google_drive_redirect_uri", "label": "Redirect URI", "type": "text"},
+    ],
+    "dropbox_oauth": [
+        {"name": "dropbox_app_key", "label": "App Key", "type": "text"},
+        {"name": "dropbox_app_secret", "label": "App Secret", "type": "secret"},
+        {"name": "dropbox_redirect_uri", "label": "Redirect URI", "type": "text"},
+    ],
     "outlook": [
         {"name": "outlook_client_id", "label": "Client ID", "type": "text"},
         {"name": "outlook_client_secret", "label": "Client Secret", "type": "secret"},

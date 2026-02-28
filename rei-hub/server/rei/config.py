@@ -112,6 +112,21 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = ""
 
+    # ── Google OAuth Login ──────────────────────────────────────
+    google_login_client_id: str = ""
+    google_login_client_secret: str = ""
+    google_login_redirect_uri: str = ""
+
+    # ── Google Drive (per-user OAuth) ───────────────────────────
+    google_drive_client_id: str = ""
+    google_drive_client_secret: str = ""
+    google_drive_redirect_uri: str = ""
+
+    # ── Dropbox (per-user OAuth) ────────────────────────────────
+    dropbox_app_key: str = ""
+    dropbox_app_secret: str = ""
+    dropbox_redirect_uri: str = ""
+
     # ── Microsoft Outlook Calendar ──────────────────────────────────
     outlook_client_id: str = ""
     outlook_client_secret: str = ""

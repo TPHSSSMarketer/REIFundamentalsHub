@@ -335,3 +335,13 @@ CREATE TABLE IF NOT EXISTS saved_markets (
 CREATE INDEX IF NOT EXISTS idx_saved_markets_user_id ON saved_markets(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_markets_city_state ON saved_markets(city, state);
 CREATE INDEX IF NOT EXISTS idx_saved_markets_created_at ON saved_markets(created_at DESC);
+
+-- ── Per-user cloud storage OAuth ──────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_avatar_url VARCHAR;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_drive_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_drive_connected BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dropbox_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dropbox_connected BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);

@@ -53,6 +53,21 @@ const PROVIDER_META: Record<
     category: 'Calendar',
     icon: '📅',
   },
+  google_login: {
+    display_name: 'Google OAuth Login',
+    category: 'Authentication',
+    icon: '🔐',
+  },
+  google_drive_oauth: {
+    display_name: 'Google Drive',
+    category: 'Cloud Storage',
+    icon: '💾',
+  },
+  dropbox_oauth: {
+    display_name: 'Dropbox',
+    category: 'Cloud Storage',
+    icon: '☁️',
+  },
   outlook: {
     display_name: 'Microsoft Outlook',
     category: 'Calendar',
@@ -148,6 +163,33 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
       type: 'secret',
     },
     { name: 'google_redirect_uri', label: 'Redirect URI', type: 'text' },
+  ],
+  google_login: [
+    { name: 'google_login_client_id', label: 'Client ID', type: 'text' },
+    {
+      name: 'google_login_client_secret',
+      label: 'Client Secret',
+      type: 'secret',
+    },
+    { name: 'google_login_redirect_uri', label: 'Redirect URI', type: 'text' },
+  ],
+  google_drive_oauth: [
+    { name: 'google_drive_client_id', label: 'Client ID', type: 'text' },
+    {
+      name: 'google_drive_client_secret',
+      label: 'Client Secret',
+      type: 'secret',
+    },
+    { name: 'google_drive_redirect_uri', label: 'Redirect URI', type: 'text' },
+  ],
+  dropbox_oauth: [
+    { name: 'dropbox_app_key', label: 'App Key', type: 'text' },
+    {
+      name: 'dropbox_app_secret',
+      label: 'App Secret',
+      type: 'secret',
+    },
+    { name: 'dropbox_redirect_uri', label: 'Redirect URI', type: 'text' },
   ],
   outlook: [
     { name: 'outlook_client_id', label: 'Client ID', type: 'text' },
