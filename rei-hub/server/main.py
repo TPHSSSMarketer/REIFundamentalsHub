@@ -33,6 +33,7 @@ from rei.api.email_marketing_routes import email_marketing_router
 from rei.api.lead_capture_routes import lead_capture_router, lead_capture_public_router
 from rei.api.loan_routes_payments import router as loan_payments_router
 from rei.api.loan_routes_properties import router as loan_properties_router
+from rei.api.markets_routes import markets_router
 from rei.api.onboarding_routes import onboarding_router
 from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
@@ -284,6 +285,7 @@ app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 app.include_router(superadmin_router, prefix="/api")
 app.include_router(ticket_router, prefix="/api")
+app.include_router(markets_router, prefix="/api")
 app.include_router(lead_capture_router, prefix="/api")
 app.include_router(lead_capture_public_router)
 app.include_router(crm_contacts_router, prefix="/api")

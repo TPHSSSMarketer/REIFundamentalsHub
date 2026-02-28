@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import {
   getNegotiationsByProperty, createNegotiation, getRecipients, getCorrespondence,
-  sendToAll, refreshRecipient, updateRecipient, refreshAllTracking,
+  sendToAll, refreshRecipient, updateRecipient, refreshAllTracking, getDocuments, createDocument,
 } from '../../../services/bankNegotiationApi'
 
 interface Props {
@@ -37,6 +37,14 @@ const LOAN_TYPE_BADGE: Record<string, string> = {
 
 const LETTER_TYPES: Record<number, string> = { 1: 'Initial', 2: 'Follow-up', 3: 'Final Demand' }
 const CONFIDENCE_DOT: Record<string, string> = { high: 'bg-green-500', medium: 'bg-yellow-500', low: 'bg-red-500' }
+const DOCUMENT_TYPE_BADGE: Record<string, string> = {
+  hardship_letter: 'bg-purple-100 text-purple-800',
+  qwr: 'bg-indigo-100 text-indigo-800',
+  dispute_letter: 'bg-pink-100 text-pink-800',
+  authorization: 'bg-cyan-100 text-cyan-800',
+  bank_statement: 'bg-amber-100 text-amber-800',
+  other: 'bg-gray-100 text-gray-800',
+}
 
 function formatFollowUp(dateStr: string | null | undefined) {
   if (!dateStr) return { text: '\u2014', color: 'text-slate-400' }
@@ -62,13 +70,20 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
   const [toast, setToast] = useState('')
   const [recipients, setRecipients] = useState<any[]>([])
   const [correspondence, setCorrespondence] = useState<any[]>([])
+  const [documents, setDocuments] = useState<any[]>([])
   const [editingRecipient, setEditingRecipient] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [sendLetterNum, setSendLetterNum] = useState(1)
-  const [sendMethods, setSendMethods] = useState({ certifiedMail: true, fax: false })
+  const [sendMethods, setSendMethods] = useState({ certifiedMail: true, fax: false, email: false })
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
   const [trackingNums, setTrackingNums] = useState<Record<string, string>>({})
   const [sigCardNums, setSigCardNums] = useState<Record<string, string>>({})
   const [faxPdfUrl, setFaxPdfUrl] = useState('')
+  const [showUploadForm, setShowUploadForm] = useState(false)
+  const [newDocName, setNewDocName] = useState('')
+  const [newDocType, setNewDocType] = useState('hardship_letter')
+  const [newDocNotes, setNewDocNotes] = useState('')
   const [sendResults, setSendResults] = useState<any>(null)
   const [sending, setSending] = useState(false)
   const [form, setForm] = useState({
@@ -113,10 +128,13 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
 
   async function openDetail(neg: any) {
     setSelectedNeg(neg); setShowDetailPanel(true); setSendResults(null)
-    setSendLetterNum(1); setSendMethods({ certifiedMail: true, fax: false })
+    setSendLetterNum(1); setSendMethods({ certifiedMail: true, fax: false, email: false })
+    setEmailSubject(''); setEmailBody('')
     setTrackingNums({}); setSigCardNums({}); setFaxPdfUrl(''); setEditingRecipient(null)
+    setShowUploadForm(false); setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes('')
     try { const r = await getRecipients(neg.id, token); setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
     try { const c = await getCorrespondence(neg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
+    try { const d = await getDocuments(neg.id, token); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
   }
 
   async function handleCreate(e: FormEvent) {
@@ -135,7 +153,7 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
   async function handleSendToAll() {
     if (!selectedNeg) return; setSending(true); setSendResults(null)
     try {
-      const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], methods: { certified_mail: sendMethods.certifiedMail ? { tracking_numbers: trackingNums, signature_cards: sigCardNums } : undefined, fax: sendMethods.fax ? { pdf_url: faxPdfUrl } : undefined } }
+      const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], methods: { certified_mail: sendMethods.certifiedMail ? { tracking_numbers: trackingNums, signature_cards: sigCardNums } : undefined, fax: sendMethods.fax ? { pdf_url: faxPdfUrl } : undefined, email: sendMethods.email ? { subject: emailSubject, body: emailBody } : undefined } }
       const res = await sendToAll(selectedNeg.id, payload, token); setSendResults(res); showToastMsg('Documents sent successfully')
       const c = await getCorrespondence(selectedNeg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
     } catch { showToastMsg('Failed to send documents') }
@@ -162,6 +180,23 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
       if (selectedNeg) { const c = await getCorrespondence(selectedNeg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) }
       showToastMsg('Tracking refreshed')
     } catch { showToastMsg('Failed to refresh tracking') }
+  }
+
+  async function loadDocuments() {
+    if (!selectedNeg) return
+    try { const d = await getDocuments(selectedNeg.id, token); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { showToastMsg('Failed to load documents') }
+  }
+
+  async function handleCreateDocument() {
+    if (!selectedNeg || !newDocName || !newDocType) { showToastMsg('Please fill in all fields'); return }
+    try {
+      const payload: Record<string, any> = { document_name: newDocName, document_type: newDocType }
+      if (newDocNotes) payload.notes = newDocNotes
+      await createDocument(selectedNeg.id, payload, token)
+      showToastMsg('Document added successfully')
+      setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes(''); setShowUploadForm(false)
+      await loadDocuments()
+    } catch { showToastMsg('Failed to create document') }
   }
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000) }
@@ -385,6 +420,52 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
               </div>
             </div>
 
+            {/* Documents */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-slate-700">Documents</h4>
+                <button onClick={() => setShowUploadForm(!showUploadForm)} className="px-3 py-1 text-xs border border-[#1B3A6B] text-[#1B3A6B] rounded hover:bg-slate-50">+ Upload Document</button>
+              </div>
+              {showUploadForm && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 space-y-2">
+                  <input placeholder="Document name" value={newDocName} onChange={e => setNewDocName(e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                  <select value={newDocType} onChange={e => setNewDocType(e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]">
+                    <option value="hardship_letter">Hardship Letter</option>
+                    <option value="qwr">QWR (Qualified Written Request)</option>
+                    <option value="dispute_letter">Dispute Letter</option>
+                    <option value="authorization">Authorization</option>
+                    <option value="bank_statement">Bank Statement</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <textarea placeholder="Notes (optional)" value={newDocNotes} onChange={e => setNewDocNotes(e.target.value)} rows={2} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                  <div className="flex gap-2">
+                    <button onClick={handleCreateDocument} className="px-2 py-1 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90">Save Document</button>
+                    <button onClick={() => setShowUploadForm(false)} className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700">Cancel</button>
+                  </div>
+                </div>
+              )}
+              {documents.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">No documents yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc: any) => (
+                    <div key={doc.id} className="border border-slate-200 rounded-lg p-3 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded ${DOCUMENT_TYPE_BADGE[doc.document_type] || DOCUMENT_TYPE_BADGE.other}`}>
+                          {doc.document_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </span>
+                        <span className="text-xs font-medium text-slate-800">{doc.document_name}</span>
+                      </div>
+                      <div className="text-xs text-slate-600 space-y-0.5">
+                        {doc.sent_date && <p>Sent: {new Date(doc.sent_date).toLocaleDateString()}</p>}
+                        {doc.notes && <p className="text-slate-500 italic">{doc.notes}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Send Documents */}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
               <h4 className="text-sm font-semibold text-slate-700">Send to All {recipients.length} Recipients</h4>
@@ -406,6 +487,8 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
                 ))}</div>}
                 <label className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={sendMethods.fax} onChange={e => setSendMethods({ ...sendMethods, fax: e.target.checked })} className="accent-[#1B3A6B]" />Fax</label>
                 {sendMethods.fax && <div className="pl-5"><input placeholder="Publicly accessible PDF URL" value={faxPdfUrl} onChange={e => setFaxPdfUrl(e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" /></div>}
+                <label className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={sendMethods.email} onChange={e => setSendMethods({ ...sendMethods, email: e.target.checked })} className="accent-[#1B3A6B]" />Email</label>
+                {sendMethods.email && <div className="pl-5 space-y-2"><input placeholder="Email subject" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" /><textarea placeholder="Email body" value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={3} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" /></div>}
               </div>
               <button onClick={handleSendToAll} disabled={sending} className="w-full px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50">{sending ? 'Sending...' : `Send to All ${recipients.length} Recipients`}</button>
               {sendResults?.results && <div className="space-y-1">{sendResults.results.map((r: any, i: number) => <div key={i} className="flex items-center gap-2 text-xs"><span className={r.success ? 'text-green-600' : 'text-[#CC2229]'}>{r.success ? '✓' : '✗'}</span><span className="text-slate-600">{r.recipient} — {r.method}</span></div>)}</div>}

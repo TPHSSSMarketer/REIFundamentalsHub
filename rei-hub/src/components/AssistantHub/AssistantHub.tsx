@@ -4,7 +4,7 @@ import {
     Phone,
     PlayCircle,
     StopCircle,
-    Settings,
+    Settings as SettingsIcon,
     PhoneCall,
     Clock,
     Users,
@@ -15,14 +15,21 @@ import {
     Loader2,
     Bot,
     Sparkles,
+    BookOpen,
+    History,
+    Megaphone,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
 import { helmChat, HelmProxyError } from '../../services/helmProxy'
 import type { Contact } from '@/types'
+import AgentsTab from './AgentsTab'
+import KnowledgeBaseTab from './KnowledgeBaseTab'
+import ConversationsTab from './ConversationsTab'
+import CampaignsTab from './CampaignsTab'
 
-type ActiveTab = 'voice' | 'sms' | 'email'
+type ActiveTab = 'voice' | 'sms' | 'email' | 'agents' | 'knowledge' | 'conversations' | 'campaigns'
 
 interface Persona {
   id: string
@@ -205,7 +212,11 @@ export default function AssistantHub() {
     { id: 'voice' as ActiveTab, label: 'CallCommander AI', icon: Mic },
     { id: 'sms' as ActiveTab, label: 'DealCloser SMS', icon: MessageSquare },
     { id: 'email' as ActiveTab, label: 'DealCloser Email', icon: Mail },
-      ]
+    { id: 'agents' as ActiveTab, label: 'AI Agents', icon: Bot },
+    { id: 'knowledge' as ActiveTab, label: 'Knowledge Base', icon: BookOpen },
+    { id: 'conversations' as ActiveTab, label: 'Conversations', icon: History },
+    { id: 'campaigns' as ActiveTab, label: 'Campaigns', icon: Megaphone },
+  ]
 
   return (
         <div className="space-y-6">
@@ -633,6 +644,20 @@ export default function AssistantHub() {
                                 </form>
                     </div>
                       )}
+
+                {/* Voice AI Management Tabs */}
+                {activeTab === 'agents' && (
+                  <div className="p-6"><AgentsTab /></div>
+                )}
+                {activeTab === 'knowledge' && (
+                  <div className="p-6"><KnowledgeBaseTab /></div>
+                )}
+                {activeTab === 'conversations' && (
+                  <div className="p-6"><ConversationsTab /></div>
+                )}
+                {activeTab === 'campaigns' && (
+                  <div className="p-6"><CampaignsTab /></div>
+                )}
               </div>
         </div>
       )

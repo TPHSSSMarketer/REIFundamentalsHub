@@ -1906,3 +1906,32 @@ class HelpTicket(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SavedMarket(Base):
+    """
+    A real estate market saved by a user for tracking and comparison.
+
+    Users can save multiple markets with key metrics:
+    - Median home price and rental rates
+    - Inventory and days on market
+    - Price trends
+    - Custom notes
+    """
+
+    __tablename__ = "saved_markets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    state: Mapped[str] = mapped_column(String(2), nullable=False)
+    median_home_price: Mapped[float] = mapped_column(Float, default=0)
+    median_rent: Mapped[float] = mapped_column(Float, default=0)
+    avg_days_on_market: Mapped[int] = mapped_column(Integer, default=0)
+    inventory_count: Mapped[int] = mapped_column(Integer, default=0)
+    price_change_pct: Mapped[float] = mapped_column(Float, default=0)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )

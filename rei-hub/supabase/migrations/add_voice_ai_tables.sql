@@ -310,3 +310,28 @@ ALWAYS EXTRACT: current status, updated motivation level, new timeline, any chan
 
 "Is this a scam?"
 → "I understand the concern — there are unfortunately bad actors out there. We''re a real company at [address/website]. I''m happy to provide references from other sellers we''ve worked with."', TRUE);
+
+-- ============================================================
+-- Markets Migration — Saved markets for real estate analysis
+-- ============================================================
+
+-- Create saved_markets table for storing user's tracked markets
+CREATE TABLE IF NOT EXISTS saved_markets (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(2) NOT NULL,
+    median_home_price FLOAT DEFAULT 0,
+    median_rent FLOAT DEFAULT 0,
+    avg_days_on_market INTEGER DEFAULT 0,
+    inventory_count INTEGER DEFAULT 0,
+    price_change_pct FLOAT DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_saved_markets_user_id ON saved_markets(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_markets_city_state ON saved_markets(city, state);
+CREATE INDEX IF NOT EXISTS idx_saved_markets_created_at ON saved_markets(created_at DESC);
