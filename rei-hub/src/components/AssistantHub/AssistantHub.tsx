@@ -213,9 +213,9 @@ export default function AssistantHub() {
     { id: 'sms' as ActiveTab, label: 'DealCloser SMS', icon: MessageSquare },
     { id: 'email' as ActiveTab, label: 'DealCloser Email', icon: Mail },
     { id: 'agents' as ActiveTab, label: 'AI Agents', icon: Bot },
-    { id: 'knowledge' as ActiveTab, label: 'Knowledge Base', icon: BookOpen },
     { id: 'conversations' as ActiveTab, label: 'Conversations', icon: History },
     { id: 'campaigns' as ActiveTab, label: 'Campaigns', icon: Megaphone },
+    { id: 'knowledge' as ActiveTab, label: 'Knowledge Base', icon: BookOpen },
   ]
 
   return (

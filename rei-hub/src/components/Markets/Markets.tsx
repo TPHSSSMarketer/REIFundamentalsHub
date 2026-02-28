@@ -1,10 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { MapPin, Plus, Loader2, Trash2 } from 'lucide-react'
+import { MapPin, Plus, Loader2, Trash2, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   getMarkets,
   createMarket,
   deleteMarket,
+  attomLookup,
+  refreshMarket,
   type MarketRecord,
   type CreateMarketPayload,
 } from '@/services/marketsApi'
@@ -36,6 +38,8 @@ export default function Markets() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
   const [saving, setSaving] = useState(false)
+  const [lookingUp, setLookingUp] = useState(false)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadMarkets()
@@ -56,6 +60,43 @@ export default function Markets() {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  async function handleAttomLookup() {
+    if (!form.city.trim() || !form.state.trim()) {
+      toast.error('Enter a city and state first')
+      return
+    }
+    setLookingUp(true)
+    try {
+      const data = await attomLookup(form.city.trim(), form.state.trim().toUpperCase())
+      setForm((prev) => ({
+        ...prev,
+        medianHomePrice: data.median_home_price > 0 ? String(data.median_home_price) : prev.medianHomePrice,
+        medianRent: data.median_rent > 0 ? String(data.median_rent) : prev.medianRent,
+        avgDaysOnMarket: data.avg_days_on_market > 0 ? String(data.avg_days_on_market) : prev.avgDaysOnMarket,
+        inventoryCount: data.inventory_count > 0 ? String(data.inventory_count) : prev.inventoryCount,
+        priceChangePct: data.price_change_pct !== 0 ? String(data.price_change_pct) : prev.priceChangePct,
+      }))
+      toast.success(`Market data loaded for ${form.city.trim()}, ${form.state.trim().toUpperCase()}`)
+    } catch (err: any) {
+      toast.error(err.message || 'Could not fetch data from ATTOM. Enter values manually.')
+    } finally {
+      setLookingUp(false)
+    }
+  }
+
+  async function handleRefresh(id: string) {
+    setRefreshingId(id)
+    try {
+      const updated = await refreshMarket(id)
+      setMarkets((prev) => prev.map((m) => (m.id === id ? updated : m)))
+      toast.success(`${updated.city}, ${updated.state} refreshed with latest data`)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to refresh market')
+    } finally {
+      setRefreshingId(null)
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -154,6 +195,20 @@ export default function Markets() {
                 className={inputClass}
               />
             </div>
+          </div>
+
+          {/* ATTOM Lookup Button */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleAttomLookup}
+              disabled={lookingUp || !form.city.trim() || !form.state.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {lookingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {lookingUp ? 'Pulling data...' : 'Auto-fill from ATTOM'}
+            </button>
+            <span className="text-xs text-slate-400">Enter city & state above, then click to auto-populate</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -326,7 +381,15 @@ export default function Markets() {
 
                 {m.notes && <p className="text-xs text-slate-400 mt-3 italic">{m.notes}</p>}
 
-                <div className="mt-4">
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => handleRefresh(m.id)}
+                    disabled={refreshingId === m.id}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${refreshingId === m.id ? 'animate-spin' : ''}`} />
+                    {refreshingId === m.id ? 'Updating...' : 'Refresh Data'}
+                  </button>
                   <button
                     onClick={() => handleRemove(m.id)}
                     className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"

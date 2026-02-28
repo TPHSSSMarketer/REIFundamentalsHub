@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
 from rei.models.user import SavedMarket, User
+from rei.services.attom_service import lookup_market_data, refresh_all_markets
 
 logger = logging.getLogger(__name__)
 
@@ -242,3 +243,88 @@ async def delete_market(
         "id": market_id,
         "message": "Market deleted successfully",
     }
+
+
+# ── ATTOM Lookup ──────────────────────────────────────────────────────
+
+
+@markets_router.get("/lookup/{city}/{state}")
+async def attom_lookup(
+    city: str,
+    state: str,
+    user: User = Depends(get_current_user),
+):
+    """Pull market data from ATTOM for a city/state.
+
+    Returns pre-populated market stats the user can review before saving.
+    """
+    try:
+        data = await lookup_market_data(city, state)
+        return {
+            "city": city,
+            "state": state.upper(),
+            **data,
+        }
+    except Exception as e:
+        logger.error("ATTOM lookup failed for %s, %s: %s", city, state, e)
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch market data from ATTOM. You can still enter data manually.",
+        )
+
+
+@markets_router.post("/{market_id}/refresh")
+async def refresh_single_market(
+    market_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh ATTOM data for a single saved market."""
+    result = await db.execute(
+        select(SavedMarket).where(
+            and_(
+                SavedMarket.id == market_id,
+                SavedMarket.user_id == user.id,
+            )
+        )
+    )
+    market = result.scalar_one_or_none()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    data = await lookup_market_data(market.city, market.state)
+
+    # Only update non-zero values from ATTOM
+    if data["median_home_price"] > 0:
+        market.median_home_price = data["median_home_price"]
+    if data["median_rent"] > 0:
+        market.median_rent = data["median_rent"]
+    if data["avg_days_on_market"] > 0:
+        market.avg_days_on_market = data["avg_days_on_market"]
+    if data["inventory_count"] > 0:
+        market.inventory_count = data["inventory_count"]
+    if data["price_change_pct"] != 0:
+        market.price_change_pct = data["price_change_pct"]
+
+    market.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(market)
+
+    logger.info(f"Market refreshed via ATTOM: {market.id[:8]} ({market.city}, {market.state})")
+    return _market_to_response(market)
+
+
+@markets_router.post("/admin/refresh-all")
+async def admin_refresh_all(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh ATTOM data for ALL saved markets across ALL users.
+
+    Superadmin only. Designed to be called by a daily cron job.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+
+    updated = await refresh_all_markets(db)
+    return {"updated": updated, "message": f"Refreshed {updated} markets"}

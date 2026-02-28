@@ -11,7 +11,7 @@ const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-export interface SavedMarket {
+export interface MarketRecord {
   id: string
   city: string
   state: string
@@ -24,6 +24,19 @@ export interface SavedMarket {
   rent_to_price_ratio: number
   created_at: string
   updated_at?: string | null
+}
+
+/** @deprecated Use MarketRecord instead */
+export type SavedMarket = MarketRecord
+
+export interface AttomLookupResult {
+  city: string
+  state: string
+  median_home_price: number
+  median_rent: number
+  avg_days_on_market: number
+  inventory_count: number
+  price_change_pct: number
 }
 
 export interface CreateMarketPayload {
@@ -103,6 +116,26 @@ export async function updateMarket(
 export async function deleteMarket(marketId: string): Promise<{ id: string; message: string }> {
   const res = await fetch(`${BASE_URL}/api/markets/${marketId}`, {
     method: 'DELETE',
+    headers: getAuthHeader(),
+  })
+  return handleResponse(res)
+}
+
+// ── ATTOM Lookup ──────────────────────────────────────────────────────
+
+/** Pull market data from ATTOM for a city/state (auto-populate form). */
+export async function attomLookup(city: string, state: string): Promise<AttomLookupResult> {
+  const res = await fetch(
+    `${BASE_URL}/api/markets/lookup/${encodeURIComponent(city)}/${encodeURIComponent(state)}`,
+    { headers: getAuthHeader() },
+  )
+  return handleResponse(res)
+}
+
+/** Refresh ATTOM data for a single saved market. */
+export async function refreshMarket(marketId: string): Promise<MarketRecord> {
+  const res = await fetch(`${BASE_URL}/api/markets/${marketId}/refresh`, {
+    method: 'POST',
     headers: getAuthHeader(),
   })
   return handleResponse(res)
