@@ -65,7 +65,7 @@ function FlowEditorInner() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition } = useReactFlow()
 
-  const { data: flow, isLoading } = useFlow(flowId ? parseInt(flowId) : 0)
+  const { data: flow, isLoading } = useFlow(flowId)
   const updateFlow = useUpdateFlow()
   const createNode = useCreateNode()
   const updateNodeMut = useUpdateNode()

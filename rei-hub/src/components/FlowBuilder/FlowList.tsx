@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Copy, Trash2, MoreVertical, GitBranch } from 'lucide-react'
+import { Plus, Pencil, Trash2, GitBranch } from 'lucide-react'
 import { cn } from '@/utils/helpers'
-import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow } from '@/hooks/useFlowBuilder'
+import { useFlows, useCreateFlow, useDeleteFlow } from '@/hooks/useFlowBuilder'
 import type { ConversationFlow } from '@/types'
 
 export default function FlowList() {
@@ -10,7 +10,6 @@ export default function FlowList() {
   const { data: flows, isLoading } = useFlows()
   const createFlow = useCreateFlow()
   const deleteFlow = useDeleteFlow()
-  const duplicateFlow = useDuplicateFlow()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newFlowName, setNewFlowName] = useState('')
@@ -36,10 +35,6 @@ export default function FlowList() {
     deleteFlow.mutate(id, {
       onSuccess: () => setDeleteConfirmId(null),
     })
-  }
-
-  const handleDuplicate = (id: number) => {
-    duplicateFlow.mutate(id)
   }
 
   if (isLoading) {
@@ -123,13 +118,6 @@ export default function FlowList() {
                     title="Edit"
                   >
                     <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(flow.id)}
-                    className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
-                    title="Duplicate"
-                  >
-                    <Copy className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setDeleteConfirmId(flow.id)}

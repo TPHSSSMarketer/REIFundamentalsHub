@@ -506,59 +506,7 @@ function Step1Company({
     </div>
   )
 }
-             type="text"
-              value={data.company_state}
-              onChange={(e) => update('company_state', e.target.value)}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="TX"
-            />
-          </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">ZIP Code</label>
-          <input
-            type="text"
-            value={data.company_zip}
-            onChange={(e) => update('company_zip', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="78701"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company Phone</label>
-          <input
-            type="tel"
-            value={data.company_phone}
-            onChange={(e) => update('company_phone', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="(512) 555-0100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company Website</label>
-          <input
-            type="url"
-            value={data.company_website}
-            onChange={(e) => update('company_website', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="https://abcinvestments.com"
-          />
-        </div>
-      </div>
-
-      <button
-        onClick={onContinue}
-        disabled={saving || !data.company_name.trim()}
-        className="mt-8 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
-      >
-        {saving ? 'Saving...' : 'Continue â'}
-      </button>
-    </div>
-  )
-}
 
 const EXPERIENCE_OPTIONS = [
   {
