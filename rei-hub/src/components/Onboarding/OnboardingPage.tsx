@@ -182,6 +182,7 @@ export default function OnboardingPage() {
     if (!token) return
     setSaving(true)
     try {
+              localStorage.setItem('rei-onboarding-skipped', 'true')
       await skipOnboarding(token)
       navigate('/dashboard', { replace: true })
     } catch {
