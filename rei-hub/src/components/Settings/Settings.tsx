@@ -486,23 +486,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Environment Variables Help */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 md:p-6">
-        <h3 className="font-semibold text-slate-800 mb-3">
-          Environment Variables
-        </h3>
-        <p className="text-sm text-slate-600 mb-4">
-          Settings are configured via environment variables for security. Create a
-          <code className="mx-1 px-1 bg-slate-200 rounded">.env</code> file in the
-          project root:
-        </p>
-        <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg text-sm overflow-x-auto">
-{`VITE_API_KEY=your_api_key_here
-VITE_API_LOCATION_ID=your_location_id_here
-VITE_API_BASE_URL=https://your-crm-api-url.com
-VITE_REI_SERVER_URL=http://localhost:8001`}
-        </pre>
-      </div>
     </div>
   )
 }
