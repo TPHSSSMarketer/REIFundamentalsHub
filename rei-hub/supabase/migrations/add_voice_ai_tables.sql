@@ -151,10 +151,32 @@ CREATE INDEX IF NOT EXISTS idx_call_campaigns_status ON call_campaigns(status);
 CREATE INDEX IF NOT EXISTS idx_campaign_contacts_campaign_id ON campaign_contacts(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_contacts_status ON campaign_contacts(status);
 
+-- Help Tickets table
+CREATE TABLE IF NOT EXISTS help_tickets (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    subject TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT DEFAULT 'general',
+    priority TEXT DEFAULT 'normal',
+    status TEXT DEFAULT 'open',
+    related_resource_type TEXT,
+    related_resource_id TEXT,
+    admin_notes TEXT,
+    resolved_by INTEGER REFERENCES users(id),
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_help_tickets_user_id ON help_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_help_tickets_status ON help_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_help_tickets_priority ON help_tickets(priority);
+
 -- 9. Seed platform-level knowledge entries (your pre-built scripts)
 INSERT INTO knowledge_entries (id, user_id, name, entry_type, content, is_active) VALUES
 
--- Lead Qualification Script (used by Maya)
+-- Lead Qualification Script (used by Grace)
 (gen_random_uuid()::text, NULL, 'Lead Qualification Script', 'platform_script',
 'LEAD QUALIFICATION FRAMEWORK FOR REAL ESTATE INVESTORS
 

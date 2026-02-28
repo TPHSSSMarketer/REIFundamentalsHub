@@ -21,6 +21,7 @@ from rei.models.user import (
     ScheduledCallback,
     CallCampaign,
     CampaignContact,
+    HelpTicket,
 )
 from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
@@ -56,4 +57,5 @@ __all__ = [
     "ScheduledCallback",
     "CallCampaign",
     "CampaignContact",
+    "HelpTicket",
 ]

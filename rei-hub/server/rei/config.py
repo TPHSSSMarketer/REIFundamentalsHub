@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # Used for encrypting stored API keys
     # Should be 32 chars — set in .env
 
+    # ── Telegram (Admin Notifications) ──────────────────────────────────
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    # To find your chat_id: message your bot, then visit
+    # https://api.telegram.org/bot<TOKEN>/getUpdates
+
     # ── Voice AI (CallCommander) ──────────────────────────────────────
     api_base_url: str = ""
     # The public URL for your Railway backend (e.g. https://api.reifundamentalshub.com)

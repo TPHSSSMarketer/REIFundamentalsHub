@@ -8,7 +8,7 @@ Then register the router in your main app:
     app.include_router(voice_ai_router, prefix="/api")
 
 These endpoints let the frontend manage:
-- AI Agents (Maya, Marcus, Sofia) — configure voice, personality, prompts
+- AI Agents (Grace, Marcus, Sofia) — configure voice, personality, prompts
 - Knowledge Base — add/edit/delete scripts, company data, objection handlers
 - Conversation History — view AI call transcripts, extracted data, mood analysis
 """
@@ -121,7 +121,7 @@ async def list_agents(
 ):
     """
     List all AI agents for the current user.
-    Returns Maya, Marcus, and Sofia (or any custom agents).
+    Returns Grace, Marcus, and Sofia (or any custom agents).
     """
     result = await db.execute(
         select(AIAgent).where(AIAgent.user_id == user.id)
@@ -222,7 +222,7 @@ async def provision_agent(
     After this, the agent can handle real phone calls.
 
     WHAT THIS DOES (in plain English):
-    1. Looks up the agent (e.g. Maya) and all their settings
+    1. Looks up the agent (e.g. Grace) and all their settings
     2. Gathers the knowledge base (scripts, company data)
     3. Builds the full system prompt
     4. Creates the agent on ElevenLabs' servers
@@ -505,7 +505,7 @@ async def _create_default_agents(user_id: int, db: AsyncSession) -> list[AIAgent
     """Create the default three AI agents for a new user."""
     defaults = [
         {
-            "name": "Maya",
+            "name": "Grace",
             "role": "lead_qualifier",
             "personality": "Warm & empathetic",
             "system_prompt": "You specialize in qualifying inbound leads. Your goal is to determine if the caller has a property to sell and if they're motivated.",

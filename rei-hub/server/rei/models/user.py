@@ -1565,7 +1565,7 @@ class NegotiationFollowUp(Base):
 
 
 # ── NEW MODEL: AI Agent ─────────────────────────────────────────────────
-# Stores each AI agent persona (Maya, Marcus, Sofia, or custom agents)
+# Stores each AI agent persona (Grace, Marcus, Sofia, or custom agents)
 
 class AIAgent(Base):
     __tablename__ = "ai_agents"
@@ -1576,7 +1576,7 @@ class AIAgent(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
     # Agent identity
-    name: Mapped[str] = mapped_column(String)  # "Maya", "Marcus", "Sofia"
+    name: Mapped[str] = mapped_column(String)  # "Grace", "Marcus", "Sofia"
     role: Mapped[str] = mapped_column(String)  # "lead_qualifier", "appointment_setter", "follow_up"
     personality: Mapped[str] = mapped_column(String)  # "Warm & empathetic", "Direct & confident", etc.
 
@@ -1856,3 +1856,53 @@ class CampaignContact(Base):
 
     called_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ── Help Tickets ──────────────────────────────────────────────────────
+
+class HelpTicket(Base):
+    """
+    A support ticket submitted by a user.
+
+    When created:
+    - An email is sent to support@reifundamentalshub.com
+    - A Telegram notification is sent to the platform owner
+    """
+
+    __tablename__ = "help_tickets"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    subject: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(
+        String, default="general"
+    )  # "general", "billing", "phone", "ai_voice", "technical", "feature_request"
+    priority: Mapped[str] = mapped_column(
+        String, default="normal"
+    )  # "low", "normal", "high", "urgent"
+    status: Mapped[str] = mapped_column(
+        String, default="open"
+    )  # "open", "in_progress", "waiting_on_user", "resolved", "closed"
+
+    # Optional: attach to a specific resource
+    related_resource_type: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "phone_number", "campaign", "agent", etc.
+    related_resource_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+
+    # Admin response
+    admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resolved_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

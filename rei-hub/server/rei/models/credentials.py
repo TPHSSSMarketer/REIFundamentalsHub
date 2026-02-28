@@ -107,4 +107,8 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
     "attom": [
         {"name": "attom_api_key", "label": "API Key", "type": "secret"},
     ],
+    "telegram": [
+        {"name": "telegram_bot_token", "label": "Bot Token", "type": "secret"},
+        {"name": "telegram_chat_id", "label": "Chat ID", "type": "text"},
+    ],
 }

@@ -40,6 +40,7 @@ from rei.api.voice_ai_routes import voice_ai_router
 from rei.api.plaid_routes import plaid_router
 from rei.api.plugin_routes import plugin_router
 from rei.api.superadmin_routes import superadmin_router
+from rei.api.ticket_routes import ticket_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -282,6 +283,7 @@ app.include_router(analytics_router)
 app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 app.include_router(superadmin_router, prefix="/api")
+app.include_router(ticket_router, prefix="/api")
 app.include_router(lead_capture_router, prefix="/api")
 app.include_router(lead_capture_public_router)
 app.include_router(crm_contacts_router, prefix="/api")

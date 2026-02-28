@@ -67,6 +67,11 @@ const PROVIDER_META: Record<
     category: 'Property Data',
     icon: '🏠',
   },
+  telegram: {
+    display_name: 'Telegram',
+    category: 'Communication',
+    icon: '✈️',
+  },
 }
 
 // Field definitions per provider
@@ -169,6 +174,10 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   ],
   attom: [
     { name: 'attom_api_key', label: 'API Key', type: 'secret' },
+  ],
+  telegram: [
+    { name: 'telegram_bot_token', label: 'Bot Token', type: 'secret' },
+    { name: 'telegram_chat_id', label: 'Chat ID', type: 'text' },
   ],
 }
 
