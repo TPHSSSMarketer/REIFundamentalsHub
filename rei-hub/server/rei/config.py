@@ -200,8 +200,8 @@ PHONE_PRICING: dict[str, float] = {
     "ai_voicemail_drop": 0.25,
     # ── AI Voice Call pricing (ElevenLabs + Claude + Twilio) ──────
     # These are higher than regular calls because of LLM + voice AI costs
-    "ai_call_inbound_per_min": 0.12,   # AI answers an inbound call
-    "ai_call_outbound_per_min": 0.15,  # AI makes an outbound call (campaign/callback)
+    "ai_call_inbound_per_min": 0.20,   # AI answers an inbound call
+    "ai_call_outbound_per_min": 0.20,  # AI makes an outbound call (campaign/callback)
     "ai_property_lookup": 0.02,        # ATTOM property data lookup (per lookup)
 }
 
