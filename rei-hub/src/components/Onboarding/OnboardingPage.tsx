@@ -10,7 +10,7 @@ import {
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
-// ── Types ────────────────────────────────────────────────────────────
+// ââ Types ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface OnboardingData {
   company_name: string
@@ -32,8 +32,6 @@ interface OnboardingData {
   from_name: string
   from_email: string
   dns_records: Array<{ type: string; host: string; value: string }>
-  nvidia_api_key: string
-  ai_research_provider: string
 }
 
 const STEP_LABELS = [
@@ -45,7 +43,7 @@ const STEP_LABELS = [
   'Review & Launch',
 ]
 
-// ── Main Component ────────────────────────────────────────────────────
+// ââ Main Component ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export default function OnboardingPage() {
   const navigate = useNavigate()
@@ -76,8 +74,6 @@ export default function OnboardingPage() {
     from_name: '',
     from_email: '',
     dns_records: [],
-    nvidia_api_key: '',
-    ai_research_provider: 'anthropic',
   })
 
   // Phone search state
@@ -244,260 +240,273 @@ export default function OnboardingPage() {
           <div className="w-8 h-8 bg-blue-700 rounded-lg flex items-center justify-center">
             <span className="text-white text-sm font-bold">R</span>
           </div>
-          <span className="font-bold text-blue-800 text-lg">REI Hub</span>
+          <span className="text-sm font-semibold text-gray-800">
+            REI Fundamentals Hub
+          </span>
         </div>
         <button
           onClick={handleSkip}
-          disabled={saving}
-          className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+          className="text-sm text-gray-500 hover:text-gray-700"
         >
-          Skip setup →
+          Skip for now
         </button>
       </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex items-start md:items-center justify-center px-3 md:px-4 pb-24 pt-4 md:pt-0">
-        <div
-          className={`w-full max-w-[600px] transition-all duration-200 ${
-            animating
-              ? direction === 'forward'
-                ? 'opacity-0 translate-x-4'
-                : 'opacity-0 -translate-x-4'
-              : 'opacity-100 translate-x-0'
-          }`}
-        >
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 md:p-8">
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-                {error}
-              </div>
-            )}
-
-            {step === 1 && (
-              <Step1CompanyInfo
-                data={data}
-                setData={setData}
-                saving={saving}
-                onContinue={() =>
-                  handleSaveStep(1, {
-                    company_name: data.company_name,
-                    company_logo_url: data.company_logo_url,
-                    company_address: data.company_address,
-                    company_city: data.company_city,
-                    company_state: data.company_state,
-                    company_zip: data.company_zip,
-                    company_phone: data.company_phone,
-                    company_website: data.company_website,
-                  })
-                }
-              />
-            )}
-
-            {step === 2 && (
-              <Step2InvestingProfile
-                data={data}
-                setData={setData}
-                saving={saving}
-                onContinue={() =>
-                  handleSaveStep(2, {
-                    investing_experience: data.investing_experience,
-                    deal_types: JSON.stringify(data.deal_types),
-                    primary_market: data.primary_market,
-                  })
-                }
-              />
-            )}
-
-            {step === 3 && (
-              <Step3Storage
-                data={data}
-                setData={setData}
-                saving={saving}
-                storageConnected={storageConnected}
-                setStorageConnected={setStorageConnected}
-                onContinue={() =>
-                  handleSaveStep(3, { storage_provider: data.storage_provider })
-                }
-                onSkipStep={() => goToStep(4)}
-              />
-            )}
-
-            {step === 4 && (
-              <Step4Phone
-                data={data}
-                setData={setData}
-                saving={saving}
-                searchingNumbers={searchingNumbers}
-                availableNumbers={availableNumbers}
-                selectedNumber={selectedNumber}
-                setSelectedNumber={setSelectedNumber}
-                numberPurchased={numberPurchased}
-                forwardMode={forwardMode}
-                setForwardMode={setForwardMode}
-                forwardNumber={forwardNumber}
-                setForwardNumber={setForwardNumber}
-                onSearch={searchNumbers}
-                onContinue={() => {
-                  if (!numberPurchased && selectedNumber) {
-                    handleSaveStep(4, {
-                      phone_number: selectedNumber,
-                      area_code: data.area_code,
-                    })
-                  } else {
-                    goToStep(5)
-                  }
-                }}
-                onSkipStep={() => goToStep(5)}
-              />
-            )}
-
-            {step === 5 && (
-              <Step5EmailDomain
-                data={data}
-                setData={setData}
-                saving={saving}
-                domainAdded={domainAdded}
-                dnsConfirmed={dnsConfirmed}
-                setDnsConfirmed={setDnsConfirmed}
-                onAddDomain={() =>
-                  handleSaveStep(
-                    5,
-                    {
-                      domain: data.domain,
-                      from_name: data.from_name,
-                      from_email: data.from_email,
-                    },
-                    5 // stay on step 5 to show DNS records
-                  )
-                }
-                onContinue={() => goToStep(6)}
-                onSkipStep={() => goToStep(6)}
-              />
-            )}
-
-            {step === 6 && (
-              <Step6Review
-                data={data}
-                setData={setData}
-                saving={saving}
-                onLaunch={handleComplete}
-              />
-            )}
-          </div>
+      {/* Progress */}
+      <div className="px-4 md:px-6">
+        <div className="flex gap-2 mb-1">
+          {STEP_LABELS.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                i + 1 <= step ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            />
+          ))}
         </div>
+        <p className="text-xs text-gray-500">
+          Step {step} of {STEP_LABELS.length} â {STEP_LABELS[step - 1]}
+        </p>
       </div>
 
-      {/* Progress dots */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 py-3 md:py-4">
-        <div className="flex items-center justify-center gap-2 md:gap-3">
-          {STEP_LABELS.map((label, i) => {
-            const stepNum = i + 1
-            const isCompleted = stepNum < step
-            const isCurrent = stepNum === step
-            return (
-              <div key={label} className="flex flex-col items-center gap-1">
-                <div
-                  className={`w-3 h-3 rounded-full transition-all ${
-                    isCompleted
-                      ? 'bg-blue-600'
-                      : isCurrent
-                        ? 'bg-blue-600 ring-4 ring-blue-100'
-                        : 'bg-slate-200'
-                  }`}
-                />
-                {isCurrent && (
-                  <span className="text-[10px] text-blue-600 font-medium">
-                    {label}
-                  </span>
-                )}
-              </div>
-            )
-          })}
+      {/* Error */}
+      {error && (
+        <div className="mx-4 md:mx-6 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Step Content */}
+      <div
+        className={`flex-1 px-4 md:px-6 py-4 md:py-6 overflow-y-auto transition-all duration-200 ${
+          animating
+            ? direction === 'forward'
+              ? 'opacity-0 translate-x-4'
+              : 'opacity-0 -translate-x-4'
+            : 'opacity-100 translate-x-0'
+        }`}
+      >
+        <div className="max-w-2xl mx-auto w-full">
+          {step === 1 && (
+            <Step1Company
+              data={data}
+              setData={setData}
+              onNext={() =>
+                handleSaveStep(1, {
+                  company_name: data.company_name,
+                  company_address: data.company_address,
+                  company_city: data.company_city,
+                  company_state: data.company_state,
+                  company_zip: data.company_zip,
+                  company_phone: data.company_phone,
+                  company_website: data.company_website,
+                })
+              }
+              saving={saving}
+            />
+          )}
+
+          {step === 2 && (
+            <Step2Profile
+              data={data}
+              setData={setData}
+              onNext={() =>
+                handleSaveStep(2, {
+                  investing_experience: data.investing_experience,
+                  deal_types: JSON.stringify(data.deal_types),
+                  primary_market: data.primary_market,
+                })
+              }
+              onBack={() => goToStep(1)}
+              saving={saving}
+            />
+          )}
+
+          {step === 3 && (
+            <Step3Storage
+              data={data}
+              setData={setData}
+              onNext={() =>
+                handleSaveStep(3, { storage_provider: data.storage_provider })
+              }
+              onBack={() => goToStep(2)}
+              saving={saving}
+              storageConnected={storageConnected}
+              setStorageConnected={setStorageConnected}
+            />
+          )}
+
+          {step === 4 && (
+            <Step4Phone
+              data={data}
+              setData={setData}
+              onNext={() => {
+                if (selectedNumber) {
+                  handleSaveStep(4, { phone_number: selectedNumber })
+                } else if (numberPurchased) {
+                  goToStep(5)
+                }
+              }}
+              onBack={() => goToStep(3)}
+              saving={saving}
+              searchingNumbers={searchingNumbers}
+              availableNumbers={availableNumbers}
+              selectedNumber={selectedNumber}
+              setSelectedNumber={setSelectedNumber}
+              numberPurchased={numberPurchased}
+              searchNumbers={searchNumbers}
+              forwardMode={forwardMode}
+              setForwardMode={setForwardMode}
+              forwardNumber={forwardNumber}
+              setForwardNumber={setForwardNumber}
+            />
+          )}
+
+          {step === 5 && (
+            <Step5Email
+              data={data}
+              setData={setData}
+              onNext={() => {
+                if (!domainAdded) {
+                  handleSaveStep(5, {
+                    domain: data.domain,
+                    from_name: data.from_name,
+                    from_email: data.from_email,
+                  })
+                } else {
+                  goToStep(6)
+                }
+              }}
+              onBack={() => goToStep(4)}
+              saving={saving}
+              domainAdded={domainAdded}
+              dnsConfirmed={dnsConfirmed}
+              setDnsConfirmed={setDnsConfirmed}
+            />
+          )}
+
+          {step === 6 && (
+            <Step6Review
+              data={data}
+              saving={saving}
+              onLaunch={handleComplete}
+            />
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-// ── Step Components ───────────────────────────────────────────────────
+// ââ Step 1: Company Info ââââââââââââââââââââââââââââââââââââââââ
 
-function Step1CompanyInfo({
+function Step1Company({
   data,
   setData,
+  onNext,
   saving,
-  onContinue,
 }: {
   data: OnboardingData
   setData: React.Dispatch<React.SetStateAction<OnboardingData>>
+  onNext: () => void
   saving: boolean
-  onContinue: () => void
 }) {
-  const update = (field: keyof OnboardingData, value: string) =>
-    setData((prev) => ({ ...prev, [field]: value }))
-
   return (
     <div>
-      <div className="text-center mb-8">
-        <div className="text-5xl mb-4">🏠</div>
-        <h1 className="text-2xl font-bold text-slate-900">Welcome to REI Hub!</h1>
-        <p className="text-slate-500 mt-2">
-          Let's get your account set up in just a few minutes. First, tell us about your company.
-        </p>
-      </div>
+      <h2 className="text-xl font-bold text-gray-900 mb-1">Company Information</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Tell us about your business so we can personalize your experience.
+      </p>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Company Name <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Company Name *
           </label>
           <input
             type="text"
             value={data.company_name}
-            onChange={(e) => update('company_name', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="ABC Investments LLC"
+            onChange={(e) => setData((d) => ({ ...d, company_name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="e.g. Sunset Realty LLC"
           />
         </div>
-
-        {/* Company Logo — feeds into loan servicing branding automatically */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company Logo URL</label>
-          <input
-            type="url"
-            value={data.company_logo_url}
-            onChange={(e) => update('company_logo_url', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="https://yoursite.com/logo.png"
-          />
-          <p className="text-xs text-slate-500 mt-1">Optional — used for payment portals and documents</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company Address</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Street Address
+          </label>
           <input
             type="text"
             value={data.company_address}
-            onChange={(e) => update('company_address', e.target.value)}
-            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="123 Main St"
+            onChange={(e) => setData((d) => ({ ...d, company_address: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="123 Main Street"
           />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
             <input
               type="text"
               value={data.company_city}
-              onChange={(e) => update('company_city', e.target.value)}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Austin"
+              onChange={(e) => setData((d) => ({ ...d, company_city: e.target.value }))}
+              className="w
+-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
             <input
               type="text"
+              value={data.company_state}
+              onChange={(e) => setData((d) => ({ ...d, company_state: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+            <input
+              type="text"
+              value={data.company_zip}
+              onChange={(e) => setData((d) => ({ ...d, company_zip: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="tel"
+              value={data.company_phone}
+              onChange={(e) => setData((d) => ({ ...d, company_phone: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+          <input
+            type="url"
+            value={data.company_website}
+            onChange={(e) => setData((d) => ({ ...d, company_website: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="https://www.example.com"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={onNext}
+        disabled={!data.company_name || saving}
+        className="mt-8 w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {saving ? 'Saving...' : 'Continue'}
+      </button>
+    </div>
+  )
+}
+             type="text"
               value={data.company_state}
               onChange={(e) => update('company_state', e.target.value)}
               className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -545,7 +554,7 @@ function Step1CompanyInfo({
         disabled={saving || !data.company_name.trim()}
         className="mt-8 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Saving...' : 'Continue →'}
+        {saving ? 'Saving...' : 'Continue â'}
       </button>
     </div>
   )
@@ -554,19 +563,19 @@ function Step1CompanyInfo({
 const EXPERIENCE_OPTIONS = [
   {
     value: 'beginner',
-    emoji: '🌱',
+    emoji: 'ð±',
     label: 'Just Getting Started',
     desc: 'Learning the ropes',
   },
   {
     value: 'intermediate',
-    emoji: '📈',
+    emoji: 'ð',
     label: 'Some Experience',
     desc: 'Completed a few deals',
   },
   {
     value: 'experienced',
-    emoji: '🏆',
+    emoji: 'ð',
     label: 'Experienced Investor',
     desc: 'Active portfolio, multiple deals',
   },
@@ -603,7 +612,7 @@ function Step2InvestingProfile({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📊</div>
+        <div className="text-5xl mb-4">ð</div>
         <h1 className="text-2xl font-bold text-slate-900">Tell us about your investing</h1>
         <p className="text-slate-500 mt-2">
           This helps us customize your experience and pre-load the right contract templates.
@@ -677,7 +686,7 @@ function Step2InvestingProfile({
         disabled={saving}
         className="mt-8 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Saving...' : 'Continue →'}
+        {saving ? 'Saving...' : 'Continue â'}
       </button>
     </div>
   )
@@ -708,7 +717,7 @@ function Step3Storage({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📁</div>
+        <div className="text-5xl mb-4">ð</div>
         <h1 className="text-2xl font-bold text-slate-900">Where should we save your contracts?</h1>
         <p className="text-slate-500 mt-2">
           Generated contracts will be automatically organized in your chosen cloud storage.
@@ -736,13 +745,13 @@ function Step3Storage({
             </div>
           </div>
           <div className="ml-13 mb-4 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 font-mono">
-            <div>📁 {data.company_name || 'Your Company Name'}/</div>
-            <div className="ml-4">📁 John Smith/</div>
-            <div className="ml-8">📁 Contracts/</div>
+            <div>ð {data.company_name || 'Your Company Name'}/</div>
+            <div className="ml-4">ð John Smith/</div>
+            <div className="ml-8">ð Contracts/</div>
           </div>
           {data.storage_provider === 'google_drive' && storageConnected ? (
             <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-              <span>✓</span> Connected
+              <span>â</span> Connected
             </div>
           ) : (
             <button
@@ -775,7 +784,7 @@ function Step3Storage({
           </div>
           {data.storage_provider === 'dropbox' && storageConnected ? (
             <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-              <span>✓</span> Connected
+              <span>â</span> Connected
             </div>
           ) : (
             <button
@@ -802,7 +811,7 @@ function Step3Storage({
         disabled={saving || !data.storage_provider}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Saving...' : 'Continue →'}
+        {saving ? 'Saving...' : 'Continue â'}
       </button>
     </div>
   )
@@ -854,7 +863,7 @@ function Step4Phone({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📞</div>
+        <div className="text-5xl mb-4">ð</div>
         <h1 className="text-2xl font-bold text-slate-900">Set up your business phone number</h1>
         <p className="text-slate-500 mt-2">
           Your first number is included with your plan. Choose an area code that matches your market.
@@ -949,7 +958,7 @@ function Step4Phone({
       ) : (
         <div className="space-y-6">
           <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <span className="text-green-600 text-2xl">✓</span>
+            <span className="text-green-600 text-2xl">â</span>
             <div>
               <div className="font-semibold text-green-800">
                 Your number: {data.friendly_number || formatNumber(data.phone_number)}
@@ -1020,7 +1029,7 @@ function Step4Phone({
         disabled={saving || (!numberPurchased && !selectedNumber && availableNumbers.length > 0)}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Setting up...' : 'Continue →'}
+        {saving ? 'Setting up...' : 'Continue â'}
       </button>
     </div>
   )
@@ -1054,7 +1063,7 @@ function Step5EmailDomain({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📧</div>
+        <div className="text-5xl mb-4">ð§</div>
         <h1 className="text-2xl font-bold text-slate-900">Send emails from your own domain</h1>
         <p className="text-slate-500 mt-2">
           Emails sent from your domain look more professional and get better deliverability than
@@ -1182,7 +1191,7 @@ function Step5EmailDomain({
         disabled={saving}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        Continue →
+        Continue â
       </button>
     </div>
   )
@@ -1190,48 +1199,17 @@ function Step5EmailDomain({
 
 function Step6Review({
   data,
-  setData,
   saving,
   onLaunch,
 }: {
   data: OnboardingData
-  setData: React.Dispatch<React.SetStateAction<OnboardingData>>
   saving: boolean
   onLaunch: () => void
 }) {
-  const [testingNvidia, setTestingNvidia] = useState(false)
-  const [nvidiaTestOk, setNvidiaTestOk] = useState<boolean | null>(null)
-
-  const handleTestNvidia = async () => {
-    if (!data.nvidia_api_key.trim()) return
-    setTestingNvidia(true)
-    setNvidiaTestOk(null)
-    try {
-      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${data.nvidia_api_key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-          messages: [{ role: 'user', content: 'Say hello in one word.' }],
-          max_tokens: 10,
-          temperature: 0.1,
-        }),
-      })
-      setNvidiaTestOk(res.ok)
-    } catch {
-      setNvidiaTestOk(false)
-    } finally {
-      setTestingNvidia(false)
-    }
-  }
-
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">🚀</div>
+        <div className="text-5xl mb-4">ð</div>
         <h1 className="text-2xl font-bold text-slate-900">You're all set!</h1>
         <p className="text-slate-500 mt-2">Here's a summary of your setup.</p>
       </div>
@@ -1273,99 +1251,6 @@ function Step6Review({
         />
       </div>
 
-      {/* NVIDIA AI Models (Optional) */}
-      <div className="mb-8 p-4 rounded-xl border border-slate-200 bg-slate-50">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-7 h-7 rounded-md bg-green-100 flex items-center justify-center">
-            <span className="text-green-700 font-bold text-xs">N</span>
-          </div>
-          <h3 className="font-semibold text-slate-900">NVIDIA AI Models (Optional)</h3>
-        </div>
-        <p className="text-xs text-slate-500 mb-3">
-          Powers advanced legal research and bank contact lookup
-        </p>
-
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-slate-700 mb-1">NVIDIA API Key</label>
-          <input
-            type="password"
-            value={data.nvidia_api_key}
-            onChange={(e) => setData((prev) => ({ ...prev, nvidia_api_key: e.target.value }))}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            placeholder="nvapi-..."
-          />
-          <p className="text-xs text-slate-400 mt-1">
-            Get your key at{' '}
-            <a
-              href="https://build.nvidia.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              build.nvidia.com
-            </a>
-          </p>
-        </div>
-
-        {data.nvidia_api_key && (
-          <div className="flex items-center gap-2 mb-3">
-            <button
-              onClick={handleTestNvidia}
-              disabled={testingNvidia}
-              className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {testingNvidia ? 'Testing...' : 'Test Connection'}
-            </button>
-            {nvidiaTestOk === true && (
-              <span className="text-xs text-green-600 font-medium">Connected</span>
-            )}
-            {nvidiaTestOk === false && (
-              <span className="text-xs text-red-600 font-medium">Failed — check key</span>
-            )}
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Default AI for research tasks
-          </label>
-          <div className="flex gap-3">
-            <label
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
-                data.ai_research_provider === 'anthropic'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-slate-200'
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai_research_provider"
-                checked={data.ai_research_provider === 'anthropic'}
-                onChange={() => setData((prev) => ({ ...prev, ai_research_provider: 'anthropic' }))}
-                className="w-3.5 h-3.5 text-blue-600"
-              />
-              <span className="text-sm font-medium text-slate-700">Claude (default)</span>
-            </label>
-            <label
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
-                data.ai_research_provider === 'nvidia_aiq'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-slate-200'
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai_research_provider"
-                checked={data.ai_research_provider === 'nvidia_aiq'}
-                onChange={() => setData((prev) => ({ ...prev, ai_research_provider: 'nvidia_aiq' }))}
-                className="w-3.5 h-3.5 text-blue-600"
-              />
-              <span className="text-sm font-medium text-slate-700">NVIDIA AI-Q</span>
-            </label>
-          </div>
-        </div>
-      </div>
-
       <div className="mb-8">
         <h3 className="font-semibold text-slate-900 mb-3">What's ready for you:</h3>
         <div className="space-y-2">
@@ -1380,7 +1265,7 @@ function Step6Review({
             'AI-powered legal research',
           ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-green-500">✅</span>
+              <span className="text-green-500">â</span>
               {item}
             </div>
           ))}
@@ -1398,7 +1283,7 @@ function Step6Review({
             Setting up your workspace...
           </span>
         ) : (
-          'Launch REI Hub →'
+          'Launch REI Hub â'
         )}
       </button>
 
