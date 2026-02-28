@@ -28,6 +28,14 @@ from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
 from rei.models.credentials import ProviderCredentials
 from rei.models.crm import CrmContact, CrmDeal, CrmPortfolioProperty
+from rei.models.conversation_flow import (
+    Persona,
+    ConversationFlow,
+    FlowNode,
+    FlowEdge,
+    FlowExecution,
+    ChatSession,
+)
 
 __all__ = [
     "User",
@@ -60,4 +68,10 @@ __all__ = [
     "CampaignContact",
     "HelpTicket",
     "SavedMarket",
+    "Persona",
+    "ConversationFlow",
+    "FlowNode",
+    "FlowEdge",
+    "FlowExecution",
+    "ChatSession",
 ]

@@ -43,6 +43,8 @@ from rei.api.plugin_routes import plugin_router
 from rei.api.superadmin_routes import superadmin_router
 from rei.api.ticket_routes import ticket_router
 from rei.api.cloud_storage_routes import cloud_storage_router
+from rei.api.flow_builder_routes import flow_builder_router
+from rei.api.webchat_routes import webchat_router, webchat_public_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -293,6 +295,9 @@ app.include_router(crm_contacts_router, prefix="/api")
 app.include_router(crm_deals_router, prefix="/api")
 app.include_router(crm_portfolio_router, prefix="/api")
 app.include_router(cloud_storage_router, prefix="/api")
+app.include_router(flow_builder_router, prefix="/api")
+app.include_router(webchat_router, prefix="/api")
+app.include_router(webchat_public_router)
 
 
 @app.get("/health")
