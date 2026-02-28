@@ -199,3 +199,89 @@ export interface MarketData {
   notes?: string
   addedAt: string
 }
+
+// ── Flow Builder types ──────────────────────────────────
+
+export type FlowNodeType =
+  | 'greeting'
+  | 'objective'
+  | 'statement'
+  | 'conversation'
+  | 'switch'
+  | 'true_false'
+  | 'webhook'
+  | 'delay'
+  | 'stop'
+  | 'transfer'
+
+export interface ConversationFlow {
+  id: string
+  user_id: string
+  name: string
+  description?: string
+  persona_id?: string
+  is_active: boolean
+  start_node_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FlowNode {
+  id: string
+  flow_id: string
+  node_type: FlowNodeType
+  label: string
+  position_x: number
+  position_y: number
+  // Objective fields
+  objective_description?: string
+  sensitivity?: number
+  max_attempts?: number
+  // Statement fields
+  statement_text?: string
+  // Switch fields
+  switch_variable?: string
+  switch_branches?: string
+  // Webhook fields
+  webhook_url?: string
+  webhook_method?: string
+  webhook_headers?: string
+  // Delay fields
+  delay_seconds?: number
+  // Transfer fields
+  transfer_to?: string
+  created_at: string
+}
+
+export interface FlowEdge {
+  id: string
+  flow_id: string
+  source_node_id: string
+  target_node_id: string
+  edge_label?: string
+  condition?: string
+  sort_order: number
+}
+
+export interface Persona {
+  id: string
+  user_id: string
+  name: string
+  tone?: string
+  personality_traits?: string
+  response_style?: string
+  quirks?: string
+  created_at: string
+}
+
+export interface FlowExecution {
+  id: string
+  flow_id: string
+  session_id?: string
+  current_node_id?: string
+  status: string
+  variables?: string
+  messages?: string
+  started_at: string
+  completed_at?: string
+}

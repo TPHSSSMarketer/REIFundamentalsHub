@@ -35,6 +35,8 @@ import BankNegotiationPage from './components/BankNegotiation/BankNegotiationPag
 import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import AnalyticsPage from './components/Analytics/AnalyticsPage'
 import HelpTicketsPage from './components/HelpTickets/HelpTicketsPage'
+import FlowBuilder from './components/FlowBuilder/FlowBuilder'
+import FlowEditor from './components/FlowBuilder/FlowEditor'
 import { isAuthenticated } from './services/auth'
 
 function BillingCompletePage() {
@@ -86,6 +88,8 @@ function AppLayout() {
             <ContentHub />
           </UpgradeGate>
         } />
+        <Route path="/flow-builder" element={<FlowBuilder />} />
+        <Route path="/flow-builder/:flowId" element={<FlowEditor />} />
         <Route path="/help" element={<HelpTicketsPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<BillingPage />} />

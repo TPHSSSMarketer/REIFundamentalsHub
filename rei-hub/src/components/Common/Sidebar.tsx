@@ -26,6 +26,7 @@ import {
   MoreHorizontal,
   Globe,
   LifeBuoy,
+  GitBranch,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
@@ -47,6 +48,7 @@ const navItems = [
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
+  { to: '/flow-builder', icon: GitBranch, label: 'Flow Builder' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/help', icon: LifeBuoy, label: 'Help' },
   { to: '/settings', icon: Settings, label: 'Settings' },
