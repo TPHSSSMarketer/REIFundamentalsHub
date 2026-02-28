@@ -27,11 +27,30 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
 
   useEffect(() => {
-    const code = searchParams.get('code')
-    if (code) {
-      handleGoogleCallback(code)
+    const googleToken = searchParams.get('google_token')
+    const googleError = searchParams.get('google_error')
+
+    if (googleToken) {
+      // Store the JWT token from the server-side Google OAuth callback
+      localStorage.setItem('rei_token', googleToken)
+      // Store user info if provided
+      const userId = searchParams.get('user_id')
+      const userEmail = searchParams.get('email')
+      const plan = searchParams.get('plan')
+      if (userId) localStorage.setItem('rei_user_id', userId)
+      if (userEmail) localStorage.setItem('rei_user_email', userEmail)
+      if (plan) localStorage.setItem('rei_plan', plan)
+      // Clear URL params and navigate to dashboard
+      navigate('/pipeline', { replace: true })
+      return
     }
-  }, [searchParams])
+
+    if (googleError) {
+      setError('Google sign-in failed. Please try again.')
+      setGoogleLoading(false)
+    }
+  }, [searchParams, navigate])
+
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -64,21 +83,6 @@ export default function LoginPage() {
     window.location.href = `${BASE_URL}/api/auth/google/redirect`
   }
 
-  async function handleGoogleCallback(code: string) {
-    try {
-      const res = await fetch(`${BASE_URL}/api/auth/google/callback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      })
-      if (!res.ok) throw new Error('Google authentication failed')
-      const data = await res.json()
-      localStorage.setItem('rei_token', data.access_token)
-      navigate('/pipeline')
-    } catch (err) {
-      setError('Google sign-in failed. Please try again.')
-    }
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
