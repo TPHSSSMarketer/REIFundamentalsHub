@@ -801,7 +801,7 @@ function HistoryTab({ showToast }: { showToast: (m: string) => void }) {
   const loadContracts = useCallback(async () => {
     try {
       const data = await getContracts()
-      setContracts(data.contracts as Contract[])
+      setContracts(data.contracts as unknown as Contract[])
     } catch {
       // ignore
     }
@@ -942,7 +942,7 @@ function ChecklistTemplatesTab({ showToast }: { showToast: (m: string) => void }
         getChecklistTemplates(),
         getTemplates(),
       ])
-      setAllTemplates(clData.templates as Record<string, ChecklistTemplateItem[]>)
+      setAllTemplates(clData.templates as unknown as Record<string, ChecklistTemplateItem[]>)
       setDocTemplates(tplData.templates as Template[])
     } catch {
       // ignore

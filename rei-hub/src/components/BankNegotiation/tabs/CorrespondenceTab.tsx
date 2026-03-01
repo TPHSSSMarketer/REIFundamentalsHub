@@ -26,13 +26,13 @@ export default function CorrespondenceTab({}: Props) {
   async function fetchAll() {
     setLoading(true)
     try {
-      const negs = await getNegotiations()
+      const negs = await getNegotiations() as any
       const negList: any[] = Array.isArray(negs) ? negs : negs.negotiations || []
       setNegotiations(negList)
       const allCorr: any[] = []
       for (const n of negList) {
         try {
-          const c = await getCorrespondence(n.id)
+          const c = await getCorrespondence(n.id) as any
           const items = (Array.isArray(c) ? c : c.correspondence || []).map((item: any) => ({ ...item, bank_name: n.bank_name, property_address: n.property_address, negotiation_id: n.id }))
           allCorr.push(...items)
         } catch { /* skip */ }

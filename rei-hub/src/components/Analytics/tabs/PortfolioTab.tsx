@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { getPortfolioOverview, getPortfolioProperties, exportPortfolio } from '../../../services/analyticsApi'
 
-interface Props { token: string; period: string; startDate: string; endDate: string }
+interface Props { period: string; startDate: string; endDate: string }
 
 const NAVY = '#1B3A6B'
 const PIE_COLORS = ['#1B3A6B', '#CC2229', '#16a34a', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b']
@@ -20,7 +20,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
   return p
 }
 
-export default function PortfolioTab({ token, period, startDate, endDate }: Props) {
+export default function PortfolioTab({ period, startDate, endDate }: Props) {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<any>(null)
   const [properties, setProperties] = useState<any[]>([])
@@ -34,24 +34,24 @@ export default function PortfolioTab({ token, period, startDate, endDate }: Prop
       const params = buildParams(period, startDate, endDate)
       try {
         const [ov, props] = await Promise.all([
-          getPortfolioOverview(token, params),
-          getPortfolioProperties(token, params),
+          getPortfolioOverview(params),
+          getPortfolioProperties(params),
         ])
         if (cancelled) return
         setOverview(ov)
-        setProperties(Array.isArray(props) ? props : props?.properties ?? [])
+        setProperties(Array.isArray(props) ? props : (props as any)?.properties ?? [])
         setPage(0)
       } catch { /* handled by auth */ }
       if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate])
+  }, [period, startDate, endDate])
 
   async function handleExport() {
     setExporting(true)
     try {
-      const blob = await exportPortfolio(token, buildParams(period, startDate, endDate))
+      const blob = await exportPortfolio(buildParams(period, startDate, endDate))
       const url = URL.createObjectURL(blob as Blob)
       const a = document.createElement('a'); a.href = url; a.download = 'portfolio.csv'; a.click()
       URL.revokeObjectURL(url)
@@ -125,7 +125,7 @@ export default function PortfolioTab({ token, period, startDate, endDate }: Prop
             <h3 className="text-sm font-bold text-slate-800 mb-4">Properties by Type</h3>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={byType} dataKey="count" nameKey="type" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ type }) => type}>
+                <Pie data={byType} dataKey="count" nameKey="type" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ type }: { type: string }) => type}>
                   {byType.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip />

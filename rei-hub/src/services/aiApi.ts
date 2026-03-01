@@ -57,7 +57,7 @@ export interface AiProvider {
   id: string
   display_name: string
   models: string[]
-  default_model: string
+  default_model?: string
 }
 
 export interface AiUserConfig {

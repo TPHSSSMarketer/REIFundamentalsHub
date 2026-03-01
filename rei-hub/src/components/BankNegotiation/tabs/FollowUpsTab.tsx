@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPendingFollowups, completeFollowup } from '../../../services/bankNegotiationApi'
 
-interface Props { token: string }
-
 function daysUntil(dateStr: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const due = new Date(dateStr); due.setHours(0, 0, 0, 0)
@@ -19,19 +17,19 @@ function relativeDate(dateStr: string): { text: string; color: string } {
 
 type Group = { label: string; headerColor: string; items: any[] }
 
-export default function FollowUpsTab({}: Props) {
+export default function FollowUpsTab() {
   const [followups, setFollowups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [completingId, setCompletingId] = useState<string | null>(null)
   const [completionNotes, setCompletionNotes] = useState('')
   const [toast, setToast] = useState('')
 
-  useEffect(() => { fetchFollowups() }, [token])
+  useEffect(() => { fetchFollowups() }, [])
 
   async function fetchFollowups() {
     setLoading(true)
     try {
-      const data = await getPendingFollowups()
+      const data = await getPendingFollowups() as any
       setFollowups(Array.isArray(data) ? data : data.followups || [])
     } catch { setFollowups([]) }
     setLoading(false)
@@ -39,7 +37,7 @@ export default function FollowUpsTab({}: Props) {
 
   async function handleComplete(id: string) {
     try {
-      const res = await completeFollowup(id, { notes: completionNotes })
+      const res = await completeFollowup(id, { notes: completionNotes }) as any
       const nextDate = res?.next_followup_date ? new Date(res.next_followup_date).toLocaleDateString() : 'N/A'
       setToast(`Complete. Next follow-up set for ${nextDate}`)
       setTimeout(() => setToast(''), 4000)

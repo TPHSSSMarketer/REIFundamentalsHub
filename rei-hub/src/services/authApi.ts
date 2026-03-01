@@ -28,6 +28,12 @@ interface UserResponse {
   is_active: boolean
   is_verified: boolean
   plan: string | null
+  is_superadmin?: boolean
+  loan_servicing_enabled?: boolean
+  loan_servicing_onboarding_complete?: boolean
+  bank_negotiation_enabled?: boolean
+  company_name?: string | null
+  plaid_linked_at?: string | null
 }
 
 // ── Cookie helper ────────────────────────────────────────────────

@@ -114,11 +114,13 @@ function FlowEditorInner() {
       if (!flowId || !connection.source || !connection.target) return
       setEdges((eds) => addEdge({ ...connection, animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } }, eds))
       createEdge.mutate({
-        flow_id: parseInt(flowId),
-        source_node_id: parseInt(connection.source),
-        target_node_id: parseInt(connection.target),
-        source_handle: connection.sourceHandle || undefined,
-        target_handle: connection.targetHandle || undefined,
+        flowId,
+        data: {
+          source_node_id: connection.source,
+          target_node_id: connection.target,
+          source_handle: connection.sourceHandle || undefined,
+          target_handle: connection.targetHandle || undefined,
+        } as any,
       })
     },
     [flowId, setEdges, createEdge]
@@ -154,12 +156,14 @@ function FlowEditorInner() {
 
       createNode.mutate(
         {
-          flow_id: parseInt(flowId),
-          node_type: type,
-          label: type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' '),
-          position_x: Math.round(position.x),
-          position_y: Math.round(position.y),
-          config: {},
+          flowId,
+          data: {
+            node_type: type,
+            label: type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' '),
+            position_x: Math.round(position.x),
+            position_y: Math.round(position.y),
+            config: {},
+          },
         },
         {
           onSuccess: (newNode: any) => {
@@ -180,43 +184,53 @@ function FlowEditorInner() {
   // Handle node position change (drag on canvas)
   const onNodeDragStop = useCallback(
     (_: any, node: Node) => {
+      if (!flowId) return
       updateNodeMut.mutate({
-        id: parseInt(node.id),
+        flowId,
+        nodeId: node.id,
         data: {
           position_x: Math.round(node.position.x),
           position_y: Math.round(node.position.y),
         },
       })
     },
-    [updateNodeMut]
+    [flowId, updateNodeMut]
   )
 
   // Handle edge delete
   const onEdgesDelete = useCallback(
     (deletedEdges: Edge[]) => {
+      if (!flowId) return
       deletedEdges.forEach((edge) => {
-        deleteEdge.mutate(parseInt(edge.id))
+        deleteEdge.mutate({
+          flowId,
+          edgeId: edge.id,
+        })
       })
     },
-    [deleteEdge]
+    [flowId, deleteEdge]
   )
 
   // Handle node delete
   const onNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
+      if (!flowId) return
       deletedNodes.forEach((node) => {
-        deleteNode.mutate(parseInt(node.id))
+        deleteNode.mutate({
+          flowId,
+          nodeId: node.id,
+        })
       })
       setSelectedNodeId(null)
     },
-    [deleteNode]
+    [flowId, deleteNode]
   )
 
   // Save flow metadata
   const handleSave = () => {
     if (!flowId) return
     updateFlow.mutate(
-      { id: parseInt(flowId), data: { name: flowName, status: flowStatus } },
+      { flowId, data: { name: flowName, status: flowStatus } },
       { onSuccess: () => setHasUnsaved(false) }
     )
   }
@@ -226,7 +240,7 @@ function FlowEditorInner() {
     const next = flowStatus === 'draft' ? 'published' : 'draft'
     setFlowStatus(next)
     if (flowId) {
-      updateFlow.mutate({ id: parseInt(flowId), data: { status: next } })
+      updateFlow.mutate({ flowId, data: { status: next } })
     }
   }
 
@@ -374,13 +388,21 @@ function FlowEditorInner() {
                 nds.map((n) => (n.id === selectedNode.id ? { ...n, data: { ...n.data, ...data } } : n))
               )
               // Persist to backend
-              updateNodeMut.mutate({
-                id: parseInt(selectedNode.id),
-                data: { config: data },
-              })
+              if (flowId) {
+                updateNodeMut.mutate({
+                  flowId,
+                  nodeId: selectedNode.id,
+                  data: { config: data },
+                })
+              }
             }}
             onDelete={() => {
-              deleteNode.mutate(parseInt(selectedNode.id))
+              if (flowId) {
+                deleteNode.mutate({
+                  flowId,
+                  nodeId: selectedNode.id,
+                })
+              }
               setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
               setSelectedNodeId(null)
             }}

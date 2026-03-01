@@ -18,7 +18,7 @@ import {
   Plus,
   Calendar,
 } from 'lucide-react'
-import { apiService } from '@/services/api'
+import { getContact as fetchContact, getDeals as fetchDeals, updateContact as patchContact } from '@/services/crmApi'
 import * as phoneApi from '@/services/phoneApi'
 import { getAuthHeader } from '@/services/auth'
 import ContactSmsThread from '@/components/Phone/ContactSmsThread'
@@ -99,7 +99,7 @@ export default function ContactDetailPage() {
   const loadContact = useCallback(async () => {
     if (!contactId) return
     try {
-      const c = await apiService.getContact(contactId)
+      const c = await fetchContact(contactId).then(c => c!)
       setContact(c)
       setEditName(`${c.firstName || ''} ${c.lastName || ''}`.trim())
       setContactStatus(c.tags?.find(t => STATUS_OPTIONS.includes(t)) || 'Lead')
@@ -132,7 +132,7 @@ export default function ContactDetailPage() {
   const loadDeals = useCallback(async () => {
     if (!contactId) return
     try {
-      const allDeals = await apiService.getDeals()
+      const allDeals = await fetchDeals()
       setDeals(allDeals.filter(d => d.contactId === contactId))
     } catch {
       // ignore
@@ -188,7 +188,7 @@ export default function ContactDetailPage() {
     const firstName = parts[0] || ''
     const lastName = parts.slice(1).join(' ') || ''
     try {
-      await apiService.updateContact(contactId, { firstName, lastName })
+      await patchContact(contactId, { firstName, lastName })
       await loadContact()
     } catch {
       // ignore
@@ -204,7 +204,7 @@ export default function ContactDetailPage() {
       // Update tags to include the new status
       const otherTags = (contact.tags || []).filter(t => !STATUS_OPTIONS.includes(t))
       try {
-        await apiService.updateContact(contactId, { tags: [...otherTags, newStatus] })
+        await patchContact(contactId, { tags: [...otherTags, newStatus] })
         await loadContact()
       } catch {
         // ignore

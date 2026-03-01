@@ -17,7 +17,7 @@ const TABS = [
 
 export default function LoanServicingPage() {
   const [activeTab, setActiveTab] = useState<string>('properties')
-  const [user, setUser] = useState<Record<string, unknown> | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(false)
 

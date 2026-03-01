@@ -51,7 +51,7 @@ export default function BuyerVerifyPage() {
 
     getPublicRequest(requestToken)
       .then((data) => {
-        const d = data as RequestData
+        const d = data as unknown as RequestData
         setRequest(d)
         if (d.status === 'completed') {
           setPageState('completed')

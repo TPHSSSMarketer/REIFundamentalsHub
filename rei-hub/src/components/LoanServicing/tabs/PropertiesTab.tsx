@@ -8,7 +8,6 @@ import {
 import DefaultTracker from '../DefaultTracker'
 
 interface Props {
-  token: string
   isSuperAdmin: boolean
   onNavigateContracts?: () => void
 }
@@ -37,8 +36,7 @@ const LAW_TOPICS = [
   'Payment Collection',
 ]
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNavigateContracts }: Props) {
+export default function PropertiesTab({ isSuperAdmin: _isSuperAdmin, onNavigateContracts }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [selectedProperty, setSelectedProperty] = useState<any>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -60,12 +58,12 @@ export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNa
   })
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => { fetchProperties() }, [token])
+  useEffect(() => { fetchProperties() }, [])
 
   async function fetchProperties() {
     setLoading(true)
     try {
-      const data = await getProperties()
+      const data = await getProperties() as any
       setProperties(Array.isArray(data) ? data : data.properties || [])
     } catch { setProperties([]) }
     setLoading(false)
@@ -84,7 +82,7 @@ export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNa
     } catch { setStateLaws(null) }
     setLawsLoading(false)
     try {
-      const defs = await getDefaults(token, { trust_id: prop.trust_id || prop.id })
+      const defs = await getDefaults({ trust_id: prop.trust_id || prop.id }) as any
       const active = (Array.isArray(defs) ? defs : defs.defaults || []).find((d: any) => d.status === 'active')
       setDefaultData(active || null)
     } catch { setDefaultData(null) }

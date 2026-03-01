@@ -118,7 +118,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   async function fetchProperties() {
     setLoading(true)
     try {
-      const data = await getNegotiationsByProperty()
+      const data = await getNegotiationsByProperty() as any
       const list = Array.isArray(data) ? data : data.properties || []
       setProperties(list)
     } catch { setProperties([]) }
@@ -131,9 +131,9 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
     setEmailSubject(''); setEmailBody('')
     setTrackingNums({}); setSigCardNums({}); setFaxPdfUrl(''); setEditingRecipient(null)
     setShowUploadForm(false); setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes('')
-    try { const r = await getRecipients(neg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
-    try { const c = await getCorrespondence(neg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
-    try { const d = await getDocuments(neg.id); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
+    try { const r = await getRecipients(neg.id) as any; setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
+    try { const c = await getCorrespondence(neg.id) as any; setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
+    try { const d = await getDocuments(neg.id) as any; setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
   }
 
   async function handleCreate(e: FormEvent) {
@@ -153,22 +153,22 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
     if (!selectedNeg) return; setSending(true); setSendResults(null)
     try {
       const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], methods: { certified_mail: sendMethods.certifiedMail ? { tracking_numbers: trackingNums, signature_cards: sigCardNums } : undefined, fax: sendMethods.fax ? { pdf_url: faxPdfUrl } : undefined, email: sendMethods.email ? { subject: emailSubject, body: emailBody } : undefined } }
-      const res = await sendToAll(selectedNeg.id, payload); setSendResults(res); showToastMsg('Documents sent successfully')
-      const c = await getCorrespondence(selectedNeg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
+      const res = await sendToAll(selectedNeg.id, payload) as any; setSendResults(res); showToastMsg('Documents sent successfully')
+      const c = await getCorrespondence(selectedNeg.id) as any; setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
     } catch { showToastMsg('Failed to send documents') }
     setSending(false)
   }
 
   async function handleRefreshRecipient(recId: string) {
     if (!selectedNeg) return
-    try { await refreshRecipient(selectedNeg.id, recId); const r = await getRecipients(selectedNeg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []); showToastMsg('Re-research started') } catch { showToastMsg('Failed to refresh recipient') }
+    try { await refreshRecipient(selectedNeg.id, recId); const r = await getRecipients(selectedNeg.id) as any; setRecipients(Array.isArray(r) ? r : r.recipients || []); showToastMsg('Re-research started') } catch { showToastMsg('Failed to refresh recipient') }
   }
 
   async function handleSaveRecipient(recId: string, markVerified = false) {
     if (!selectedNeg) return
     try {
       await updateRecipient(selectedNeg.id, recId, markVerified ? { ...editForm, manually_verified: true } : editForm)
-      const r = await getRecipients(selectedNeg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []); setEditingRecipient(null)
+      const r = await getRecipients(selectedNeg.id) as any; setRecipients(Array.isArray(r) ? r : r.recipients || []); setEditingRecipient(null)
       showToastMsg(markVerified ? 'Recipient verified' : 'Recipient updated')
     } catch { showToastMsg('Failed to update recipient') }
   }
@@ -176,14 +176,14 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   async function handleRefreshAllTracking() {
     try {
       await refreshAllTracking()
-      if (selectedNeg) { const c = await getCorrespondence(selectedNeg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) }
+      if (selectedNeg) { const c = await getCorrespondence(selectedNeg.id) as any; setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) }
       showToastMsg('Tracking refreshed')
     } catch { showToastMsg('Failed to refresh tracking') }
   }
 
   async function loadDocuments() {
     if (!selectedNeg) return
-    try { const d = await getDocuments(selectedNeg.id); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { showToastMsg('Failed to load documents') }
+    try { const d = await getDocuments(selectedNeg.id) as any; setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { showToastMsg('Failed to load documents') }
   }
 
   async function handleCreateDocument() {
@@ -451,7 +451,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                     <div key={doc.id} className="border border-slate-200 rounded-lg p-3 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded ${DOCUMENT_TYPE_BADGE[doc.document_type] || DOCUMENT_TYPE_BADGE.other}`}>
-                          {doc.document_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          {doc.document_type?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </span>
                         <span className="text-xs font-medium text-slate-800">{doc.document_name}</span>
                       </div>

@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('30d')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [user, setUser] = useState<Record<string, unknown> | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

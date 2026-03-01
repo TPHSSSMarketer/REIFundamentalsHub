@@ -9,7 +9,6 @@ import {
 } from '../../../services/loanServicingApi'
 
 interface Props {
-  token: string
   isSuperAdmin: boolean
 }
 
@@ -53,8 +52,7 @@ const INITIAL_CFD_FORM = {
   payment_method: 'stripe',
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Props) {
+export default function ContractsTab({ isSuperAdmin: _isSuperAdmin }: Props) {
   const [cfds, setCfds] = useState<any[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -77,12 +75,12 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
   const [confirmDefault, setConfirmDefault] = useState<string | null>(null)
   const [cfdForm, setCfdForm] = useState({ ...INITIAL_CFD_FORM })
 
-  useEffect(() => { fetchCfds() }, [token])
+  useEffect(() => { fetchCfds() }, [])
 
   async function fetchCfds() {
     setLoading(true)
     try {
-      const data = await getCfds()
+      const data = await getCfds() as any
       setCfds(Array.isArray(data) ? data : data.cfds || [])
     } catch { setCfds([]) }
     setLoading(false)
@@ -92,7 +90,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
     setSelectedCfd(cfd)
     setShowAmortModal(true)
     try {
-      const data = await getAmortization(cfd.id || cfd.cfd_id)
+      const data = await getAmortization(cfd.id || cfd.cfd_id) as any
       setAmortSchedule(Array.isArray(data) ? data : data.schedule || [])
     } catch { setAmortSchedule([]) }
   }
@@ -164,7 +162,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
     setShowCreateModal(true)
     resetForm()
     try {
-      const data = await getProperties()
+      const data = await getProperties() as any
       setProperties(Array.isArray(data) ? data : data.properties || [])
     } catch { setProperties([]) }
   }

@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import { getRevenueOverview, getRevenueSubscribers } from '../../../services/analyticsApi'
 
-interface Props { token: string; period: string; startDate: string; endDate: string }
+interface Props { period: string; startDate: string; endDate: string }
 
 const NAVY = '#1B3A6B'
 const RED = '#CC2229'
@@ -24,7 +24,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
   return p
 }
 
-export default function RevenueTab({ token, period, startDate, endDate }: Props) {
+export default function RevenueTab({ period, startDate, endDate }: Props) {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<any>(null)
   const [subscribers, setSubscribers] = useState<any[]>([])
@@ -37,19 +37,19 @@ export default function RevenueTab({ token, period, startDate, endDate }: Props)
       const params = buildParams(period, startDate, endDate)
       try {
         const [ov, subs] = await Promise.all([
-          getRevenueOverview(token, params),
-          getRevenueSubscribers(token, params),
+          getRevenueOverview(params),
+          getRevenueSubscribers(params),
         ])
         if (cancelled) return
         setOverview(ov)
-        setSubscribers(Array.isArray(subs) ? subs : subs?.data ?? [])
+        setSubscribers(Array.isArray(subs) ? subs : (subs as any)?.data ?? [])
         setPage(0)
       } catch { /* handled by auth */ }
       if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate])
+  }, [period, startDate, endDate])
 
   if (loading) {
     return (
@@ -128,7 +128,7 @@ export default function RevenueTab({ token, period, startDate, endDate }: Props)
             <h3 className="text-sm font-bold text-slate-800 mb-4">Revenue by Plan</h3>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={byPlan} dataKey="mrr" nameKey="plan" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ plan, count }) => `${plan} (${count})`}>
+                <Pie data={byPlan} dataKey="mrr" nameKey="plan" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ plan, count }: { plan: string; count: number }) => `${plan} (${count})`}>
                   {byPlan.map((_: any, i: number) => (
                     <Cell key={i} fill={PLAN_COLORS[i % PLAN_COLORS.length]} />
                   ))}

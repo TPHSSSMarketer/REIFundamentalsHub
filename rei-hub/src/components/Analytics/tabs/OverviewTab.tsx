@@ -8,7 +8,6 @@ import {
 } from '../../../services/analyticsApi'
 
 interface Props {
-  token: string
   period: string
   startDate: string
   endDate: string
@@ -38,7 +37,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
 }
 
 export default function OverviewTab({
-  token, period, startDate, endDate,
+  period, startDate, endDate,
   isSuperAdmin, loanServicingEnabled, bankNegotiationEnabled,
 }: Props) {
   const [loading, setLoading] = useState(true)
@@ -55,12 +54,12 @@ export default function OverviewTab({
       const params = buildParams(period, startDate, endDate)
       try {
         const promises: Promise<any>[] = [
-          getPipelineOverview(token, params),
-          getPortfolioOverview(token, params),
+          getPipelineOverview(params),
+          getPortfolioOverview(params),
         ]
-        if (loanServicingEnabled) promises.push(getLoansOverview(token, params))
-        if (bankNegotiationEnabled) promises.push(getNegotiationsOverview(token, params))
-        if (isSuperAdmin) promises.push(getRevenueOverview(token, params))
+        if (loanServicingEnabled) promises.push(getLoansOverview(params))
+        if (bankNegotiationEnabled) promises.push(getNegotiationsOverview(params))
+        if (isSuperAdmin) promises.push(getRevenueOverview(params))
 
         const results = await Promise.all(promises)
         if (cancelled) return
@@ -77,7 +76,7 @@ export default function OverviewTab({
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate, loanServicingEnabled, bankNegotiationEnabled, isSuperAdmin])
+  }, [period, startDate, endDate, loanServicingEnabled, bankNegotiationEnabled, isSuperAdmin])
 
   if (loading) {
     return (

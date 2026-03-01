@@ -6,9 +6,11 @@ interface Props {
 }
 
 interface ConnectStatus {
-  charges_enabled: boolean
-  payouts_enabled: boolean
+  charges_enabled?: boolean
+  payouts_enabled?: boolean
   account_id?: string
+  connected?: boolean
+  email?: string
 }
 
 export default function StripeConnectSetup({ servicingFeePct = 0 }: Props) {
@@ -18,14 +20,15 @@ export default function StripeConnectSetup({ servicingFeePct = 0 }: Props) {
 
   useEffect(() => {
     getStripeConnectStatus()
-      .then(setStatus)
+      .then((data: any) => setStatus(data as ConnectStatus))
       .catch(() => setStatus(null))
       .finally(() => setLoading(false))
   }, [])
 
   const handleConnect = async () => {
     try {
-      const { url } = await getStripeConnectOnboardUrl()
+      const response = (await getStripeConnectOnboardUrl()) as any
+      const url = response?.url as string
       window.location.href = url
     } catch {
       // ignore

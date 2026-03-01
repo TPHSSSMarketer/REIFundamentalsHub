@@ -269,7 +269,7 @@ const loansOverviewDemo = {
   total_outstanding: 0,
 }
 
-const loanPaymentsDemo = []
+const loanPaymentsDemo: any[] = []
 
 export async function getLoansOverview(params?: Record<string, string>) {
   return withDemoFallback(
@@ -327,7 +327,7 @@ const revenueOverviewDemo = {
   active_users: 0,
 }
 
-const revenueSubscribersDemo = []
+const revenueSubscribersDemo: any[] = []
 
 export async function getRevenueOverview(params?: Record<string, string>) {
   return withDemoFallback(

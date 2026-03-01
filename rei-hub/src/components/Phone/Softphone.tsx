@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 /**
  * Softphone — browser-based calling widget using Twilio Voice SDK (WebRTC).
  *

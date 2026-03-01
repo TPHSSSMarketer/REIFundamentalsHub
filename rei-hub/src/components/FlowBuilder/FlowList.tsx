@@ -14,7 +14,7 @@ export default function FlowList() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newFlowName, setNewFlowName] = useState('')
   const [newFlowDesc, setNewFlowDesc] = useState('')
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const handleCreate = () => {
     if (!newFlowName.trim()) return
@@ -31,7 +31,7 @@ export default function FlowList() {
     )
   }
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     deleteFlow.mutate(id, {
       onSuccess: () => setDeleteConfirmId(null),
     })

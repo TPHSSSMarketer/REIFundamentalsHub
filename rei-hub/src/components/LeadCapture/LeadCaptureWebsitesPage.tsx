@@ -372,7 +372,14 @@ export default function LeadCaptureWebsitesPage() {
   }
 
   function handleEditWebsite(website: api.PublishedWebsite) {
-    setFormState(website.config)
+    setFormState({
+      ...website.config,
+      webhook_url: website.config.webhook_url || '',
+      custom_domain: website.config.custom_domain || '',
+      trust_badges: [],
+      testimonials: [],
+      faq_items: [],
+    } as FormState)
     setEditingWebsiteId(website.id)
     setActiveTab('builder')
   }

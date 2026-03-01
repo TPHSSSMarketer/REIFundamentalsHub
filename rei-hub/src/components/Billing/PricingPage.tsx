@@ -1,7 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const PLANS = [
+interface PlanConfig {
+  key: string
+  name: string
+  monthlyPrice: number
+  annualPrice: number
+  badge: string | null
+  features: string[]
+  excluded: string[]
+  helmAddon: { monthly: number; annual: number } | null
+  helmIncluded: boolean
+}
+
+const PLANS: PlanConfig[] = [
   {
     key: 'starter',
     name: 'Starter',

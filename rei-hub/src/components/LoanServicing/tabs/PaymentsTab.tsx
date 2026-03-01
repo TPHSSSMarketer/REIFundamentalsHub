@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPayments, getCfds, recordPayment } from '../../../services/loanServicingApi'
 
-interface Props { token: string }
-
 const METHODS = ['stripe', 'ach', 'check', 'wire'] as const
 const METHOD_LABEL: Record<string, string> = { stripe: 'Stripe', ach: 'ACH', check: 'Check', wire: 'Wire' }
 const STATUS_BADGE: Record<string, string> = {
@@ -11,7 +9,7 @@ const STATUS_BADGE: Record<string, string> = {
   failed: 'bg-red-100 text-red-800',
 }
 
-export default function PaymentsTab({ token }: Props) {
+export default function PaymentsTab() {
   const [payments, setPayments] = useState<any[]>([])
   const [cfds, setCfds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,14 +29,14 @@ export default function PaymentsTab({ token }: Props) {
   const [filterMethod, setFilterMethod] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
-  useEffect(() => { fetchData() }, [token])
+  useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
     setLoading(true)
     try {
       const [pData, cData] = await Promise.all([getPayments(), getCfds()])
-      setPayments(Array.isArray(pData) ? pData : pData.payments || [])
-      setCfds(Array.isArray(cData) ? cData : cData.cfds || [])
+      setPayments(Array.isArray(pData) ? pData : (pData as any).payments || [])
+      setCfds(Array.isArray(cData) ? cData : (cData as any).cfds || [])
     } catch { setPayments([]); setCfds([]) }
     setLoading(false)
   }

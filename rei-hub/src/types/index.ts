@@ -224,6 +224,9 @@ export interface ConversationFlow {
   start_node_id?: string
   created_at: string
   updated_at: string
+  status?: 'draft' | 'published'
+  nodes?: FlowNode[]
+  edges?: FlowEdge[]
 }
 
 export interface FlowNode {
@@ -251,6 +254,7 @@ export interface FlowNode {
   // Transfer fields
   transfer_to?: string
   created_at: string
+  config?: Record<string, any>
 }
 
 export interface FlowEdge {
@@ -272,6 +276,9 @@ export interface Persona {
   response_style?: string
   quirks?: string
   created_at: string
+  role?: string
+  system_prompt?: string
+  is_default?: boolean
 }
 
 export interface FlowExecution {

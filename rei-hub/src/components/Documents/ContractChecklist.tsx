@@ -86,7 +86,7 @@ export default function ContractChecklist({
   const loadChecklist = useCallback(async () => {
     try {
       const data = await getDealChecklist(dealId, dealType)
-      setItems(data.items as ChecklistItem[])
+      setItems(data.items as unknown as ChecklistItem[])
     } catch {
       // ignore
     }

@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { getPipelineOverview, getPipelineTrend, getPipelineFunnel, exportPipeline } from '../../../services/analyticsApi'
 
-interface Props { token: string; period: string; startDate: string; endDate: string }
+interface Props { period: string; startDate: string; endDate: string }
 
 const NAVY = '#1B3A6B'
 const RED = '#CC2229'
@@ -21,7 +21,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
   return p
 }
 
-export default function PipelineTab({ token, period, startDate, endDate }: Props) {
+export default function PipelineTab({ period, startDate, endDate }: Props) {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<any>(null)
   const [trend, setTrend] = useState<any[]>([])
@@ -35,25 +35,25 @@ export default function PipelineTab({ token, period, startDate, endDate }: Props
       const params = buildParams(period, startDate, endDate)
       try {
         const [ov, tr, fn] = await Promise.all([
-          getPipelineOverview(token, params),
-          getPipelineTrend(token, params),
-          getPipelineFunnel(token, params),
+          getPipelineOverview(params),
+          getPipelineTrend(params),
+          getPipelineFunnel(params),
         ])
         if (cancelled) return
         setOverview(ov)
-        setTrend(Array.isArray(tr) ? tr : tr?.data ?? [])
+        setTrend(Array.isArray(tr) ? tr : (tr as any)?.data ?? [])
         setFunnel(fn)
       } catch { /* handled by auth */ }
       if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate])
+  }, [period, startDate, endDate])
 
   async function handleExport() {
     setExporting(true)
     try {
-      const blob = await exportPipeline(token, buildParams(period, startDate, endDate))
+      const blob = await exportPipeline(buildParams(period, startDate, endDate))
       const url = URL.createObjectURL(blob as Blob)
       const a = document.createElement('a'); a.href = url; a.download = 'pipeline.csv'; a.click()
       URL.revokeObjectURL(url)
@@ -146,7 +146,7 @@ export default function PipelineTab({ token, period, startDate, endDate }: Props
             <h3 className="text-sm font-bold text-slate-800 mb-4">Leads by Source</h3>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={sources} dataKey="count" nameKey="source" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ source }) => source}>
+                <Pie data={sources} dataKey="count" nameKey="source" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ source }: { source: string }) => source}>
                   {sources.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip />

@@ -104,9 +104,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 /* ── Main Component ──────────────────────────────────────────── */
 
 export default function BillingPage() {
-  const { token: authToken } = useAuth()
   const { isDemoMode } = useDemoMode()
-  const token = authToken || (isDemoMode ? 'demo-token' : null)
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [plans, setPlans] = useState<Record<string, PlanInfo> | null>(null)
   const [trialDays, setTrialDays] = useState(7)
@@ -141,7 +139,7 @@ export default function BillingPage() {
       try {
         const [plansRes, statusRes] = await Promise.all([
           getPlans(),
-          token ? getBillingStatus(token) : Promise.resolve(null),
+          getBillingStatus(),
         ])
         if (cancelled) return
         setPlans(plansRes.plans)
@@ -156,7 +154,7 @@ export default function BillingPage() {
 
     load()
     return () => { cancelled = true }
-  }, [token])
+  }, [])
 
   const destroyEmbeddedCheckout = useCallback(() => {
     if (embeddedCheckoutRef.current) {
@@ -167,11 +165,10 @@ export default function BillingPage() {
   }, [])
 
   async function handleSelectPlan(planKey: string) {
-    if (!token || checkoutLoading) return
+    if (checkoutLoading) return
     setCheckoutLoading(planKey)
     try {
       const res = await createCheckout(
-        token,
         planKey,
         annual ? 'annual' : 'monthly',
         paymentMethod,
@@ -216,10 +213,10 @@ export default function BillingPage() {
   }
 
   async function handleOpenPortal() {
-    if (!token || portalLoading) return
+    if (portalLoading) return
     setPortalLoading(true)
     try {
-      const res = await openBillingPortal(token)
+      const res = await openBillingPortal()
       if (res.portal_url) {
         window.location.href = res.portal_url
       } else {

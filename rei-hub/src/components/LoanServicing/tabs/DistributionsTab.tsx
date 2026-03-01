@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getDistributions, generateDistribution, finalizeDistribution } from '../../../services/loanServicingApi'
 import { getCurrentUser } from '@/services/auth'
 
-interface Props { token: string; isSuperAdmin: boolean }
+interface Props { isSuperAdmin: boolean }
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-yellow-100 text-yellow-800',
@@ -22,7 +22,7 @@ function buildQuarters(): string[] {
   return quarters
 }
 
-export default function DistributionsTab({ token, isSuperAdmin }: Props) {
+export default function DistributionsTab({ isSuperAdmin }: Props) {
   if (!isSuperAdmin) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -56,12 +56,12 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
       .catch(() => setCompanyName('Your Company'))
   }, [])
 
-  useEffect(() => { fetchStatements() }, [token])
+  useEffect(() => { fetchStatements() }, [])
 
   async function fetchStatements() {
     setLoading(true)
     try {
-      const data = await getDistributions()
+      const data = await getDistributions() as any
       setStatements(Array.isArray(data) ? data : data.statements || data.distributions || [])
     } catch { setStatements([]) }
     setLoading(false)

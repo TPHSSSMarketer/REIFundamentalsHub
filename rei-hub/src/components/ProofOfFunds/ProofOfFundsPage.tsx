@@ -157,7 +157,7 @@ function MyVerificationTab({ showToast }: { showToast: (m: string) => void }) {
   const loadCertificates = useCallback(async () => {
     try {
       const data = await getCertificates()
-      setCertificates(Array.isArray(data?.certificates) ? (data.certificates as Certificate[]) : [])
+      setCertificates(Array.isArray(data?.certificates) ? (data.certificates as unknown as Certificate[]) : [])
     } catch {
       setCertificates([])
     }
@@ -209,7 +209,7 @@ function MyVerificationTab({ showToast }: { showToast: (m: string) => void }) {
     setVerifyError('')
 
     try {
-      const cert = (await verifyFunds(parsedAmount, address.trim())) as Certificate
+      const cert = (await verifyFunds(parsedAmount, address.trim())) as unknown as Certificate
       setActiveCert(cert)
       if (!cert.verified) {
         setVerifyError('Insufficient funds for the requested amount')
@@ -450,7 +450,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
   const loadRequests = useCallback(async () => {
     try {
       const data = await getRequests()
-      setRequests(Array.isArray(data?.requests) ? (data.requests as PofReq[]) : [])
+      setRequests(Array.isArray(data?.requests) ? (data.requests as unknown as PofReq[]) : [])
     } catch {
       setRequests([])
     }
@@ -505,7 +505,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
 
   const handleViewCert = async (certId: string) => {
     try {
-      const cert = (await getCertificate(certId)) as Certificate
+      const cert = (await getCertificate(certId)) as unknown as Certificate
       setViewCert(cert)
     } catch {
       showToast('Failed to load certificate')

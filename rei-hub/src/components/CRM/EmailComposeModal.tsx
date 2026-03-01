@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2, CheckCircle } from 'lucide-react'
-import { getDomains } from '@/services/emailMarketingApi'
-import { apiService } from '@/services/api'
+import { getDomains, type Domain, sendContactEmail } from '@/services/emailMarketingApi'
 import type { Contact } from '@/types'
 
 interface EmailComposeModalProps {
@@ -11,7 +10,7 @@ interface EmailComposeModalProps {
 }
 
 export default function EmailComposeModal({ contact, onClose, onSuccess }: EmailComposeModalProps) {
-  const [domains, setDomains] = useState<Array<Record<string, unknown>>>([])
+  const [domains, setDomains] = useState<Domain[]>([])
   const [selectedDomain, setSelectedDomain] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -45,7 +44,7 @@ export default function EmailComposeModal({ contact, onClose, onSuccess }: Email
     setSending(true)
     setError('')
     try {
-      await apiService.sendEmail(contact.id, subject, body)
+      await sendContactEmail(contact.id, subject, body)
       setSuccess(true)
       setTimeout(onSuccess, 1500)
     } catch (err: any) {

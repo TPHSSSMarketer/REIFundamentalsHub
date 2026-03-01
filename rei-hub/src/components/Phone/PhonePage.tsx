@@ -1048,9 +1048,13 @@ function SmsTab() {
    TAB 4 — Voicemail Drops
    ═══════════════════════════════════════════════════════════════ */
 
+interface Voice {
+  [key: string]: unknown
+}
+
 function VoicemailTab() {
   const [drops, setDrops] = useState<any[]>([])
-  const [voices, setVoices] = useState<any[]>([])
+  const [voices, setVoices] = useState<Voice[]>([])
   const [numbers, setNumbers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -1076,7 +1080,7 @@ function VoicemailTab() {
     try {
       const [dropData, voiceData, numData] = await Promise.all([
         phoneApi.getVoicemailDrops(),
-        phoneApi.getVoices().catch(() => ({ voices: [] })),
+        phoneApi.getVoices().catch(() => ({ voices: [] as Voice[] })),
         phoneApi.getNumbers(),
       ])
       setDrops(dropData.drops)

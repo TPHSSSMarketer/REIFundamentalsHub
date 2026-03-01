@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getInvestors, createInvestor, updateInvestor, deactivateInvestor } from '../../../services/loanServicingApi'
 
-interface Props { token: string; isSuperAdmin: boolean }
+interface Props { isSuperAdmin: boolean }
 
 const PAYMENT_METHODS = ['check', 'ach', 'wire'] as const
 const METHOD_LABEL: Record<string, string> = { check: 'Check', ach: 'ACH', wire: 'Wire' }
@@ -12,7 +12,7 @@ const INITIAL_FORM = {
   bank_name: '', routing_number: '', account_number: '', notes: '',
 }
 
-export default function InvestorsTab({ token, isSuperAdmin }: Props) {
+export default function InvestorsTab({ isSuperAdmin }: Props) {
   if (!isSuperAdmin) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -32,12 +32,12 @@ export default function InvestorsTab({ token, isSuperAdmin }: Props) {
   const [form, setForm] = useState({ ...INITIAL_FORM })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchInvestors() }, [token])
+  useEffect(() => { fetchInvestors() }, [])
 
   async function fetchInvestors() {
     setLoading(true)
     try {
-      const data = await getInvestors()
+      const data = await getInvestors() as any
       setInvestors(Array.isArray(data) ? data : data.investors || [])
     } catch { setInvestors([]) }
     setLoading(false)

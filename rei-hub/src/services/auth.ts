@@ -80,7 +80,7 @@ export function getAuthHeader(): Record<string, string> {
 
 // ── Current user (delegate to authApi.ts) ─────────────────────
 
-export async function getCurrentUser(): Promise<Record<string, unknown> | null> {
+export async function getCurrentUser() {
   try {
     return await authApi.getMe()
   } catch {
@@ -88,39 +88,3 @@ export async function getCurrentUser(): Promise<Record<string, unknown> | null> 
   }
 }
 
-// ── Config utilities (kept for Settings/ConnectionTest) ────────
-
-export function isApiKeyConfigured(): boolean {
-  return !!import.meta.env.VITE_API_KEY
-}
-
-export function isLocationConfigured(): boolean {
-  return !!import.meta.env.VITE_API_LOCATION_ID
-}
-
-export function getConfigStatus(): {
-  hasApiKey: boolean
-  hasLocationId: boolean
-  isFullyConfigured: boolean
-} {
-  const hasApiKey = isApiKeyConfigured()
-  const hasLocationId = isLocationConfigured()
-
-  return {
-    hasApiKey,
-    hasLocationId,
-    isFullyConfigured: hasApiKey && hasLocationId,
-  }
-}
-
-export function setStoredLocationId(locationId: string): void {
-  localStorage.setItem('rei_location_id', locationId)
-}
-
-export function getStoredLocationId(): string | null {
-  return localStorage.getItem('rei_location_id')
-}
-
-export function clearStoredLocationId(): void {
-  localStorage.removeItem('rei_location_id')
-}

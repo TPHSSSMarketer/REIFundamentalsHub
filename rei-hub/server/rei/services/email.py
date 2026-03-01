@@ -1,19 +1,22 @@
-"""Transactional email service — sends via SendGrid HTTP API using httpx."""
+"""Transactional email service — sends via the configured email provider.
+
+Uses the same adapter pattern as the marketing email system so that
+switching providers (Resend ↔ SendGrid) is a single env-var change.
+"""
 
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
-import httpx
+from rei.services.email_provider import EmailRequest, get_email_provider
 
 if TYPE_CHECKING:
     from rei.config import Settings
     from rei.models.user import User
 
 logger = logging.getLogger(__name__)
-
-SENDGRID_SEND_URL = "https://api.sendgrid.com/v3/mail/send"
 
 
 # ── Shared HTML template ────────────────────────────────────────────────
@@ -64,6 +67,16 @@ def _format_date(dt) -> str:
     return dt.strftime("%B %d, %Y")
 
 
+# ── Helpers ─────────────────────────────────────────────────────────────
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_tags(html: str) -> str:
+    """Crude HTML → plain-text conversion for the plain_text field."""
+    return _TAG_RE.sub("", html).strip()
+
+
 # ── Core send function ──────────────────────────────────────────────────
 
 
@@ -74,44 +87,38 @@ async def send_email(
     html_content: str,
     settings: Settings,
 ) -> bool:
-    """Send an email via the SendGrid v3 API. Returns True on success, False on failure."""
-    if not settings.sendgrid_api_key:
-        logger.info("Email not configured, skipping")
+    """Send a transactional email via the configured provider.
+
+    Uses the same adapter as the marketing email system so switching
+    between Resend and SendGrid is a single env-var change.
+    Returns True on success, False on failure.
+    """
+    # Check that at least one provider key is configured
+    has_key = bool(
+        (settings.email_provider == "resend" and settings.resend_api_key)
+        or (settings.email_provider == "sendgrid" and settings.sendgrid_api_key)
+    )
+    if not has_key:
+        logger.info("Email provider not configured, skipping send to %s", to_email)
         return True
 
-    payload = {
-        "personalizations": [
-            {
-                "to": [{"email": to_email, "name": to_name or ""}],
-                "subject": subject,
-            }
-        ],
-        "from": {
-            "email": settings.email_from,
-            "name": settings.email_from_name,
-        },
-        "content": [{"type": "text/html", "value": html_content}],
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                SENDGRID_SEND_URL,
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {settings.sendgrid_api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-        if response.status_code in (200, 201, 202):
-            logger.info("Email sent to %s: %s", to_email, subject)
-            return True
-        logger.error(
-            "SendGrid error %s for %s: %s",
-            response.status_code,
-            to_email,
-            response.text,
+        provider = get_email_provider(settings)
+        request = EmailRequest(
+            to_email=to_email,
+            to_name=to_name or "",
+            from_email=settings.email_from,
+            from_name=settings.email_from_name,
+            subject=subject,
+            html_content=html_content,
+            plain_text=_strip_tags(html_content),
+            metadata={},
         )
+        response = await provider.send(request, settings)
+        if response.success:
+            logger.info("Email sent to %s: %s (via %s)", to_email, subject, response.provider)
+            return True
+        logger.error("Email send failed for %s: %s", to_email, response.error)
         return False
     except Exception:
         logger.exception("Failed to send email to %s", to_email)

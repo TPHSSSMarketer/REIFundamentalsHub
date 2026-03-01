@@ -8,15 +8,12 @@ let cachedStatus: BillingStatus | null = null
 let cacheTimestamp = 0
 
 export function useBilling() {
-  const { token } = useAuth()
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(cachedStatus)
   const [isLoadingBilling, setIsLoadingBilling] = useState(false)
   const [billingError, setBillingError] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
   const fetchBilling = useCallback(async (bypassCache = false) => {
-    if (!token) return
-
     const now = Date.now()
     if (!bypassCache && cachedStatus && now - cacheTimestamp < CACHE_TTL_MS) {
       setBillingStatus(cachedStatus)
@@ -26,7 +23,7 @@ export function useBilling() {
     setIsLoadingBilling(true)
     setBillingError(null)
     try {
-      const status = await getBillingStatus(token)
+      const status = await getBillingStatus()
       cachedStatus = status
       cacheTimestamp = Date.now()
       if (mountedRef.current) {
@@ -41,7 +38,7 @@ export function useBilling() {
         setIsLoadingBilling(false)
       }
     }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     mountedRef.current = true

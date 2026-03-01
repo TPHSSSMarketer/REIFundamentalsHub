@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiService } from '@/services/api'
-import { getAuthHeader, logout } from '@/services/auth'
+import { logout } from '@/services/auth'
 import {
   getDeals,
   getDeal,
@@ -266,8 +265,7 @@ export function useTasks() {
 export function useSendSMS() {
   return useMutation({
     mutationFn: withAuth(async ({ contactId, message }: { contactId: string; message: string }) => {
-      void getAuthHeader() // ensure token is available
-      return apiService.sendSMS(contactId, message)
+      return phoneApi.sendSms({ to_number: contactId, body: message, phone_number_id: 'default' })
     }),
     onSuccess: () => {
       toast.success('SMS sent successfully')
@@ -289,8 +287,8 @@ export function useSendEmail() {
       subject: string
       body: string
     }) => {
-      void getAuthHeader() // ensure token is available
-      return apiService.sendEmail(contactId, subject, body)
+      const { sendContactEmail } = await import('@/services/emailMarketingApi')
+      return sendContactEmail(contactId, subject, body)
     }),
     onSuccess: () => {
       toast.success('Email sent successfully')

@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { getLoansOverview, getLoanPayments, exportLoans } from '../../../services/analyticsApi'
 
-interface Props { token: string; period: string; startDate: string; endDate: string }
+interface Props { period: string; startDate: string; endDate: string }
 
 const NAVY = '#1B3A6B'
 const BLUE = '#3b82f6'
@@ -25,7 +25,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
   return p
 }
 
-export default function LoanServicingAnalyticsTab({ token, period, startDate, endDate }: Props) {
+export default function LoanServicingAnalyticsTab({ period, startDate, endDate }: Props) {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
@@ -39,24 +39,24 @@ export default function LoanServicingAnalyticsTab({ token, period, startDate, en
       const params = buildParams(period, startDate, endDate)
       try {
         const [ov, pay] = await Promise.all([
-          getLoansOverview(token, params),
-          getLoanPayments(token, params),
+          getLoansOverview(params),
+          getLoanPayments(params),
         ])
         if (cancelled) return
         setOverview(ov)
-        setPayments(Array.isArray(pay) ? pay : pay?.data ?? [])
+        setPayments(Array.isArray(pay) ? pay : (pay as any)?.data ?? [])
         setPage(0)
       } catch { /* handled by auth */ }
       if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate])
+  }, [period, startDate, endDate])
 
   async function handleExport() {
     setExporting(true)
     try {
-      const blob = await exportLoans(token, buildParams(period, startDate, endDate))
+      const blob = await exportLoans(buildParams(period, startDate, endDate))
       const url = URL.createObjectURL(blob as Blob)
       const a = document.createElement('a'); a.href = url; a.download = 'loan_servicing.csv'; a.click()
       URL.revokeObjectURL(url)
@@ -138,7 +138,7 @@ export default function LoanServicingAnalyticsTab({ token, period, startDate, en
             <h3 className="text-sm font-bold text-slate-800 mb-4">CFDs by Status</h3>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={statusBreakdown} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ status }) => status}>
+                <Pie data={statusBreakdown} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} label={({ status }: { status: string }) => status}>
                   {statusBreakdown.map((s: any, i: number) => (
                     <Cell key={i} fill={STATUS_COLORS[s.status] ?? STATUS_COLORS.other} />
                   ))}

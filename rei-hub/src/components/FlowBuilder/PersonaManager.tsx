@@ -27,9 +27,9 @@ export default function PersonaManager() {
   const deletePersona = useDeletePersona()
 
   const [showModal, setShowModal] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<PersonaFormData>(emptyForm)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const openCreate = () => {
     setEditingId(null)
@@ -55,7 +55,7 @@ export default function PersonaManager() {
 
     if (editingId) {
       updatePersona.mutate(
-        { id: editingId, data: payload },
+        { personaId: editingId, data: payload },
         { onSuccess: () => { setShowModal(false); setEditingId(null) } }
       )
     } else {
@@ -65,7 +65,7 @@ export default function PersonaManager() {
     }
   }
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     deletePersona.mutate(id, {
       onSuccess: () => setDeleteConfirmId(null),
     })

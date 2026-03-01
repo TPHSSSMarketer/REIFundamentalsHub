@@ -16,7 +16,7 @@ const TABS = [
 export default function BankNegotiationPage() {
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<string>('negotiations')
-  const [user, setUser] = useState<Record<string, unknown> | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   const preSelectedProperty = searchParams.get('property') || null

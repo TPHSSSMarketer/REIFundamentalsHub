@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { getNegotiationsOverview, exportNegotiations } from '../../../services/analyticsApi'
 
-interface Props { token: string; period: string; startDate: string; endDate: string }
+interface Props { period: string; startDate: string; endDate: string }
 
 const NAVY = '#1B3A6B'
 const RED = '#CC2229'
@@ -20,7 +20,7 @@ function buildParams(period: string, startDate: string, endDate: string): Record
   return p
 }
 
-export default function BankNegotiationAnalyticsTab({ token, period, startDate, endDate }: Props) {
+export default function BankNegotiationAnalyticsTab({ period, startDate, endDate }: Props) {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<any>(null)
@@ -31,7 +31,7 @@ export default function BankNegotiationAnalyticsTab({ token, period, startDate, 
       setLoading(true)
       const params = buildParams(period, startDate, endDate)
       try {
-        const ov = await getNegotiationsOverview(token, params)
+        const ov = await getNegotiationsOverview(params)
         if (cancelled) return
         setOverview(ov)
       } catch { /* handled by auth */ }
@@ -39,7 +39,7 @@ export default function BankNegotiationAnalyticsTab({ token, period, startDate, 
     }
     load()
     return () => { cancelled = true }
-  }, [token, period, startDate, endDate])
+  }, [period, startDate, endDate])
 
   if (loading) {
     return (

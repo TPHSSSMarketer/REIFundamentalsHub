@@ -293,17 +293,16 @@ export default function OnboardingPage() {
           )}
 
           {step === 2 && (
-            <Step2Profile
+            <Step2InvestingProfile
               data={data}
               setData={setData}
-              onNext={() =>
+              onContinue={() =>
                 handleSaveStep(2, {
                   investing_experience: data.investing_experience,
                   deal_types: JSON.stringify(data.deal_types),
                   primary_market: data.primary_market,
                 })
               }
-              onBack={() => goToStep(1)}
               saving={saving}
             />
           )}
@@ -312,10 +311,10 @@ export default function OnboardingPage() {
             <Step3Storage
               data={data}
               setData={setData}
-              onNext={() =>
+              onContinue={() =>
                 handleSaveStep(3, { storage_provider: data.storage_provider })
               }
-              onBack={() => goToStep(2)}
+              onSkipStep={() => goToStep(4)}
               saving={saving}
               storageConnected={storageConnected}
               setStorageConnected={setStorageConnected}
@@ -326,33 +325,33 @@ export default function OnboardingPage() {
             <Step4Phone
               data={data}
               setData={setData}
-              onNext={() => {
+              onContinue={() => {
                 if (selectedNumber) {
                   handleSaveStep(4, { phone_number: selectedNumber })
                 } else if (numberPurchased) {
                   goToStep(5)
                 }
               }}
-              onBack={() => goToStep(3)}
+              onSkipStep={() => goToStep(5)}
               saving={saving}
               searchingNumbers={searchingNumbers}
               availableNumbers={availableNumbers}
               selectedNumber={selectedNumber}
               setSelectedNumber={setSelectedNumber}
               numberPurchased={numberPurchased}
-              searchNumbers={searchNumbers}
               forwardMode={forwardMode}
               setForwardMode={setForwardMode}
               forwardNumber={forwardNumber}
               setForwardNumber={setForwardNumber}
+              onSearch={searchNumbers}
             />
           )}
 
           {step === 5 && (
-            <Step5Email
+            <Step5EmailDomain
               data={data}
               setData={setData}
-              onNext={() => {
+              onContinue={() => {
                 if (!domainAdded) {
                   handleSaveStep(5, {
                     domain: data.domain,
@@ -363,7 +362,8 @@ export default function OnboardingPage() {
                   goToStep(6)
                 }
               }}
-              onBack={() => goToStep(4)}
+              onSkipStep={() => goToStep(6)}
+              onAddDomain={() => setDomainAdded(true)}
               saving={saving}
               domainAdded={domainAdded}
               dnsConfirmed={dnsConfirmed}

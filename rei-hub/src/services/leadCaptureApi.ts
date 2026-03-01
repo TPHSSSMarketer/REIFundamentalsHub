@@ -136,6 +136,7 @@ const DEMO_WEBSITES: PublishedWebsite[] = [
     createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     leadCount: 18,
+    totalViews: 342,
     config: {
       templateId: 'cash_buyers',
       company_name: 'San Antonio Property Solutions',
@@ -159,6 +160,7 @@ const DEMO_WEBSITES: PublishedWebsite[] = [
     createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     leadCount: 12,
+    totalViews: 287,
     config: {
       templateId: 'motivated_sellers',
       company_name: 'Birmingham Investment Group',

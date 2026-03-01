@@ -299,13 +299,14 @@ export default function AdminPage() {
     if (isDemoMode) {
       setIsLoading(false)
       setStats({
-        total_users: 6,
-        active_users: 4,
-        trialing_users: 2,
-        past_due_users: 0,
-        canceled_users: 0,
+        total_subscribers: 6,
+        active: 4,
+        trialing: 2,
+        past_due: 0,
+        canceled: 0,
         mrr_cents: 29700,
-        plan_breakdown: { starter: 2, pro: 3, team: 1 },
+        by_plan: { starter: 2, pro: 3, team: 1 },
+        helm_addon_count: 1,
       } as AdminStats)
       return
     }

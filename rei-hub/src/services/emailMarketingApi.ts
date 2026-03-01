@@ -993,3 +993,16 @@ export async function getUsage(): Promise<{
     getMockUsage()
   )
 }
+
+// ── Contact Email (CRM send) ─────────────────────────────
+
+export async function sendContactEmail(
+  contactId: string,
+  subject: string,
+  body: string
+): Promise<void> {
+  await apiFetch<void>('/api/email/send', {
+    method: 'POST',
+    body: JSON.stringify({ contact_id: contactId, subject, body }),
+  })
+}
