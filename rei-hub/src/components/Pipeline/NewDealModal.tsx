@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { X, DollarSign, ChevronDown, ChevronUp, Percent, Send } from 'lucide-react'
-import { useCreateDeal } from '@/hooks/useApi'
+import { X, DollarSign, ChevronDown, ChevronUp, Percent, Send, UserPlus, User } from 'lucide-react'
+import { useCreateDeal, useCreateContact } from '@/hooks/useApi'
 import { mockPipelines } from '@/data/mockData'
 import { requestPof } from '@/services/plaidApi'
 import type { Deal, Contact } from '@/types'
@@ -199,10 +199,17 @@ export default function NewDealModal({
   pipelineId,
 }: NewDealModalProps) {
   const createDeal = useCreateDeal()
+  const createContact = useCreateContact()
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [showContactDropdown, setShowContactDropdown] = useState(false)
+  const [contactSearchText, setContactSearchText] = useState('')
+  const [isNewContact, setIsNewContact] = useState(false)
+  const [sellerFirstName, setSellerFirstName] = useState('')
+  const [sellerLastName, setSellerLastName] = useState('')
+  const [sellerPhone, setSellerPhone] = useState('')
+  const [sellerEmail, setSellerEmail] = useState('')
   const contactInputRef = useRef<HTMLInputElement>(null)
 
   // Buyer linking state
@@ -252,20 +259,46 @@ export default function NewDealModal({
 
   // Contact search logic
   const filteredContacts = useMemo(() => {
-    if (!formData.contact_id) return contacts
-    const searchTerm = formData.contact_id.toLowerCase()
+    if (!contactSearchText.trim()) return contacts.slice(0, 10)
+    const searchTerm = contactSearchText.toLowerCase()
     return contacts.filter(
       (c) =>
         c.name?.toLowerCase().includes(searchTerm) ||
         c.email?.toLowerCase().includes(searchTerm) ||
         c.phone?.includes(searchTerm)
-    )
-  }, [formData.contact_id, contacts])
+    ).slice(0, 10)
+  }, [contactSearchText, contacts])
 
   const handleSelectContact = (contact: Contact) => {
     setSelectedContact(contact)
-    setField('contact_id', contact.id)
+    setContactSearchText(contact.name)
+    setIsNewContact(false)
+    // Pre-fill inline fields from contact
+    setSellerFirstName(contact.firstName || contact.name?.split(' ')[0] || '')
+    setSellerLastName(contact.lastName || contact.name?.split(' ').slice(1).join(' ') || '')
+    setSellerPhone(contact.phone || '')
+    setSellerEmail(contact.email || '')
     setShowContactDropdown(false)
+  }
+
+  const handleStartNewContact = () => {
+    setSelectedContact(null)
+    setIsNewContact(true)
+    setSellerFirstName('')
+    setSellerLastName('')
+    setSellerPhone('')
+    setSellerEmail('')
+    setShowContactDropdown(false)
+  }
+
+  const handleClearContact = () => {
+    setSelectedContact(null)
+    setIsNewContact(false)
+    setContactSearchText('')
+    setSellerFirstName('')
+    setSellerLastName('')
+    setSellerPhone('')
+    setSellerEmail('')
   }
 
   // Buyer search logic — filtered to buyer/investor/wholesaler roles
@@ -317,6 +350,33 @@ export default function NewDealModal({
       return
     }
 
+    // Handle inline contact creation if it's a new seller
+    let contactId = selectedContact?.id
+    let contactName = selectedContact?.name
+    if (isNewContact && (sellerFirstName || sellerLastName)) {
+      try {
+        const fullName = `${sellerFirstName} ${sellerLastName}`.trim()
+        const newContact = await createContact.mutateAsync({
+          name: fullName,
+          firstName: sellerFirstName || undefined,
+          lastName: sellerLastName || undefined,
+          phone: sellerPhone || undefined,
+          email: sellerEmail || undefined,
+          role: 'seller',
+          interactionCount: 0,
+          dateAdded: new Date().toISOString(),
+        })
+        contactId = newContact.id
+        contactName = newContact.name
+      } catch (err) {
+        console.error('Failed to create contact:', err)
+        alert('Failed to create new contact. Please try again.')
+        return
+      }
+    } else if (selectedContact) {
+      contactName = `${sellerFirstName} ${sellerLastName}`.trim() || selectedContact.name
+    }
+
     // Build deal object with camelCase keys (matches Deal interface)
     const dealData: Partial<Deal> = {
       title: formData.address,
@@ -326,8 +386,8 @@ export default function NewDealModal({
       zip: formData.zip,
       stage: (formData.stage || stageOptions[0]?.id || 'lead') as Deal['stage'],
       pipelineId: pipelineId || mockPipelines[0].id,
-      contactId: selectedContact?.id || undefined,
-      contactName: selectedContact?.name || undefined,
+      contactId: contactId || undefined,
+      contactName: contactName || undefined,
       source: formData.source || undefined,
       notes: formData.notes || undefined,
       isUrgent: formData.is_urgent === 'true',
@@ -472,6 +532,12 @@ export default function NewDealModal({
       await createDeal.mutateAsync(dealData)
       setFormData({})
       setSelectedContact(null)
+      setContactSearchText('')
+      setIsNewContact(false)
+      setSellerFirstName('')
+      setSellerLastName('')
+      setSellerPhone('')
+      setSellerEmail('')
       setSelectedBuyer(null)
       setBuyerSearch('')
       setPofStatus('idle')
@@ -573,38 +639,126 @@ export default function NewDealModal({
               </div>
             </div>
 
-            {/* Contact Search */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Contact
-              </label>
-              <input
-                ref={contactInputRef}
-                type="text"
-                placeholder="Search by name, email, or phone"
-                onFocus={() => setShowContactDropdown(true)}
-                onChange={(e) => {
-                  setField('contact_id', e.target.value)
-                  setShowContactDropdown(true)
-                }}
-                value={selectedContact ? selectedContact.name : formData.contact_id || ''}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-              {showContactDropdown && filteredContacts.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                  {filteredContacts.map((contact) => (
+            {/* Seller Contact Section */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <User size={16} />
+                  Seller Contact
+                </label>
+                <div className="flex gap-2">
+                  {(selectedContact || isNewContact) && (
                     <button
-                      key={contact.id}
                       type="button"
-                      onClick={() => handleSelectContact(contact)}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-100 transition border-b border-slate-100 last:border-0"
+                      onClick={handleClearContact}
+                      className="text-xs text-slate-500 hover:text-slate-700 underline"
                     >
-                      <div className="font-medium text-slate-900">{contact.name}</div>
-                      <div className="text-sm text-slate-500">
-                        {contact.email} {contact.phone && `• ${contact.phone}`}
-                      </div>
+                      Clear
                     </button>
-                  ))}
+                  )}
+                  {!isNewContact && !selectedContact && (
+                    <button
+                      type="button"
+                      onClick={handleStartNewContact}
+                      className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      <UserPlus size={14} />
+                      New Contact
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Search or display mode */}
+              {!selectedContact && !isNewContact && (
+                <div className="relative">
+                  <input
+                    ref={contactInputRef}
+                    type="text"
+                    placeholder="Search existing seller by name, email, or phone..."
+                    onFocus={() => setShowContactDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                    onChange={(e) => {
+                      setContactSearchText(e.target.value)
+                      setShowContactDropdown(true)
+                    }}
+                    value={contactSearchText}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  {showContactDropdown && filteredContacts.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                      {filteredContacts.map((contact) => (
+                        <button
+                          key={contact.id}
+                          type="button"
+                          onClick={() => handleSelectContact(contact)}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-100 transition border-b border-slate-100 last:border-0"
+                        >
+                          <div className="font-medium text-slate-900">{contact.name}</div>
+                          <div className="text-sm text-slate-500">
+                            {contact.role && <span className="capitalize">{contact.role}</span>}
+                            {contact.email && ` • ${contact.email}`}
+                            {contact.phone && ` • ${contact.phone}`}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400 mt-1">Search for an existing contact or click "New Contact" to add one</p>
+                </div>
+              )}
+
+              {/* Inline contact fields — shown when contact selected OR creating new */}
+              {(selectedContact || isNewContact) && (
+                <div>
+                  {isNewContact && (
+                    <p className="text-xs text-primary-600 mb-2 font-medium">Creating new seller contact — will be saved automatically</p>
+                  )}
+                  {selectedContact && (
+                    <p className="text-xs text-slate-500 mb-2">Editing contact info for this deal (original contact record unchanged)</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">First Name</label>
+                      <input
+                        type="text"
+                        value={sellerFirstName}
+                        onChange={(e) => setSellerFirstName(e.target.value)}
+                        placeholder="First name"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        value={sellerLastName}
+                        onChange={(e) => setSellerLastName(e.target.value)}
+                        placeholder="Last name"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Phone</label>
+                      <input
+                        type="tel"
+                        value={sellerPhone}
+                        onChange={(e) => setSellerPhone(e.target.value)}
+                        placeholder="(555) 123-4567"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={sellerEmail}
+                        onChange={(e) => setSellerEmail(e.target.value)}
+                        placeholder="seller@email.com"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -630,6 +784,7 @@ export default function NewDealModal({
                       type="text"
                       placeholder="Search buyers by name, email, or phone"
                       onFocus={() => setShowBuyerDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowBuyerDropdown(false), 200)}
                       onChange={(e) => {
                         setBuyerSearch(e.target.value)
                         setSelectedBuyer(null)
@@ -680,6 +835,23 @@ export default function NewDealModal({
                 </div>
                 {selectedBuyer && !selectedBuyer.email && (
                   <p className="text-xs text-amber-600 mt-1">This buyer has no email — add one to their contact to send a POF request.</p>
+                )}
+                {/* Buyer contact info — read-only display */}
+                {selectedBuyer && (
+                  <div className="mt-2 bg-slate-50 rounded-lg p-3 grid grid-cols-3 gap-3">
+                    <div>
+                      <span className="text-xs text-slate-500">Name</span>
+                      <p className="text-sm font-medium text-slate-800">{selectedBuyer.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-500">Phone</span>
+                      <p className="text-sm text-slate-800">{selectedBuyer.phone || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-500">Email</span>
+                      <p className="text-sm text-slate-800">{selectedBuyer.email || '—'}</p>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
