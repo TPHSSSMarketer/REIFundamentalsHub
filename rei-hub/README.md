@@ -53,7 +53,6 @@ A CRM dashboard built for real estate investors. Provides an intuitive interface
 
 ### Prerequisites
 - Node.js 18+
-- CRM API access
 
 ### Installation
 
@@ -75,10 +74,9 @@ cp .env.example .env
 
 4. Configure your `.env`:
 ```env
-VITE_API_KEY=your_api_key
-VITE_API_LOCATION_ID=your_location_id
-VITE_API_BASE_URL=https://your-crm-api-url.com
-VITE_API_VERSION=2021-07-28
+VITE_REI_SERVER_URL=http://localhost:8001
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_key
+VITE_HELM_HUB_URL=http://localhost:8000
 ```
 
 5. Run the development server:
@@ -101,8 +99,8 @@ src/
 │   ├── Settings/        # Settings page
 │   └── Common/          # Shared components (Layout, Modals, etc.)
 ├── services/
-│   ├── api.ts           # CRM API wrapper
-│   ├── api-extended.ts  # Extended API service
+│   ├── authApi.ts       # Auth API calls (login, register, logout)
+│   ├── crmApi.ts        # CRM API (contacts, deals, pipeline)
 │   └── auth.ts          # Authentication utilities
 ├── hooks/
 │   ├── useApi.ts        # React Query hooks for API data
