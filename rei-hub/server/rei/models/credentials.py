@@ -126,4 +126,7 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "telegram_bot_token", "label": "Bot Token", "type": "secret"},
         {"name": "telegram_chat_id", "label": "Chat ID", "type": "text"},
     ],
+    "hud_pdr": [
+        {"name": "hud_api_key", "label": "HUD PD&R API Key (JWT)", "type": "secret"},
+    ],
 }

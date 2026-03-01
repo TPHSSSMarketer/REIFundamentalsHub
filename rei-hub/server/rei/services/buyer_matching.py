@@ -9,7 +9,7 @@ from typing import NamedTuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.models.crm import BuyerCriteria, CrmContact, CrmDeal
+from rei.models.crm import BuyerCriteria, CrmContact, CrmDeal, MarketZipCode
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +54,44 @@ async def match_buyers_for_deal(
     deal_property_type = (deal.property_type or "").lower().strip()
     deal_city = (deal.city or "").lower().strip()
     deal_state = (deal.state or "").lower().strip()
+    deal_zip = (deal.zip or "").strip()
     deal_price = deal.purchase_price or deal.asking_price or deal.offer_price or 0
     deal_condition = (getattr(deal, 'property_condition', None) or "").lower().strip()
-    
+
+    # Resolve zip code to market name via cached HUD data
+    deal_market = ""
+    if deal_zip:
+        zip_result = await db.execute(
+            select(MarketZipCode).where(MarketZipCode.zip_code == deal_zip)
+        )
+        zip_entry = zip_result.scalar_one_or_none()
+        if zip_entry:
+            deal_market = zip_entry.market_name.lower().strip()
+
     matched_contact_ids: list[str] = []
-    
+
     for bc in all_criteria:
         # Parse JSON arrays
         prop_types = [t.lower().strip() for t in json.loads(bc.property_types_json or "[]")]
         markets = [m.lower().strip() for m in json.loads(bc.markets_json or "[]")]
         conditions = [c.lower().strip() for c in json.loads(bc.conditions_accepted_json or "[]")]
-        
+
         # Check each criteria dimension (skip if buyer hasn't specified)
-        
+
         # 1. Property type match
         if prop_types and deal_property_type:
             if deal_property_type not in prop_types and "any" not in prop_types:
                 continue
-        
-        # 2. Market/location match
+
+        # 2. Market/location match — check city, state, AND zip-to-market name
         if markets:
             location_match = False
             for market in markets:
                 if market in deal_city or market in deal_state or deal_city in market or deal_state in market:
+                    location_match = True
+                    break
+                # Also match against the HUD market name (metro area)
+                if deal_market and (market in deal_market or deal_market in market):
                     location_match = True
                     break
             if not location_match:

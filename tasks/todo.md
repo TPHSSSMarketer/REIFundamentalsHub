@@ -1,47 +1,50 @@
-# Buyer Matching Database & Contact Enhancements
+# Deal Files, Manual Buyer Emails, Zip Code Markets
 
 ## What We're Building
 
-### 1. Quick UI fixes (Investor Buyer pipeline)
-- Relabel address fields to "Business Address" in Investor Buyer pipeline
-- Add "Buying Entity / Company Name" field (the LLC or entity they'll buy in)
+### 1. Change Auto-Email to Manual Review & Send
+- Remove the automatic email when a deal moves to "Under Contract"
+- Instead: run the matching, store matched buyers on the deal
+- On the Deal Detail page: show a "Matched Buyers" section
+- User reviews matched buyers, previews the email, and clicks "Send" when ready
 
-### 2. Contact enhancements
-- Add `buyingEntity` field to all Contact cards (separate from their main `company`)
-- Show buying entity in contact detail views
+### 2. Deal File Manager (Photos + Documents)
+- New `deal_files` table for ALL deal files (photos, contracts, inspections, etc.)
+- Each file has a `category` for organization
+- **Photo categories:** front, back, kitchen, living_room, bedroom_1, bedroom_2, bedroom_3, bathroom_1, bathroom_2, garage, yard, miscellaneous
+- **Document categories:** contract, inspection, title, appraisal, insurance, disclosure, other
+- Images compressed on upload using Pillow (resize to max 1920px, JPEG quality 85)
+- Base64 storage in database (with compression, sizes stay reasonable)
+- Cloud storage can be added later as an upgrade path
 
-### 3. Buyer Criteria Database (the big one)
-- New `buyer_criteria` table stores each buyer's preferences:
-  - Property types wanted (SFR, multi-family, condo, land, etc.)
-  - Target markets / areas
-  - Budget range (min/max)
-  - Property condition accepted (move-in ready, light rehab, full rehab, etc.)
-  - Financing types (cash, conventional, hard money, etc.)
-  - Timeline to purchase
-  - Active flag (are they currently looking?)
-- Buyer criteria editor on Contact detail page (for buyer-role contacts)
-- Criteria also settable from Investor Buyer pipeline deal form
+### 3. Deal Detail Page — Photos Tab
+- New "Photos" tab on the Deal Detail page
+- Grid layout organized by room/area category
+- Upload button per category (drag & drop or click)
+- Thumbnail gallery with lightbox preview
+- Delete capability per photo
 
-### 4. Deal-to-Buyer Matching + Email Notifications
-- When a deal moves to "Under Contract" stage → automatically find all buyers whose criteria match
-- Match on: property type, location/market, price within budget, condition
-- Send each matched buyer an email: "New deal matches your criteria!"
-- Email includes deal address, price, property type, and link to view
+### 4. Zip Code → Market Mapping (SuperAdmin)
+- New `market_zip_codes` table: zip_code, market_name, state
+- SuperAdmin CSV upload endpoint to bulk import/update zip codes
+- New tab on Admin page: "Markets / Zip Codes"
+- Buyer matching service updated to use zip code → market lookup
+- When matching: convert deal's zip code to market name, compare against buyer's target markets
 
-## Files to Modify
+## Files to Create/Modify
 
-### Backend (Python/FastAPI):
-- [ ] `server/rei/models/crm.py` — Add buying_entity to CrmContact + new BuyerCriteria model
-- [ ] `server/rei/migrations/create_tables.py` — Column migrations
-- [ ] `server/rei/api/crm_contacts_routes.py` — Handle buyingEntity in CRUD
-- [ ] `server/rei/api/crm_buyer_criteria_routes.py` — NEW: Buyer criteria CRUD endpoints
-- [ ] `server/rei/api/crm_deals_routes.py` — Stage change hook for matching
-- [ ] `server/rei/services/buyer_matching.py` — NEW: Matching algorithm
-- [ ] `server/rei/services/email.py` — Buyer match notification email template
-- [ ] `server/rei/main.py` — Register new router
+### Backend:
+- [ ] `server/rei/models/crm.py` — DealFile model + DealBuyerMatch model
+- [ ] `server/rei/models/user.py` — MarketZipCode model
+- [ ] `server/rei/migrations/create_tables.py` — New table migrations
+- [ ] `server/rei/api/crm_deals_routes.py` — Remove auto-email, store matches instead
+- [ ] `server/rei/api/crm_deal_files_routes.py` — NEW: File upload/list/delete CRUD
+- [ ] `server/rei/api/crm_deal_matches_routes.py` — NEW: View matches + send emails
+- [ ] `server/rei/api/superadmin_routes.py` — Add zip code CSV upload endpoint
+- [ ] `server/rei/services/buyer_matching.py` — Update to use zip-to-market lookup
+- [ ] `server/main.py` — Register new routers
 
-### Frontend (React/TypeScript):
-- [ ] `src/types/index.ts` — Add buyingEntity + buyerCriteria to Contact
-- [ ] `src/components/Pipeline/NewDealModal.tsx` — Business Address labels + buying entity field
-- [ ] `src/components/CRM/ContactDetailPage.tsx` — Buyer criteria editor section
-- [ ] `src/components/Contacts/NewContactModal.tsx` — Buyer criteria on creation (if role=buyer)
+### Frontend:
+- [ ] `src/types/index.ts` — DealFile + DealBuyerMatch types
+- [ ] `src/components/Pipeline/DealDetailPage.tsx` — Photos tab + Matched Buyers section
+- [ ] `src/components/Admin/AdminPage.tsx` — Markets/Zip Codes tab

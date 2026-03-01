@@ -52,7 +52,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'HUD Markets', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -277,6 +277,17 @@ export default function AdminPage() {
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false)
   const [tenantConfigSaving, setTenantConfigSaving] = useState(false)
 
+  // HUD Markets state
+  const [zipCodes, setZipCodes] = useState<any[]>([])
+  const [zipTotal, setZipTotal] = useState(0)
+  const [zipPage, setZipPage] = useState(1)
+  const [zipSearch, setZipSearch] = useState('')
+  const [zipLoading, setZipLoading] = useState(false)
+  const [zipUploading, setZipUploading] = useState(false)
+  const [zipStats, setZipStats] = useState<any>(null)
+  const [zipLookup, setZipLookup] = useState('')
+  const [zipLookupResult, setZipLookupResult] = useState<string | null>(null)
+
   // Audit log state
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
@@ -468,6 +479,105 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'Audit Log') fetchAuditLogs()
   }, [tab, fetchAuditLogs])
+
+  // ── HUD Markets ──────────────────────────────────────────
+  const fetchZipCodes = useCallback(async () => {
+    setZipLoading(true)
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const params = new URLSearchParams()
+      params.set('page', String(zipPage))
+      params.set('per_page', '50')
+      if (zipSearch) params.set('search', zipSearch)
+      const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes?${params}`, {
+        headers: { ...getAuthHeader() },
+      })
+      if (!res.ok) throw new Error('Failed to load zip codes')
+      const data = await res.json()
+      setZipCodes(data.zip_codes)
+      setZipTotal(data.total)
+    } catch {
+      setZipCodes([])
+    }
+    setZipLoading(false)
+  }, [zipPage, zipSearch])
+
+  const fetchZipStats = useCallback(async () => {
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/stats`, {
+        headers: { ...getAuthHeader() },
+      })
+      if (res.ok) setZipStats(await res.json())
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'HUD Markets') {
+      fetchZipCodes()
+      fetchZipStats()
+    }
+  }, [tab, fetchZipCodes, fetchZipStats])
+
+  async function handleZipCsvUpload(file: File) {
+    setZipUploading(true)
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/upload`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() },
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json()
+      setToast(data.message)
+      fetchZipCodes()
+      fetchZipStats()
+    } catch {
+      setToast('CSV upload failed')
+    }
+    setZipUploading(false)
+  }
+
+  async function handleClearAllZipCodes() {
+    if (!window.confirm('Delete ALL zip code mappings? This cannot be undone.')) return
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() },
+      })
+      if (!res.ok) throw new Error('Failed')
+      setToast('All zip codes deleted')
+      fetchZipCodes()
+      fetchZipStats()
+    } catch {
+      setToast('Failed to clear zip codes')
+    }
+  }
+
+  async function handleZipLookup() {
+    if (!zipLookup.trim()) return
+    try {
+      const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+      const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/lookup?zip_code=${zipLookup.trim()}`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() },
+      })
+      if (!res.ok) {
+        setZipLookupResult('Not found — check HUD API key')
+        return
+      }
+      const data = await res.json()
+      setZipLookupResult(`${data.zipCode} → ${data.marketName}`)
+      fetchZipCodes()
+      fetchZipStats()
+    } catch {
+      setZipLookupResult('Lookup failed')
+    }
+  }
 
   async function handleExportAuditCsv() {
     try {
@@ -720,6 +830,168 @@ export default function AdminPage() {
 
       {/* ── Credentials Tab ──────────────────────────────────── */}
       {tab === 'Credentials' && <SuperAdminCredentials />}
+
+      {/* ── HUD Markets Tab ──────────────────────────────────── */}
+      {tab === 'HUD Markets' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 mb-1">HUD Markets / Zip Codes</h2>
+            <p className="text-sm text-slate-500">
+              Map zip codes to market areas for buyer matching. Upload a CSV or look up individual zip codes via the HUD API.
+            </p>
+          </div>
+
+          {/* Stats */}
+          {zipStats && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Total Zip Codes</p>
+                <p className="text-2xl font-bold text-primary-600">{zipStats.total_zip_codes.toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">Markets</p>
+                <p className="text-2xl font-bold text-slate-800">{zipStats.total_markets.toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-xs text-slate-500">States</p>
+                <p className="text-2xl font-bold text-slate-800">{zipStats.total_states.toLocaleString()}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-3">
+            {/* CSV Upload */}
+            <label className="flex items-center gap-2 px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90 cursor-pointer">
+              {zipUploading ? (
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                '📄'
+              )}
+              {zipUploading ? 'Uploading...' : 'Upload CSV'}
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                disabled={zipUploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) handleZipCsvUpload(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+
+            {/* HUD API Lookup */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={zipLookup}
+                onChange={(e) => setZipLookup(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleZipLookup()}
+                placeholder="Lookup zip..."
+                className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+              />
+              <button
+                onClick={handleZipLookup}
+                className="px-3 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+              >
+                Lookup
+              </button>
+              {zipLookupResult && (
+                <span className="text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">{zipLookupResult}</span>
+              )}
+            </div>
+
+            {/* Clear All */}
+            <button
+              onClick={handleClearAllZipCodes}
+              className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
+            >
+              Clear All
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400">
+            CSV format: columns <code className="bg-slate-100 px-1 rounded">zip_code</code>, <code className="bg-slate-100 px-1 rounded">market_name</code>, <code className="bg-slate-100 px-1 rounded">state</code>
+          </p>
+
+          {/* Search */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={zipSearch}
+              onChange={(e) => { setZipSearch(e.target.value); setZipPage(1) }}
+              placeholder="Search zip, market, or state..."
+              className="flex-1 max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+            />
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Zip Code</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Market Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zipLoading ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-400">Loading...</td>
+                    </tr>
+                  ) : zipCodes.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
+                        No zip codes found. Upload a CSV or use the HUD API lookup.
+                      </td>
+                    </tr>
+                  ) : (
+                    zipCodes.map((z: any) => (
+                      <tr key={z.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-2.5 text-slate-800 font-mono">{z.zipCode}</td>
+                        <td className="px-4 py-2.5 text-slate-700">{z.marketName}</td>
+                        <td className="px-4 py-2.5 text-slate-600">{z.state}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Pagination */}
+          {zipTotal > 50 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                Showing {zipCodes.length} of {zipTotal.toLocaleString()}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setZipPage((p) => Math.max(1, p - 1))}
+                  disabled={zipPage <= 1}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Prev
+                </button>
+                <span className="px-3 py-1.5 text-sm text-slate-600">
+                  {zipPage} / {Math.ceil(zipTotal / 50)}
+                </span>
+                <button
+                  onClick={() => setZipPage((p) => p + 1)}
+                  disabled={zipPage >= Math.ceil(zipTotal / 50)}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Loan Servicing Tab ──────────────────────────────── */}
       {tab === 'Loan Servicing' && (

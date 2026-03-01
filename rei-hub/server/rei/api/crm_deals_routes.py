@@ -14,10 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
-from rei.models.crm import CrmDeal
+from rei.models.crm import CrmDeal, DealBuyerMatch
 from rei.models.user import User
 from rei.services.buyer_matching import match_buyers_for_deal
-from rei.services.email import send_buyer_match_notification
 
 logger = logging.getLogger(__name__)
 
@@ -650,17 +649,18 @@ async def update_deal_stage(
     deal.updated_at = datetime.utcnow()
     await db.commit()
 
-    # Trigger buyer matching when a deal moves to "under_contract"
+    # When deal moves to "under_contract", find matching buyers and STORE them
+    # (user reviews and manually sends emails from the deal detail page)
     if body.stage == "under_contract" and old_stage != "under_contract":
         asyncio.create_task(
-            _notify_matched_buyers(deal.id, user.id)
+            _store_matched_buyers(deal.id, user.id)
         )
 
     return {"detail": "Stage updated", "stage": deal.stage}
 
 
-async def _notify_matched_buyers(deal_id: str, user_id: int) -> None:
-    """Background task: find matching buyers and send them email notifications."""
+async def _store_matched_buyers(deal_id: str, user_id: int) -> None:
+    """Background task: find matching buyers and store them for user review."""
     from rei.database import async_session_factory
     try:
         async with async_session_factory() as db:
@@ -676,18 +676,33 @@ async def _notify_matched_buyers(deal_id: str, user_id: int) -> None:
                 logger.info("No buyers matched for deal %s", deal_id)
                 return
 
-            settings = get_settings()
+            # Store each match as a pending record for user to review
             for buyer in matched:
-                try:
-                    await send_buyer_match_notification(
-                        buyer_email=buyer.email,
-                        buyer_name=buyer.name,
-                        deal=deal,
-                        settings=settings,
+                existing = await db.execute(
+                    select(DealBuyerMatch).where(
+                        DealBuyerMatch.deal_id == deal_id,
+                        DealBuyerMatch.buyer_contact_id == buyer.contact_id,
                     )
-                    logger.info("Sent match notification to %s for deal %s", buyer.email, deal_id)
-                except Exception as e:
-                    logger.error("Failed to send match email to %s: %s", buyer.email, e)
+                )
+                if existing.scalar_one_or_none():
+                    continue  # Already matched — skip duplicate
+
+                match_record = DealBuyerMatch(
+                    user_id=user_id,
+                    deal_id=deal_id,
+                    buyer_contact_id=buyer.contact_id,
+                    buyer_name=buyer.name,
+                    buyer_email=buyer.email,
+                    buying_entity=buyer.buying_entity,
+                    status="pending",
+                )
+                db.add(match_record)
+
+            await db.commit()
+            logger.info(
+                "Stored %d buyer matches for deal %s (pending user review)",
+                len(matched), deal_id,
+            )
     except Exception as e:
         logger.error("Error in buyer matching background task: %s", e)
 

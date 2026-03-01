@@ -301,10 +301,20 @@ export default function NewDealModal({
     setSellerEmail('')
   }
 
-  // Buyer search logic — filtered to buyer/investor/wholesaler roles
-  const buyerRoles = ['buyer', 'wholesaler', 'partner']
+  // Buyer search logic — filtered by exit strategy buyer type
+  // Investor exits (wholesale, fix & flip, buy & hold) → show wholesaler/partner roles
+  // Retail exits (subject-to, lease option, owner finance, wholetail) → show buyer role
+  // No exit strategy selected → show all buyer/wholesaler/partner roles
   const filteredBuyers = useMemo(() => {
-    const buyerContacts = contacts.filter((c) => buyerRoles.includes(c.role))
+    let relevantRoles: string[]
+    if (exitBuyerType === 'investor') {
+      relevantRoles = ['wholesaler', 'partner', 'buyer']
+    } else if (exitBuyerType === 'retail') {
+      relevantRoles = ['buyer']
+    } else {
+      relevantRoles = ['buyer', 'wholesaler', 'partner']
+    }
+    const buyerContacts = contacts.filter((c) => relevantRoles.includes(c.role))
     if (!buyerSearch.trim()) return buyerContacts.slice(0, 10)
     const q = buyerSearch.toLowerCase()
     return buyerContacts.filter(
@@ -313,7 +323,7 @@ export default function NewDealModal({
         c.email?.toLowerCase().includes(q) ||
         c.phone?.includes(q)
     ).slice(0, 10)
-  }, [buyerSearch, contacts])
+  }, [buyerSearch, contacts, exitBuyerType])
 
   const handleSelectBuyer = (contact: Contact) => {
     setSelectedBuyer(contact)
@@ -337,6 +347,19 @@ export default function NewDealModal({
       alert('Failed to send POF request. Please try again.')
     }
   }
+
+  // Exit strategy → buyer type mapping
+  // Investor strategies: Wholesale, Fix & Flip, Buy & Hold
+  // Retail strategies: Subject-To, Lease Option, Owner Finance, Wholetail
+  const INVESTOR_EXIT_STRATEGIES = ['wholesale', 'fix_and_flip', 'buy_and_hold']
+  const RETAIL_EXIT_STRATEGIES = ['subject_to', 'lease_option', 'owner_finance', 'wholetail']
+
+  const exitStrategy = formData.exit_strategy || ''
+  const exitBuyerType = INVESTOR_EXIT_STRATEGIES.includes(exitStrategy)
+    ? 'investor'
+    : RETAIL_EXIT_STRATEGIES.includes(exitStrategy)
+      ? 'retail'
+      : null
 
   // Show buyer field on Deals and Tax Deals pipelines
   const showBuyerField = activePipelineId === 'pipeline-deals' || activePipelineId === 'pipeline-tax-deals'
@@ -775,7 +798,15 @@ export default function NewDealModal({
               <div className="relative">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Assigned Buyer
-                  <span className="text-xs text-slate-400 ml-2">(investor, wholesaler, or buyer contacts)</span>
+                  {exitBuyerType === 'investor' && (
+                    <span className="text-xs text-blue-600 ml-2 font-medium">Investor Buyers</span>
+                  )}
+                  {exitBuyerType === 'retail' && (
+                    <span className="text-xs text-green-600 ml-2 font-medium">Retail Buyers</span>
+                  )}
+                  {!exitBuyerType && (
+                    <span className="text-xs text-slate-400 ml-2">Select an exit strategy to filter buyers</span>
+                  )}
                 </label>
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
@@ -1657,7 +1688,12 @@ export default function NewDealModal({
               <SelectField
                 label="Exit Strategy"
                 value={formData.exit_strategy || ''}
-                onChange={(val) => setField('exit_strategy', val)}
+                onChange={(val) => {
+                  setField('exit_strategy', val)
+                  // Clear buyer selection when exit strategy changes (buyer type may differ)
+                  setSelectedBuyer(null)
+                  setBuyerSearch('')
+                }}
                 options={[
                   { label: 'Wholesale', value: 'wholesale' },
                   { label: 'Fix & Flip', value: 'fix_and_flip' },
@@ -1665,7 +1701,6 @@ export default function NewDealModal({
                   { label: 'Subject-To', value: 'subject_to' },
                   { label: 'Lease Option', value: 'lease_option' },
                   { label: 'Owner Finance', value: 'owner_finance' },
-                  { label: 'Novation', value: 'novation' },
                   { label: 'Wholetail', value: 'wholetail' },
                 ]}
               />

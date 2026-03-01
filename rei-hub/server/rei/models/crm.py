@@ -309,3 +309,72 @@ class CrmPortfolioProperty(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Deal Files (Photos + Documents) ───────────────────────
+
+
+class DealFile(Base):
+    """Stores photos and documents attached to a deal."""
+    __tablename__ = "deal_files"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    deal_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+    # "photo" or "document"
+    file_type: Mapped[str] = mapped_column(String, nullable=False, default="photo")
+    # Photo categories: front, back, kitchen, living_room, bedroom_1, bedroom_2, bedroom_3,
+    #   bathroom_1, bathroom_2, garage, yard, miscellaneous
+    # Document categories: contract, inspection, title, appraisal, insurance, disclosure, other
+    category: Mapped[str] = mapped_column(String, nullable=False, default="miscellaneous")
+
+    file_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    mime_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # bytes
+    file_content: Mapped[str] = mapped_column(Text, nullable=False)  # base64 encoded
+    thumbnail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # base64 small thumbnail
+
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ── Deal Buyer Matches ────────────────────────────────────
+
+
+class DealBuyerMatch(Base):
+    """Stores matched buyers for a deal — user reviews before sending emails."""
+    __tablename__ = "deal_buyer_matches"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    deal_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    buyer_contact_id: Mapped[str] = mapped_column(String, nullable=False)
+    buyer_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    buyer_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    buying_entity: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # "pending" = matched but not emailed, "sent" = email sent, "skipped" = user chose not to send
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ── Market Zip Codes (SuperAdmin managed) ─────────────────
+
+
+class MarketZipCode(Base):
+    """Maps zip codes to market names. Managed by SuperAdmin via CSV upload."""
+    __tablename__ = "market_zip_codes"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    zip_code: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True)
+    market_name: Mapped[str] = mapped_column(String, nullable=False)
+    state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -20,6 +20,14 @@ import {
   ChevronUp,
   Landmark,
   Receipt,
+  Camera,
+  Send,
+  Upload,
+  X,
+  Eye,
+  SkipForward,
+  Mail,
+  Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
@@ -29,7 +37,7 @@ import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
 import DealExpenditures from './DealExpenditures'
-import type { Deal } from '@/types'
+import type { Deal, DealFile, DealBuyerMatch } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -77,12 +85,40 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }>
 
 const STAGE_ORDER = ['lead', 'analysis', 'offer', 'under_contract', 'due_diligence', 'closing', 'closed_won', 'closed_lost']
 
+// ── Photo / Document categories ──────────────────────────────────────
+const PHOTO_CATEGORIES = [
+  { id: 'front', label: 'Front' },
+  { id: 'back', label: 'Back' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'living_room', label: 'Living Room' },
+  { id: 'bedroom_1', label: 'Bedroom 1' },
+  { id: 'bedroom_2', label: 'Bedroom 2' },
+  { id: 'bedroom_3', label: 'Bedroom 3' },
+  { id: 'bathroom_1', label: 'Bathroom 1' },
+  { id: 'bathroom_2', label: 'Bathroom 2' },
+  { id: 'garage', label: 'Garage' },
+  { id: 'yard', label: 'Yard' },
+  { id: 'miscellaneous', label: 'Miscellaneous' },
+] as const
+
+const DOC_CATEGORIES = [
+  { id: 'contract', label: 'Contract' },
+  { id: 'inspection', label: 'Inspection' },
+  { id: 'title', label: 'Title' },
+  { id: 'appraisal', label: 'Appraisal' },
+  { id: 'insurance', label: 'Insurance' },
+  { id: 'disclosure', label: 'Disclosure' },
+  { id: 'other', label: 'Other' },
+] as const
+
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'expenditures', label: 'Expenditures', icon: Receipt },
+  { id: 'photos', label: 'Photos', icon: Camera },
+  { id: 'files', label: 'Files', icon: FileText },
+  { id: 'matches', label: 'Matched Buyers', icon: Users },
   { id: 'checklist', label: 'Contracts & Checklist', icon: ClipboardList },
   { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
-  { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'pof', label: 'Proof of Funds', icon: Shield },
   { id: 'notes', label: 'Notes', icon: StickyNote },
 ] as const
@@ -105,6 +141,19 @@ export default function DealDetailPage() {
   // Notes
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+
+  // Photos & Documents
+  const [photos, setPhotos] = useState<DealFile[]>([])
+  const [documents, setDocuments] = useState<DealFile[]>([])
+  const [filesLoading, setFilesLoading] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null) // category being uploaded
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null)
+
+  // Matched Buyers
+  const [matches, setMatches] = useState<DealBuyerMatch[]>([])
+  const [matchesLoading, setMatchesLoading] = useState(false)
+  const [sendingMatch, setSendingMatch] = useState<string | null>(null)
+  const [sendingAll, setSendingAll] = useState(false)
 
   // Deal Analyzer preferences
   const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
@@ -137,6 +186,52 @@ export default function DealDetailPage() {
   useEffect(() => {
     loadBackendData()
   }, [loadBackendData])
+
+  // Fetch deal files (photos + documents)
+  const loadDealFiles = useCallback(async () => {
+    if (!dealId) return
+    setFilesLoading(true)
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
+        headers: getAuthHeader(),
+      })
+      if (res.ok) {
+        const files: DealFile[] = await res.json()
+        setPhotos(files.filter(f => f.fileType === 'photo'))
+        setDocuments(files.filter(f => f.fileType === 'document'))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setFilesLoading(false)
+    }
+  }, [dealId])
+
+  useEffect(() => {
+    loadDealFiles()
+  }, [loadDealFiles])
+
+  // Fetch matched buyers
+  const loadMatches = useCallback(async () => {
+    if (!dealId) return
+    setMatchesLoading(true)
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches`, {
+        headers: getAuthHeader(),
+      })
+      if (res.ok) {
+        setMatches(await res.json())
+      }
+    } catch {
+      // ignore
+    } finally {
+      setMatchesLoading(false)
+    }
+  }, [dealId])
+
+  useEffect(() => {
+    loadMatches()
+  }, [loadMatches])
 
   // Fetch bank negotiation lender data for this deal's property
   useEffect(() => {
@@ -196,6 +291,129 @@ export default function DealDetailPage() {
       toast.success('Note deleted')
     } catch {
       toast.error('Failed to delete note')
+    }
+  }
+
+  // ── File Upload / Delete ─────────────────────────────────────
+  const handleFileUpload = async (category: string, fileType: 'photo' | 'document', file: File) => {
+    if (!dealId) return
+    setUploading(category)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('category', category)
+      formData.append('file_type', fileType)
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      toast.success(`${fileType === 'photo' ? 'Photo' : 'Document'} uploaded`)
+      await loadDealFiles()
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleFileDelete = async (fileId: string) => {
+    if (!dealId) return
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('File deleted')
+      await loadDealFiles()
+    } catch {
+      toast.error('Failed to delete file')
+    }
+  }
+
+  const handleViewFullImage = async (fileId: string) => {
+    if (!dealId) return
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Failed to load image')
+      const data = await res.json()
+      if (data.fileContent) {
+        setLightboxImg(`data:${data.mimeType || 'image/jpeg'};base64,${data.fileContent}`)
+      }
+    } catch {
+      toast.error('Failed to load full image')
+    }
+  }
+
+  // ── Match Actions ───────────────────────────────────────────
+  const handleSendMatch = async (matchId: string) => {
+    if (!dealId) return
+    setSendingMatch(matchId)
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}/send`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Send failed')
+      toast.success('Email sent to buyer')
+      await loadMatches()
+    } catch {
+      toast.error('Failed to send email')
+    } finally {
+      setSendingMatch(null)
+    }
+  }
+
+  const handleSkipMatch = async (matchId: string) => {
+    if (!dealId) return
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}/skip`, {
+        method: 'PATCH',
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Skip failed')
+      toast.success('Buyer skipped')
+      await loadMatches()
+    } catch {
+      toast.error('Failed to skip buyer')
+    }
+  }
+
+  const handleSendAllMatches = async () => {
+    if (!dealId) return
+    setSendingAll(true)
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/send-all`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Send all failed')
+      const data = await res.json()
+      toast.success(`Sent ${data.sent} emails${data.failed ? `, ${data.failed} failed` : ''}`)
+      await loadMatches()
+    } catch {
+      toast.error('Failed to send emails')
+    } finally {
+      setSendingAll(false)
+    }
+  }
+
+  const handleDeleteMatch = async (matchId: string) => {
+    if (!dealId) return
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('Match removed')
+      await loadMatches()
+    } catch {
+      toast.error('Failed to remove match')
     }
   }
 
@@ -534,7 +752,16 @@ export default function DealDetailPage() {
                 >
                   <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{label}</span>
-                  <span className="sm:hidden">{id === 'overview' ? 'Info' : id === 'expenditures' ? 'Costs' : id === 'checklist' ? 'Check' : id === 'analyzer' ? 'Calc' : id === 'documents' ? 'Docs' : id === 'pof' ? 'POF' : 'Notes'}</span>
+                  <span className="sm:hidden">{
+                    id === 'overview' ? 'Info' :
+                    id === 'expenditures' ? 'Costs' :
+                    id === 'photos' ? 'Pics' :
+                    id === 'files' ? 'Files' :
+                    id === 'matches' ? 'Match' :
+                    id === 'checklist' ? 'Check' :
+                    id === 'analyzer' ? 'Calc' :
+                    id === 'pof' ? 'POF' : 'Notes'
+                  }</span>
                 </button>
               ))}
             </div>
@@ -580,6 +807,303 @@ export default function DealDetailPage() {
                 <DealExpenditures dealId={dealId} />
               )}
 
+              {/* ── Photos Tab ────────────────────────── */}
+              {activeTab === 'photos' && (
+                <div className="space-y-6">
+                  <h3 className="text-base font-semibold text-slate-900">Property Photos</h3>
+                  {filesLoading ? (
+                    <div className="flex items-center justify-center h-24">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {PHOTO_CATEGORIES.map(cat => {
+                        const catPhotos = photos.filter(p => p.category === cat.id)
+                        return (
+                          <div key={cat.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                            <div className="bg-slate-50 px-3 py-2 flex items-center justify-between">
+                              <span className="text-xs font-semibold text-slate-600 uppercase">{cat.label}</span>
+                              <span className="text-xs text-slate-400">{catPhotos.length}</span>
+                            </div>
+                            {catPhotos.length > 0 ? (
+                              <div className="p-2 space-y-2">
+                                {catPhotos.map(photo => (
+                                  <div key={photo.id} className="group relative">
+                                    {photo.thumbnail ? (
+                                      <img
+                                        src={`data:image/jpeg;base64,${photo.thumbnail}`}
+                                        alt={photo.fileName}
+                                        className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-90"
+                                        onClick={() => handleViewFullImage(photo.id)}
+                                      />
+                                    ) : (
+                                      <div className="w-full h-32 bg-slate-100 rounded flex items-center justify-center">
+                                        <Camera className="w-6 h-6 text-slate-300" />
+                                      </div>
+                                    )}
+                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-1">
+                                      <button
+                                        onClick={() => handleViewFullImage(photo.id)}
+                                        className="p-1 bg-white/90 rounded shadow-sm hover:bg-white"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 text-slate-600" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleFileDelete(photo.id)}
+                                        className="p-1 bg-white/90 rounded shadow-sm hover:bg-red-50"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                      </button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 truncate">{photo.fileName}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-4 text-center">
+                                <Camera className="w-6 h-6 text-slate-200 mx-auto mb-1" />
+                                <p className="text-xs text-slate-400">No photos</p>
+                              </div>
+                            )}
+                            {/* Upload button */}
+                            <div className="px-2 pb-2">
+                              <label className="flex items-center justify-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 cursor-pointer transition-colors">
+                                {uploading === cat.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Upload className="w-3.5 h-3.5" />
+                                )}
+                                {uploading === cat.id ? 'Uploading...' : 'Upload'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploading === cat.id}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) handleFileUpload(cat.id, 'photo', file)
+                                    e.target.value = ''
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Files / Documents Tab ────────────────── */}
+              {activeTab === 'files' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold text-slate-900">Deal Documents</h3>
+                  </div>
+                  {filesLoading ? (
+                    <div className="flex items-center justify-center h-24">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {DOC_CATEGORIES.map(cat => {
+                        const catDocs = documents.filter(d => d.category === cat.id)
+                        return (
+                          <div key={cat.id} className="border border-slate-200 rounded-lg">
+                            <div className="bg-slate-50 px-4 py-2.5 flex items-center justify-between">
+                              <span className="text-sm font-medium text-slate-700">{cat.label}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">{catDocs.length} file{catDocs.length !== 1 ? 's' : ''}</span>
+                                <label className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded hover:bg-primary-100 cursor-pointer">
+                                  {uploading === `doc-${cat.id}` ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Upload className="w-3 h-3" />
+                                  )}
+                                  Upload
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    disabled={uploading === `doc-${cat.id}`}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      if (file) {
+                                        setUploading(`doc-${cat.id}`)
+                                        handleFileUpload(cat.id, 'document', file).finally(() => setUploading(null))
+                                      }
+                                      e.target.value = ''
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                            {catDocs.length > 0 && (
+                              <div className="divide-y divide-slate-100">
+                                {catDocs.map(doc => (
+                                  <div key={doc.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                                      <div className="min-w-0">
+                                        <p className="text-sm text-slate-700 truncate">{doc.fileName}</p>
+                                        <p className="text-xs text-slate-400">
+                                          {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : ''} &middot; {doc.createdAt ? formatDate(doc.createdAt) : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleFileDelete(doc.id)}
+                                      className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Matched Buyers Tab ─────────────────── */}
+              {activeTab === 'matches' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold text-slate-900">Matched Buyers</h3>
+                    {matches.filter(m => m.status === 'pending').length > 0 && (
+                      <button
+                        onClick={handleSendAllMatches}
+                        disabled={sendingAll}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {sendingAll ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        Send All Pending
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    When a deal moves to "Under Contract", the system automatically matches buyers whose criteria fit this deal.
+                    Review the matches below and send marketing emails when ready.
+                  </p>
+
+                  {matchesLoading ? (
+                    <div className="flex items-center justify-center h-24">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                    </div>
+                  ) : matches.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">No matched buyers yet</p>
+                      <p className="text-xs text-slate-400 mt-1">Matches are generated when a deal moves to "Under Contract"</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {matches.map(match => (
+                        <div
+                          key={match.id}
+                          className={cn(
+                            'flex items-center justify-between p-3 rounded-lg border',
+                            match.status === 'sent' ? 'bg-green-50 border-green-200' :
+                            match.status === 'skipped' ? 'bg-slate-50 border-slate-200 opacity-60' :
+                            'bg-white border-slate-200'
+                          )}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={cn(
+                              'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                              match.status === 'sent' ? 'bg-green-100' :
+                              match.status === 'skipped' ? 'bg-slate-100' :
+                              'bg-primary-100'
+                            )}>
+                              <User className={cn(
+                                'w-4 h-4',
+                                match.status === 'sent' ? 'text-green-600' :
+                                match.status === 'skipped' ? 'text-slate-400' :
+                                'text-primary-600'
+                              )} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate">
+                                {match.buyerName || 'Unknown Buyer'}
+                              </p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {match.buyerEmail}
+                                {match.buyingEntity && ` · ${match.buyingEntity}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {match.status === 'sent' ? (
+                              <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2.5 py-1 rounded-full">
+                                <Mail className="w-3 h-3" />
+                                Sent {match.sentAt ? formatDate(match.sentAt) : ''}
+                              </span>
+                            ) : match.status === 'skipped' ? (
+                              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                                Skipped
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleSendMatch(match.id)}
+                                  disabled={sendingMatch === match.id}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {sendingMatch === match.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Send className="w-3 h-3" />
+                                  )}
+                                  Send
+                                </button>
+                                <button
+                                  onClick={() => handleSkipMatch(match.id)}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+                                >
+                                  <SkipForward className="w-3 h-3" />
+                                  Skip
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteMatch(match.id)}
+                              className="p-1.5 rounded hover:bg-red-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  {matches.length > 0 && (
+                    <div className="flex gap-4 pt-2 border-t border-slate-100">
+                      <span className="text-xs text-slate-500">
+                        {matches.filter(m => m.status === 'pending').length} pending
+                      </span>
+                      <span className="text-xs text-green-600">
+                        {matches.filter(m => m.status === 'sent').length} sent
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {matches.filter(m => m.status === 'skipped').length} skipped
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Contracts & Checklist Tab ──────────── */}
               {activeTab === 'checklist' && dealId && (
                 <ContractChecklist
@@ -606,46 +1130,7 @@ export default function DealDetailPage() {
                 />
               )}
 
-              {/* ── Documents Tab ─────────────────────── */}
-              {activeTab === 'documents' && (
-                <div className="space-y-4">
-                  <h3 className="text-base font-semibold text-slate-900">Generated Documents</h3>
-                  {backendLoading ? (
-                    <div className="flex items-center justify-center h-24">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
-                    </div>
-                  ) : contracts.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-8">No documents generated for this deal yet</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {contracts.map((doc: any) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <FileText className="w-4 h-4 text-primary-500 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-700 truncate">{doc.file_name}</p>
-                              <p className="text-xs text-slate-400">{doc.created_at ? formatDate(doc.created_at) : ''}</p>
-                            </div>
-                          </div>
-                          {doc.storage_url && (
-                            <a
-                              href={doc.storage_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary-600 hover:text-primary-800"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* (Old Documents tab removed — replaced by Files tab above) */}
 
               {/* ── Proof of Funds Tab ────────────────── */}
               {activeTab === 'pof' && (
@@ -786,6 +1271,27 @@ export default function DealDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Lightbox Modal ──────────────────────────────────── */}
+      {lightboxImg && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxImg(null)}
+        >
+          <button
+            onClick={() => setLightboxImg(null)}
+            className="absolute top-4 right-4 p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img
+            src={lightboxImg}
+            alt="Full size"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

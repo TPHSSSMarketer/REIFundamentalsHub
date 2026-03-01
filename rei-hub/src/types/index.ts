@@ -35,6 +35,35 @@ export interface BuyerCriteria {
   isActive?: boolean
 }
 
+// Deal File — photos and documents attached to deals
+export interface DealFile {
+  id: string
+  dealId: string
+  fileType: 'photo' | 'document'
+  category: string  // photo: front, back, kitchen, living_room, bedroom_1, bedroom_2, bedroom_3, bathroom_1, bathroom_2, garage, yard, miscellaneous
+                     // document: contract, inspection, title, appraisal, insurance, disclosure, other
+  fileName: string
+  mimeType: string
+  fileSize: number
+  fileContent?: string  // base64 (only on single-file fetch)
+  thumbnail?: string    // base64 thumbnail (photos only)
+  notes?: string
+  createdAt: string
+}
+
+// Deal Buyer Match — matched buyers for manual review & send
+export interface DealBuyerMatch {
+  id: string
+  dealId: string
+  buyerContactId: string
+  buyerName?: string
+  buyerEmail?: string
+  buyingEntity?: string
+  status: 'pending' | 'sent' | 'skipped'
+  sentAt?: string
+  createdAt: string
+}
+
 // Deal types
 export interface Deal {
   id: string
