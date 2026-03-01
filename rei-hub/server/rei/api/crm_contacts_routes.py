@@ -30,6 +30,7 @@ class CreateContactBody(BaseModel):
     lastName: Optional[str] = None
     role: Optional[str] = "seller"
     company: Optional[str] = None
+    buyingEntity: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     tags: Optional[list[str]] = None
@@ -46,6 +47,7 @@ class UpdateContactBody(BaseModel):
     lastName: Optional[str] = None
     role: Optional[str] = None
     company: Optional[str] = None
+    buyingEntity: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     tags: Optional[list[str]] = None
@@ -69,6 +71,7 @@ def _contact_to_dict(c: CrmContact) -> dict:
         "lastName": c.last_name,
         "role": c.role or "seller",
         "company": c.company,
+        "buyingEntity": c.buying_entity,
         "phone": c.phone,
         "email": c.email,
         "tags": json.loads(c.tags_json) if c.tags_json else [],
@@ -151,6 +154,7 @@ async def create_contact(
         last_name=body.lastName,
         role=body.role or "seller",
         company=body.company,
+        buying_entity=body.buyingEntity,
         phone=body.phone,
         email=body.email,
         tags_json=json.dumps(body.tags or []),
@@ -196,6 +200,7 @@ async def update_contact(
         "lastName": "last_name",
         "role": "role",
         "company": "company",
+        "buyingEntity": "buying_entity",
         "phone": "phone",
         "email": "email",
         "source": "source",

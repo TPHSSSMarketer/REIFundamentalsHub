@@ -6,6 +6,7 @@ export interface Contact {
   lastName?: string
   role: 'agent' | 'broker' | 'lender' | 'contractor' | 'wholesaler' | 'property_manager' | 'attorney' | 'cpa' | 'seller' | 'buyer' | 'partner'
   company?: string
+  buyingEntity?: string
   phone?: string
   email?: string
   tags?: string[]
@@ -18,6 +19,20 @@ export interface Contact {
   interactionCount: number
   dateAdded: string
   lastActivity?: string
+}
+
+// Buyer Criteria — stored per buyer contact for deal matching
+export interface BuyerCriteria {
+  id?: string
+  buyerContactId: string
+  propertyTypes?: string[]
+  markets?: string[]
+  conditionsAccepted?: string[]
+  financingTypes?: string[]
+  minBudget?: number
+  maxBudget?: number
+  timelineToPurchase?: string
+  isActive?: boolean
 }
 
 // Deal types

@@ -352,3 +352,72 @@ async def send_lead_notification_email(
         html_content=_build_html(body),
         settings=settings,
     )
+
+
+# ── Buyer Match Notifications ──────────────────────────────────────────
+
+
+async def send_buyer_match_notification(
+    buyer_email: str,
+    buyer_name: str,
+    deal: "CrmDeal",  # noqa: F821  — imported lazily to avoid circular
+    settings: Settings,
+) -> bool:
+    """Notify a buyer that a deal matching their criteria is now under contract."""
+    address = deal.address or "Unknown address"
+    city = deal.city or ""
+    state = deal.state or ""
+    location = f"{city}, {state}".strip(", ") if city or state else ""
+
+    price = deal.purchase_price or deal.asking_price or deal.offer_price
+    price_str = f"${price:,.0f}" if price else "TBD"
+    prop_type = (deal.property_type or "Property").replace("_", " ").title()
+    condition = (getattr(deal, "property_condition", None) or "").replace("_", " ").title()
+
+    details = [
+        f"<strong>Address:</strong> {address}",
+    ]
+    if location:
+        details.append(f"<strong>Location:</strong> {location}")
+    details.append(f"<strong>Price:</strong> {price_str}")
+    details.append(f"<strong>Type:</strong> {prop_type}")
+    if condition:
+        details.append(f"<strong>Condition:</strong> {condition}")
+
+    beds = getattr(deal, "bedrooms", None)
+    baths = getattr(deal, "bathrooms", None)
+    sqft = getattr(deal, "square_footage", None)
+    specs = []
+    if beds:
+        specs.append(f"{beds} bed")
+    if baths:
+        specs.append(f"{baths} bath")
+    if sqft:
+        specs.append(f"{sqft:,} sqft")
+    if specs:
+        details.append(f"<strong>Details:</strong> {' / '.join(specs)}")
+
+    details_html = "<br>".join(details)
+
+    body = (
+        f"<p>Hi {buyer_name or 'there'},</p>"
+        f"<p>Great news! A new deal that matches your buying criteria "
+        f"is now <strong>under contract</strong>:</p>"
+        f'<div style="background:#f0fdf4;border:1px solid #bbf7d0;'
+        f'border-radius:8px;padding:16px;margin:16px 0;">'
+        f"{details_html}"
+        f"</div>"
+        f"<p>If you're interested in this property, please reach out "
+        f"as soon as possible to discuss next steps.</p>"
+        f"<p style='color:#64748b;font-size:13px;margin-top:24px;'>"
+        f"You're receiving this because your buyer criteria matched this deal. "
+        f"Contact us to update your preferences.</p>"
+    )
+
+    return await send_email(
+        to_email=buyer_email,
+        to_name=buyer_name or "",
+        subject=f"Deal Match: {address} ({price_str}) — Under Contract",
+        html_content=_build_html(body),
+        settings=settings,
+    )

@@ -109,6 +109,8 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "payments_current_3rd", "TEXT DEFAULT NULL"),
     ("crm_deals", "months_behind_3rd", "INTEGER DEFAULT NULL"),
     ("crm_deals", "amount_behind_3rd", "REAL DEFAULT NULL"),
+    # ── Contact: buying entity ──
+    ("crm_contacts", "buying_entity", "VARCHAR"),
 ]
 
 

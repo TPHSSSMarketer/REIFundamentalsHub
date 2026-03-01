@@ -575,10 +575,10 @@ export default function NewDealModal({
           <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="grid grid-cols-4 gap-3">
               <TextField
-                label="Address"
+                label={activePipelineId === 'pipeline-investor-buyers' ? 'Business Address' : 'Address'}
                 value={formData.address || ''}
                 onChange={(val) => setField('address', val)}
-                placeholder="123 Main St"
+                placeholder={activePipelineId === 'pipeline-investor-buyers' ? '100 Commerce Blvd' : '123 Main St'}
                 required
                 className="col-span-2"
               />
@@ -865,6 +865,23 @@ export default function NewDealModal({
             onToggle={() => toggleSection('buyer_criteria')}
           >
             <div className="grid grid-cols-2 gap-3">
+              {/* Company Name / Buying Entity — Investor Buyers */}
+              {activePipelineId === 'pipeline-investor-buyers' && (
+                <>
+                  <TextField
+                    label="Company Name"
+                    value={formData.company_name || ''}
+                    onChange={(val) => setField('company_name', val)}
+                    placeholder="e.g., TriPoint Home Solutions"
+                  />
+                  <TextField
+                    label="Buying Entity (LLC)"
+                    value={formData.buying_entity || ''}
+                    onChange={(val) => setField('buying_entity', val)}
+                    placeholder="e.g., TriPoint Acquisitions LLC"
+                  />
+                </>
+              )}
               <NumberField
                 label="Max Budget"
                 value={formData.asking_price || ''}

@@ -31,6 +31,7 @@ class CrmContact(Base):
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False, default="seller")
     company: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    buying_entity: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -49,6 +50,37 @@ class CrmContact(Base):
     last_activity: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=datetime.utcnow)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Buyer Criteria ─────────────────────────────────────────
+
+
+class BuyerCriteria(Base):
+    """Stores buyer/investor deal preferences for matching against deals."""
+    __tablename__ = "buyer_criteria"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    buyer_contact_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+    # JSON arrays of accepted values
+    property_types_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    markets_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    conditions_accepted_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    financing_types_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+
+    # Budget range
+    min_budget: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_budget: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Timeline & status
+    timeline_to_purchase: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

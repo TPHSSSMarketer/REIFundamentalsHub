@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -12,8 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
+from rei.config import get_settings
 from rei.models.crm import CrmDeal
 from rei.models.user import User
+from rei.services.buyer_matching import match_buyers_for_deal
+from rei.services.email import send_buyer_match_notification
 
 logger = logging.getLogger(__name__)
 
@@ -613,7 +617,20 @@ async def update_deal_stage(
     db: AsyncSession = Depends(get_db),
 ):
     """Update only the stage (optimized for drag-and-drop pipeline)."""
-    valid_stages = {"lead", "analysis", "offer", "under_contract", "due_diligence", "closing", "closed_won", "closed_lost"}
+    # Accept stages from all 4 pipeline types
+    valid_stages = {
+        # Deals pipeline
+        "lead", "contacted", "analysis", "offer", "under_contract",
+        "due_diligence", "closing", "closed_won", "closed_lost",
+        # Investor Buyers pipeline
+        "new_lead", "qualified", "sent_deals", "negotiating", "funded", "inactive",
+        # Retail Buyers pipeline
+        "pre_approved", "showing", "offer_received",
+        # Tax Deals pipeline
+        "research", "auction", "won", "redemption_period", "clear_title", "disposed", "lost",
+        # Shared
+        "closed",
+    }
     if body.stage not in valid_stages:
         raise HTTPException(status_code=400, detail=f"Invalid stage: {body.stage}")
 
@@ -628,10 +645,51 @@ async def update_deal_stage(
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
 
+    old_stage = deal.stage
     deal.stage = body.stage
     deal.updated_at = datetime.utcnow()
     await db.commit()
+
+    # Trigger buyer matching when a deal moves to "under_contract"
+    if body.stage == "under_contract" and old_stage != "under_contract":
+        asyncio.create_task(
+            _notify_matched_buyers(deal.id, user.id)
+        )
+
     return {"detail": "Stage updated", "stage": deal.stage}
+
+
+async def _notify_matched_buyers(deal_id: str, user_id: int) -> None:
+    """Background task: find matching buyers and send them email notifications."""
+    from rei.database import async_session_factory
+    try:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(CrmDeal).where(CrmDeal.id == deal_id)
+            )
+            deal = result.scalar_one_or_none()
+            if not deal:
+                return
+
+            matched = await match_buyers_for_deal(deal, user_id, db)
+            if not matched:
+                logger.info("No buyers matched for deal %s", deal_id)
+                return
+
+            settings = get_settings()
+            for buyer in matched:
+                try:
+                    await send_buyer_match_notification(
+                        buyer_email=buyer.email,
+                        buyer_name=buyer.name,
+                        deal=deal,
+                        settings=settings,
+                    )
+                    logger.info("Sent match notification to %s for deal %s", buyer.email, deal_id)
+                except Exception as e:
+                    logger.error("Failed to send match email to %s: %s", buyer.email, e)
+    except Exception as e:
+        logger.error("Error in buyer matching background task: %s", e)
 
 
 @crm_deals_router.delete("/{deal_id}")

@@ -374,7 +374,8 @@ export default function ContactDetailPage() {
               title="Deal Info"
               fields={[
                 { label: 'Deal Type', value: '', options: DEAL_TYPES },
-                { label: 'Buying Entity', value: '' },
+                { label: 'Company', value: contact?.company || '' },
+                { label: 'Buying Entity', value: contact?.buyingEntity || '' },
                 { label: 'Lead Source', value: contact?.source || '', options: LEAD_SOURCES },
               ]}
             />
@@ -398,6 +399,11 @@ export default function ContactDetailPage() {
               Last updated: {contact?.lastActivity ? new Date(contact.lastActivity).toLocaleString() : 'N/A'}
             </p>
           </div>
+
+          {/* Buyer Criteria — only for buyer/wholesaler/partner roles */}
+          {contact && ['buyer', 'wholesaler', 'partner'].includes(contact.role) && (
+            <BuyerCriteriaSection contactId={contactId || ''} />
+          )}
 
           {/* Deals */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -525,6 +531,266 @@ export default function ContactDetailPage() {
 }
 
 // ── Sub-Components ────────────────────────────────────────────────────
+
+// ── Buyer Criteria Section ──────────────────────────────
+const PROPERTY_TYPE_OPTIONS = ['sfr', 'multi_family', 'condo_townhouse', 'mobile_home', 'land', 'any']
+const CONDITION_OPTIONS = ['excellent', 'good', 'fair', 'needs_full_rehab', 'any']
+const FINANCING_OPTIONS = ['cash', 'conventional', 'fha', 'va', 'hard_money', 'private_money']
+
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  sfr: 'SFR (Single Family)', multi_family: 'Multi-Family', condo_townhouse: 'Condo/Townhouse',
+  mobile_home: 'Mobile Home', land: 'Land', any: 'Any',
+}
+const CONDITION_LABELS: Record<string, string> = {
+  excellent: 'Move-In Ready', good: 'Light Rehab', fair: 'Medium Rehab',
+  needs_full_rehab: 'Full Rehab OK', any: 'Any Condition',
+}
+const FINANCING_LABELS: Record<string, string> = {
+  cash: 'Cash', conventional: 'Conventional', fha: 'FHA', va: 'VA',
+  hard_money: 'Hard Money', private_money: 'Private Money',
+}
+
+function BuyerCriteriaSection({ contactId }: { contactId: string }) {
+  const [criteria, setCriteria] = useState<{
+    propertyTypes: string[]
+    markets: string[]
+    conditionsAccepted: string[]
+    financingTypes: string[]
+    minBudget: string
+    maxBudget: string
+    timelineToPurchase: string
+    isActive: boolean
+  }>({
+    propertyTypes: [], markets: [], conditionsAccepted: [], financingTypes: [],
+    minBudget: '', maxBudget: '', timelineToPurchase: '', isActive: true,
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [hasExisting, setHasExisting] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const fetchCriteria = useCallback(async () => {
+    try {
+      const authHeader = await getAuthHeader()
+      const resp = await fetch(`${BASE_URL}/api/crm/buyer-criteria/${contactId}`, {
+        headers: { ...authHeader },
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setCriteria({
+          propertyTypes: data.propertyTypes || [],
+          markets: data.markets || [],
+          conditionsAccepted: data.conditionsAccepted || [],
+          financingTypes: data.financingTypes || [],
+          minBudget: data.minBudget ? String(data.minBudget) : '',
+          maxBudget: data.maxBudget ? String(data.maxBudget) : '',
+          timelineToPurchase: data.timelineToPurchase || '',
+          isActive: data.isActive !== false,
+        })
+        setHasExisting(true)
+      }
+    } catch { /* no criteria yet */ }
+    setLoading(false)
+  }, [contactId])
+
+  useEffect(() => { fetchCriteria() }, [fetchCriteria])
+
+  const toggleArray = (arr: string[], val: string) =>
+    arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]
+
+  const saveCriteria = async () => {
+    setSaving(true)
+    try {
+      const authHeader = await getAuthHeader()
+      const body = {
+        buyerContactId: contactId,
+        propertyTypes: criteria.propertyTypes,
+        markets: criteria.markets,
+        conditionsAccepted: criteria.conditionsAccepted,
+        financingTypes: criteria.financingTypes,
+        minBudget: criteria.minBudget ? parseFloat(criteria.minBudget) : null,
+        maxBudget: criteria.maxBudget ? parseFloat(criteria.maxBudget) : null,
+        timelineToPurchase: criteria.timelineToPurchase || null,
+        isActive: criteria.isActive,
+      }
+      const method = hasExisting ? 'PATCH' : 'POST'
+      const url = hasExisting
+        ? `${BASE_URL}/api/crm/buyer-criteria/${contactId}`
+        : `${BASE_URL}/api/crm/buyer-criteria`
+      const resp = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify(body),
+      })
+      if (resp.ok) {
+        setHasExisting(true)
+      }
+    } catch (e) {
+      console.error('Failed to save buyer criteria:', e)
+    }
+    setSaving(false)
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-800">Buyer Criteria</h3>
+          {criteria.isActive && hasExisting && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Active</span>
+          )}
+        </div>
+        {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-4">
+          {/* Property Types */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Property Types</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PROPERTY_TYPE_OPTIONS.map(pt => (
+                <button
+                  key={pt}
+                  type="button"
+                  onClick={() => setCriteria(p => ({ ...p, propertyTypes: toggleArray(p.propertyTypes, pt) }))}
+                  className={cn(
+                    'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                    criteria.propertyTypes.includes(pt)
+                      ? 'bg-primary-100 border-primary-300 text-primary-700'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  {PROPERTY_TYPE_LABELS[pt] || pt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Conditions Accepted */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Condition Accepted</label>
+            <div className="flex flex-wrap gap-1.5">
+              {CONDITION_OPTIONS.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCriteria(p => ({ ...p, conditionsAccepted: toggleArray(p.conditionsAccepted, c) }))}
+                  className={cn(
+                    'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                    criteria.conditionsAccepted.includes(c)
+                      ? 'bg-primary-100 border-primary-300 text-primary-700'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  {CONDITION_LABELS[c] || c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Financing Types */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Financing Types</label>
+            <div className="flex flex-wrap gap-1.5">
+              {FINANCING_OPTIONS.map(f => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setCriteria(p => ({ ...p, financingTypes: toggleArray(p.financingTypes, f) }))}
+                  className={cn(
+                    'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                    criteria.financingTypes.includes(f)
+                      ? 'bg-primary-100 border-primary-300 text-primary-700'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  {FINANCING_LABELS[f] || f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Budget Range */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Min Budget</label>
+              <input
+                type="number"
+                value={criteria.minBudget}
+                onChange={e => setCriteria(p => ({ ...p, minBudget: e.target.value }))}
+                placeholder="$0"
+                className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Max Budget</label>
+              <input
+                type="number"
+                value={criteria.maxBudget}
+                onChange={e => setCriteria(p => ({ ...p, maxBudget: e.target.value }))}
+                placeholder="$500,000"
+                className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+
+          {/* Markets / Target Areas */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Target Markets / Areas</label>
+            <input
+              type="text"
+              value={criteria.markets.join(', ')}
+              onChange={e => setCriteria(p => ({ ...p, markets: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+              placeholder="San Antonio, Austin, DFW"
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="text-[10px] text-slate-400 mt-0.5">Separate multiple markets with commas</p>
+          </div>
+
+          {/* Timeline */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Timeline to Purchase</label>
+            <input
+              type="text"
+              value={criteria.timelineToPurchase}
+              onChange={e => setCriteria(p => ({ ...p, timelineToPurchase: e.target.value }))}
+              placeholder="ASAP, 30 days, 60 days..."
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Active toggle + Save */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={criteria.isActive}
+                onChange={e => setCriteria(p => ({ ...p, isActive: e.target.checked }))}
+                className="w-4 h-4 rounded border-slate-300"
+              />
+              <span className="text-xs text-slate-600">Actively looking for deals</span>
+            </label>
+            <button
+              onClick={saveCriteria}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {saving ? 'Saving...' : 'Save Criteria'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 function InfoSection({
   title,
