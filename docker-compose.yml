@@ -1,3 +1,5 @@
+# ⚠️  DEVELOPMENT ONLY — DO NOT use in production.
+# For production deployments, use infra/docker-compose.prod.yml instead.
 version: '3.9'
 
 services:

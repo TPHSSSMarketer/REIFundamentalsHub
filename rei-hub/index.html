@@ -28,6 +28,9 @@
     <!-- Canonical URL -->
     <link rel="canonical" href="https://hub.reifundamentalshub.com/" />
 
+    <!-- SECURITY FIX #12: Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://js.stripe.com https://m.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com https://*.reifundamentalshub.com https://*.supabase.co; frame-src https://js.stripe.com; object-src 'none'; base-uri 'self'" />
+
     <!-- Theme color for mobile browsers -->
     <meta name="theme-color" content="#1e3a5f" />
   </head>

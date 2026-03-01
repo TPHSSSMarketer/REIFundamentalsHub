@@ -49,17 +49,8 @@ async def get_current_user(
                 "is_admin": True,
             }
 
-    # Also check query param
-    query_key = request.query_params.get("api_key")
-    if query_key:
-        valid_keys = _valid_api_keys()
-        if valid_keys and query_key in valid_keys:
-            return {
-                "user_id": "api_key_user",
-                "tenant_id": settings.admin_tenant_id or None,
-                "auth_method": "api_key",
-                "is_admin": True,
-            }
+    # SECURITY FIX #2: Query-param API keys removed — keys in URLs leak via
+    # browser history, Referer headers, and server logs. Use X-API-Key header only.
 
     # Method 2: JWT Bearer
     if bearer and bearer.credentials:

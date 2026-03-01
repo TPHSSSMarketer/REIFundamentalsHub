@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from helm.api.middleware import rate_limit_strict
 from helm.config import get_settings
 
 settings = get_settings()
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@auth_router.post("/token")
+@auth_router.post("/token", dependencies=[Depends(rate_limit_strict)])
 async def login(request: Request):
     """Issue a JWT token. Accepts API key or password auth.
 
@@ -54,7 +55,7 @@ async def login(request: Request):
     )
 
 
-@auth_router.post("/token/tenant")
+@auth_router.post("/token/tenant", dependencies=[Depends(rate_limit_strict)])
 async def tenant_token(request: Request):
     """Issue a tenant-scoped JWT token.
 

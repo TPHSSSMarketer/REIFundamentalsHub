@@ -3,6 +3,19 @@
 
 /**
  * Authentication service — delegates to authApi.ts for network calls.
+ *
+ * ⚠️  SECURITY NOTE (Audit Fix #7):
+ * JWT tokens are stored in localStorage, which is accessible to any JS running
+ * on this origin. This means an XSS vulnerability could steal tokens.
+ *
+ * Mitigations currently in place:
+ *   1. Token expiry is validated client-side before every API call (getAuthHeader)
+ *   2. Short-lived tokens (4h) with proactive background refresh
+ *   3. CSP headers restrict script sources to reduce XSS surface
+ *
+ * TODO (HIGH PRIORITY): Migrate to HttpOnly cookie-based auth. This requires
+ * backend changes to Helm Hub's /auth/token endpoint to set secure cookies
+ * instead of returning tokens in JSON. Track in: GitHub Issue / Backlog.
  */
 import * as authApi from './authApi'
 

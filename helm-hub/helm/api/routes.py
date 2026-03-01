@@ -6,9 +6,14 @@ and mounted at /api/plugins/{plugin_name}/.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+
+_routes_logger = logging.getLogger(__name__)
 
 from helm.api.middleware import (
     get_current_user,
@@ -53,8 +58,8 @@ async def health_check():
 
 
 @router.get("/health/detailed")
-async def health_detailed():
-    """Detailed health check with all integration statuses."""
+async def health_detailed(user: dict = Depends(get_current_user)):
+    """Detailed health check with all integration statuses. Requires authentication."""
     return await health_checker.full_check()
 
 
@@ -216,6 +221,16 @@ async def websocket_chat(ws: WebSocket):
 @router.post("/telegram/webhook")
 async def telegram_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive inbound updates from Telegram."""
+    # SECURITY FIX #10: Verify Telegram webhook signature
+    from helm.config import get_settings
+    _tg_settings = get_settings()
+    expected_secret = _tg_settings.telegram_webhook_secret
+    if expected_secret:
+        header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if header_secret != expected_secret:
+            _routes_logger.warning("Telegram webhook rejected: invalid secret token")
+            raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
     update = await request.json()
     await telegram_bot.handle_update(update)
     return {"ok": True}
@@ -240,7 +255,25 @@ async def whatsapp_verify(
 @router.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request, _: None = Depends(rate_limit_webhook)):
     """Receive inbound messages from WhatsApp."""
-    payload = await request.json()
+    # SECURITY FIX #10: Verify WhatsApp X-Hub-Signature-256 (HMAC-SHA256)
+    from helm.config import get_settings
+    _wa_settings = get_settings()
+    app_secret = _wa_settings.whatsapp_app_secret
+    if app_secret:
+        signature_header = request.headers.get("X-Hub-Signature-256", "")
+        body_bytes = await request.body()
+        expected_sig = "sha256=" + hmac.new(
+            app_secret.encode(), body_bytes, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature_header, expected_sig):
+            _routes_logger.warning("WhatsApp webhook rejected: invalid HMAC signature")
+            raise HTTPException(status_code=403, detail="Invalid webhook signature")
+        # Re-parse the body since we already consumed it
+        import json
+        payload = json.loads(body_bytes)
+    else:
+        payload = await request.json()
+
     await whatsapp_client.handle_webhook(payload)
     return {"status": "ok"}
 
@@ -469,7 +502,11 @@ async def list_file_backends(user: dict = Depends(get_current_user)):
 
 @router.post("/workspace/execute")
 async def workspace_execute(request: Request, user: dict = Depends(get_current_user)):
-    """Execute code in the virtual workspace sandbox."""
+    """Execute code in the virtual workspace sandbox. Admin only."""
+    # SECURITY FIX #8: Restrict code execution to admin users only
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     data = await request.json()
     language = data.get("language", "python")
     code = data.get("code", "")

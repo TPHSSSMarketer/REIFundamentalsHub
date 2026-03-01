@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings
+
+_config_logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -13,10 +16,10 @@ class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────
     app_name: str = "Helm"
     app_env: str = "development"
-    app_debug: bool = True
-    app_host: str = "0.0.0.0"
+    app_debug: bool = False  # SECURITY: default off; override via APP_DEBUG=true in .env
+    app_host: str = "127.0.0.1"  # SECURITY: localhost only; override to 0.0.0.0 in Docker/.env
     app_port: int = 8000
-    secret_key: str = "change-me"
+    secret_key: str = ""  # SECURITY: MUST be set via environment variable
 
     # ── AI ───────────────────────────────────────────────────────────────
     anthropic_api_key: str = ""
@@ -47,23 +50,25 @@ class Settings(BaseSettings):
     reifundamentals_api_key: str = ""
     reifundamentals_webhook_secret: str = ""
     rei_hub_url: str = "http://localhost:8001"
-    rei_plugin_secret: str = "change-me-in-production"
+    rei_plugin_secret: str = ""  # SECURITY: MUST be set via environment variable
 
     # ── Auth ─────────────────────────────────────────────────────────────
-    jwt_secret_key: str = "change-me"
+    jwt_secret_key: str = ""  # SECURITY: MUST be set via environment variable
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 1440
+    jwt_expiration_minutes: int = 240  # SECURITY: 4 hours (was 24h); implement refresh tokens for shorter TTL
     api_keys: str = ""  # Comma-separated list of valid API keys
     admin_password: str = ""  # bcrypt-hashed admin password
 
     # ── Telegram ─────────────────────────────────────────────────────────
     telegram_bot_token: str = ""
     telegram_webhook_url: str = ""  # e.g. https://yourdomain.com/api/telegram/webhook
+    telegram_webhook_secret: str = ""  # SECURITY: set via setWebhook secret_token param
 
     # ── WhatsApp (Meta Business Cloud API) ───────────────────────────────
     whatsapp_phone_number_id: str = ""
     whatsapp_access_token: str = ""
     whatsapp_verify_token: str = "helm-whatsapp-verify"
+    whatsapp_app_secret: str = ""  # SECURITY: for X-Hub-Signature-256 HMAC verification
     whatsapp_api_version: str = "v21.0"
 
     # ── Voice ────────────────────────────────────────────────────────────
@@ -168,6 +173,36 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+
+    def model_post_init(self, __context) -> None:
+        """Validate critical settings on startup — refuse to run with insecure defaults."""
+        _dangerous_defaults = {"change-me", "change-me-in-production", ""}
+
+        if self.app_env != "development":
+            # ── SECURITY FIX #1: Require real secrets in production ──
+            if self.secret_key in _dangerous_defaults:
+                raise ValueError(
+                    "FATAL: SECRET_KEY is not set. Refusing to start in production "
+                    "with an empty or default secret key. Set SECRET_KEY in your .env file."
+                )
+            if self.jwt_secret_key in _dangerous_defaults:
+                raise ValueError(
+                    "FATAL: JWT_SECRET_KEY is not set. Refusing to start in production "
+                    "with an empty or default JWT secret. Set JWT_SECRET_KEY in your .env file."
+                )
+            if self.rei_plugin_secret in _dangerous_defaults:
+                _config_logger.warning(
+                    "WARNING: REI_PLUGIN_SECRET is not set. REI plugin auth will not work."
+                )
+
+            # ── SECURITY FIX #13: Warn if PayPal is in sandbox mode in production ──
+            if self.paypal_mode == "sandbox" and self.paypal_client_id:
+                _config_logger.warning(
+                    "WARNING: PayPal is running in SANDBOX mode in a non-development "
+                    "environment (%s). No real payments will be processed! "
+                    "Set PAYPAL_MODE=live for production.",
+                    self.app_env,
+                )
 
     @property
     def is_production(self) -> bool:
