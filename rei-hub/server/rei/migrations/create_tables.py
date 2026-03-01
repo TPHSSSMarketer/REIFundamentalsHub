@@ -85,6 +85,15 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "exit_strategy", "VARCHAR"),
     ("crm_deals", "unit_details", "TEXT"),
     ("crm_deals", "pipeline_id", "VARCHAR"),
+    ("crm_deals", "buyer_id", "TEXT DEFAULT NULL"),
+    ("crm_deals", "buyer_name", "TEXT DEFAULT NULL"),
+    ("crm_deals", "buyer_type", "TEXT DEFAULT NULL"),
+    ("crm_deals", "subject_to_interest", "TEXT DEFAULT NULL"),
+    ("crm_deals", "existing_loan_servicer", "TEXT DEFAULT NULL"),
+    ("crm_deals", "due_on_sale_aware", "TEXT DEFAULT NULL"),
+    ("crm_deals", "insurance_assignable", "TEXT DEFAULT NULL"),
+    ("crm_deals", "buyer_down_payment", "REAL DEFAULT NULL"),
+    ("crm_deals", "source_of_funds", "TEXT DEFAULT NULL"),
 ]
 
 

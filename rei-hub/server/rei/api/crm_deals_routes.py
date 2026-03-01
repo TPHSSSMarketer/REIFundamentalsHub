@@ -160,6 +160,17 @@ class CreateDealBody(BaseModel):
     exitStrategy: str | None = None
     unitDetails: str | None = None
     pipelineId: str | None = None
+    # Buyer Linking
+    buyerId: Optional[str] = None
+    buyerName: Optional[str] = None
+    buyerType: Optional[str] = None
+    # Retail Buyer / Subject-To Details
+    subjectToInterest: Optional[str] = None
+    existingLoanServicer: Optional[str] = None
+    dueOnSaleAware: Optional[str] = None
+    insuranceAssignable: Optional[str] = None
+    buyerDownPayment: Optional[float] = None
+    sourceOfFunds: Optional[str] = None
 
 
 class UpdateDealBody(CreateDealBody):
@@ -285,6 +296,15 @@ _FIELD_MAP: dict[str, str] = {
     "exitStrategy": "exit_strategy",
     "unitDetails": "unit_details",
     "pipelineId": "pipeline_id",
+    "buyerId": "buyer_id",
+    "buyerName": "buyer_name",
+    "buyerType": "buyer_type",
+    "subjectToInterest": "subject_to_interest",
+    "existingLoanServicer": "existing_loan_servicer",
+    "dueOnSaleAware": "due_on_sale_aware",
+    "insuranceAssignable": "insurance_assignable",
+    "buyerDownPayment": "buyer_down_payment",
+    "sourceOfFunds": "source_of_funds",
 }
 
 # Date fields need special parsing
@@ -424,6 +444,16 @@ def _deal_to_dict(d: CrmDeal) -> dict:
         "exitStrategy": d.exit_strategy,
         "unitDetails": d.unit_details,
         "pipelineId": d.pipeline_id,
+        # Buyer Linking & Retail Subject-To Details
+        "buyerId": d.buyer_id,
+        "buyerName": d.buyer_name,
+        "buyerType": d.buyer_type,
+        "subjectToInterest": d.subject_to_interest,
+        "existingLoanServicer": d.existing_loan_servicer,
+        "dueOnSaleAware": d.due_on_sale_aware,
+        "insuranceAssignable": d.insurance_assignable,
+        "buyerDownPayment": d.buyer_down_payment,
+        "sourceOfFunds": d.source_of_funds,
         "createdAt": d.created_at.isoformat() if d.created_at else None,
         "updatedAt": d.updated_at.isoformat() if d.updated_at else None,
     }

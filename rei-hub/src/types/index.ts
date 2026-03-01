@@ -165,6 +165,19 @@ export interface Deal {
   unitDetails?: string
   pipelineId?: string
 
+  // ── Buyer Linking ──
+  buyerId?: string
+  buyerName?: string
+  buyerType?: string  // investor, retail, wholesaler
+
+  // ── Retail Buyer / Subject-To Details ──
+  subjectToInterest?: string  // yes, no, maybe
+  existingLoanServicer?: string
+  dueOnSaleAware?: string  // yes, no
+  insuranceAssignable?: string  // yes, no, unknown
+  buyerDownPayment?: number
+  sourceOfFunds?: string
+
   createdAt: string
   updatedAt: string
 }

@@ -210,6 +210,19 @@ class CrmDeal(Base):
     # ── Pipeline ──
     pipeline_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="pipeline-deals")
 
+    # ── Buyer Linking ──
+    buyer_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    buyer_name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    buyer_type: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # investor, retail, wholesaler
+
+    # ── Retail Buyer / Subject-To Details ──
+    subject_to_interest: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # yes, no, maybe
+    existing_loan_servicer: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    due_on_sale_aware: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # yes, no
+    insurance_assignable: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # yes, no, unknown
+    buyer_down_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    source_of_funds: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

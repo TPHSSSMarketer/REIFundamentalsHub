@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { X, DollarSign, ChevronDown, ChevronUp, Percent } from 'lucide-react'
+import { X, DollarSign, ChevronDown, ChevronUp, Percent, Send } from 'lucide-react'
 import { useCreateDeal } from '@/hooks/useApi'
 import { mockPipelines } from '@/data/mockData'
+import { requestPof } from '@/services/plaidApi'
 import type { Deal, Contact } from '@/types'
 
 interface NewDealModalProps {
@@ -204,6 +205,13 @@ export default function NewDealModal({
   const [showContactDropdown, setShowContactDropdown] = useState(false)
   const contactInputRef = useRef<HTMLInputElement>(null)
 
+  // Buyer linking state
+  const [selectedBuyer, setSelectedBuyer] = useState<Contact | null>(null)
+  const [showBuyerDropdown, setShowBuyerDropdown] = useState(false)
+  const [buyerSearch, setBuyerSearch] = useState('')
+  const buyerInputRef = useRef<HTMLInputElement>(null)
+  const [pofStatus, setPofStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+
   // Get dynamic stage options based on active pipeline
   const stageOptions = useMemo(() => {
     const pipeline = mockPipelines.find((p) => p.id === pipelineId)
@@ -228,7 +236,7 @@ export default function NewDealModal({
   const PIPELINE_SECTIONS: Record<string, string[]> = {
     'pipeline-deals': ['property_details', 'seller_motivation', 'listing_information', 'homeowner_financials', 'foreclosure_details', 'deal_financials'],
     'pipeline-investor-buyers': ['buyer_criteria', 'deal_financials'],
-    'pipeline-retail-buyers': ['buyer_criteria', 'deal_financials'],
+    'pipeline-retail-buyers': ['buyer_criteria', 'subject_to_details', 'deal_financials'],
     'pipeline-tax-deals': ['property_details', 'foreclosure_details', 'deal_financials'],
   }
   const visibleSections = PIPELINE_SECTIONS[activePipelineId] || PIPELINE_SECTIONS['pipeline-deals']
@@ -259,6 +267,46 @@ export default function NewDealModal({
     setField('contact_id', contact.id)
     setShowContactDropdown(false)
   }
+
+  // Buyer search logic — filtered to buyer/investor/wholesaler roles
+  const buyerRoles = ['buyer', 'wholesaler', 'partner']
+  const filteredBuyers = useMemo(() => {
+    const buyerContacts = contacts.filter((c) => buyerRoles.includes(c.role))
+    if (!buyerSearch.trim()) return buyerContacts.slice(0, 10)
+    const q = buyerSearch.toLowerCase()
+    return buyerContacts.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.phone?.includes(q)
+    ).slice(0, 10)
+  }, [buyerSearch, contacts])
+
+  const handleSelectBuyer = (contact: Contact) => {
+    setSelectedBuyer(contact)
+    setBuyerSearch(contact.name)
+    setShowBuyerDropdown(false)
+  }
+
+  const handleRequestPof = async () => {
+    if (!selectedBuyer?.email || !formData.address) return
+    setPofStatus('sending')
+    try {
+      await requestPof({
+        buyer_email: selectedBuyer.email,
+        buyer_name: selectedBuyer.name,
+        property_address: `${formData.address}, ${formData.city || ''} ${formData.state || ''} ${formData.zip || ''}`.trim(),
+        required_amount: parseFloat(formData.purchase_price || formData.asking_price || '0') || 0,
+      })
+      setPofStatus('sent')
+    } catch {
+      setPofStatus('idle')
+      alert('Failed to send POF request. Please try again.')
+    }
+  }
+
+  // Show buyer field on Deals and Tax Deals pipelines
+  const showBuyerField = activePipelineId === 'pipeline-deals' || activePipelineId === 'pipeline-tax-deals'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -386,12 +434,28 @@ export default function NewDealModal({
       insuranceAnnual: formData.insurance_annual
         ? parseFloat(formData.insurance_annual)
         : undefined,
+
+      // Buyer Linking
+      buyerId: selectedBuyer?.id || undefined,
+      buyerName: selectedBuyer?.name || undefined,
+      buyerType: formData.buyer_type || undefined,
+
+      // Retail Buyer / Subject-To Details
+      subjectToInterest: formData.subject_to_interest || undefined,
+      existingLoanServicer: formData.existing_loan_servicer || undefined,
+      dueOnSaleAware: formData.due_on_sale_aware || undefined,
+      insuranceAssignable: formData.insurance_assignable || undefined,
+      buyerDownPayment: formData.buyer_down_payment ? parseFloat(formData.buyer_down_payment) : undefined,
+      sourceOfFunds: formData.source_of_funds || undefined,
     }
 
     try {
       await createDeal.mutateAsync(dealData)
       setFormData({})
       setSelectedContact(null)
+      setSelectedBuyer(null)
+      setBuyerSearch('')
+      setPofStatus('idle')
       onClose()
     } catch (error) {
       console.error('Failed to create deal:', error)
@@ -532,6 +596,74 @@ export default function NewDealModal({
               onChange={(val) => setField('notes', val)}
               placeholder="Add any additional notes..."
             />
+
+            {/* Assigned Buyer — Deals & Tax Deals only */}
+            {showBuyerField && (
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Assigned Buyer
+                  <span className="text-xs text-slate-400 ml-2">(investor, wholesaler, or buyer contacts)</span>
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      ref={buyerInputRef}
+                      type="text"
+                      placeholder="Search buyers by name, email, or phone"
+                      onFocus={() => setShowBuyerDropdown(true)}
+                      onChange={(e) => {
+                        setBuyerSearch(e.target.value)
+                        setSelectedBuyer(null)
+                        setShowBuyerDropdown(true)
+                      }}
+                      value={selectedBuyer ? selectedBuyer.name : buyerSearch}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    {showBuyerDropdown && filteredBuyers.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {filteredBuyers.map((buyer) => (
+                          <button
+                            key={buyer.id}
+                            type="button"
+                            onClick={() => handleSelectBuyer(buyer)}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-100 transition border-b border-slate-100 last:border-0"
+                          >
+                            <div className="font-medium text-slate-900">{buyer.name}</div>
+                            <div className="text-sm text-slate-500">
+                              {buyer.role} {buyer.email && `• ${buyer.email}`} {buyer.phone && `• ${buyer.phone}`}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showBuyerDropdown && filteredBuyers.length === 0 && buyerSearch.trim() && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-10 p-3 text-sm text-slate-500">
+                        No buyers found. Add a contact with role "buyer" or "wholesaler" first.
+                      </div>
+                    )}
+                  </div>
+                  {/* Request POF button — only when buyer is selected and has email */}
+                  {selectedBuyer?.email && formData.address && (
+                    <button
+                      type="button"
+                      onClick={handleRequestPof}
+                      disabled={pofStatus === 'sending'}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+                        pofStatus === 'sent'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                      } disabled:opacity-50`}
+                    >
+                      <Send size={14} />
+                      {pofStatus === 'sending' ? 'Sending...' : pofStatus === 'sent' ? 'POF Sent!' : 'Request POF'}
+                    </button>
+                  )}
+                </div>
+                {selectedBuyer && !selectedBuyer.email && (
+                  <p className="text-xs text-amber-600 mt-1">This buyer has no email — add one to their contact to send a POF request.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Section: Buyer Criteria (Investor & Retail Buyers only) */}
@@ -618,6 +750,29 @@ export default function NewDealModal({
                     prefix="$"
                     placeholder="0"
                   />
+                  <NumberField
+                    label="Down Payment Available"
+                    value={formData.buyer_down_payment || ''}
+                    onChange={(val) => setField('buyer_down_payment', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <SelectField
+                    label="Source of Funds"
+                    value={formData.source_of_funds || ''}
+                    onChange={(val) => setField('source_of_funds', val)}
+                    options={[
+                      { label: 'Cash / Savings', value: 'cash' },
+                      { label: '401k / Retirement', value: '401k' },
+                      { label: 'Gift Funds', value: 'gift' },
+                      { label: 'Hard Money Lender', value: 'hard_money' },
+                      { label: 'Private Lender', value: 'private_lender' },
+                      { label: 'Conventional Loan', value: 'conventional' },
+                      { label: 'FHA Loan', value: 'fha' },
+                      { label: 'VA Loan', value: 'va' },
+                      { label: 'Other', value: 'other' },
+                    ]}
+                  />
                 </>
               )}
               <TextareaField
@@ -625,6 +780,60 @@ export default function NewDealModal({
                 value={formData.reason_for_selling || ''}
                 onChange={(val) => setField('reason_for_selling', val)}
                 placeholder="What is the buyer looking for? Any specific requirements?"
+                className="col-span-2"
+              />
+            </div>
+          </CollapsibleSection>
+          )}
+
+          {/* Section: Subject-To Details (Retail Buyers only) */}
+          {showSection('subject_to_details') && (
+          <CollapsibleSection
+            title="Subject-To Details"
+            isOpen={openSections['subject_to_details'] || false}
+            onToggle={() => toggleSection('subject_to_details')}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <SelectField
+                label="Interested in Subject-To"
+                value={formData.subject_to_interest || ''}
+                onChange={(val) => setField('subject_to_interest', val)}
+                options={[
+                  { label: 'Yes', value: 'yes' },
+                  { label: 'No', value: 'no' },
+                  { label: 'Maybe / Needs Education', value: 'maybe' },
+                ]}
+              />
+              <SelectField
+                label="Aware of Due-on-Sale Clause"
+                value={formData.due_on_sale_aware || ''}
+                onChange={(val) => setField('due_on_sale_aware', val)}
+                options={[
+                  { label: 'Yes', value: 'yes' },
+                  { label: 'No', value: 'no' },
+                ]}
+              />
+              <TextField
+                label="Existing Loan Servicer"
+                value={formData.existing_loan_servicer || ''}
+                onChange={(val) => setField('existing_loan_servicer', val)}
+                placeholder="e.g. Wells Fargo, Chase, etc."
+              />
+              <SelectField
+                label="Insurance Assignable"
+                value={formData.insurance_assignable || ''}
+                onChange={(val) => setField('insurance_assignable', val)}
+                options={[
+                  { label: 'Yes', value: 'yes' },
+                  { label: 'No', value: 'no' },
+                  { label: 'Unknown', value: 'unknown' },
+                ]}
+              />
+              <TextareaField
+                label="Subject-To Notes"
+                value={formData.special_features || ''}
+                onChange={(val) => setField('special_features', val)}
+                placeholder="Any additional details about the subject-to arrangement..."
                 className="col-span-2"
               />
             </div>
