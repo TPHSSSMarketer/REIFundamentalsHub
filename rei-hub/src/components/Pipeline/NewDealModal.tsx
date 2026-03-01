@@ -301,6 +301,19 @@ export default function NewDealModal({
     setSellerEmail('')
   }
 
+  // Exit strategy → buyer type mapping (must be defined BEFORE filteredBuyers useMemo)
+  // Investor strategies: Wholesale, Fix & Flip, Buy & Hold
+  // Retail strategies: Subject-To, Lease Option, Owner Finance, Wholetail
+  const INVESTOR_EXIT_STRATEGIES = ['wholesale', 'fix_and_flip', 'buy_and_hold']
+  const RETAIL_EXIT_STRATEGIES = ['subject_to', 'lease_option', 'owner_finance', 'wholetail']
+
+  const exitStrategy = formData.exit_strategy || ''
+  const exitBuyerType = INVESTOR_EXIT_STRATEGIES.includes(exitStrategy)
+    ? 'investor'
+    : RETAIL_EXIT_STRATEGIES.includes(exitStrategy)
+      ? 'retail'
+      : null
+
   // Buyer search logic — filtered by exit strategy buyer type
   // Investor exits (wholesale, fix & flip, buy & hold) → show wholesaler/partner roles
   // Retail exits (subject-to, lease option, owner finance, wholetail) → show buyer role
@@ -347,19 +360,6 @@ export default function NewDealModal({
       alert('Failed to send POF request. Please try again.')
     }
   }
-
-  // Exit strategy → buyer type mapping
-  // Investor strategies: Wholesale, Fix & Flip, Buy & Hold
-  // Retail strategies: Subject-To, Lease Option, Owner Finance, Wholetail
-  const INVESTOR_EXIT_STRATEGIES = ['wholesale', 'fix_and_flip', 'buy_and_hold']
-  const RETAIL_EXIT_STRATEGIES = ['subject_to', 'lease_option', 'owner_finance', 'wholetail']
-
-  const exitStrategy = formData.exit_strategy || ''
-  const exitBuyerType = INVESTOR_EXIT_STRATEGIES.includes(exitStrategy)
-    ? 'investor'
-    : RETAIL_EXIT_STRATEGIES.includes(exitStrategy)
-      ? 'retail'
-      : null
 
   // Show buyer field on Deals and Tax Deals pipelines
   const showBuyerField = activePipelineId === 'pipeline-deals' || activePipelineId === 'pipeline-tax-deals'
