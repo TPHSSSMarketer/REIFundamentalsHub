@@ -216,11 +216,23 @@ export default function NewDealModal({
     if (!formData.stage && stageOptions.length > 0) {
       setFormData((prev) => ({
         ...prev,
-        stage: stageOptions[0],
+        stage: stageOptions[0].id,
         pipeline_id: pipelineId || mockPipelines[0].id,
       }))
     }
   }, [pipelineId, stageOptions])
+
+  const activePipelineId = pipelineId || mockPipelines[0]?.id || 'pipeline-deals'
+
+  // Which sections to show per pipeline
+  const PIPELINE_SECTIONS: Record<string, string[]> = {
+    'pipeline-deals': ['property_details', 'seller_motivation', 'listing_information', 'homeowner_financials', 'foreclosure_details', 'deal_financials'],
+    'pipeline-investor-buyers': ['buyer_criteria', 'deal_financials'],
+    'pipeline-retail-buyers': ['buyer_criteria', 'deal_financials'],
+    'pipeline-tax-deals': ['property_details', 'foreclosure_details', 'deal_financials'],
+  }
+  const visibleSections = PIPELINE_SECTIONS[activePipelineId] || PIPELINE_SECTIONS['pipeline-deals']
+  const showSection = (key: string) => visibleSections.includes(key)
 
   const setField = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }))
@@ -257,121 +269,123 @@ export default function NewDealModal({
       return
     }
 
-    // Build deal object with all fields
+    // Build deal object with camelCase keys (matches Deal interface)
     const dealData: Partial<Deal> = {
+      title: formData.address,
       address: formData.address,
       city: formData.city,
       state: formData.state,
       zip: formData.zip,
-      stage: (formData.stage || stageOptions[0]) as Deal['stage'],
-      pipeline_id: pipelineId || mockPipelines[0].id,
-      contact_id: formData.contact_id || null,
-      source: formData.source || null,
-      notes: formData.notes || null,
-      is_urgent: formData.is_urgent === 'true',
+      stage: (formData.stage || stageOptions[0]?.id || 'lead') as Deal['stage'],
+      pipelineId: pipelineId || mockPipelines[0].id,
+      contactId: selectedContact?.id || undefined,
+      contactName: selectedContact?.name || undefined,
+      source: formData.source || undefined,
+      notes: formData.notes || undefined,
+      isUrgent: formData.is_urgent === 'true',
 
       // Property Details
-      property_type: formData.property_type || null,
-      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms, 10) : null,
-      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
-      square_footage: formData.square_footage ? parseInt(formData.square_footage, 10) : null,
-      lot_size: formData.lot_size || null,
-      year_built: formData.year_built ? parseInt(formData.year_built, 10) : null,
-      garage: formData.garage || null,
-      property_condition: formData.property_condition || null,
-      occupancy_status: formData.occupancy_status || null,
-      repairs_needed: formData.repairs_needed || null,
-      special_features: formData.special_features || null,
+      propertyType: formData.property_type || undefined,
+      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms, 10) : undefined,
+      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : undefined,
+      squareFootage: formData.square_footage ? parseInt(formData.square_footage, 10) : undefined,
+      lotSize: formData.lot_size || undefined,
+      yearBuilt: formData.year_built ? parseInt(formData.year_built, 10) : undefined,
+      garage: formData.garage || undefined,
+      propertyCondition: formData.property_condition || undefined,
+      occupancyStatus: formData.occupancy_status || undefined,
+      repairsNeeded: formData.repairs_needed || undefined,
+      specialFeatures: formData.special_features || undefined,
 
       // Seller Motivation
-      reason_for_selling: formData.reason_for_selling || null,
-      motivation_level: formData.motivation_level || null,
-      timeline_to_sell: formData.timeline_to_sell || null,
-      asking_price: formData.asking_price ? parseFloat(formData.asking_price) : null,
-      price_flexible: formData.price_flexible || null,
-      how_established_price: formData.how_established_price || null,
-      best_cash_offer: formData.best_cash_offer ? parseFloat(formData.best_cash_offer) : null,
-      open_to_terms: formData.open_to_terms || null,
-      what_if_doesnt_sell: formData.what_if_doesnt_sell || null,
+      reasonForSelling: formData.reason_for_selling || undefined,
+      motivationLevel: formData.motivation_level || undefined,
+      timelineToSell: formData.timeline_to_sell || undefined,
+      askingPrice: formData.asking_price ? parseFloat(formData.asking_price) : undefined,
+      priceFlexible: formData.price_flexible || undefined,
+      howEstablishedPrice: formData.how_established_price || undefined,
+      bestCashOffer: formData.best_cash_offer ? parseFloat(formData.best_cash_offer) : undefined,
+      openToTerms: formData.open_to_terms || undefined,
+      whatIfDoesntSell: formData.what_if_doesnt_sell || undefined,
 
       // Listing Information
-      is_listed: formData.is_listed || null,
-      realtor_name: formData.realtor_name || null,
-      realtor_phone: formData.realtor_phone || null,
-      how_long_listed: formData.how_long_listed || null,
-      listing_expires: formData.listing_expires || null,
-      any_offers: formData.any_offers || null,
-      previous_offer_amount: formData.previous_offer_amount
+      isListed: formData.is_listed || undefined,
+      realtorName: formData.realtor_name || undefined,
+      realtorPhone: formData.realtor_phone || undefined,
+      howLongListed: formData.how_long_listed || undefined,
+      listingExpires: formData.listing_expires || undefined,
+      anyOffers: formData.any_offers || undefined,
+      previousOfferAmount: formData.previous_offer_amount
         ? parseFloat(formData.previous_offer_amount)
-        : null,
+        : undefined,
 
       // Homeowner Financials
-      mortgage_balance: formData.mortgage_balance ? parseFloat(formData.mortgage_balance) : null,
-      mortgage_balance_2nd: formData.mortgage_balance_2nd
+      mortgageBalance: formData.mortgage_balance ? parseFloat(formData.mortgage_balance) : undefined,
+      mortgageBalance2nd: formData.mortgage_balance_2nd
         ? parseFloat(formData.mortgage_balance_2nd)
-        : null,
-      monthly_mortgage_payment: formData.monthly_mortgage_payment
+        : undefined,
+      monthlyMortgagePayment: formData.monthly_mortgage_payment
         ? parseFloat(formData.monthly_mortgage_payment)
-        : null,
-      taxes_insurance_included: formData.taxes_insurance_included || null,
-      monthly_tax_amount: formData.monthly_tax_amount
+        : undefined,
+      taxesInsuranceIncluded: formData.taxes_insurance_included || undefined,
+      monthlyTaxAmount: formData.monthly_tax_amount
         ? parseFloat(formData.monthly_tax_amount)
-        : null,
-      monthly_insurance_amount: formData.monthly_insurance_amount
+        : undefined,
+      monthlyInsuranceAmount: formData.monthly_insurance_amount
         ? parseFloat(formData.monthly_insurance_amount)
-        : null,
-      interest_rate_1st: formData.interest_rate_1st
+        : undefined,
+      interestRate1st: formData.interest_rate_1st
         ? parseFloat(formData.interest_rate_1st)
-        : null,
-      interest_rate_2nd: formData.interest_rate_2nd
+        : undefined,
+      interestRate2nd: formData.interest_rate_2nd
         ? parseFloat(formData.interest_rate_2nd)
-        : null,
-      loan_type: formData.loan_type || null,
-      prepayment_penalty: formData.prepayment_penalty || null,
-      mortgage_company_1st: formData.mortgage_company_1st || null,
-      mortgage_company_2nd: formData.mortgage_company_2nd || null,
-      payments_current: formData.payments_current || null,
-      months_behind: formData.months_behind ? parseInt(formData.months_behind, 10) : null,
-      amount_behind: formData.amount_behind ? parseFloat(formData.amount_behind) : null,
-      back_taxes: formData.back_taxes ? parseFloat(formData.back_taxes) : null,
-      other_liens: formData.other_liens || null,
-      other_lien_amount: formData.other_lien_amount
+        : undefined,
+      loanType: formData.loan_type || undefined,
+      prepaymentPenalty: formData.prepayment_penalty || undefined,
+      mortgageCompany1st: formData.mortgage_company_1st || undefined,
+      mortgageCompany2nd: formData.mortgage_company_2nd || undefined,
+      paymentsCurrent: formData.payments_current || undefined,
+      monthsBehind: formData.months_behind ? parseInt(formData.months_behind, 10) : undefined,
+      amountBehind: formData.amount_behind ? parseFloat(formData.amount_behind) : undefined,
+      backTaxes: formData.back_taxes ? parseFloat(formData.back_taxes) : undefined,
+      otherLiens: formData.other_liens || undefined,
+      otherLienAmount: formData.other_lien_amount
         ? parseFloat(formData.other_lien_amount)
-        : null,
+        : undefined,
 
       // Foreclosure Details
-      foreclosure_status: formData.foreclosure_status || null,
-      auction_date: formData.auction_date || null,
-      reinstatement_amount: formData.reinstatement_amount
+      foreclosureStatus: formData.foreclosure_status || undefined,
+      auctionDate: formData.auction_date || undefined,
+      reinstatementAmount: formData.reinstatement_amount
         ? parseFloat(formData.reinstatement_amount)
-        : null,
-      attorney_involved: formData.attorney_involved || null,
-      attorney_name: formData.attorney_name || null,
-      attorney_phone: formData.attorney_phone || null,
+        : undefined,
+      attorneyInvolved: formData.attorney_involved || undefined,
+      attorneyName: formData.attorney_name || undefined,
+      attorneyPhone: formData.attorney_phone || undefined,
 
       // Deal Financials
-      as_is_value: formData.as_is_value ? parseFloat(formData.as_is_value) : null,
-      exit_strategy: formData.exit_strategy || null,
-      list_price: formData.list_price ? parseFloat(formData.list_price) : null,
-      purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
-      arv: formData.arv ? parseFloat(formData.arv) : null,
-      rehab_estimate: formData.rehab_estimate ? parseFloat(formData.rehab_estimate) : null,
-      monthly_rent: formData.monthly_rent ? parseFloat(formData.monthly_rent) : null,
-      offer_price: formData.offer_price ? parseFloat(formData.offer_price) : null,
-      down_payment: formData.down_payment ? parseFloat(formData.down_payment) : null,
-      earnest_money: formData.earnest_money ? parseFloat(formData.earnest_money) : null,
-      closing_costs_buyer: formData.closing_costs_buyer
+      asIsValue: formData.as_is_value ? parseFloat(formData.as_is_value) : undefined,
+      exitStrategy: formData.exit_strategy || undefined,
+      listPrice: formData.list_price ? parseFloat(formData.list_price) : undefined,
+      purchasePrice: formData.purchase_price ? parseFloat(formData.purchase_price) : undefined,
+      arv: formData.arv ? parseFloat(formData.arv) : undefined,
+      rehabEstimate: formData.rehab_estimate ? parseFloat(formData.rehab_estimate) : undefined,
+      monthlyRent: formData.monthly_rent ? parseFloat(formData.monthly_rent) : undefined,
+      offerPrice: formData.offer_price ? parseFloat(formData.offer_price) : undefined,
+      downPayment: formData.down_payment ? parseFloat(formData.down_payment) : undefined,
+      earnestMoney: formData.earnest_money ? parseFloat(formData.earnest_money) : undefined,
+      closingCostsBuyer: formData.closing_costs_buyer
         ? parseFloat(formData.closing_costs_buyer)
-        : null,
-      loan_amount: formData.loan_amount ? parseFloat(formData.loan_amount) : null,
-      interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) : null,
-      loan_term_months: formData.loan_term_months || null,
-      property_tax_annual: formData.property_tax_annual
+        : undefined,
+      loanAmount: formData.loan_amount ? parseFloat(formData.loan_amount) : undefined,
+      interestRate: formData.interest_rate ? parseFloat(formData.interest_rate) : undefined,
+      loanTermMonths: formData.loan_term_months ? parseInt(formData.loan_term_months, 10) : undefined,
+      propertyTaxAnnual: formData.property_tax_annual
         ? parseFloat(formData.property_tax_annual)
-        : null,
-      insurance_annual: formData.insurance_annual
+        : undefined,
+      insuranceAnnual: formData.insurance_annual
         ? parseFloat(formData.insurance_annual)
-        : null,
+        : undefined,
     }
 
     try {
@@ -392,7 +406,12 @@ export default function NewDealModal({
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-900">Create New Deal</h2>
+          <h2 className="text-2xl font-bold text-slate-900">
+            {activePipelineId === 'pipeline-investor-buyers' ? 'Add Investor Buyer' :
+             activePipelineId === 'pipeline-retail-buyers' ? 'Add Retail Buyer' :
+             activePipelineId === 'pipeline-tax-deals' ? 'Add Tax Deal' :
+             'Create New Deal'}
+          </h2>
           <button
             onClick={onClose}
             className="text-slate-500 hover:text-slate-700 transition"
@@ -440,9 +459,9 @@ export default function NewDealModal({
               />
               <SelectField
                 label="Stage"
-                value={formData.stage || (stageOptions[0] || '')}
+                value={formData.stage || (stageOptions.length > 0 ? stageOptions[0].id : '')}
                 onChange={(val) => setField('stage', val)}
-                options={stageOptions.map((s) => ({ label: s, value: s }))}
+                options={stageOptions.map((s) => ({ label: s.name, value: s.id }))}
                 required
               />
               <SelectField
@@ -515,7 +534,105 @@ export default function NewDealModal({
             />
           </div>
 
+          {/* Section: Buyer Criteria (Investor & Retail Buyers only) */}
+          {showSection('buyer_criteria') && (
+          <CollapsibleSection
+            title="Buyer Criteria"
+            isOpen={openSections['buyer_criteria'] || false}
+            onToggle={() => toggleSection('buyer_criteria')}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <NumberField
+                label="Max Budget"
+                value={formData.asking_price || ''}
+                onChange={(val) => setField('asking_price', val)}
+                prefix="$"
+                placeholder="0"
+              />
+              <SelectField
+                label="Financing Type"
+                value={formData.loan_type || ''}
+                onChange={(val) => setField('loan_type', val)}
+                options={[
+                  { label: 'Cash', value: 'cash' },
+                  { label: 'Conventional', value: 'conventional' },
+                  { label: 'FHA', value: 'fha' },
+                  { label: 'VA', value: 'va' },
+                  { label: 'Hard Money', value: 'hard_money' },
+                  { label: 'Private Money', value: 'private_money' },
+                ]}
+              />
+              <SelectField
+                label="Property Types Wanted"
+                value={formData.property_type || ''}
+                onChange={(val) => setField('property_type', val)}
+                options={[
+                  { label: 'SFR (Single Family)', value: 'sfr' },
+                  { label: 'Multi-Family', value: 'multi_family' },
+                  { label: 'Condo/Townhouse', value: 'condo_townhouse' },
+                  { label: 'Mobile Home', value: 'mobile_home' },
+                  { label: 'Land', value: 'land' },
+                  { label: 'Any', value: 'any' },
+                ]}
+              />
+              <SelectField
+                label="Property Condition Accepted"
+                value={formData.property_condition || ''}
+                onChange={(val) => setField('property_condition', val)}
+                options={[
+                  { label: 'Move-In Ready', value: 'excellent' },
+                  { label: 'Light Rehab', value: 'good' },
+                  { label: 'Medium Rehab', value: 'fair' },
+                  { label: 'Full Rehab OK', value: 'needs_full_rehab' },
+                  { label: 'Any Condition', value: 'any' },
+                ]}
+              />
+              <TextField
+                label="Target Markets / Areas"
+                value={formData.lot_size || ''}
+                onChange={(val) => setField('lot_size', val)}
+                placeholder="e.g. San Antonio, Austin, DFW"
+              />
+              <TextField
+                label="Timeline to Purchase"
+                value={formData.timeline_to_sell || ''}
+                onChange={(val) => setField('timeline_to_sell', val)}
+                placeholder="ASAP, 30 days, etc."
+              />
+              {activePipelineId === 'pipeline-retail-buyers' && (
+                <>
+                  <SelectField
+                    label="Pre-Approved"
+                    value={formData.price_flexible || ''}
+                    onChange={(val) => setField('price_flexible', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                      { label: 'In Progress', value: 'maybe' },
+                    ]}
+                  />
+                  <NumberField
+                    label="Pre-Approval Amount"
+                    value={formData.best_cash_offer || ''}
+                    onChange={(val) => setField('best_cash_offer', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                </>
+              )}
+              <TextareaField
+                label="Buyer Notes / Preferences"
+                value={formData.reason_for_selling || ''}
+                onChange={(val) => setField('reason_for_selling', val)}
+                placeholder="What is the buyer looking for? Any specific requirements?"
+                className="col-span-2"
+              />
+            </div>
+          </CollapsibleSection>
+          )}
+
           {/* Section 1: Property Details */}
+          {showSection('property_details') && (
           <CollapsibleSection
             title="Property Details"
             isOpen={openSections['property_details'] || false}
@@ -608,8 +725,10 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Section 2: Seller Motivation */}
+          {showSection('seller_motivation') && (
           <CollapsibleSection
             title="Seller Motivation"
             isOpen={openSections['seller_motivation'] || false}
@@ -688,8 +807,10 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Section 3: Listing Information */}
+          {showSection('listing_information') && (
           <CollapsibleSection
             title="Listing Information"
             isOpen={openSections['listing_information'] || false}
@@ -747,8 +868,10 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Section 4: Homeowner Financials */}
+          {showSection('homeowner_financials') && (
           <CollapsibleSection
             title="Homeowner Financials"
             isOpen={openSections['homeowner_financials'] || false}
@@ -891,8 +1014,10 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Section 5: Foreclosure Details */}
+          {showSection('foreclosure_details') && (
           <CollapsibleSection
             title="Foreclosure Details"
             isOpen={openSections['foreclosure_details'] || false}
@@ -947,8 +1072,10 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Section 6: Deal Financials */}
+          {showSection('deal_financials') && (
           <CollapsibleSection
             title="Deal Financials"
             isOpen={openSections['deal_financials'] || false}
@@ -1083,6 +1210,7 @@ export default function NewDealModal({
               />
             </div>
           </CollapsibleSection>
+          )}
 
           {/* Footer / Action Buttons */}
           <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
