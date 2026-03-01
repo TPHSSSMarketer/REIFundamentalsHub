@@ -99,6 +99,68 @@ class CreateDealBody(BaseModel):
     isUrgent: Optional[bool] = False
     passedReason: Optional[str] = None
 
+    # Property Details
+    propertyType: str | None = None
+    bedrooms: int | None = None
+    bathrooms: float | None = None
+    squareFootage: int | None = None
+    lotSize: str | None = None
+    yearBuilt: int | None = None
+    garage: str | None = None
+    propertyCondition: str | None = None
+    occupancyStatus: str | None = None
+    repairsNeeded: str | None = None
+    specialFeatures: str | None = None
+    # Seller Motivation
+    reasonForSelling: str | None = None
+    motivationLevel: str | None = None
+    timelineToSell: str | None = None
+    askingPrice: float | None = None
+    priceFlexible: str | None = None
+    howEstablishedPrice: str | None = None
+    bestCashOffer: float | None = None
+    whatIfDoesntSell: str | None = None
+    openToTerms: str | None = None
+    # Listing Information
+    isListed: str | None = None
+    realtorName: str | None = None
+    realtorPhone: str | None = None
+    listingExpires: str | None = None
+    howLongListed: str | None = None
+    anyOffers: str | None = None
+    previousOfferAmount: float | None = None
+    # Homeowner Financials
+    mortgageBalance: float | None = None
+    mortgageBalance2nd: float | None = None
+    monthlyMortgagePayment: float | None = None
+    taxesInsuranceIncluded: str | None = None
+    monthlyTaxAmount: float | None = None
+    monthlyInsuranceAmount: float | None = None
+    interestRate1st: float | None = None
+    interestRate2nd: float | None = None
+    loanType: str | None = None
+    prepaymentPenalty: str | None = None
+    mortgageCompany1st: str | None = None
+    mortgageCompany2nd: str | None = None
+    paymentsCurrent: str | None = None
+    monthsBehind: int | None = None
+    amountBehind: float | None = None
+    backTaxes: float | None = None
+    otherLiens: str | None = None
+    otherLienAmount: float | None = None
+    # Foreclosure Details
+    foreclosureStatus: str | None = None
+    auctionDate: str | None = None
+    reinstatementAmount: float | None = None
+    attorneyInvolved: str | None = None
+    attorneyName: str | None = None
+    attorneyPhone: str | None = None
+    # Additional
+    asIsValue: float | None = None
+    exitStrategy: str | None = None
+    unitDetails: str | None = None
+    pipelineId: str | None = None
+
 
 class UpdateDealBody(CreateDealBody):
     """Same fields, all optional for partial updates."""
@@ -169,10 +231,64 @@ _FIELD_MAP: dict[str, str] = {
     "notes": "notes",
     "isUrgent": "is_urgent",
     "passedReason": "passed_reason",
+    "propertyType": "property_type",
+    "bedrooms": "bedrooms",
+    "bathrooms": "bathrooms",
+    "squareFootage": "square_footage",
+    "lotSize": "lot_size",
+    "yearBuilt": "year_built",
+    "garage": "garage",
+    "propertyCondition": "property_condition",
+    "occupancyStatus": "occupancy_status",
+    "repairsNeeded": "repairs_needed",
+    "specialFeatures": "special_features",
+    "reasonForSelling": "reason_for_selling",
+    "motivationLevel": "motivation_level",
+    "timelineToSell": "timeline_to_sell",
+    "askingPrice": "asking_price",
+    "priceFlexible": "price_flexible",
+    "howEstablishedPrice": "how_established_price",
+    "bestCashOffer": "best_cash_offer",
+    "whatIfDoesntSell": "what_if_doesnt_sell",
+    "openToTerms": "open_to_terms",
+    "isListed": "is_listed",
+    "realtorName": "realtor_name",
+    "realtorPhone": "realtor_phone",
+    "listingExpires": "listing_expires",
+    "howLongListed": "how_long_listed",
+    "anyOffers": "any_offers",
+    "previousOfferAmount": "previous_offer_amount",
+    "mortgageBalance": "mortgage_balance",
+    "mortgageBalance2nd": "mortgage_balance_2nd",
+    "monthlyMortgagePayment": "monthly_mortgage_payment",
+    "taxesInsuranceIncluded": "taxes_insurance_included",
+    "monthlyTaxAmount": "monthly_tax_amount",
+    "monthlyInsuranceAmount": "monthly_insurance_amount",
+    "interestRate1st": "interest_rate_1st",
+    "interestRate2nd": "interest_rate_2nd",
+    "loanType": "loan_type",
+    "prepaymentPenalty": "prepayment_penalty",
+    "mortgageCompany1st": "mortgage_company_1st",
+    "mortgageCompany2nd": "mortgage_company_2nd",
+    "paymentsCurrent": "payments_current",
+    "monthsBehind": "months_behind",
+    "amountBehind": "amount_behind",
+    "backTaxes": "back_taxes",
+    "otherLiens": "other_liens",
+    "otherLienAmount": "other_lien_amount",
+    "foreclosureStatus": "foreclosure_status",
+    "reinstatementAmount": "reinstatement_amount",
+    "attorneyInvolved": "attorney_involved",
+    "attorneyName": "attorney_name",
+    "attorneyPhone": "attorney_phone",
+    "asIsValue": "as_is_value",
+    "exitStrategy": "exit_strategy",
+    "unitDetails": "unit_details",
+    "pipelineId": "pipeline_id",
 }
 
 # Date fields need special parsing
-_DATE_FIELDS = {"offerExpiresAt": "offer_expires_at", "inspectionDeadline": "inspection_deadline", "closingDate": "closing_date"}
+_DATE_FIELDS = {"offerExpiresAt": "offer_expires_at", "inspectionDeadline": "inspection_deadline", "closingDate": "closing_date", "auctionDate": "auction_date"}
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -247,6 +363,67 @@ def _deal_to_dict(d: CrmDeal) -> dict:
         "notes": d.notes,
         "isUrgent": d.is_urgent or False,
         "passedReason": d.passed_reason,
+        # Property Details
+        "propertyType": d.property_type,
+        "bedrooms": d.bedrooms,
+        "bathrooms": d.bathrooms,
+        "squareFootage": d.square_footage,
+        "lotSize": d.lot_size,
+        "yearBuilt": d.year_built,
+        "garage": d.garage,
+        "propertyCondition": d.property_condition,
+        "occupancyStatus": d.occupancy_status,
+        "repairsNeeded": d.repairs_needed,
+        "specialFeatures": d.special_features,
+        # Seller Motivation
+        "reasonForSelling": d.reason_for_selling,
+        "motivationLevel": d.motivation_level,
+        "timelineToSell": d.timeline_to_sell,
+        "askingPrice": d.asking_price,
+        "priceFlexible": d.price_flexible,
+        "howEstablishedPrice": d.how_established_price,
+        "bestCashOffer": d.best_cash_offer,
+        "whatIfDoesntSell": d.what_if_doesnt_sell,
+        "openToTerms": d.open_to_terms,
+        # Listing Information
+        "isListed": d.is_listed,
+        "realtorName": d.realtor_name,
+        "realtorPhone": d.realtor_phone,
+        "listingExpires": d.listing_expires,
+        "howLongListed": d.how_long_listed,
+        "anyOffers": d.any_offers,
+        "previousOfferAmount": d.previous_offer_amount,
+        # Homeowner Financials
+        "mortgageBalance": d.mortgage_balance,
+        "mortgageBalance2nd": d.mortgage_balance_2nd,
+        "monthlyMortgagePayment": d.monthly_mortgage_payment,
+        "taxesInsuranceIncluded": d.taxes_insurance_included,
+        "monthlyTaxAmount": d.monthly_tax_amount,
+        "monthlyInsuranceAmount": d.monthly_insurance_amount,
+        "interestRate1st": d.interest_rate_1st,
+        "interestRate2nd": d.interest_rate_2nd,
+        "loanType": d.loan_type,
+        "prepaymentPenalty": d.prepayment_penalty,
+        "mortgageCompany1st": d.mortgage_company_1st,
+        "mortgageCompany2nd": d.mortgage_company_2nd,
+        "paymentsCurrent": d.payments_current,
+        "monthsBehind": d.months_behind,
+        "amountBehind": d.amount_behind,
+        "backTaxes": d.back_taxes,
+        "otherLiens": d.other_liens,
+        "otherLienAmount": d.other_lien_amount,
+        # Foreclosure Details
+        "foreclosureStatus": d.foreclosure_status,
+        "auctionDate": d.auction_date.isoformat() if d.auction_date else None,
+        "reinstatementAmount": d.reinstatement_amount,
+        "attorneyInvolved": d.attorney_involved,
+        "attorneyName": d.attorney_name,
+        "attorneyPhone": d.attorney_phone,
+        # Additional
+        "asIsValue": d.as_is_value,
+        "exitStrategy": d.exit_strategy,
+        "unitDetails": d.unit_details,
+        "pipelineId": d.pipeline_id,
         "createdAt": d.created_at.isoformat() if d.created_at else None,
         "updatedAt": d.updated_at.isoformat() if d.updated_at else None,
     }

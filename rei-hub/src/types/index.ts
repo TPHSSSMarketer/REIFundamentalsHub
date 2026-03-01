@@ -28,7 +28,7 @@ export interface Deal {
   city?: string
   state?: string
   zip?: string
-  stage: 'lead' | 'analysis' | 'offer' | 'under_contract' | 'due_diligence' | 'closing' | 'closed_won' | 'closed_lost'
+  stage: 'lead' | 'contacted' | 'analysis' | 'offer' | 'under_contract' | 'due_diligence' | 'closing' | 'closed_won' | 'closed_lost' | 'new_lead' | 'qualified' | 'sent_deals' | 'negotiating' | 'inactive' | 'pre_approved' | 'showing' | 'offer_received' | 'lost' | 'research' | 'auction' | 'won' | 'redemption_period' | 'clear_title' | 'disposed'
 
   // ── Pricing & Valuation ──
   listPrice?: number
@@ -97,6 +97,74 @@ export interface Deal {
   notes?: string
   isUrgent: boolean
   passedReason?: string
+
+  // ── Property Details ──
+  propertyType?: string
+  bedrooms?: number
+  bathrooms?: number
+  squareFootage?: number
+  lotSize?: string
+  yearBuilt?: number
+  garage?: string
+  propertyCondition?: string
+  occupancyStatus?: string
+  repairsNeeded?: string
+  specialFeatures?: string
+
+  // ── Seller Motivation ──
+  reasonForSelling?: string
+  motivationLevel?: string
+  timelineToSell?: string
+  askingPrice?: number
+  priceFlexible?: string
+  howEstablishedPrice?: string
+  bestCashOffer?: number
+  whatIfDoesntSell?: string
+  openToTerms?: string
+
+  // ── Listing Information ──
+  isListed?: string
+  realtorName?: string
+  realtorPhone?: string
+  listingExpires?: string
+  howLongListed?: string
+  anyOffers?: string
+  previousOfferAmount?: number
+
+  // ── Homeowner Financials ──
+  mortgageBalance?: number
+  mortgageBalance2nd?: number
+  monthlyMortgagePayment?: number
+  taxesInsuranceIncluded?: string
+  monthlyTaxAmount?: number
+  monthlyInsuranceAmount?: number
+  interestRate1st?: number
+  interestRate2nd?: number
+  loanType?: string
+  prepaymentPenalty?: string
+  mortgageCompany1st?: string
+  mortgageCompany2nd?: string
+  paymentsCurrent?: string
+  monthsBehind?: number
+  amountBehind?: number
+  backTaxes?: number
+  otherLiens?: string
+  otherLienAmount?: number
+
+  // ── Foreclosure Details ──
+  foreclosureStatus?: string
+  auctionDate?: string
+  reinstatementAmount?: number
+  attorneyInvolved?: string
+  attorneyName?: string
+  attorneyPhone?: string
+
+  // ── Additional ──
+  asIsValue?: number
+  exitStrategy?: string
+  unitDetails?: string
+  pipelineId?: string
+
   createdAt: string
   updatedAt: string
 }

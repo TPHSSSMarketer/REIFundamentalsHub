@@ -139,6 +139,77 @@ class CrmDeal(Base):
     is_urgent: Mapped[bool] = mapped_column(Boolean, default=False)
     passed_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # ── Property Details ──
+    property_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    bedrooms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bathrooms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    square_footage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    lot_size: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    year_built: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    garage: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    property_condition: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    occupancy_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    repairs_needed: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    special_features: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ── Seller Motivation ──
+    reason_for_selling: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    motivation_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    timeline_to_sell: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    asking_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    price_flexible: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    how_established_price: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    best_cash_offer: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    what_if_doesnt_sell: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    open_to_terms: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Listing Information ──
+    is_listed: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    realtor_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    realtor_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    listing_expires: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    how_long_listed: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    any_offers: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    previous_offer_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # ── Homeowner Financials ──
+    mortgage_balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    mortgage_balance_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    monthly_mortgage_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    taxes_insurance_included: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    monthly_tax_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    monthly_insurance_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    interest_rate_1st: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    interest_rate_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    loan_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    prepayment_penalty: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mortgage_company_1st: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mortgage_company_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    payments_current: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    months_behind: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    amount_behind: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    back_taxes: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    other_liens: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    other_lien_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # ── Foreclosure Details ──
+    foreclosure_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    auction_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reinstatement_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    attorney_involved: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    attorney_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    attorney_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Additional Valuation ──
+    as_is_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    exit_strategy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Multi-Unit Details (JSON) ──
+    unit_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ── Pipeline ──
+    pipeline_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="pipeline-deals")
+
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

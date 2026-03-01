@@ -55,8 +55,11 @@ export default function Pipeline() {
   // Group deals by stage
   const dealsByStage = useMemo(() => {
     const grouped: Record<string, Deal[]> = {}
+    const pipelineDeals = activePipeline
+      ? deals?.filter((d) => !d.pipelineId || d.pipelineId === activePipeline.id) || []
+      : deals || []
     activePipeline?.stages.forEach((stage) => {
-      grouped[stage.id] = deals?.filter((d) => d.stage === stage.id) || []
+      grouped[stage.id] = pipelineDeals.filter((d) => d.stage === stage.id)
     })
     return grouped
   }, [deals, activePipeline])
@@ -118,7 +121,7 @@ export default function Pipeline() {
 
         <div className="flex items-center gap-3">
           {/* Pipeline Selector */}
-          {pipelines.length > 1 && (
+          {pipelines && pipelines.length > 0 && (
             <select
               value={activePipeline?.id || ''}
               onChange={(e) => setSelectedPipelineId(e.target.value)}
@@ -251,6 +254,7 @@ export default function Pipeline() {
         isOpen={showNewDealModal}
         onClose={() => setShowNewDealModal(false)}
         contacts={contacts || []}
+        pipelineId={activePipeline?.id}
       />
     </div>
   )
