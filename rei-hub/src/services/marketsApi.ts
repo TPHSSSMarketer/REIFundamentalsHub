@@ -77,6 +77,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function getMarkets(): Promise<SavedMarket[]> {
   const res = await fetch(`${BASE_URL}/api/markets`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -87,6 +88,7 @@ export async function createMarket(payload: CreateMarketPayload): Promise<SavedM
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(payload),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -95,6 +97,7 @@ export async function createMarket(payload: CreateMarketPayload): Promise<SavedM
 export async function getMarket(marketId: string): Promise<SavedMarket> {
   const res = await fetch(`${BASE_URL}/api/markets/${marketId}`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -108,6 +111,7 @@ export async function updateMarket(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(updates),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -117,6 +121,7 @@ export async function deleteMarket(marketId: string): Promise<{ id: string; mess
   const res = await fetch(`${BASE_URL}/api/markets/${marketId}`, {
     method: 'DELETE',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -127,7 +132,7 @@ export async function deleteMarket(marketId: string): Promise<{ id: string; mess
 export async function attomLookup(city: string, state: string): Promise<AttomLookupResult> {
   const res = await fetch(
     `${BASE_URL}/api/markets/lookup/${encodeURIComponent(city)}/${encodeURIComponent(state)}`,
-    { headers: getAuthHeader() },
+    { headers: getAuthHeader(), credentials: 'include' },
   )
   return handleResponse(res)
 }
@@ -137,6 +142,7 @@ export async function refreshMarket(marketId: string): Promise<MarketRecord> {
   const res = await fetch(`${BASE_URL}/api/markets/${marketId}/refresh`, {
     method: 'POST',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }

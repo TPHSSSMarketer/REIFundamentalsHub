@@ -51,6 +51,7 @@ export async function helmChat(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, system }),
+    credentials: 'include',
   })
   return handleResponse<HelmChatResponse>(res)
 }
@@ -62,6 +63,7 @@ export async function helmAnalyzeDeal(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(deal),
+    credentials: 'include',
   })
   return handleResponse<HelmDealAnalysisResponse>(res)
 }
@@ -105,6 +107,7 @@ export async function helmGenerateWaterfall(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
+    credentials: 'include',
   })
   return handleResponse<ContentWaterfallResponse>(res)
 }
@@ -117,6 +120,7 @@ export async function helmGenerateImagePrompts(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic, platform }),
+    credentials: 'include',
   })
   return handleResponse<ImagePromptsResponse>(res)
 }
@@ -126,6 +130,7 @@ export async function helmScrapeUrl(url: string): Promise<ScrapeUrlResponse> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
+    credentials: 'include',
   })
   return handleResponse<ScrapeUrlResponse>(res)
 }
@@ -139,6 +144,7 @@ export async function helmSaveContentToCloud(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename, content, mime_type: mimeType }),
+    credentials: 'include',
   })
   return handleResponse<{ google_drive: unknown; dropbox: unknown; errors: string[] }>(res)
 }

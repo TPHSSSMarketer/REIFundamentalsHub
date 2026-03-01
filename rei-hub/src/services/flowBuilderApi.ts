@@ -1,19 +1,17 @@
 import { ConversationFlow, FlowNode, FlowEdge, Persona, FlowExecution } from '../types'
+import { getCSRFHeaders } from '@/services/authApi'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('rei_token')
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) return res.json()
   if (res.status === 401) {
-    localStorage.removeItem('rei_token')
     window.location.href = '/login'
     throw new Error('Session expired')
   }
@@ -27,6 +25,7 @@ export async function listFlows(): Promise<ConversationFlow[]> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows`, {
     method: 'GET',
     headers: authHeaders(),
+    credentials: 'include',
   })
   return handleResponse<ConversationFlow[]>(res)
 }
@@ -34,7 +33,8 @@ export async function listFlows(): Promise<ConversationFlow[]> {
 export async function createFlow(data: Partial<ConversationFlow>): Promise<ConversationFlow> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<ConversationFlow>(res)
@@ -44,6 +44,7 @@ export async function getFlow(flowId: string): Promise<ConversationFlow> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}`, {
     method: 'GET',
     headers: authHeaders(),
+    credentials: 'include',
   })
   return handleResponse<ConversationFlow>(res)
 }
@@ -54,7 +55,8 @@ export async function updateFlow(
 ): Promise<ConversationFlow> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<ConversationFlow>(res)
@@ -63,7 +65,8 @@ export async function updateFlow(
 export async function deleteFlow(flowId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -79,7 +82,8 @@ export async function createNode(
 ): Promise<FlowNode> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}/nodes`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<FlowNode>(res)
@@ -92,7 +96,8 @@ export async function updateNode(
 ): Promise<FlowNode> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}/nodes/${nodeId}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<FlowNode>(res)
@@ -101,7 +106,8 @@ export async function updateNode(
 export async function deleteNode(flowId: string, nodeId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}/nodes/${nodeId}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -114,7 +120,8 @@ export async function deleteNode(flowId: string, nodeId: string): Promise<void> 
 export async function createEdge(flowId: string, data: Partial<FlowEdge>): Promise<FlowEdge> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}/edges`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<FlowEdge>(res)
@@ -123,7 +130,8 @@ export async function createEdge(flowId: string, data: Partial<FlowEdge>): Promi
 export async function deleteEdge(flowId: string, edgeId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/flows/${flowId}/edges/${edgeId}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -137,6 +145,7 @@ export async function listPersonas(): Promise<Persona[]> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/personas`, {
     method: 'GET',
     headers: authHeaders(),
+    credentials: 'include',
   })
   return handleResponse<Persona[]>(res)
 }
@@ -144,7 +153,8 @@ export async function listPersonas(): Promise<Persona[]> {
 export async function createPersona(data: Partial<Persona>): Promise<Persona> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/personas`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<Persona>(res)
@@ -156,7 +166,8 @@ export async function updatePersona(
 ): Promise<Persona> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/personas/${personaId}`, {
     method: 'PATCH',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
     body: JSON.stringify(data),
   })
   return handleResponse<Persona>(res)
@@ -165,7 +176,8 @@ export async function updatePersona(
 export async function deletePersona(personaId: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/flow-builder/personas/${personaId}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -189,6 +201,7 @@ export async function listExecutions(
   const res = await fetch(url, {
     method: 'GET',
     headers: authHeaders(),
+    credentials: 'include',
   })
   return handleResponse<FlowExecution[]>(res)
 }
@@ -197,6 +210,7 @@ export async function getExecution(executionId: string): Promise<FlowExecution> 
   const res = await fetch(`${BASE_URL}/api/flow-builder/executions/${executionId}`, {
     method: 'GET',
     headers: authHeaders(),
+    credentials: 'include',
   })
   return handleResponse<FlowExecution>(res)
 }

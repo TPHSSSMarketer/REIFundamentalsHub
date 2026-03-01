@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getToken, getCurrentUser } from '@/services/auth'
+import { getCurrentUser } from '@/services/auth'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -38,16 +38,14 @@ export default function LoanServicingOnboarding({ onComplete }: Props) {
   }, [])
 
   async function handleFinish() {
-    const token = getToken()
-    if (!token) return
     setSaving(true)
     try {
       const res = await fetch(`${BASE_URL}/api/users/me`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           loan_servicing_onboarding_complete: true,
           loan_company_name: companyName,
@@ -69,8 +67,6 @@ export default function LoanServicingOnboarding({ onComplete }: Props) {
       setSaving(false)
     }
   }
-
-  const token = getToken() || ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50">
@@ -149,7 +145,7 @@ export default function LoanServicingOnboarding({ onComplete }: Props) {
                 </p>
               </div>
 
-              <StripeConnectSetup token={token} />
+              <StripeConnectSetup />
 
               {stripeSkipped && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">

@@ -149,6 +149,7 @@ export async function getSubscribers(filters: {
       const qs = params.toString()
       return fetch(`${BASE_URL}/api/admin/subscribers${qs ? `?${qs}` : ''}`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<SubscribersResponse>(res))
     },
     DEMO_SUBSCRIBERS_RESPONSE
@@ -160,6 +161,7 @@ export async function getSubscriber(userId: string): Promise<Subscriber> {
     () =>
       fetch(`${BASE_URL}/api/admin/subscribers/${userId}`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<Subscriber>(res)),
     DEMO_SUBSCRIBERS_RESPONSE.subscribers[0]
   )
@@ -180,6 +182,7 @@ export async function adjustPlan(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) => handleResponse<{ ok: boolean }>(res)),
     { ok: true }
   )
@@ -191,6 +194,7 @@ export async function cancelSubscriber(userId: string): Promise<{ ok: boolean }>
       fetch(`${BASE_URL}/api/admin/subscribers/${userId}/cancel`, {
         method: 'POST',
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<{ ok: boolean }>(res)),
     { ok: true }
   )
@@ -201,6 +205,7 @@ export async function getStats(): Promise<AdminStats> {
     () =>
       fetch(`${BASE_URL}/api/admin/stats`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<AdminStats>(res)),
     DEMO_ADMIN_STATS
   )

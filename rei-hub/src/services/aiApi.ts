@@ -137,6 +137,7 @@ export async function getAiConfig(): Promise<AiUserConfig> {
     () =>
       fetch(`${BASE_URL}/api/ai/config`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<AiUserConfig>(res)),
     DEMO_AI_USER_CONFIG
   )
@@ -154,6 +155,7 @@ export async function updateAiConfig(data: {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { active_provider: 'anthropic', active_model: 'claude-3-5-sonnet', override_enabled: false }
   )
@@ -166,6 +168,7 @@ export async function testAiProvider(message: string): Promise<AiTestResponse> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ message }),
+        credentials: 'include',
       }).then((res) => handleResponse<AiTestResponse>(res)),
     DEMO_AI_TEST_RESPONSE
   )
@@ -181,6 +184,7 @@ export async function runResearch(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ query, context: context ?? '' }),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     {
       content: 'Real estate market analysis indicates opportunities in undervalued properties with strong appreciation potential. Consider diversifying across multiple markets and property types.',
@@ -197,6 +201,7 @@ export async function getAdminAiConfig(): Promise<AiAdminConfig> {
     () =>
       fetch(`${BASE_URL}/api/ai/admin/config`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<AiAdminConfig>(res)),
     {
       id: 'admin-ai-config-001',
@@ -230,6 +235,7 @@ export async function updateAdminAiConfig(data: {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) => handleResponse<AiAdminConfig>(res)),
     {
       id: 'admin-ai-config-001',
@@ -254,6 +260,7 @@ export async function getAiUsage(): Promise<AiUsage> {
     () =>
       fetch(`${BASE_URL}/api/ai/admin/usage`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<AiUsage>(res)),
     {
       total_requests: 342,
@@ -272,6 +279,7 @@ export async function getAllUsersAiSettings(): Promise<AiUserSetting[]> {
     () =>
       fetch(`${BASE_URL}/api/ai/admin/users`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       }).then((res) => handleResponse<AiUserSetting[]>(res)),
     [
       {
@@ -312,6 +320,7 @@ export async function updateUserAiSettings(
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) => handleResponse<{ ok: boolean }>(res)),
     { ok: true }
   )

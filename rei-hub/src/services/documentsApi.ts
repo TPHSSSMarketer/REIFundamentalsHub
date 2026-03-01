@@ -204,6 +204,7 @@ export async function getTemplates(): Promise<{
     async () => {
       const res = await fetch(`${BASE_URL}/api/documents/templates`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -220,6 +221,7 @@ export async function uploadTemplate(formData: FormData): Promise<Record<string,
         method: 'POST',
         headers,
         body: formData,
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -234,6 +236,7 @@ export async function downloadTemplate(
     async () => {
       const res = await fetch(`${BASE_URL}/api/documents/templates/${id}/download`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -247,6 +250,7 @@ export async function deleteTemplate(id: string): Promise<{ success: boolean }> 
       const res = await fetch(`${BASE_URL}/api/documents/templates/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -275,6 +279,7 @@ export async function generateContract(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -289,6 +294,7 @@ export async function getContracts(): Promise<{
     async () => {
       const res = await fetch(`${BASE_URL}/api/documents/contracts`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -301,6 +307,7 @@ export async function getContract(id: string): Promise<Record<string, unknown>> 
     async () => {
       const res = await fetch(`${BASE_URL}/api/documents/contracts/${id}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -314,6 +321,7 @@ export async function deleteContract(id: string): Promise<{ success: boolean }> 
       const res = await fetch(`${BASE_URL}/api/documents/contracts/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -332,6 +340,7 @@ export async function updateSettings(
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_name: companyName }),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -349,6 +358,7 @@ export async function getChecklistTemplates(
       const params = dealType ? `?deal_type=${dealType}` : ''
       const res = await fetch(`${BASE_URL}/api/documents/checklist/templates${params}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -369,6 +379,7 @@ export async function createChecklistTemplate(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -386,6 +397,7 @@ export async function updateChecklistTemplate(
         method: 'PUT',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -401,6 +413,7 @@ export async function deleteChecklistTemplate(
       const res = await fetch(`${BASE_URL}/api/documents/checklist/templates/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -419,6 +432,7 @@ export async function getDealChecklist(
       const params = dealType ? `?deal_type=${dealType}` : ''
       const res = await fetch(`${BASE_URL}/api/documents/checklist/${dealId}${params}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -436,6 +450,7 @@ export async function addChecklistItem(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -453,6 +468,7 @@ export async function updateChecklistItem(
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -472,6 +488,7 @@ export async function uploadSignedCopy(
         method: 'POST',
         headers: getAuthHeader(),
         body: formData,
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -487,6 +504,7 @@ export async function deleteChecklistItem(
       const res = await fetch(`${BASE_URL}/api/documents/checklist/items/${itemId}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -504,6 +522,7 @@ export async function generateFromChecklist(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -519,7 +538,7 @@ export async function matchTemplate(
     async () => {
       const res = await fetch(
         `${BASE_URL}/api/documents/templates/match?state=${state}&deal_type=${dealType}`,
-        { headers: getAuthHeader() }
+        { headers: getAuthHeader(), credentials: 'include' }
       )
       return handleResponse(res)
     },
@@ -538,6 +557,7 @@ export async function generateLoi(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse(res)
     },
@@ -552,6 +572,7 @@ export async function getDealLois(
     async () => {
       const res = await fetch(`${BASE_URL}/api/documents/loi/${dealId}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse(res)
     },

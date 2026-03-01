@@ -82,7 +82,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
   async function fetchCfds() {
     setLoading(true)
     try {
-      const data = await getCfds(token)
+      const data = await getCfds()
       setCfds(Array.isArray(data) ? data : data.cfds || [])
     } catch { setCfds([]) }
     setLoading(false)
@@ -92,14 +92,14 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
     setSelectedCfd(cfd)
     setShowAmortModal(true)
     try {
-      const data = await getAmortization(cfd.id || cfd.cfd_id, token)
+      const data = await getAmortization(cfd.id || cfd.cfd_id)
       setAmortSchedule(Array.isArray(data) ? data : data.schedule || [])
     } catch { setAmortSchedule([]) }
   }
 
   async function handleCreateDefault(cfdId: string) {
     try {
-      await createDefault({ cfd_id: cfdId }, token)
+      await createDefault({ cfd_id: cfdId })
       showToastMsg('Default created')
       setConfirmDefault(null)
       fetchCfds()
@@ -111,7 +111,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
     if (!paymentCfd) return
     setRecordingPayment(true)
     try {
-      await recordPayment({ cfd_id: paymentCfd.id || paymentCfd.cfd_id, amount: parseFloat(paymentAmount), payment_date: paymentDate }, token)
+      await recordPayment({ cfd_id: paymentCfd.id || paymentCfd.cfd_id, amount: parseFloat(paymentAmount), payment_date: paymentDate })
       showToastMsg('Payment recorded')
       setPaymentCfd(null)
       setPaymentAmount('')
@@ -146,7 +146,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
       payload.underlying_account = cfdForm.underlying_account
     }
     try {
-      await createCfd(payload, token)
+      await createCfd(payload)
       showToastMsg('Contract created successfully')
       setShowCreateModal(false)
       resetForm()
@@ -164,7 +164,7 @@ export default function ContractsTab({ token, isSuperAdmin: _isSuperAdmin }: Pro
     setShowCreateModal(true)
     resetForm()
     try {
-      const data = await getProperties(token)
+      const data = await getProperties()
       setProperties(Array.isArray(data) ? data : data.properties || [])
     } catch { setProperties([]) }
   }

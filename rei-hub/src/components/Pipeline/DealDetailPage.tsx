@@ -24,7 +24,7 @@ import {
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
-import { getAuthHeader, getToken } from '@/services/auth'
+import { getAuthHeader } from '@/services/auth'
 import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
@@ -141,10 +141,8 @@ export default function DealDetailPage() {
   // Fetch bank negotiation lender data for this deal's property
   useEffect(() => {
     if (!deal?.address) return
-    const token = getToken()
-    if (!token) return
     setLenderLoading(true)
-    getNegotiationsForDeal(token, deal.address)
+    getNegotiationsForDeal(deal.address)
       .then((data) => setLenderData(data))
       .catch(() => setLenderData(null))
       .finally(() => setLenderLoading(false))

@@ -37,7 +37,7 @@ export default function InvestorsTab({ token, isSuperAdmin }: Props) {
   async function fetchInvestors() {
     setLoading(true)
     try {
-      const data = await getInvestors(token)
+      const data = await getInvestors()
       setInvestors(Array.isArray(data) ? data : data.investors || [])
     } catch { setInvestors([]) }
     setLoading(false)
@@ -69,10 +69,10 @@ export default function InvestorsTab({ token, isSuperAdmin }: Props) {
     try {
       const payload = { ...form, distribution_percentage: parseFloat(form.distribution_percentage) || 0 }
       if (editingInvestor) {
-        await updateInvestor(editingInvestor.id, payload, token)
+        await updateInvestor(editingInvestor.id, payload)
         showToastMsg('Investor updated')
       } else {
-        await createInvestor(payload, token)
+        await createInvestor(payload)
         showToastMsg('Investor created')
       }
       setShowModal(false)
@@ -84,7 +84,7 @@ export default function InvestorsTab({ token, isSuperAdmin }: Props) {
   async function handleDeactivate(inv: any) {
     if (!confirm(`Deactivate ${inv.name}?`)) return
     try {
-      await deactivateInvestor(inv.id, token)
+      await deactivateInvestor(inv.id)
       showToastMsg('Investor deactivated')
       fetchInvestors()
     } catch { showToastMsg('Failed to deactivate investor') }

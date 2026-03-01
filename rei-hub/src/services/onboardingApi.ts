@@ -1,3 +1,5 @@
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Demo Mode Helpers ──────────────────────────────────────
@@ -54,11 +56,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json()
 }
 
-export async function getOnboardingStatus(token: string) {
+export async function getOnboardingStatus() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/onboarding/status`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       }).then((res) =>
         handleResponse<{
           completed: boolean
@@ -87,7 +89,6 @@ export async function getOnboardingStatus(token: string) {
 export async function saveStep(
   stepNumber: number,
   data: Record<string, unknown>,
-  token: string
 ) {
   return withDemoFallback(
     () =>
@@ -95,9 +96,10 @@ export async function saveStep(
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...getCSRFHeaders(),
         },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) =>
         handleResponse<{
           success: boolean
@@ -116,23 +118,25 @@ export async function saveStep(
   )
 }
 
-export async function completeOnboarding(token: string) {
+export async function completeOnboarding() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/onboarding/complete`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       }).then((res) => handleResponse<{ success: boolean; redirect: string }>(res)),
     { success: true, redirect: '/dashboard' }
   )
 }
 
-export async function skipOnboarding(token: string) {
+export async function skipOnboarding() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/onboarding/skip`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       }).then((res) => handleResponse<{ success: boolean }>(res)),
     { success: true }
   )

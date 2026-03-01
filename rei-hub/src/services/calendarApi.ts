@@ -2,17 +2,15 @@
  * Calendar & Task Management API service
  */
 
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
-function headers(token: string) {
+function headers() {
   return {
-    Authorization: `Bearer ${token}`,
+    ...getCSRFHeaders(),
     'Content-Type': 'application/json',
   }
-}
-
-function authHeaders(token: string) {
-  return { Authorization: `Bearer ${token}` }
 }
 
 /* ── Demo mode helper ──────────────────────────────────────── */
@@ -81,15 +79,12 @@ const DEMO_TODAY_SUMMARY = {
 
 // ── Tasks ────────────────────────────────────────────────────────
 
-export async function getTasks(
-  filters?: Record<string, string>,
-  token?: string
-) {
+export async function getTasks(filters?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const params = new URLSearchParams(filters || {})
       const res = await fetch(`${BASE_URL}/api/calendar/tasks?${params}`, {
-        headers: authHeaders(token || ''),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to fetch tasks')
       return res.json()
@@ -98,13 +93,14 @@ export async function getTasks(
   )
 }
 
-export async function createTask(data: Record<string, any>, token: string) {
+export async function createTask(data: Record<string, any>) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/tasks`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to create task')
       return res.json()
@@ -113,17 +109,14 @@ export async function createTask(data: Record<string, any>, token: string) {
   )
 }
 
-export async function updateTask(
-  id: string,
-  data: Record<string, any>,
-  token: string
-) {
+export async function updateTask(id: string, data: Record<string, any>) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/tasks/${id}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to update task')
       return res.json()
@@ -132,12 +125,13 @@ export async function updateTask(
   )
 }
 
-export async function completeTask(id: string, token: string) {
+export async function completeTask(id: string) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/tasks/${id}/complete`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to complete task')
       return res.json()
@@ -146,12 +140,13 @@ export async function completeTask(id: string, token: string) {
   )
 }
 
-export async function deleteTask(id: string, token: string) {
+export async function deleteTask(id: string) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/tasks/${id}`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to delete task')
       return res.json()
@@ -162,12 +157,12 @@ export async function deleteTask(id: string, token: string) {
 
 // ── Events ───────────────────────────────────────────────────────
 
-export async function getEvents(start: string, end: string, token: string) {
+export async function getEvents(start: string, end: string) {
   return withDemoFallback(
     async () => {
       const params = new URLSearchParams({ start, end })
       const res = await fetch(`${BASE_URL}/api/calendar/events?${params}`, {
-        headers: authHeaders(token),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to fetch events')
       return res.json()
@@ -176,13 +171,14 @@ export async function getEvents(start: string, end: string, token: string) {
   )
 }
 
-export async function createEvent(data: Record<string, any>, token: string) {
+export async function createEvent(data: Record<string, any>) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/events`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to create event')
       return res.json()
@@ -191,17 +187,14 @@ export async function createEvent(data: Record<string, any>, token: string) {
   )
 }
 
-export async function updateEvent(
-  id: string,
-  data: Record<string, any>,
-  token: string
-) {
+export async function updateEvent(id: string, data: Record<string, any>) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/events/${id}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to update event')
       return res.json()
@@ -210,12 +203,13 @@ export async function updateEvent(
   )
 }
 
-export async function deleteEvent(id: string, token: string) {
+export async function deleteEvent(id: string) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/events/${id}`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to delete event')
       return res.json()
@@ -226,11 +220,11 @@ export async function deleteEvent(id: string, token: string) {
 
 // ── Google Calendar ──────────────────────────────────────────────
 
-export async function getGoogleAuthUrl(token: string) {
+export async function getGoogleAuthUrl() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/google/auth-url`, {
-        headers: authHeaders(token),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to get Google auth URL')
       return res.json()
@@ -239,13 +233,14 @@ export async function getGoogleAuthUrl(token: string) {
   )
 }
 
-export async function connectGoogle(code: string, token: string) {
+export async function connectGoogle(code: string) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/google/callback`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify({ code }),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to connect Google Calendar')
       return res.json()
@@ -254,12 +249,13 @@ export async function connectGoogle(code: string, token: string) {
   )
 }
 
-export async function syncGoogle(token: string) {
+export async function syncGoogle() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/google/sync`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to sync Google Calendar')
       return res.json()
@@ -268,12 +264,13 @@ export async function syncGoogle(token: string) {
   )
 }
 
-export async function disconnectGoogle(token: string) {
+export async function disconnectGoogle() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/google/disconnect`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to disconnect Google Calendar')
       return res.json()
@@ -284,11 +281,11 @@ export async function disconnectGoogle(token: string) {
 
 // ── Microsoft Outlook ────────────────────────────────────────────
 
-export async function getOutlookAuthUrl(token: string) {
+export async function getOutlookAuthUrl() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/outlook/auth-url`, {
-        headers: authHeaders(token),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to get Outlook auth URL')
       return res.json()
@@ -297,13 +294,14 @@ export async function getOutlookAuthUrl(token: string) {
   )
 }
 
-export async function connectOutlook(code: string, token: string) {
+export async function connectOutlook(code: string) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/outlook/callback`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify({ code }),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to connect Outlook Calendar')
       return res.json()
@@ -312,12 +310,13 @@ export async function connectOutlook(code: string, token: string) {
   )
 }
 
-export async function syncOutlook(token: string) {
+export async function syncOutlook() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/outlook/sync`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to sync Outlook Calendar')
       return res.json()
@@ -326,12 +325,13 @@ export async function syncOutlook(token: string) {
   )
 }
 
-export async function disconnectOutlook(token: string) {
+export async function disconnectOutlook() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/outlook/disconnect`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to disconnect Outlook Calendar')
       return res.json()
@@ -344,14 +344,14 @@ export async function disconnectOutlook(token: string) {
 
 export async function connectCaldav(
   data: { username: string; password: string; calendar_url?: string },
-  token: string
 ) {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/caldav/connect`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to connect Apple Calendar')
       return res.json()
@@ -360,12 +360,13 @@ export async function connectCaldav(
   )
 }
 
-export async function syncCaldav(token: string) {
+export async function syncCaldav() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/caldav/sync`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to sync Apple Calendar')
       return res.json()
@@ -374,12 +375,13 @@ export async function syncCaldav(token: string) {
   )
 }
 
-export async function disconnectCaldav(token: string) {
+export async function disconnectCaldav() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/caldav/disconnect`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: { ...getCSRFHeaders() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to disconnect Apple Calendar')
       return res.json()
@@ -396,11 +398,11 @@ export function getIcalFeedUrl(feedToken: string) {
 
 // ── Today Summary ────────────────────────────────────────────────
 
-export async function getTodaySummary(token: string) {
+export async function getTodaySummary() {
   return withDemoFallback(
     async () => {
       const res = await fetch(`${BASE_URL}/api/calendar/today`, {
-        headers: authHeaders(token),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to fetch today summary')
       return res.json()

@@ -242,6 +242,7 @@ export async function getWebsites(): Promise<PublishedWebsite[]> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`)
     const data = await res.json()
@@ -259,6 +260,7 @@ export async function createWebsite(config: WebsiteConfig): Promise<PublishedWeb
         template_type: config.templateId,
         config,
       }),
+      credentials: 'include',
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -278,6 +280,7 @@ export async function updateWebsite(id: string, config: WebsiteConfig): Promise<
         name: config.company_name,
         config,
       }),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error(`Update failed: ${res.status}`)
     const data = await res.json()
@@ -293,6 +296,7 @@ export async function publishWebsite(
     // First get the latest site config from the server
     const siteRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!siteRes.ok) throw new Error(`Failed to fetch sites: ${siteRes.status}`)
     const sites = (await siteRes.json()) as Record<string, unknown>[]
@@ -307,6 +311,7 @@ export async function publishWebsite(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ html }),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error(`Publish failed: ${res.status}`)
     const data = await res.json()
@@ -319,6 +324,7 @@ export async function deleteWebsite(id: string): Promise<void> {
     const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}`, {
       method: 'DELETE',
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
   }, undefined)
@@ -330,12 +336,14 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
     if (websiteId) {
       const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${websiteId}/submissions`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error(`Failed to fetch submissions: ${res.status}`)
       const data = (await res.json()) as Record<string, unknown>[]
       // We need the site name — fetch sites list
       const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       const sites = sitesRes.ok ? ((await sitesRes.json()) as Record<string, unknown>[]) : []
       const site = sites.find((s) => String(s.id) === websiteId)
@@ -346,6 +354,7 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
     // No specific site — fetch submissions for ALL sites
     const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!sitesRes.ok) throw new Error(`Failed to fetch sites: ${sitesRes.status}`)
     const sites = (await sitesRes.json()) as Record<string, unknown>[]
@@ -355,7 +364,7 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
       try {
         const res = await fetch(
           `${BASE_URL}/api/lead-capture/sites/${site.id}/submissions`,
-          { headers: getAuthHeader() }
+          { headers: getAuthHeader(), credentials: 'include' }
         )
         if (res.ok) {
           const subs = (await res.json()) as Record<string, unknown>[]
@@ -390,6 +399,7 @@ export async function deleteLead(id: string): Promise<void> {
     const res = await fetch(`${BASE_URL}/api/lead-capture/submissions/${id}`, {
       method: 'DELETE',
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error('Failed to delete lead')
   }, undefined)
@@ -400,6 +410,7 @@ export async function downloadWebsiteHTML(id: string): Promise<string> {
     // Fetch the site, get its slug, then fetch the published HTML
     const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!sitesRes.ok) throw new Error('Failed to fetch sites')
     const sites = (await sitesRes.json()) as Record<string, unknown>[]
@@ -679,6 +690,7 @@ export async function updateCustomDomain(websiteId: string, domain: string): Pro
     // Update the config with the custom domain
     const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!sitesRes.ok) throw new Error('Failed to fetch sites')
     const sites = (await sitesRes.json()) as Record<string, unknown>[]
@@ -690,6 +702,7 @@ export async function updateCustomDomain(websiteId: string, domain: string): Pro
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ config }),
+      credentials: 'include',
     })
   }, undefined)
 }
@@ -718,6 +731,7 @@ export async function getAnalytics(siteId: string, days = 30): Promise<SiteAnaly
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${siteId}/analytics?days=${days}`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error(`Analytics fetch failed: ${res.status}`)
     return res.json()
@@ -739,6 +753,7 @@ export async function updateSubmissionCRM(
         crm_contact_id: crmContactId,
         crm_deal_id: crmDealId,
       }),
+      credentials: 'include',
     })
   } catch {
     // Silently fail — CRM sync is best-effort
@@ -820,6 +835,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/lead-capture/notification-settings`, {
       headers: getAuthHeader(),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error('Failed to load notification settings')
     return res.json()
@@ -834,6 +850,7 @@ export async function updateNotificationSettings(
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(settings),
+      credentials: 'include',
     })
     if (!res.ok) throw new Error('Failed to update notification settings')
     return res.json()

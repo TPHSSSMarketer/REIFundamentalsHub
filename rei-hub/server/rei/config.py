@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 1440
     cors_origins: str = "http://localhost:3000"
+
+    # ── HttpOnly Cookie Auth ──────────────────────────────────────
+    access_token_expire_minutes: int = 15       # Short-lived access token
+    refresh_token_expire_days: int = 7          # Long-lived refresh token
+    cookie_secure: bool = False                 # True in production (requires HTTPS)
+    cookie_same_site: str = "lax"               # "lax" allows OAuth redirects
+    cookie_domain: str = ""                     # ".reifundamentalshub.com" in prod
+    csrf_header_name: str = "X-CSRF-Token"      # Header name for CSRF validation
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_starter_monthly_price_id: str = ""

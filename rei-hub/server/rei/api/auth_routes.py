@@ -1,17 +1,26 @@
-"""Auth routes — register, login, me, refresh."""
+"""Auth routes — register, login, me, refresh, logout, Google OAuth."""
 
 from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from rei.api.auth import create_access_token, decode_token, hash_password, verify_password
+from rei.api.auth import (
+    clear_auth_cookies,
+    create_access_token,
+    decode_token,
+    generate_csrf_token,
+    hash_password,
+    set_auth_cookies,
+    verify_password,
+)
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
 from rei.models.user import Subscription, User
@@ -37,6 +46,24 @@ from rei.schemas.auth import (
 
 settings = get_settings()
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# ── Helper to build token triplet and set cookies ─────────────────
+
+
+def _issue_tokens_and_cookies(
+    response: JSONResponse | RedirectResponse,
+    user_id: int,
+) -> tuple[str, str, str]:
+    """Create access + refresh + CSRF tokens and set them as cookies on the response."""
+    access_token = create_access_token(data={"sub": user_id}, token_type="access")
+    refresh_token = create_access_token(data={"sub": user_id}, token_type="refresh")
+    csrf_token = generate_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return access_token, refresh_token, csrf_token
+
+
+# ── Register ──────────────────────────────────────────────────────
 
 
 @auth_router.post("/register", response_model=TokenResponse)
@@ -70,24 +97,32 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(user)
 
-    token = create_access_token(
-        data={"sub": user.id},
-        expires_delta=timedelta(days=7),
-    )
-
-    asyncio.create_task(send_welcome_email(user, get_settings()))
-
-    return TokenResponse(
-        access_token=token,
+    # Build response with cookies
+    response_data = TokenResponse(
+        access_token="",  # Will be overwritten below
         user_id=user.id,
         email=user.email,
         plan="starter",
     )
+    response = JSONResponse(content=response_data.model_dump(), status_code=201)
+    access_token, _, _ = _issue_tokens_and_cookies(response, user.id)
+
+    # Also include access_token in JSON body for backward compat (mobile / API)
+    body_data = response_data.model_dump()
+    body_data["access_token"] = access_token
+    response.body = JSONResponse(content=body_data, status_code=201).body
+
+    asyncio.create_task(send_welcome_email(user, get_settings()))
+
+    return response
+
+
+# ── Login ─────────────────────────────────────────────────────────
 
 
 @auth_router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Authenticate user and return JWT."""
+    """Authenticate user and return JWT (+ set HttpOnly cookies)."""
     ip = request.client.host if request.client else "unknown"
 
     # Rate limit: 10 attempts per 15 min per IP
@@ -108,7 +143,6 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     )
     user = result.scalar_one_or_none()
     if user is None:
-        # Audit log failed login
         try:
             await db.run_sync(lambda s: audit_log(
                 s, action="failed_login", user_email=body.email,
@@ -122,7 +156,6 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
         )
 
     if not verify_password(body.password, user.hashed_password):
-        # Audit log failed login
         try:
             await db.run_sync(lambda s: audit_log(
                 s, action="failed_login", user_email=body.email,
@@ -137,10 +170,20 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
     plan = user.subscription.plan if user.subscription else None
 
-    token = create_access_token(
-        data={"sub": user.id},
-        expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
-    )
+    # Build response with cookies
+    response_data = {
+        "access_token": "",
+        "token_type": "bearer",
+        "user_id": user.id,
+        "email": user.email,
+        "plan": plan,
+    }
+    response = JSONResponse(content=response_data)
+    access_token, _, _ = _issue_tokens_and_cookies(response, user.id)
+
+    # Include access_token in JSON body for backward compat
+    response_data["access_token"] = access_token
+    response.body = JSONResponse(content=response_data).body
 
     # Audit log successful login
     try:
@@ -151,12 +194,10 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     except Exception:
         pass
 
-    return TokenResponse(
-        access_token=token,
-        user_id=user.id,
-        email=user.email,
-        plan=plan,
-    )
+    return response
+
+
+# ── Me ────────────────────────────────────────────────────────────
 
 
 @auth_router.get("/me", response_model=UserResponse)
@@ -174,10 +215,42 @@ async def me(current_user: User = Depends(get_current_user)):
     )
 
 
+# ── Refresh ───────────────────────────────────────────────────────
+
+
 @auth_router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    """Refresh an existing JWT — decode, verify user still exists, issue new token."""
-    payload = decode_token(body.token)
+async def refresh(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh tokens using the refresh_token cookie (or body for backward compat)."""
+    # Try cookie first, then fall back to request body
+    token: str | None = request.cookies.get("refresh_token")
+
+    if not token:
+        # Backward compat: accept token in request body
+        try:
+            body = await request.json()
+            token = body.get("token")
+        except Exception:
+            pass
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found",
+        )
+
+    payload = decode_token(token)
+
+    # Accept both "refresh" type and None (old tokens without type claim)
+    token_type = payload.get("type")
+    if token_type is not None and token_type != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type. Expected refresh token.",
+        )
+
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -197,17 +270,35 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 
     plan = user.subscription.plan if user.subscription else None
 
-    new_token = create_access_token(
-        data={"sub": user.id},
-        expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
-    )
+    # Build response with new cookies
+    response_data = {
+        "access_token": "",
+        "token_type": "bearer",
+        "user_id": user.id,
+        "email": user.email,
+        "plan": plan,
+    }
+    response = JSONResponse(content=response_data)
+    access_token, _, _ = _issue_tokens_and_cookies(response, user.id)
 
-    return TokenResponse(
-        access_token=new_token,
-        user_id=user.id,
-        email=user.email,
-        plan=plan,
-    )
+    response_data["access_token"] = access_token
+    response.body = JSONResponse(content=response_data).body
+
+    return response
+
+
+# ── Logout ────────────────────────────────────────────────────────
+
+
+@auth_router.post("/logout")
+async def logout():
+    """Clear all auth cookies to log the user out."""
+    response = JSONResponse(content={"message": "Logged out successfully"})
+    clear_auth_cookies(response)
+    return response
+
+
+# ── Google OAuth ──────────────────────────────────────────────────
 
 
 @auth_router.get("/google/url")
@@ -246,25 +337,25 @@ async def google_oauth_redirect(request: Request):
 
 @auth_router.get("/google/callback")
 async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    """Handle Google OAuth callback - exchange code, create/login user, redirect to frontend with token."""
+    """Handle Google OAuth callback — exchange code, create/login user, set cookies and redirect."""
     import aiohttp
     import urllib.parse
     from sqlalchemy.exc import IntegrityError
 
-    frontend_url = "https://hub.reifundamentalshub.com/login"
+    frontend_url = settings.hub_url + "/login"
 
     code = request.query_params.get("code")
     if not code:
         return RedirectResponse(url=f"{frontend_url}?google_error=missing_code", status_code=302)
 
-    settings = get_settings()
+    settings_local = get_settings()
 
     token_data = {
-        "client_id": settings.google_login_client_id,
-        "client_secret": settings.google_login_client_secret,
+        "client_id": settings_local.google_login_client_id,
+        "client_secret": settings_local.google_login_client_secret,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": settings.google_login_redirect_uri,
+        "redirect_uri": settings_local.google_login_redirect_uri,
     }
 
     try:
@@ -273,7 +364,7 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
                 if resp.status != 200:
                     error_body = await resp.text()
                     print(f"GOOGLE TOKEN EXCHANGE FAILED: status={resp.status}, body={error_body}")
-                    print(f"GOOGLE TOKEN EXCHANGE redirect_uri={settings.google_login_redirect_uri}")
+                    print(f"GOOGLE TOKEN EXCHANGE redirect_uri={settings_local.google_login_redirect_uri}")
                     return RedirectResponse(url=f"{frontend_url}?google_error=code_exchange_failed", status_code=302)
                 tokens = await resp.json()
 
@@ -363,18 +454,9 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
         print(f"GOOGLE OAUTH DB ERROR: {e}")
         return RedirectResponse(url=f"{frontend_url}?google_error=db_error", status_code=302)
 
-    plan = user.subscription.plan if user.subscription else None
-    token = create_access_token(
-        data={"sub": user.id},
-        expires_delta=timedelta(minutes=settings.jwt_expiration_minutes),
-    )
+    # Redirect to frontend with cookies set (no JWT in URL params!)
+    redirect_url = settings_local.hub_url + "/login?auth_success=true"
+    response = RedirectResponse(url=redirect_url, status_code=302)
+    _issue_tokens_and_cookies(response, user.id)
 
-    params = urllib.parse.urlencode({
-        "google_token": token,
-        "user_id": str(user.id),
-        "email": user.email,
-        "plan": plan or "",
-    })
-    return RedirectResponse(url=f"{frontend_url}?{params}", status_code=302)
-
-
+    return response

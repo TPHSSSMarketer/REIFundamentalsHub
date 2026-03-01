@@ -21,7 +21,7 @@ import SuperAdminCredentials from './SuperAdminCredentials'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
-import { getToken, getAuthHeader, getCurrentUser } from '@/services/auth'
+import { getAuthHeader, getCurrentUser } from '@/services/auth'
 import { useDemoMode } from '@/hooks/useDemoMode'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
@@ -381,10 +381,8 @@ export default function AdminPage() {
   }, [tab, fetchBankNegUsers])
 
   async function handleEnableBankNegotiation(userId: number) {
-    const tk = getToken()
-    if (!tk) return
     try {
-      await enableBankNegotiation(String(userId), tk)
+      await enableBankNegotiation(String(userId))
       setToast('Bank negotiation enabled')
       fetchBankNegUsers()
     } catch {
@@ -393,10 +391,8 @@ export default function AdminPage() {
   }
 
   async function handleEnableLoanServicing(userId: number) {
-    const tk = getToken()
-    if (!tk) return
     try {
-      await enableLoanServicing(String(userId), tk)
+      await enableLoanServicing(String(userId))
       setToast('Loan servicing enabled')
       fetchLoanUsers()
     } catch {
@@ -409,12 +405,10 @@ export default function AdminPage() {
       setConfigUserId(null)
       return
     }
-    const tk = getToken()
-    if (!tk) return
     setConfigUserId(userId)
     setTenantConfigLoading(true)
     try {
-      const cfg = await getTenantConfig(String(userId), tk) as Record<string, any>
+      const cfg = await getTenantConfig(String(userId)) as Record<string, any>
       setTenantConfig(cfg)
     } catch {
       setTenantConfig({})
@@ -424,8 +418,6 @@ export default function AdminPage() {
 
   async function handleSaveTenantConfig() {
     if (!configUserId) return
-    const tk = getToken()
-    if (!tk) return
     setTenantConfigSaving(true)
     try {
       await updateTenantConfig(String(configUserId), {
@@ -433,7 +425,7 @@ export default function AdminPage() {
         logo_url: tenantConfig.logo_url || '',
         portal_primary_color: tenantConfig.portal_primary_color || '#1B3A6B',
         servicing_fee_pct: tenantConfig.servicing_fee_pct ?? 0,
-      }, tk)
+      })
       setToast(`Configuration saved for ${tenantConfig.company_name || 'user'}`)
     } catch {
       setToast('Failed to save tenant config')
@@ -733,7 +725,7 @@ export default function AdminPage() {
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-bold text-slate-800 mb-4">Loan Servicing Access</h2>
-            <StripeConnectSetup token={getToken() || ''} />
+            <StripeConnectSetup />
           </div>
 
           <div className="space-y-4">

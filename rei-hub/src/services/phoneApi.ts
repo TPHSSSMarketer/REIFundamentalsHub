@@ -228,7 +228,7 @@ const DEMO_SEARCH_NUMBERS = [
 export async function getNumbers() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/numbers`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/numbers`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ numbers: Array<Record<string, unknown>> }>(res)
     },
     { numbers: DEMO_NUMBERS as any }
@@ -238,7 +238,7 @@ export async function getNumbers() {
 export async function searchNumbers(areaCode: string) {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/numbers/search?area_code=${areaCode}`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/numbers/search?area_code=${areaCode}`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ numbers: Array<Record<string, unknown>> }>(res)
     },
     { numbers: DEMO_SEARCH_NUMBERS.map((n) => ({ ...n, phone_number: n.phone_number.replace('210', areaCode.padEnd(3, '0')) })) as any }
@@ -256,6 +256,7 @@ export async function purchaseNumber(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -269,6 +270,7 @@ export async function releaseNumber(id: string) {
       const res = await fetch(`${BASE_URL}/api/phone/numbers/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse<{ ok: boolean }>(res)
     },
@@ -286,6 +288,7 @@ export async function updateNumber(
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ ok: boolean }>(res)
     },
@@ -298,7 +301,7 @@ export async function updateNumber(
 export async function getSoftphoneToken() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/token`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/token`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ token: string; identity: string }>(res)
     },
     { token: 'demo-token', identity: 'demo-user' }
@@ -318,6 +321,7 @@ export async function dial(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ call_sid: string; call_log_id: string }>(res)
     },
@@ -336,6 +340,7 @@ export async function startDialerCampaign(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ session_id: string; total_contacts: number }>(res)
     },
@@ -349,6 +354,7 @@ export async function dialerNext(sessionId: string) {
       const res = await fetch(`${BASE_URL}/api/phone/dialer/${sessionId}/next`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -366,6 +372,7 @@ export async function saveDisposition(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -379,7 +386,7 @@ export async function getCalls(contactId?: string) {
   const params = contactId ? `?contact_id=${contactId}` : ''
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/calls${params}`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/calls${params}`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ calls: Array<Record<string, unknown>> }>(res)
     },
     { calls: [] }
@@ -396,6 +403,7 @@ export async function updateCall(
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ ok: boolean }>(res)
     },
@@ -408,7 +416,7 @@ export async function updateCall(
 export async function getSmsConversations() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/sms/conversations`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/sms/conversations`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ conversations: Array<Record<string, unknown>> }>(res)
     },
     { conversations: DEMO_CONVERSATIONS as any }
@@ -418,7 +426,7 @@ export async function getSmsConversations() {
 export async function getSmsThread(contactId: string) {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/sms/conversations/${contactId}`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/sms/conversations/${contactId}`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ messages: Array<Record<string, unknown>> }>(res)
     },
     { messages: (DEMO_THREADS[contactId] || []) as any }
@@ -437,6 +445,7 @@ export async function sendSms(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ message_sid: string }>(res)
     },
@@ -447,7 +456,7 @@ export async function sendSms(data: {
 export async function getSmsCampaigns() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/sms/campaigns`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/sms/campaigns`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ campaigns: Array<Record<string, unknown>> }>(res)
     },
     { campaigns: DEMO_CAMPAIGNS as any }
@@ -468,6 +477,7 @@ export async function createSmsCampaign(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -481,6 +491,7 @@ export async function sendSmsCampaign(id: string) {
       const res = await fetch(`${BASE_URL}/api/phone/sms/campaigns/${id}/send`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -493,7 +504,7 @@ export async function sendSmsCampaign(id: string) {
 export async function getVoicemailDrops() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/voicemail-drops`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/voicemail-drops`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ drops: Array<Record<string, unknown>> }>(res)
     },
     { drops: DEMO_DROPS as any }
@@ -513,6 +524,7 @@ export async function createVoicemailDrop(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -526,6 +538,7 @@ export async function deleteVoicemailDrop(id: string) {
       const res = await fetch(`${BASE_URL}/api/phone/voicemail-drops/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       return handleResponse<{ ok: boolean }>(res)
     },
@@ -536,7 +549,7 @@ export async function deleteVoicemailDrop(id: string) {
 export async function getVoices() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/voices`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/voices`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ voices: Array<Record<string, unknown>> }>(res)
     },
     { voices: DEMO_VOICES as any }
@@ -550,6 +563,7 @@ export async function previewDrop(id: string, data: { contact_id?: string }) {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -569,6 +583,7 @@ export async function sendVoicemailCampaign(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<Record<string, unknown>>(res)
     },
@@ -581,7 +596,7 @@ export async function sendVoicemailCampaign(data: {
 export async function getFaxHistory() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/fax`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/fax`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{ faxes: Array<Record<string, unknown>> }>(res)
     },
     { faxes: DEMO_FAXES as any }
@@ -600,6 +615,7 @@ export async function sendFax(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
       return handleResponse<{ fax_sid: string }>(res)
     },
@@ -612,7 +628,7 @@ export async function sendFax(data: {
 export async function getCredits() {
   return withDemoFallback(
     async () => {
-      const res = await fetch(`${BASE_URL}/api/phone/credits`, { headers: getAuthHeader() })
+      const res = await fetch(`${BASE_URL}/api/phone/credits`, { headers: getAuthHeader(), credentials: 'include' })
       return handleResponse<{
         credits_cents: number
         credits_dollars: number
@@ -635,6 +651,7 @@ export async function purchaseCredits(bundle: string) {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ bundle }),
+        credentials: 'include',
       })
       return handleResponse<{ checkout_url: string }>(res)
     },

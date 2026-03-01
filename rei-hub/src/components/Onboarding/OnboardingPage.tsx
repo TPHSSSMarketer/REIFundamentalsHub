@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getToken, isAuthenticated } from '@/services/auth'
 import {
   getOnboardingStatus,
   saveStep,
@@ -98,13 +97,7 @@ export default function OnboardingPage() {
   const [storageConnected, setStorageConnected] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate('/login', { replace: true })
-      return
-    }
-    const token = getToken()
-    if (!token) return
-    getOnboardingStatus(token)
+    getOnboardingStatus()
       .then((res) => {
         if (res.completed) {
           navigate('/dashboard', { replace: true })
@@ -149,12 +142,10 @@ export default function OnboardingPage() {
 
   const handleSaveStep = useCallback(
     async (stepNum: number, body: Record<string, unknown>, nextStep?: number) => {
-      const token = getToken()
-      if (!token) return
       setSaving(true)
       setError('')
       try {
-        const res = await saveStep(stepNum, body, token)
+        const res = await saveStep(stepNum, body)
         if (res.number_purchased) {
           setNumberPurchased(true)
           setData((prev) => ({
@@ -178,12 +169,10 @@ export default function OnboardingPage() {
   )
 
   const handleSkip = useCallback(async () => {
-    const token = getToken()
-    if (!token) return
     setSaving(true)
     try {
               localStorage.setItem('rei-onboarding-skipped', 'true')
-      await skipOnboarding(token)
+      await skipOnboarding()
       navigate('/dashboard', { replace: true })
     } catch {
       navigate('/dashboard', { replace: true })
@@ -191,12 +180,10 @@ export default function OnboardingPage() {
   }, [navigate])
 
   const handleComplete = useCallback(async () => {
-    const token = getToken()
-    if (!token) return
     setSaving(true)
     setError('')
     try {
-      await completeOnboarding(token)
+      await completeOnboarding()
       navigate('/dashboard', { replace: true })
     } catch (err: any) {
       setError(err.message || 'Failed to complete onboarding')
@@ -206,14 +193,12 @@ export default function OnboardingPage() {
 
   const searchNumbers = useCallback(async () => {
     if (!data.area_code || data.area_code.length !== 3) return
-    const token = getToken()
-    if (!token) return
     setSearchingNumbers(true)
     setAvailableNumbers([])
     try {
       const res = await fetch(
         `${BASE_URL}/api/phone/numbers/search?area_code=${data.area_code}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { credentials: 'include' }
       )
       if (!res.ok) throw new Error('Search failed')
       const json = await res.json()

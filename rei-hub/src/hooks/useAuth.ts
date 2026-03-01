@@ -2,26 +2,17 @@ import { useState, useEffect, useCallback } from 'react'
 import * as authApi from '@/services/authApi'
 import type { AuthUser } from '@/types'
 
-const TOKEN_KEY = 'rei_token'
-
 export function useAuth() {
-  const [token, setToken] = useState<string | null>(null)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Hydrate from localStorage on mount
+  // On mount, check if the user has a valid session by calling /me.
+  // The browser sends the HttpOnly access_token cookie automatically.
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY)
-    if (!stored) {
-      setIsLoading(false)
-      return
-    }
-
     authApi
-      .getMe(stored)
+      .getMe()
       .then((res) => {
-        setToken(stored)
         setUser({
           id: res.id,
           email: res.email,
@@ -32,7 +23,8 @@ export function useAuth() {
         })
       })
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY)
+        // Not authenticated or session expired — that's fine
+        setUser(null)
       })
       .finally(() => {
         setIsLoading(false)
@@ -41,11 +33,10 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string) => {
     setError(null)
-    const res = await authApi.login(email, password)
-    localStorage.setItem(TOKEN_KEY, res.access_token)
-    setToken(res.access_token)
+    await authApi.login(email, password)
 
-    const me = await authApi.getMe(res.access_token)
+    // Cookies are now set — fetch user profile
+    const me = await authApi.getMe()
     setUser({
       id: me.id,
       email: me.email,
@@ -59,11 +50,10 @@ export function useAuth() {
   const register = useCallback(
     async (email: string, password: string, fullName?: string) => {
       setError(null)
-      const res = await authApi.register(email, password, fullName)
-      localStorage.setItem(TOKEN_KEY, res.access_token)
-      setToken(res.access_token)
+      await authApi.register(email, password, fullName)
 
-      const me = await authApi.getMe(res.access_token)
+      // Cookies are now set — fetch user profile
+      const me = await authApi.getMe()
       setUser({
         id: me.id,
         email: me.email,
@@ -76,15 +66,16 @@ export function useAuth() {
     []
   )
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    setToken(null)
+  const logout = useCallback(async () => {
+    await authApi.logout()
     setUser(null)
     setError(null)
+    // Clean up any legacy localStorage from before the migration
+    localStorage.removeItem('rei_token')
+    window.location.href = '/login'
   }, [])
 
   return {
-    token,
     user,
     isLoading,
     error,
@@ -92,6 +83,6 @@ export function useAuth() {
     login,
     register,
     logout,
-    isAuthenticated: !!token,
+    isAuthenticated: !!user,
   }
 }

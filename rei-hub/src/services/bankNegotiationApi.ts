@@ -2,6 +2,8 @@
  * Bank Negotiation API service
  */
 
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Demo Mode Helpers ──────────────────────────────────────
@@ -59,15 +61,15 @@ const DEMO_NEGOTIATIONS = [
   },
 ]
 
-function headers(token: string) {
+function headers() {
   return {
-    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
+    ...getCSRFHeaders(),
   }
 }
 
-function authHeaders(token: string) {
-  return { Authorization: `Bearer ${token}` }
+function authHeaders() {
+  return {}
 }
 
 async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
@@ -77,7 +79,6 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
     throw new Error('Too many requests. Please wait a moment before trying again.')
   }
   if (res.status === 401) {
-    localStorage.removeItem('rei_token')
     window.location.href = '/login'
     throw new Error('Your session has expired. Please log in again.')
   }
@@ -98,46 +99,50 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
 
 // ── Negotiations ─────────────────────────────────────────────────
 
-export async function getNegotiations(token: string, filters?: Record<string, string>) {
+export async function getNegotiations(filters?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const params = new URLSearchParams(filters || {})
       return fetch(`${BASE_URL}/api/negotiations?${params}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch negotiations'))
     },
     DEMO_NEGOTIATIONS
   )
 }
 
-export async function getNegotiation(negId: string, token: string) {
+export async function getNegotiation(negId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch negotiation')),
     DEMO_NEGOTIATIONS[0]
   )
 }
 
-export async function createNegotiation(data: Record<string, any>, token: string) {
+export async function createNegotiation(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create negotiation')),
     { id: crypto.randomUUID(), ...data, status: 'pending', created_at: new Date().toISOString() }
   )
 }
 
-export async function updateNegotiation(negId: string, data: Record<string, any>, token: string) {
+export async function updateNegotiation(negId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update negotiation')),
     { id: negId, ...data, updated_at: new Date().toISOString() }
@@ -146,11 +151,12 @@ export async function updateNegotiation(negId: string, data: Record<string, any>
 
 // ── Recipients ───────────────────────────────────────────────────
 
-export async function getRecipients(negId: string, token: string) {
+export async function getRecipients(negId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/recipients`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch recipients')),
     [
       { id: 'rec-001', negotiation_id: negId, bank_contact: 'John Smith', email: 'john.smith@wellsfargo.com', title: 'Loan Officer' },
@@ -159,24 +165,26 @@ export async function getRecipients(negId: string, token: string) {
   )
 }
 
-export async function updateRecipient(negId: string, recId: string, data: Record<string, any>, token: string) {
+export async function updateRecipient(negId: string, recId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/recipients/${recId}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update recipient')),
     { id: recId, negotiation_id: negId, ...data }
   )
 }
 
-export async function refreshRecipient(negId: string, recId: string, token: string) {
+export async function refreshRecipient(negId: string, recId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/recipients/${recId}/refresh`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to refresh recipient')),
     { id: recId, refreshed_at: new Date().toISOString(), status: 'active' }
   )
@@ -184,11 +192,12 @@ export async function refreshRecipient(negId: string, recId: string, token: stri
 
 // ── Documents ────────────────────────────────────────────────────
 
-export async function getDocuments(negId: string, token: string) {
+export async function getDocuments(negId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/documents`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch documents')),
     [
       { id: 'doc-001', negotiation_id: negId, type: 'hardship_letter', filename: 'hardship_letter.pdf', uploaded_at: '2024-02-12T10:00:00Z' },
@@ -197,12 +206,13 @@ export async function getDocuments(negId: string, token: string) {
   )
 }
 
-export async function createDocument(negId: string, data: Record<string, any>, token: string) {
+export async function createDocument(negId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/documents`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create document')),
     { id: crypto.randomUUID(), negotiation_id: negId, ...data, uploaded_at: new Date().toISOString() }
@@ -211,11 +221,12 @@ export async function createDocument(negId: string, data: Record<string, any>, t
 
 // ── Correspondence ───────────────────────────────────────────────
 
-export async function getCorrespondence(negId: string, token: string) {
+export async function getCorrespondence(negId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/correspondence`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch correspondence')),
     [
       { id: 'corr-001', negotiation_id: negId, date: '2024-02-15T09:30:00Z', type: 'email', subject: 'Loan Modification Request', body: 'Please consider our modification request...', sender: 'us' },
@@ -224,24 +235,26 @@ export async function getCorrespondence(negId: string, token: string) {
   )
 }
 
-export async function sendToAll(negId: string, data: Record<string, any>, token: string) {
+export async function sendToAll(negId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/send`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to send to all')),
     { success: true, sent_to: 2, timestamp: new Date().toISOString() }
   )
 }
 
-export async function updateTracking(negId: string, corrId: string, token: string) {
+export async function updateTracking(negId: string, corrId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/correspondence/${corrId}/update-tracking`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to update tracking')),
     { id: corrId, tracking_updated_at: new Date().toISOString(), status: 'delivered' }
   )
@@ -249,22 +262,24 @@ export async function updateTracking(negId: string, corrId: string, token: strin
 
 // ── Tracking ─────────────────────────────────────────────────────
 
-export async function getTrackingSummary(negId: string, token: string) {
+export async function getTrackingSummary(negId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/tracking-summary`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch tracking summary')),
     { negotiation_id: negId, sent: 3, delivered: 3, opened: 2, last_interaction: '2024-02-17T14:00:00Z' }
   )
 }
 
-export async function refreshAllTracking(token: string) {
+export async function refreshAllTracking() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/tracking/refresh-all`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to refresh all tracking')),
     { refreshed_count: 2, timestamp: new Date().toISOString() }
   )
@@ -272,11 +287,12 @@ export async function refreshAllTracking(token: string) {
 
 // ── Follow-ups ───────────────────────────────────────────────────
 
-export async function getPendingFollowups(token: string) {
+export async function getPendingFollowups() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/followups/pending`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch pending follow-ups')),
     [
       { id: 'followup-001', negotiation_id: 'neg-001', due_date: '2024-02-25T09:00:00Z', property: '123 Oak Street', note: 'Check on bank response' },
@@ -284,12 +300,13 @@ export async function getPendingFollowups(token: string) {
   )
 }
 
-export async function completeFollowup(id: string, data: Record<string, any>, token: string) {
+export async function completeFollowup(id: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/followups/${id}/complete`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to complete follow-up')),
     { id, completed_at: new Date().toISOString(), status: 'completed' }
@@ -298,12 +315,13 @@ export async function completeFollowup(id: string, data: Record<string, any>, to
 
 // ── Property-grouped & Deal views ────────────────────────────
 
-export async function getNegotiationsByProperty(token: string, params?: Record<string, string>) {
+export async function getNegotiationsByProperty(params?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const query = params ? `?${new URLSearchParams(params)}` : ''
       return fetch(`${BASE_URL}/api/negotiations/by-property${query}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch negotiations by property'))
     },
     {
@@ -313,12 +331,12 @@ export async function getNegotiationsByProperty(token: string, params?: Record<s
   )
 }
 
-export async function getNegotiationsForDeal(token: string, property_address: string) {
+export async function getNegotiationsForDeal(property_address: string) {
   return withDemoFallback(
     () =>
       fetch(
         `${BASE_URL}/api/negotiations/for-deal?property_address=${encodeURIComponent(property_address)}`,
-        { headers: authHeaders(token) },
+        { headers: authHeaders(), credentials: 'include' },
       ).then((res) => handleResponse(res, 'Failed to fetch negotiations for deal')),
     [DEMO_NEGOTIATIONS[0]]
   )
@@ -326,22 +344,24 @@ export async function getNegotiationsForDeal(token: string, property_address: st
 
 // ── Admin ────────────────────────────────────────────────────────
 
-export async function getAllNegotiations(token: string) {
+export async function getAllNegotiations() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/admin/all`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch all negotiations')),
     DEMO_NEGOTIATIONS
   )
 }
 
-export async function enableBankNegotiation(userId: string, token: string) {
+export async function enableBankNegotiation(userId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/negotiations/admin/enable/${userId}`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to enable bank negotiation')),
     { user_id: userId, feature_enabled: true, timestamp: new Date().toISOString() }
   )

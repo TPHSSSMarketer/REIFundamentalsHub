@@ -2,6 +2,8 @@
  * Loan Servicing API service
  */
 
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Demo Mode Helpers ──────────────────────────────────────
@@ -62,15 +64,15 @@ const DEMO_CFDS = [
   },
 ]
 
-function headers(token: string) {
+function headers() {
   return {
-    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
+    ...getCSRFHeaders(),
   }
 }
 
-function authHeaders(token: string) {
-  return { Authorization: `Bearer ${token}` }
+function authHeaders() {
+  return {}
 }
 
 async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
@@ -80,7 +82,6 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
     throw new Error('Too many requests. Please wait a moment before trying again.')
   }
   if (res.status === 401) {
-    localStorage.removeItem('rei_token')
     window.location.href = '/login'
     throw new Error('Your session has expired. Please log in again.')
   }
@@ -101,57 +102,62 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
 
 // ── Properties ────────────────────────────────────────────────────
 
-export async function getProperties(token: string, filters?: Record<string, string>) {
+export async function getProperties(filters?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const params = new URLSearchParams(filters || {})
       return fetch(`${BASE_URL}/api/loans/properties?${params}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch properties'))
     },
     DEMO_PROPERTIES
   )
 }
 
-export async function getProperty(trustId: string, token: string) {
+export async function getProperty(trustId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/properties/${trustId}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch property')),
     DEMO_PROPERTIES[0]
   )
 }
 
-export async function createProperty(data: Record<string, any>, token: string) {
+export async function createProperty(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/properties`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create property')),
     { id: crypto.randomUUID(), ...data, status: 'active' }
   )
 }
 
-export async function updateProperty(trustId: string, data: Record<string, any>, token: string) {
+export async function updateProperty(trustId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/properties/${trustId}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update property')),
     { id: trustId, ...data }
   )
 }
 
-export async function getStateLaws(trustId: string, token: string) {
+export async function getStateLaws(trustId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/properties/${trustId}/state-laws`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch state laws')),
     {
       state: 'TX',
@@ -164,57 +170,62 @@ export async function getStateLaws(trustId: string, token: string) {
 
 // ── CFDs ──────────────────────────────────────────────────────────
 
-export async function getCfds(token: string, filters?: Record<string, string>) {
+export async function getCfds(filters?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const params = new URLSearchParams(filters || {})
       return fetch(`${BASE_URL}/api/loans/cfds?${params}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch CFDs'))
     },
     DEMO_CFDS
   )
 }
 
-export async function getCfd(cfdId: string, token: string) {
+export async function getCfd(cfdId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/cfds/${cfdId}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch CFD')),
     DEMO_CFDS[0]
   )
 }
 
-export async function createCfd(data: Record<string, any>, token: string) {
+export async function createCfd(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/cfds`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create CFD')),
     { id: crypto.randomUUID(), ...data, status: 'active', originated_at: new Date().toISOString() }
   )
 }
 
-export async function updateCfd(cfdId: string, data: Record<string, any>, token: string) {
+export async function updateCfd(cfdId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/cfds/${cfdId}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update CFD')),
     { id: cfdId, ...data }
   )
 }
 
-export async function getAmortization(cfdId: string, token: string) {
+export async function getAmortization(cfdId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/cfds/${cfdId}/amortization`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch amortization')),
     {
       total_payments: 24,
@@ -230,12 +241,13 @@ export async function getAmortization(cfdId: string, token: string) {
 
 // ── Payments ──────────────────────────────────────────────────────
 
-export async function getPayments(token: string, filters?: Record<string, string>) {
+export async function getPayments(filters?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const params = new URLSearchParams(filters || {})
       return fetch(`${BASE_URL}/api/loans/payments?${params}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch payments'))
     },
     [
@@ -246,24 +258,26 @@ export async function getPayments(token: string, filters?: Record<string, string
   )
 }
 
-export async function recordPayment(data: Record<string, any>, token: string) {
+export async function recordPayment(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/payments/record`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to record payment')),
     { id: crypto.randomUUID(), ...data, status: 'completed', recorded_at: new Date().toISOString() }
   )
 }
 
-export async function createStripeIntent(data: Record<string, any>, token: string) {
+export async function createStripeIntent(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/payments/stripe/create-intent`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create Stripe intent')),
     { client_secret: 'pi_test_secret_123456', amount: data.amount || 7234, currency: 'usd' }
@@ -272,36 +286,39 @@ export async function createStripeIntent(data: Record<string, any>, token: strin
 
 // ── Defaults ──────────────────────────────────────────────────────
 
-export async function getDefaults(token: string, filters?: Record<string, string>) {
+export async function getDefaults(filters?: Record<string, string>) {
   return withDemoFallback(
     () => {
       const params = new URLSearchParams(filters || {})
       return fetch(`${BASE_URL}/api/loans/defaults?${params}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch defaults'))
     },
     []
   )
 }
 
-export async function createDefault(data: Record<string, any>, token: string) {
+export async function createDefault(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/defaults`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create default')),
     { id: crypto.randomUUID(), ...data, status: 'reported', created_at: new Date().toISOString() }
   )
 }
 
-export async function updateDefault(id: string, data: Record<string, any>, token: string) {
+export async function updateDefault(id: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/defaults/${id}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update default')),
     { id, ...data, updated_at: new Date().toISOString() }
@@ -310,11 +327,12 @@ export async function updateDefault(id: string, data: Record<string, any>, token
 
 // ── Investors ─────────────────────────────────────────────────────
 
-export async function getInvestors(token: string) {
+export async function getInvestors() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/investors`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch investors')),
     [
       { id: 'inv-001', name: 'Capital Partners LLC', email: 'contact@capitalpartners.com', active: true },
@@ -323,36 +341,39 @@ export async function getInvestors(token: string) {
   )
 }
 
-export async function createInvestor(data: Record<string, any>, token: string) {
+export async function createInvestor(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/investors`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to create investor')),
     { id: crypto.randomUUID(), ...data, active: true, created_at: new Date().toISOString() }
   )
 }
 
-export async function updateInvestor(id: string, data: Record<string, any>, token: string) {
+export async function updateInvestor(id: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/investors/${id}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update investor')),
     { id, ...data, updated_at: new Date().toISOString() }
   )
 }
 
-export async function deactivateInvestor(id: string, token: string) {
+export async function deactivateInvestor(id: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/investors/${id}`, {
         method: 'DELETE',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to deactivate investor')),
     { id, active: false, deactivated_at: new Date().toISOString() }
   )
@@ -360,11 +381,12 @@ export async function deactivateInvestor(id: string, token: string) {
 
 // ── Distributions ─────────────────────────────────────────────────
 
-export async function getDistributions(token: string) {
+export async function getDistributions() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/distributions`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch distributions')),
     [
       { id: 'dist-001', period: '2024-Q1', status: 'finalized', total_amount: 12340, created_at: '2024-02-01T00:00:00Z' },
@@ -372,34 +394,37 @@ export async function getDistributions(token: string) {
   )
 }
 
-export async function generateDistribution(data: Record<string, any>, token: string) {
+export async function generateDistribution(data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/distributions/generate`, {
         method: 'POST',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to generate distribution')),
     { id: crypto.randomUUID(), ...data, status: 'generated', created_at: new Date().toISOString() }
   )
 }
 
-export async function finalizeDistribution(id: string, token: string) {
+export async function finalizeDistribution(id: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/distributions/${id}/finalize`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to finalize distribution')),
     { id, status: 'finalized', finalized_at: new Date().toISOString() }
   )
 }
 
-export async function getDistributionPdf(id: string, token: string) {
+export async function getDistributionPdf(id: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/distributions/${id}/pdf`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch distribution PDF')),
     { url: `/distributions/${id}/report.pdf`, filename: 'distribution-report.pdf' }
   )
@@ -407,21 +432,23 @@ export async function getDistributionPdf(id: string, token: string) {
 
 // ── Stripe Connect ────────────────────────────────────────────────
 
-export async function getStripeConnectStatus(token: string) {
+export async function getStripeConnectStatus() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/stripe-connect/status`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch Stripe Connect status')),
     { connected: true, account_id: 'acct_demo_123456', email: 'payments@reicompany.com' }
   )
 }
 
-export async function getStripeConnectOnboardUrl(token: string) {
+export async function getStripeConnectOnboardUrl() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/stripe-connect/onboard`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to get Stripe Connect onboard URL')),
     { url: 'https://connect.stripe.com/onboarding/demo' }
   )
@@ -429,32 +456,35 @@ export async function getStripeConnectOnboardUrl(token: string) {
 
 // ── Admin ─────────────────────────────────────────────────────────
 
-export async function getAllProperties(token: string) {
+export async function getAllProperties() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/admin/all-properties`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch all properties')),
     DEMO_PROPERTIES
   )
 }
 
-export async function getAllCfds(token: string) {
+export async function getAllCfds() {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/admin/all-cfds`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch all CFDs')),
     DEMO_CFDS
   )
 }
 
-export async function enableLoanServicing(userId: string, token: string) {
+export async function enableLoanServicing(userId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/admin/enable/${userId}`, {
         method: 'POST',
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to enable loan servicing')),
     { user_id: userId, feature_enabled: true, timestamp: new Date().toISOString() }
   )
@@ -462,22 +492,24 @@ export async function enableLoanServicing(userId: string, token: string) {
 
 // ── Tenant Config ────────────────────────────────────────────────
 
-export async function getTenantConfig(userId: string, token: string) {
+export async function getTenantConfig(userId: string) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/admin/tenant-config/${userId}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to fetch tenant config')),
     { user_id: userId, feature_enabled: true, max_loans: 50 }
   )
 }
 
-export async function updateTenantConfig(userId: string, data: Record<string, any>, token: string) {
+export async function updateTenantConfig(userId: string, data: Record<string, any>) {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/loans/admin/tenant-config/${userId}`, {
         method: 'PATCH',
-        headers: headers(token),
+        headers: headers(),
+        credentials: 'include',
         body: JSON.stringify(data),
       }).then((res) => handleResponse(res, 'Failed to update tenant config')),
     { user_id: userId, ...data, updated_at: new Date().toISOString() }

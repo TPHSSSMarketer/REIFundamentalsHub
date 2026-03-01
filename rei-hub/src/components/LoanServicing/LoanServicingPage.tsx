@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCurrentUser, getToken } from '@/services/auth'
+import { getCurrentUser } from '@/services/auth'
 import PropertiesTab from './tabs/PropertiesTab'
 import ContractsTab from './tabs/ContractsTab'
 import PaymentsTab from './tabs/PaymentsTab'
@@ -18,12 +18,10 @@ const TABS = [
 export default function LoanServicingPage() {
   const [activeTab, setActiveTab] = useState<string>('properties')
   const [user, setUser] = useState<Record<string, unknown> | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
-    setToken(getToken())
     getCurrentUser()
       .then((u) => {
         setUser(u)
@@ -58,8 +56,6 @@ export default function LoanServicingPage() {
       </div>
     )
   }
-
-  if (!token) return null
 
   return (
     <div className="space-y-0">
@@ -96,12 +92,12 @@ export default function LoanServicingPage() {
       {/* Tab Content */}
       <div className="p-4 md:p-6">
         {activeTab === 'properties' && (
-          <PropertiesTab token={token} isSuperAdmin={isSuperAdmin} onNavigateContracts={() => setActiveTab('contracts')} />
+          <PropertiesTab isSuperAdmin={isSuperAdmin} onNavigateContracts={() => setActiveTab('contracts')} />
         )}
-        {activeTab === 'contracts' && <ContractsTab token={token} isSuperAdmin={isSuperAdmin} />}
-        {activeTab === 'payments' && <PaymentsTab token={token} />}
-        {activeTab === 'investors' && <InvestorsTab token={token} isSuperAdmin={isSuperAdmin} />}
-        {activeTab === 'distributions' && <DistributionsTab token={token} isSuperAdmin={isSuperAdmin} />}
+        {activeTab === 'contracts' && <ContractsTab isSuperAdmin={isSuperAdmin} />}
+        {activeTab === 'payments' && <PaymentsTab />}
+        {activeTab === 'investors' && <InvestorsTab isSuperAdmin={isSuperAdmin} />}
+        {activeTab === 'distributions' && <DistributionsTab isSuperAdmin={isSuperAdmin} />}
       </div>
     </div>
   )

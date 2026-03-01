@@ -13,7 +13,6 @@ import {
   Trash2,
   Link as LinkIcon,
 } from 'lucide-react'
-import { getToken } from '@/services/auth'
 import * as calApi from '@/services/calendarApi'
 import { cn } from '@/utils/helpers'
 
@@ -85,7 +84,6 @@ const MONTHS = [
 
 export default function CalendarPage() {
   const navigate = useNavigate()
-  const token = getToken() || ''
 
   const [view, setView] = useState<ViewMode>('month')
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -130,30 +128,30 @@ export default function CalendarPage() {
     const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0)
     try {
-      const data = await calApi.getEvents(start.toISOString(), end.toISOString(), token)
+      const data = await calApi.getEvents(start.toISOString(), end.toISOString())
       setEvents(data.events || [])
     } catch { /* ignore */ }
-  }, [currentDate, token])
+  }, [currentDate])
 
   const loadTasks = useCallback(async () => {
     try {
-      const data = await calApi.getTasks(undefined, token)
+      const data = await calApi.getTasks(undefined)
       setTasks(data)
     } catch { /* ignore */ }
-  }, [token])
+  }, [])
 
   const loadProfile = useCallback(async () => {
     try {
       const res = await fetch(
         `${import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'}/api/auth/me`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { credentials: 'include' }
       )
       if (res.ok) {
         const data = await res.json()
         setProfile(data)
       }
     } catch { /* ignore */ }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -164,7 +162,7 @@ export default function CalendarPage() {
 
   const handleCreateTask = async () => {
     try {
-      await calApi.createTask(taskForm, token)
+      await calApi.createTask(taskForm)
       setShowTaskModal(false)
       setTaskForm({
         title: '', description: '', priority: 'medium',
@@ -178,7 +176,7 @@ export default function CalendarPage() {
 
   const handleCreateEvent = async () => {
     try {
-      await calApi.createEvent(eventForm, token)
+      await calApi.createEvent(eventForm)
       setShowEventModal(false)
       setEventForm({
         title: '', description: '', event_type: 'appointment',
@@ -192,14 +190,14 @@ export default function CalendarPage() {
 
   const handleCompleteTask = async (id: string) => {
     try {
-      await calApi.completeTask(id, token)
+      await calApi.completeTask(id)
       await loadTasks()
     } catch { /* ignore */ }
   }
 
   const handleDeleteTask = async (id: string) => {
     try {
-      await calApi.deleteTask(id, token)
+      await calApi.deleteTask(id)
       await Promise.all([loadTasks(), loadEvents()])
     } catch { /* ignore */ }
   }
@@ -207,9 +205,9 @@ export default function CalendarPage() {
   const handleSync = async (provider: string) => {
     setSyncing(provider)
     try {
-      if (provider === 'google') await calApi.syncGoogle(token)
-      else if (provider === 'outlook') await calApi.syncOutlook(token)
-      else if (provider === 'caldav') await calApi.syncCaldav(token)
+      if (provider === 'google') await calApi.syncGoogle()
+      else if (provider === 'outlook') await calApi.syncOutlook()
+      else if (provider === 'caldav') await calApi.syncCaldav()
       await loadEvents()
     } catch { /* ignore */ }
     setSyncing(null)
@@ -217,21 +215,21 @@ export default function CalendarPage() {
 
   const handleGoogleConnect = async () => {
     try {
-      const data = await calApi.getGoogleAuthUrl(token)
+      const data = await calApi.getGoogleAuthUrl()
       window.open(data.auth_url, '_blank')
     } catch { /* ignore */ }
   }
 
   const handleOutlookConnect = async () => {
     try {
-      const data = await calApi.getOutlookAuthUrl(token)
+      const data = await calApi.getOutlookAuthUrl()
       window.open(data.auth_url, '_blank')
     } catch { /* ignore */ }
   }
 
   const handleCaldavConnect = async () => {
     try {
-      await calApi.connectCaldav(caldavForm, token)
+      await calApi.connectCaldav(caldavForm)
       setShowCaldavModal(false)
       await loadProfile()
     } catch { /* ignore */ }
@@ -239,9 +237,9 @@ export default function CalendarPage() {
 
   const handleDisconnect = async (provider: string) => {
     try {
-      if (provider === 'google') await calApi.disconnectGoogle(token)
-      else if (provider === 'outlook') await calApi.disconnectOutlook(token)
-      else if (provider === 'caldav') await calApi.disconnectCaldav(token)
+      if (provider === 'google') await calApi.disconnectGoogle()
+      else if (provider === 'outlook') await calApi.disconnectOutlook()
+      else if (provider === 'caldav') await calApi.disconnectCaldav()
       await loadProfile()
     } catch { /* ignore */ }
   }

@@ -5,7 +5,6 @@ import {
 } from '../../../services/bankNegotiationApi'
 
 interface Props {
-  token: string
   isSuperAdmin: boolean
   preSelectedProperty?: string | null
   autoAddLender?: boolean
@@ -59,7 +58,7 @@ function formatFollowUp(dateStr: string | null | undefined) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, preSelectedProperty, autoAddLender }: Props) {
+export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelectedProperty, autoAddLender }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [selectedNeg, setSelectedNeg] = useState<any>(null)
@@ -95,7 +94,7 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
   const propertyRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const initializedRef = useRef(false)
 
-  useEffect(() => { fetchProperties() }, [token])
+  useEffect(() => { fetchProperties() }, [])
 
   // Handle preSelectedProperty and autoAddLender after data loads
   useEffect(() => {
@@ -119,7 +118,7 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
   async function fetchProperties() {
     setLoading(true)
     try {
-      const data = await getNegotiationsByProperty(token)
+      const data = await getNegotiationsByProperty()
       const list = Array.isArray(data) ? data : data.properties || []
       setProperties(list)
     } catch { setProperties([]) }
@@ -132,15 +131,15 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
     setEmailSubject(''); setEmailBody('')
     setTrackingNums({}); setSigCardNums({}); setFaxPdfUrl(''); setEditingRecipient(null)
     setShowUploadForm(false); setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes('')
-    try { const r = await getRecipients(neg.id, token); setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
-    try { const c = await getCorrespondence(neg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
-    try { const d = await getDocuments(neg.id, token); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
+    try { const r = await getRecipients(neg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
+    try { const c = await getCorrespondence(neg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
+    try { const d = await getDocuments(neg.id); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
   }
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault(); setCreating(true)
     try {
-      await createNegotiation({ ...form, current_balance: form.current_balance ? parseFloat(form.current_balance) : undefined, our_offer: form.our_offer ? parseFloat(form.our_offer) : undefined, land_trust_id: form.land_trust_id || undefined }, token)
+      await createNegotiation({ ...form, current_balance: form.current_balance ? parseFloat(form.current_balance) : undefined, our_offer: form.our_offer ? parseFloat(form.our_offer) : undefined, land_trust_id: form.land_trust_id || undefined })
       showToastMsg('Created. AI researching bank contacts now.')
       setShowCreateModal(false)
       setPrefillAddress(null)
@@ -154,37 +153,37 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
     if (!selectedNeg) return; setSending(true); setSendResults(null)
     try {
       const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], methods: { certified_mail: sendMethods.certifiedMail ? { tracking_numbers: trackingNums, signature_cards: sigCardNums } : undefined, fax: sendMethods.fax ? { pdf_url: faxPdfUrl } : undefined, email: sendMethods.email ? { subject: emailSubject, body: emailBody } : undefined } }
-      const res = await sendToAll(selectedNeg.id, payload, token); setSendResults(res); showToastMsg('Documents sent successfully')
-      const c = await getCorrespondence(selectedNeg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
+      const res = await sendToAll(selectedNeg.id, payload); setSendResults(res); showToastMsg('Documents sent successfully')
+      const c = await getCorrespondence(selectedNeg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
     } catch { showToastMsg('Failed to send documents') }
     setSending(false)
   }
 
   async function handleRefreshRecipient(recId: string) {
     if (!selectedNeg) return
-    try { await refreshRecipient(selectedNeg.id, recId, token); const r = await getRecipients(selectedNeg.id, token); setRecipients(Array.isArray(r) ? r : r.recipients || []); showToastMsg('Re-research started') } catch { showToastMsg('Failed to refresh recipient') }
+    try { await refreshRecipient(selectedNeg.id, recId); const r = await getRecipients(selectedNeg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []); showToastMsg('Re-research started') } catch { showToastMsg('Failed to refresh recipient') }
   }
 
   async function handleSaveRecipient(recId: string, markVerified = false) {
     if (!selectedNeg) return
     try {
-      await updateRecipient(selectedNeg.id, recId, markVerified ? { ...editForm, manually_verified: true } : editForm, token)
-      const r = await getRecipients(selectedNeg.id, token); setRecipients(Array.isArray(r) ? r : r.recipients || []); setEditingRecipient(null)
+      await updateRecipient(selectedNeg.id, recId, markVerified ? { ...editForm, manually_verified: true } : editForm)
+      const r = await getRecipients(selectedNeg.id); setRecipients(Array.isArray(r) ? r : r.recipients || []); setEditingRecipient(null)
       showToastMsg(markVerified ? 'Recipient verified' : 'Recipient updated')
     } catch { showToastMsg('Failed to update recipient') }
   }
 
   async function handleRefreshAllTracking() {
     try {
-      await refreshAllTracking(token)
-      if (selectedNeg) { const c = await getCorrespondence(selectedNeg.id, token); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) }
+      await refreshAllTracking()
+      if (selectedNeg) { const c = await getCorrespondence(selectedNeg.id); setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) }
       showToastMsg('Tracking refreshed')
     } catch { showToastMsg('Failed to refresh tracking') }
   }
 
   async function loadDocuments() {
     if (!selectedNeg) return
-    try { const d = await getDocuments(selectedNeg.id, token); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { showToastMsg('Failed to load documents') }
+    try { const d = await getDocuments(selectedNeg.id); setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { showToastMsg('Failed to load documents') }
   }
 
   async function handleCreateDocument() {
@@ -192,7 +191,7 @@ export default function NegotiationsTab({ token, isSuperAdmin: _isSuperAdmin, pr
     try {
       const payload: Record<string, any> = { document_name: newDocName, document_type: newDocType }
       if (newDocNotes) payload.notes = newDocNotes
-      await createDocument(selectedNeg.id, payload, token)
+      await createDocument(selectedNeg.id, payload)
       showToastMsg('Document added successfully')
       setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes(''); setShowUploadForm(false)
       await loadDocuments()

@@ -181,6 +181,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function getAgents(): Promise<AiAgent[]> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/agents`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -190,6 +191,7 @@ export async function updateAgent(agentId: string, data: UpdateAgentPayload): Pr
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -198,6 +200,7 @@ export async function provisionAgent(agentId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/agents/${agentId}/provision`, {
     method: 'POST',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -205,6 +208,7 @@ export async function provisionAgent(agentId: string): Promise<any> {
 export async function getVoices(): Promise<ElevenLabsVoice[]> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/voices`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -216,6 +220,7 @@ export async function getVoices(): Promise<ElevenLabsVoice[]> {
 export async function getKnowledgeBase(): Promise<KnowledgeEntry[]> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -225,6 +230,7 @@ export async function createKnowledgeEntry(data: CreateKnowledgePayload): Promis
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -234,6 +240,7 @@ export async function updateKnowledgeEntry(entryId: string, data: UpdateKnowledg
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -242,6 +249,7 @@ export async function deleteKnowledgeEntry(entryId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/${entryId}`, {
     method: 'DELETE',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -259,13 +267,14 @@ export async function getConversations(params?: {
   if (params?.limit) url.searchParams.set('limit', String(params.limit))
   if (params?.offset) url.searchParams.set('offset', String(params.offset))
   if (params?.outcome) url.searchParams.set('outcome', params.outcome)
-  const res = await fetch(url.toString(), { headers: getAuthHeader() })
+  const res = await fetch(url.toString(), { headers: getAuthHeader(), credentials: 'include' })
   return handleResponse(res)
 }
 
 export async function getConversation(conversationId: string): Promise<ConversationLog> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/conversations/${conversationId}`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -277,7 +286,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
 export async function getCallbacks(status?: string): Promise<ScheduledCallback[]> {
   const url = new URL(`${BASE_URL}/api/voice-ai/callbacks`)
   if (status) url.searchParams.set('status', status)
-  const res = await fetch(url.toString(), { headers: getAuthHeader() })
+  const res = await fetch(url.toString(), { headers: getAuthHeader(), credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -286,6 +295,7 @@ export async function createCallback(data: CreateCallbackPayload): Promise<any> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -299,6 +309,7 @@ export async function updateCallback(callbackId: string, data: {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -307,6 +318,7 @@ export async function cancelCallback(callbackId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/callbacks/${callbackId}`, {
     method: 'DELETE',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -318,7 +330,7 @@ export async function cancelCallback(callbackId: string): Promise<any> {
 export async function getCampaigns(status?: string): Promise<CallCampaign[]> {
   const url = new URL(`${BASE_URL}/api/voice-ai/campaigns`)
   if (status) url.searchParams.set('status', status)
-  const res = await fetch(url.toString(), { headers: getAuthHeader() })
+  const res = await fetch(url.toString(), { headers: getAuthHeader(), credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -327,6 +339,7 @@ export async function createCampaign(data: CreateCampaignPayload): Promise<any> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -339,6 +352,7 @@ export async function addCampaignContacts(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ contacts }),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -349,7 +363,7 @@ export async function getCampaignContacts(
 ): Promise<CampaignContact[]> {
   const url = new URL(`${BASE_URL}/api/voice-ai/campaigns/${campaignId}/contacts`)
   if (status) url.searchParams.set('status', status)
-  const res = await fetch(url.toString(), { headers: getAuthHeader() })
+  const res = await fetch(url.toString(), { headers: getAuthHeader(), credentials: 'include' })
   return handleResponse(res)
 }
 
@@ -357,6 +371,7 @@ export async function startCampaign(campaignId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/campaigns/${campaignId}/start`, {
     method: 'POST',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -365,6 +380,7 @@ export async function pauseCampaign(campaignId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/campaigns/${campaignId}/pause`, {
     method: 'POST',
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -372,6 +388,7 @@ export async function pauseCampaign(campaignId: string): Promise<any> {
 export async function getCampaignStats(campaignId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/voice-ai/campaigns/${campaignId}/stats`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }

@@ -1,30 +1,15 @@
-// NOTE: authApi.ts is the canonical API service.
-// This file wraps it for backward compatibility.
-
 /**
- * Authentication service — delegates to authApi.ts for network calls.
+ * Authentication service — high-level auth operations.
  *
- * ⚠️  SECURITY NOTE (Audit Fix #7):
- * JWT tokens are stored in localStorage, which is accessible to any JS running
- * on this origin. This means an XSS vulnerability could steal tokens.
+ * Tokens are now stored in HttpOnly cookies managed by the browser.
+ * JavaScript cannot read them (which is the whole point — XSS protection).
  *
- * Mitigations currently in place:
- *   1. Token expiry is validated client-side before every API call (getAuthHeader)
- *   2. Short-lived tokens (4h) with proactive background refresh
- *   3. CSP headers restrict script sources to reduce XSS surface
- *
- * TODO (HIGH PRIORITY): Migrate to HttpOnly cookie-based auth. This requires
- * backend changes to Helm Hub's /auth/token endpoint to set secure cookies
- * instead of returning tokens in JSON. Track in: GitHub Issue / Backlog.
+ * This service handles login/register/logout and delegates to authApi.ts
+ * for the actual network calls.
  */
 import * as authApi from './authApi'
 
 export { getMe } from './authApi'
-
-// Note: Using localStorage for token persistence across browser tabs.
-// For higher-security environments, consider switching to sessionStorage (single tab only).
-// Current choice allows seamless multi-tab experience for CRM workflows.
-const TOKEN_KEY = 'rei_token'
 
 // ── Auth API calls (delegate to authApi.ts) ─────────────────────
 
@@ -33,8 +18,7 @@ export async function login(
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const data = await authApi.login(email, password)
-    localStorage.setItem(TOKEN_KEY, data.access_token)
+    await authApi.login(email, password)
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message ?? 'Login failed' }
@@ -47,110 +31,58 @@ export async function register(
   name?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const data = await authApi.register(email, password, name)
-    localStorage.setItem(TOKEN_KEY, data.access_token)
+    await authApi.register(email, password, name)
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message ?? 'Registration failed' }
   }
 }
 
-export function logout(): void {
-  localStorage.removeItem(TOKEN_KEY)
-  window.location.href = '/login'
-}
-
-// ── Token utilities ────────────────────────────────────────────
-
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function isAuthenticated(): boolean {
-  const token = getToken()
-  if (!token) return false
-
+export async function logout(): Promise<void> {
   try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return false
-
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
-    )
-
-    if (typeof payload.exp === 'number') {
-      return payload.exp > Date.now() / 1000
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Check if the current JWT token is expired or about to expire.
- * If within 5 minutes of expiry, attempt a background refresh.
- * If already expired and refresh fails, clear auth state and redirect.
- */
-let _refreshing: Promise<void> | null = null
-const REFRESH_BUFFER_MS = 5 * 60 * 1000 // 5 minutes before expiry
-
-function checkTokenExpiry(): void {
-  const token = getToken()
-  if (!token) return
-
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
-    )
-    if (typeof payload.exp !== 'number') return
-
-    const expiresAtMs = payload.exp * 1000
-    const now = Date.now()
-
-    if (expiresAtMs < now) {
-      // Token already expired — try refresh, fallback to logout
-      if (!_refreshing) {
-        _refreshing = tryRefreshToken(token).finally(() => { _refreshing = null })
-      }
-    } else if (expiresAtMs - now < REFRESH_BUFFER_MS) {
-      // Token expiring soon — proactively refresh in background
-      if (!_refreshing) {
-        _refreshing = tryRefreshToken(token).finally(() => { _refreshing = null })
-      }
-    }
-  } catch {
-    // Malformed token — don't redirect mid-session, let API call handle it
-  }
-}
-
-async function tryRefreshToken(currentToken: string): Promise<void> {
-  try {
-    const data = await authApi.refreshToken(currentToken)
-    localStorage.setItem(TOKEN_KEY, data.access_token)
-  } catch {
-    // Refresh failed — force logout
-    localStorage.removeItem(TOKEN_KEY)
+    await authApi.logout()
+  } finally {
+    // Clean up any legacy localStorage entries from before the migration
+    localStorage.removeItem('rei_token')
+    localStorage.removeItem('rei_user_id')
+    localStorage.removeItem('rei_user_email')
+    localStorage.removeItem('rei_plan')
     window.location.href = '/login'
   }
 }
 
+// ── Token utilities ────────────────────────────────────────────
+
+/**
+ * @deprecated Token is now in an HttpOnly cookie — JS cannot read it.
+ * Kept for backward compatibility with code that checks for a token.
+ */
+export function getToken(): string | null {
+  return null
+}
+
+/**
+ * Check if the user likely has an active session.
+ * Since we can't read HttpOnly cookies, this returns true optimistically.
+ * The actual auth check happens via the /me endpoint in useAuth.
+ */
+export function isAuthenticated(): boolean {
+  return true
+}
+
+/**
+ * Return headers needed for authenticated state-changing requests.
+ * With cookies, the browser sends auth automatically — we just need CSRF.
+ */
 export function getAuthHeader(): Record<string, string> {
-  checkTokenExpiry()
-  const token = getToken()
-  if (!token) return {}
-  return { Authorization: `Bearer ${token}` }
+  return authApi.getCSRFHeaders()
 }
 
 // ── Current user (delegate to authApi.ts) ─────────────────────
 
 export async function getCurrentUser(): Promise<Record<string, unknown> | null> {
-  const token = getToken()
-  if (!token) return null
   try {
-    return await authApi.getMe(token)
+    return await authApi.getMe()
   } catch {
     return null
   }

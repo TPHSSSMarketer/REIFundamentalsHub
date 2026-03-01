@@ -65,7 +65,7 @@ export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNa
   async function fetchProperties() {
     setLoading(true)
     try {
-      const data = await getProperties(token)
+      const data = await getProperties()
       setProperties(Array.isArray(data) ? data : data.properties || [])
     } catch { setProperties([]) }
     setLoading(false)
@@ -79,7 +79,7 @@ export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNa
     setDefaultData(null)
     setActiveCfd(prop.active_cfd || null)
     try {
-      const laws = await getStateLaws(prop.trust_id || prop.id, token)
+      const laws = await getStateLaws(prop.trust_id || prop.id)
       setStateLaws(laws)
     } catch { setStateLaws(null) }
     setLawsLoading(false)
@@ -94,7 +94,7 @@ export default function PropertiesTab({ token, isSuperAdmin: _isSuperAdmin, onNa
     e.preventDefault()
     setCreating(true)
     try {
-      await createProperty(form, token)
+      await createProperty(form)
       showToast('Property created. State law research running...')
       setShowCreateModal(false)
       setForm({ trust_name: '', trust_number: '', trustee_name: '', beneficiary: '', property_address: '', city: '', state: '', zip: '' })

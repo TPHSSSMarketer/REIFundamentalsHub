@@ -36,7 +36,7 @@ export default function PaymentsTab({ token }: Props) {
   async function fetchData() {
     setLoading(true)
     try {
-      const [pData, cData] = await Promise.all([getPayments(token), getCfds(token)])
+      const [pData, cData] = await Promise.all([getPayments(), getCfds()])
       setPayments(Array.isArray(pData) ? pData : pData.payments || [])
       setCfds(Array.isArray(cData) ? cData : cData.cfds || [])
     } catch { setPayments([]); setCfds([]) }
@@ -63,7 +63,7 @@ export default function PaymentsTab({ token }: Props) {
     if (!form.cfd_id || !form.amount) return
     setSubmitting(true)
     try {
-      await recordPayment({ ...form, amount: parseFloat(form.amount) }, token)
+      await recordPayment({ ...form, amount: parseFloat(form.amount) })
       showToast('Payment recorded successfully')
       setForm({ cfd_id: '', amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'stripe', reference_number: '', notes: '' })
       fetchData()

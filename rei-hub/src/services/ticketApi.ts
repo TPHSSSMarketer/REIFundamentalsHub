@@ -65,6 +65,7 @@ export async function createTicket(payload: CreateTicketPayload): Promise<Ticket
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(payload),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -75,6 +76,7 @@ export async function listMyTickets(status?: string): Promise<Ticket[]> {
   if (status) url.searchParams.set('status', status)
   const res = await fetch(url.toString(), {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -83,6 +85,7 @@ export async function listMyTickets(status?: string): Promise<Ticket[]> {
 export async function getTicket(ticketId: string): Promise<Ticket> {
   const res = await fetch(`${BASE_URL}/api/tickets/${ticketId}`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -99,6 +102,7 @@ export async function listAllTickets(
   if (priority) url.searchParams.set('priority', priority)
   const res = await fetch(url.toString(), {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -107,6 +111,7 @@ export async function listAllTickets(
 export async function getTicketStats(): Promise<TicketStats> {
   const res = await fetch(`${BASE_URL}/api/tickets/admin/stats`, {
     headers: getAuthHeader(),
+    credentials: 'include',
   })
   return handleResponse(res)
 }
@@ -120,6 +125,7 @@ export async function adminUpdateTicket(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(updates),
+    credentials: 'include',
   })
   return handleResponse(res)
 }

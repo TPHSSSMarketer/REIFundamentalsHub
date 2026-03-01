@@ -36,6 +36,7 @@ async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promis
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeader(),

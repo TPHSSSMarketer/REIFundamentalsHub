@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getNegotiations, getTrackingSummary, refreshAllTracking } from '../../../services/bankNegotiationApi'
 
-interface Props { token: string }
+interface Props { }
 
 const USPS_URL = 'https://tools.usps.com/go/TrackConfirmAction?tLabels='
 
@@ -14,7 +14,7 @@ function overallStatus(tracking: any): { label: string; style: string } {
   return { label: 'In Transit', style: 'bg-yellow-100 text-yellow-800' }
 }
 
-export default function TrackingTab({ token }: Props) {
+export default function TrackingTab({}: Props) {
   const [negotiations, setNegotiations] = useState<any[]>([])
   const [trackingMap, setTrackingMap] = useState<Record<string, any>>({})
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -27,12 +27,12 @@ export default function TrackingTab({ token }: Props) {
   async function fetchAll() {
     setLoading(true)
     try {
-      const negs = await getNegotiations(token)
+      const negs = await getNegotiations()
       const negList: any[] = Array.isArray(negs) ? negs : negs.negotiations || []
       setNegotiations(negList)
       const map: Record<string, any> = {}
       for (const n of negList) {
-        try { map[n.id] = await getTrackingSummary(n.id, token) } catch { /* skip */ }
+        try { map[n.id] = await getTrackingSummary(n.id) } catch { /* skip */ }
       }
       setTrackingMap(map)
     } catch { setNegotiations([]) }
@@ -42,7 +42,7 @@ export default function TrackingTab({ token }: Props) {
   async function handleRefreshAll() {
     setRefreshing(true)
     try {
-      await refreshAllTracking(token)
+      await refreshAllTracking()
       setLastRefreshed(new Date())
       await fetchAll()
       setToast('Tracking refreshed'); setTimeout(() => setToast(''), 4000)

@@ -27,20 +27,12 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
 
   useEffect(() => {
-    const googleToken = searchParams.get('google_token')
+    const authSuccess = searchParams.get('auth_success')
     const googleError = searchParams.get('google_error')
 
-    if (googleToken) {
-      // Store the JWT token from the server-side Google OAuth callback
-      localStorage.setItem('rei_token', googleToken)
-      // Store user info if provided
-      const userId = searchParams.get('user_id')
-      const userEmail = searchParams.get('email')
-      const plan = searchParams.get('plan')
-      if (userId) localStorage.setItem('rei_user_id', userId)
-      if (userEmail) localStorage.setItem('rei_user_email', userEmail)
-      if (plan) localStorage.setItem('rei_plan', plan)
-      // Clear URL params and navigate to dashboard
+    if (authSuccess === 'true') {
+      // Backend set HttpOnly cookies on the Google OAuth redirect.
+      // No need to store anything in localStorage — just navigate.
       navigate('/pipeline', { replace: true })
       return
     }

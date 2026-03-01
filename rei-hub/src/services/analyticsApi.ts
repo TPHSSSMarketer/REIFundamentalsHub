@@ -2,10 +2,12 @@
  * Analytics API service
  */
 
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
-function authHeaders(token: string) {
-  return { Authorization: `Bearer ${token}` }
+function authHeaders() {
+  return {}
 }
 
 async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
@@ -15,7 +17,6 @@ async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T>
     throw new Error('Too many requests. Please wait a moment before trying again.')
   }
   if (res.status === 401) {
-    localStorage.removeItem('rei_token')
     window.location.href = '/login'
     throw new Error('Your session has expired. Please log in again.')
   }
@@ -140,12 +141,13 @@ const pipelineFunnelDemo = [
   { stage: 'Closed Won', count: 4, conversion_rate: 66.7 },
 ]
 
-export async function getPipelineOverview(token: string, params?: Record<string, string>) {
+export async function getPipelineOverview(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/pipeline/overview?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch pipeline overview')
     },
@@ -153,12 +155,13 @@ export async function getPipelineOverview(token: string, params?: Record<string,
   )
 }
 
-export async function getPipelineTrend(token: string, params?: Record<string, string>) {
+export async function getPipelineTrend(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/pipeline/trend?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch pipeline trend')
     },
@@ -166,12 +169,13 @@ export async function getPipelineTrend(token: string, params?: Record<string, st
   )
 }
 
-export async function getPipelineFunnel(token: string, params?: Record<string, string>) {
+export async function getPipelineFunnel(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/pipeline/funnel?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch pipeline funnel')
     },
@@ -229,12 +233,13 @@ const portfolioPropertiesDemo = [
   },
 ]
 
-export async function getPortfolioOverview(token: string, params?: Record<string, string>) {
+export async function getPortfolioOverview(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/portfolio/overview?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch portfolio overview')
     },
@@ -242,12 +247,13 @@ export async function getPortfolioOverview(token: string, params?: Record<string
   )
 }
 
-export async function getPortfolioProperties(token: string, params?: Record<string, string>) {
+export async function getPortfolioProperties(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/portfolio/properties?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch portfolio properties')
     },
@@ -265,12 +271,13 @@ const loansOverviewDemo = {
 
 const loanPaymentsDemo = []
 
-export async function getLoansOverview(token: string, params?: Record<string, string>) {
+export async function getLoansOverview(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/loans/overview?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch loans overview')
     },
@@ -278,12 +285,13 @@ export async function getLoansOverview(token: string, params?: Record<string, st
   )
 }
 
-export async function getLoanPayments(token: string, params?: Record<string, string>) {
+export async function getLoanPayments(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/loans/payments?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch loan payments')
     },
@@ -298,12 +306,13 @@ const negotiationsOverviewDemo = {
   total_value: 0,
 }
 
-export async function getNegotiationsOverview(token: string, params?: Record<string, string>) {
+export async function getNegotiationsOverview(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/negotiations/overview?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch negotiations overview')
     },
@@ -320,12 +329,13 @@ const revenueOverviewDemo = {
 
 const revenueSubscribersDemo = []
 
-export async function getRevenueOverview(token: string, params?: Record<string, string>) {
+export async function getRevenueOverview(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/revenue/overview?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch revenue overview')
     },
@@ -333,12 +343,13 @@ export async function getRevenueOverview(token: string, params?: Record<string, 
   )
 }
 
-export async function getRevenueSubscribers(token: string, params?: Record<string, string>) {
+export async function getRevenueSubscribers(params?: Record<string, string>) {
   return withDemoFallback(
     async () => {
       const qs = new URLSearchParams(params || {})
       const res = await fetch(`${BASE_URL}/api/analytics/revenue/subscribers?${qs}`, {
-        headers: authHeaders(token),
+        headers: authHeaders(),
+        credentials: 'include',
       })
       return handleResponse(res, 'Failed to fetch revenue subscribers')
     },
@@ -348,10 +359,11 @@ export async function getRevenueSubscribers(token: string, params?: Record<strin
 
 // ── Exports ───────────────────────────────────────────────────────
 
-export async function exportPipeline(token: string, params?: Record<string, string>) {
+export async function exportPipeline(params?: Record<string, string>) {
   const qs = new URLSearchParams(params || {})
   const res = await fetch(`${BASE_URL}/api/analytics/export/pipeline?${qs}`, {
-    headers: authHeaders(token),
+    headers: authHeaders(),
+    credentials: 'include',
   })
   if (!res.ok) {
     return handleResponse(res, 'Failed to export pipeline')
@@ -359,10 +371,11 @@ export async function exportPipeline(token: string, params?: Record<string, stri
   return res.blob()
 }
 
-export async function exportPortfolio(token: string, params?: Record<string, string>) {
+export async function exportPortfolio(params?: Record<string, string>) {
   const qs = new URLSearchParams(params || {})
   const res = await fetch(`${BASE_URL}/api/analytics/export/portfolio?${qs}`, {
-    headers: authHeaders(token),
+    headers: authHeaders(),
+    credentials: 'include',
   })
   if (!res.ok) {
     return handleResponse(res, 'Failed to export portfolio')
@@ -370,10 +383,11 @@ export async function exportPortfolio(token: string, params?: Record<string, str
   return res.blob()
 }
 
-export async function exportLoans(token: string, params?: Record<string, string>) {
+export async function exportLoans(params?: Record<string, string>) {
   const qs = new URLSearchParams(params || {})
   const res = await fetch(`${BASE_URL}/api/analytics/export/loans?${qs}`, {
-    headers: authHeaders(token),
+    headers: authHeaders(),
+    credentials: 'include',
   })
   if (!res.ok) {
     return handleResponse(res, 'Failed to export loans')
@@ -381,10 +395,11 @@ export async function exportLoans(token: string, params?: Record<string, string>
   return res.blob()
 }
 
-export async function exportNegotiations(token: string, params?: Record<string, string>) {
+export async function exportNegotiations(params?: Record<string, string>) {
   const qs = new URLSearchParams(params || {})
   const res = await fetch(`${BASE_URL}/api/analytics/export/negotiations?${qs}`, {
-    headers: authHeaders(token),
+    headers: authHeaders(),
+    credentials: 'include',
   })
   if (!res.ok) {
     return handleResponse(res, 'Failed to export negotiations')

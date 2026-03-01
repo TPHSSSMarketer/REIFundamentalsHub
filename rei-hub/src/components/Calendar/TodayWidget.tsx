@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, Loader2 } from 'lucide-react'
-import { getToken } from '@/services/auth'
 import { useDemoMode } from '@/hooks/useDemoMode'
 import * as calApi from '@/services/calendarApi'
 import { cn } from '@/utils/helpers'
@@ -59,7 +58,6 @@ function getDemoTodaySummary(): TodaySummary {
 export default function TodayWidget() {
   const navigate = useNavigate()
   const { isDemoMode } = useDemoMode()
-  const token = getToken() || ''
   const [data, setData] = useState<TodaySummary | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -68,7 +66,7 @@ export default function TodayWidget() {
       if (isDemoMode) {
         setData(getDemoTodaySummary())
       } else {
-        const summary = await calApi.getTodaySummary(token)
+        const summary = await calApi.getTodaySummary()
         setData(summary)
       }
     } catch {
@@ -79,7 +77,7 @@ export default function TodayWidget() {
     } finally {
       setLoading(false)
     }
-  }, [token, isDemoMode])
+  }, [isDemoMode])
 
   useEffect(() => {
     load()
@@ -102,7 +100,7 @@ export default function TodayWidget() {
       return
     }
     try {
-      await calApi.completeTask(id, token)
+      await calApi.completeTask(id)
       await load()
     } catch {
       // ignore

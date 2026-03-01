@@ -61,7 +61,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
   async function fetchStatements() {
     setLoading(true)
     try {
-      const data = await getDistributions(token)
+      const data = await getDistributions()
       setStatements(Array.isArray(data) ? data : data.statements || data.distributions || [])
     } catch { setStatements([]) }
     setLoading(false)
@@ -74,7 +74,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
     try {
       const payload: Record<string, any> = { quarter: selectedQuarter, preview: true }
       if (useCustomDates) { payload.start_date = customDates.start; payload.end_date = customDates.end }
-      const data = await generateDistribution(payload, token)
+      const data = await generateDistribution(payload)
       setPreview(data)
     } catch { showToastMsg('Failed to generate preview') }
     setGenerating(false)
@@ -85,7 +85,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
     try {
       const payload: Record<string, any> = { quarter: selectedQuarter }
       if (useCustomDates) { payload.start_date = customDates.start; payload.end_date = customDates.end }
-      await generateDistribution(payload, token)
+      await generateDistribution(payload)
       showToastMsg('Statement saved')
       setPreview(null)
       fetchStatements()
@@ -95,7 +95,7 @@ export default function DistributionsTab({ token, isSuperAdmin }: Props) {
 
   async function handleFinalize(id: string) {
     try {
-      await finalizeDistribution(id, token)
+      await finalizeDistribution(id)
       showToastMsg('Statement finalized')
       fetchStatements()
     } catch { showToastMsg('Failed to finalize') }

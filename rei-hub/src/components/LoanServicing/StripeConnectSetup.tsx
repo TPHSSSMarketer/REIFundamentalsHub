@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { getStripeConnectStatus, getStripeConnectOnboardUrl } from '../../services/loanServicingApi'
 
 interface Props {
-  token: string
   servicingFeePct?: number
 }
 
@@ -12,21 +11,21 @@ interface ConnectStatus {
   account_id?: string
 }
 
-export default function StripeConnectSetup({ token, servicingFeePct = 0 }: Props) {
+export default function StripeConnectSetup({ servicingFeePct = 0 }: Props) {
   const [status, setStatus] = useState<ConnectStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
 
   useEffect(() => {
-    getStripeConnectStatus(token)
+    getStripeConnectStatus()
       .then(setStatus)
       .catch(() => setStatus(null))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   const handleConnect = async () => {
     try {
-      const { url } = await getStripeConnectOnboardUrl(token)
+      const { url } = await getStripeConnectOnboardUrl()
       window.location.href = url
     } catch {
       // ignore

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getNegotiations, getCorrespondence, updateTracking } from '../../../services/bankNegotiationApi'
 
-interface Props { token: string }
+interface Props { }
 
 const METHOD_ICON: Record<string, string> = { certified_mail: '\u{1F4EC}', fax: '\u{1F4E0}', email: '\u2709\uFE0F' }
 const METHOD_LABEL: Record<string, string> = { certified_mail: 'Certified Mail', fax: 'Fax', email: 'Email' }
@@ -14,25 +14,25 @@ const STATUS_STYLE: Record<string, string> = {
 }
 const STATUS_SUFFIX: Record<string, string> = { delivered: ' \u2713', failed: ' \u2717' }
 
-export default function CorrespondenceTab({ token }: Props) {
+export default function CorrespondenceTab({}: Props) {
   const [correspondence, setCorrespondence] = useState<any[]>([])
   const [negotiations, setNegotiations] = useState<any[]>([])
   const [filters, setFilters] = useState({ negotiation_id: '', method: '', status: '', start_date: '', end_date: '' })
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
 
-  useEffect(() => { fetchAll() }, [token])
+  useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
     setLoading(true)
     try {
-      const negs = await getNegotiations(token)
+      const negs = await getNegotiations()
       const negList: any[] = Array.isArray(negs) ? negs : negs.negotiations || []
       setNegotiations(negList)
       const allCorr: any[] = []
       for (const n of negList) {
         try {
-          const c = await getCorrespondence(n.id, token)
+          const c = await getCorrespondence(n.id)
           const items = (Array.isArray(c) ? c : c.correspondence || []).map((item: any) => ({ ...item, bank_name: n.bank_name, property_address: n.property_address, negotiation_id: n.id }))
           allCorr.push(...items)
         } catch { /* skip */ }
@@ -44,7 +44,7 @@ export default function CorrespondenceTab({ token }: Props) {
 
   async function handleUpdateTracking(negId: string, corrId: string) {
     try {
-      await updateTracking(negId, corrId, token)
+      await updateTracking(negId, corrId)
       setToast('Tracking updated'); setTimeout(() => setToast(''), 4000)
       fetchAll()
     } catch { setToast('Failed to update tracking'); setTimeout(() => setToast(''), 4000) }

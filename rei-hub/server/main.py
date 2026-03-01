@@ -183,18 +183,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow hub frontend + any origin for public lead capture form submissions
+# CORS — allow hub frontend with credentials for HttpOnly cookie auth
 if settings.environment == "development":
     _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 else:
     _cors_origins = [settings.hub_url]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Public form submissions need any origin
-    allow_credentials=False,
+    allow_origins=_cors_origins,
+    allow_credentials=True,  # Required for HttpOnly cookie auth
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
+
+# CSRF protection — validates double-submit cookie on state-changing requests
+from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
+app.add_middleware(CSRFProtectionMiddleware)
 
 
 @app.middleware("http")

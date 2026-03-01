@@ -64,6 +64,7 @@ export async function getLinkToken(): Promise<{ link_token: string }> {
       fetch(`${BASE_URL}/api/plaid/link-token`, {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { link_token: 'link_token_demo_123456' }
   )
@@ -78,6 +79,7 @@ export async function exchangeToken(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ public_token: publicToken }),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { success: true }
   )
@@ -94,6 +96,7 @@ export async function getBalance(): Promise<{ accounts: Array<{
     () =>
       fetch(`${BASE_URL}/api/plaid/balance`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     DEMO_BALANCE_RESPONSE
   )
@@ -109,6 +112,7 @@ export async function verifyFunds(
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ required_amount: amount, property_address: address }),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { verified: true, available_balance: 475432.50, required_amount: amount, property_address: address }
   )
@@ -121,6 +125,7 @@ export async function getCertificates(): Promise<{
     () =>
       fetch(`${BASE_URL}/api/plaid/certificates`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { certificates: DEMO_CERTIFICATES }
   )
@@ -133,6 +138,7 @@ export async function getCertificate(
     () =>
       fetch(`${BASE_URL}/api/plaid/certificates/${id}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     DEMO_CERTIFICATES[0]
   )
@@ -144,6 +150,7 @@ export async function disconnectBank(): Promise<{ success: boolean }> {
       fetch(`${BASE_URL}/api/plaid/disconnect`, {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { success: true }
   )
@@ -164,6 +171,7 @@ export async function requestPof(data: {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     {
       request_id: 'req-' + crypto.randomUUID(),
@@ -180,6 +188,7 @@ export async function getRequests(): Promise<{
     () =>
       fetch(`${BASE_URL}/api/plaid/requests`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     {
       requests: [
@@ -209,6 +218,7 @@ export async function getRequest(
     () =>
       fetch(`${BASE_URL}/api/plaid/requests/${id}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { id, buyer_name: 'John Buyer', property_address: '123 Main St', required_amount: 200000, status: 'pending' }
   )
@@ -222,6 +232,7 @@ export async function cancelRequest(
       fetch(`${BASE_URL}/api/plaid/requests/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       }).then((res) => handleResponse(res)),
     { success: true }
   )

@@ -1,6 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { getToken } from '@/services/auth'
 import { getOnboardingStatus } from '@/services/onboardingApi'
 
 export default function OnboardingGuard({ children }: { children: ReactNode }) {
@@ -14,19 +13,13 @@ export default function OnboardingGuard({ children }: { children: ReactNode }) {
       return
     }
 
-    const token = getToken()
-    if (!token) {
-      setStatus('ready')
-      return
-    }
-
     // If user explicitly skipped onboarding, let them through
     if (localStorage.getItem('rei-onboarding-skipped') === 'true') {
       setStatus('ready')
       return
     }
 
-    getOnboardingStatus(token)
+    getOnboardingStatus()
       .then((res) => {
         setStatus(res.completed ? 'ready' : 'onboarding')
       })

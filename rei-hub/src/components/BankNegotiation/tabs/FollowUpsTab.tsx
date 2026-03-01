@@ -19,7 +19,7 @@ function relativeDate(dateStr: string): { text: string; color: string } {
 
 type Group = { label: string; headerColor: string; items: any[] }
 
-export default function FollowUpsTab({ token }: Props) {
+export default function FollowUpsTab({}: Props) {
   const [followups, setFollowups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [completingId, setCompletingId] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export default function FollowUpsTab({ token }: Props) {
   async function fetchFollowups() {
     setLoading(true)
     try {
-      const data = await getPendingFollowups(token)
+      const data = await getPendingFollowups()
       setFollowups(Array.isArray(data) ? data : data.followups || [])
     } catch { setFollowups([]) }
     setLoading(false)
@@ -39,7 +39,7 @@ export default function FollowUpsTab({ token }: Props) {
 
   async function handleComplete(id: string) {
     try {
-      const res = await completeFollowup(id, { notes: completionNotes }, token)
+      const res = await completeFollowup(id, { notes: completionNotes })
       const nextDate = res?.next_followup_date ? new Date(res.next_followup_date).toLocaleDateString() : 'N/A'
       setToast(`Complete. Next follow-up set for ${nextDate}`)
       setTimeout(() => setToast(''), 4000)

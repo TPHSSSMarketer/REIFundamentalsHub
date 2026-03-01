@@ -1,3 +1,5 @@
+import { getCSRFHeaders } from '@/services/authApi'
+
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 export interface BillingStatus {
@@ -132,7 +134,6 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error('Too many requests. Please wait a moment before trying again.')
   }
   if (res.status === 401) {
-    localStorage.removeItem('rei_token')
     window.location.href = '/login'
     throw new Error('Your session has expired. Please log in again.')
   }
@@ -160,17 +161,16 @@ export async function getPlans(): Promise<PlansResponse> {
   }, DEMO_PLANS)
 }
 
-export async function getBillingStatus(token: string): Promise<BillingStatus> {
+export async function getBillingStatus(): Promise<BillingStatus> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/billing/status`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     })
     return handleResponse<BillingStatus>(res)
   }, DEMO_BILLING_STATUS)
 }
 
 export async function createCheckout(
-  token: string,
   plan: string,
   interval: 'monthly' | 'annual',
   paymentMethod: 'stripe' | 'paypal',
@@ -181,8 +181,9 @@ export async function createCheckout(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...getCSRFHeaders(),
       },
+      credentials: 'include',
       body: JSON.stringify({
         plan,
         interval,
@@ -194,25 +195,23 @@ export async function createCheckout(
   }, { client_secret: null, checkout_url: null, message: 'Demo mode — billing not connected' })
 }
 
-export async function openBillingPortal(
-  token: string
-): Promise<{ portal_url: string | null }> {
+export async function openBillingPortal(): Promise<{ portal_url: string | null }> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/billing/portal`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getCSRFHeaders(),
+      credentials: 'include',
     })
     return handleResponse<{ portal_url: string | null }>(res)
   }, { portal_url: null })
 }
 
-export async function cancelSubscription(
-  token: string
-): Promise<{ message: string }> {
+export async function cancelSubscription(): Promise<{ message: string }> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/billing/cancel`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getCSRFHeaders(),
+      credentials: 'include',
     })
     return handleResponse<{ message: string }>(res)
   }, { message: 'Demo mode — subscription unchanged' })

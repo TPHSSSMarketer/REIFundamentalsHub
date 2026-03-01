@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCurrentUser, getToken } from '@/services/auth'
+import { getCurrentUser } from '@/services/auth'
 import { useDemoMode } from '@/hooks/useDemoMode'
 import OverviewTab from './tabs/OverviewTab'
 import PipelineTab from './tabs/PipelineTab'
@@ -54,17 +54,14 @@ export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [user, setUser] = useState<Record<string, unknown> | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (isDemoMode) {
-      setToken('demo-token')
       setUser({ is_superadmin: false, loan_servicing_enabled: false, bank_negotiation_enabled: false })
       setLoading(false)
       return
     }
-    setToken(getToken())
     getCurrentUser()
       .then((u) => setUser(u))
       .catch(() => setUser(null))
@@ -78,8 +75,6 @@ export default function AnalyticsPage() {
       </div>
     )
   }
-
-  if (!token) return null
 
   const isSuperAdmin = !!user?.is_superadmin
   const loanEnabled = !!user?.loan_servicing_enabled
@@ -153,22 +148,22 @@ export default function AnalyticsPage() {
       {/* Tab Content */}
       <div className="p-4 md:p-6">
         {activeTab === 'overview' && (
-          <OverviewTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} isSuperAdmin={isSuperAdmin} loanServicingEnabled={loanEnabled} bankNegotiationEnabled={bankEnabled} />
+          <OverviewTab period={selectedPeriod} startDate={startDate} endDate={endDate} isSuperAdmin={isSuperAdmin} loanServicingEnabled={loanEnabled} bankNegotiationEnabled={bankEnabled} />
         )}
         {activeTab === 'pipeline' && (
-          <PipelineTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
+          <PipelineTab period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'portfolio' && (
-          <PortfolioTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
+          <PortfolioTab period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'loan_servicing' && (
-          <LoanServicingAnalyticsTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
+          <LoanServicingAnalyticsTab period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'bank_negotiation' && (
-          <BankNegotiationAnalyticsTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
+          <BankNegotiationAnalyticsTab period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
         {activeTab === 'revenue' && (
-          <RevenueTab token={token} period={selectedPeriod} startDate={startDate} endDate={endDate} />
+          <RevenueTab period={selectedPeriod} startDate={startDate} endDate={endDate} />
         )}
       </div>
     </div>
