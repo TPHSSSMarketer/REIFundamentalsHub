@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -42,9 +42,14 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=10_000)
     mode: AssistantMode = AssistantMode.BUSINESS
-    conversation_id: str | None = None
+    conversation_id: str | None = Field(default=None, max_length=64)
+
+    @field_validator("message")
+    @classmethod
+    def strip_null_bytes(cls, v: str) -> str:
+        return v.replace("\x00", "").strip()
 
 
 class ChatResponse(BaseModel):

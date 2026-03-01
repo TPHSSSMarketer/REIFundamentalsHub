@@ -1,15 +1,17 @@
-# Auto-generated from pyproject.toml — keep in sync
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-anthropic>=0.49.0
-pydantic>=2.6.0
-pydantic-settings>=2.2.0
-sqlalchemy>=2.0.40
-aiosqlite>=0.20.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-python-multipart>=0.0.9
-httpx>=0.27.0
-websockets>=12.0
-python-dotenv>=1.0.1
-jinja2>=3.1.3
+# Pinned dependency versions — update deliberately, not automatically.
+# Run `pip install -r requirements.txt` to install exact versions.
+# To upgrade: update version here, test, then commit.
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+anthropic==0.52.0
+pydantic==2.11.4
+pydantic-settings==2.9.1
+sqlalchemy==2.0.41
+aiosqlite==0.21.0
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+httpx==0.28.1
+websockets==14.2
+python-dotenv==1.1.0
+jinja2==3.1.6

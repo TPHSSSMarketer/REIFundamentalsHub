@@ -6,10 +6,12 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from helm.api.routes import router
 from helm.config import get_settings
@@ -105,6 +107,78 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Global Exception Handlers (Phase 2.3) ─────────────────────────────────────
+# Prevent raw tracebacks from leaking to clients in production.
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Return clean JSON for HTTP errors (no stack traces)."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.detail},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return concise validation errors without internal type details."""
+    errors = []
+    for err in exc.errors():
+        field = " → ".join(str(loc) for loc in err.get("loc", []))
+        errors.append(f"{field}: {err.get('msg', 'invalid')}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"error": "Validation error", "details": errors},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all — log full traceback server-side, return generic message to client."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"error": "Internal server error"},
+    )
+
+
+# ── Request Body Size Limit Middleware (Phase 3.1) ────────────────────────────
+MAX_BODY_SIZE = 25 * 1024 * 1024  # 25 MB (covers file uploads)
+MAX_JSON_BODY_SIZE = 1 * 1024 * 1024  # 1 MB for JSON endpoints
+
+
+@app.middleware("http")
+async def limit_request_body(request: Request, call_next):
+    """Reject oversized request bodies before they consume memory."""
+    content_length = request.headers.get("content-length")
+    content_type = request.headers.get("content-type", "")
+    if content_length:
+        length = int(content_length)
+        limit = MAX_BODY_SIZE if "multipart" in content_type else MAX_JSON_BODY_SIZE
+        if length > limit:
+            return JSONResponse(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                content={"error": f"Request body too large ({length:,} bytes, max {limit:,})"},
+            )
+    return await call_next(request)
+
+
+# ── HTTPS Redirect Middleware (Phase 3.4 — production only) ───────────────────
+if settings.is_production:
+    @app.middleware("http")
+    async def redirect_to_https(request: Request, call_next):
+        """Redirect HTTP → HTTPS in production (respects X-Forwarded-Proto from proxy)."""
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        if proto == "http":
+            url = request.url.replace(scheme="https")
+            return JSONResponse(
+                status_code=status.HTTP_301_MOVED_PERMANENTLY,
+                headers={"Location": str(url)},
+                content={"redirect": str(url)},
+            )
+        return await call_next(request)
+
+
 # ── CORS ─────────────────────────────────────────────────────────────────────
 if settings.app_env == "development":
     _cors_origins = ["http://localhost:8000", "http://localhost:3000"]
@@ -122,6 +196,8 @@ app.add_middleware(
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
+    # Phase 3.6: API version header for clients
+    response.headers["X-API-Version"] = "2026-03-01"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"

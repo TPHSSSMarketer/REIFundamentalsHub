@@ -15,6 +15,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 
 _routes_logger = logging.getLogger(__name__)
 
+from helm.api.security import (
+    audit_log,
+    sanitize_chat_message,
+    sanitize_dict,
+    sanitize_text,
+    validate_file_path,
+    validate_upload,
+    ALLOWED_AUDIO_EXTENSIONS,
+    ALLOWED_AUDIO_TYPES,
+    MAX_FILE_UPLOAD_BYTES,
+)
 from helm.api.middleware import (
     get_current_user,
     optional_auth,
@@ -174,13 +185,27 @@ async def daily_briefing(user: dict = Depends(get_current_user)):
 async def websocket_chat(ws: WebSocket):
     """Real-time chat over WebSocket for the frontend dashboard.
 
-    Authentication: pass ``api_key`` as a query parameter, e.g.
-    ``ws://host/api/ws/chat?api_key=YOUR_KEY``
+    Authentication: pass token via ``Sec-WebSocket-Protocol`` subprotocol header,
+    e.g. ``new WebSocket(url, ["bearer", "YOUR_TOKEN"])``.
+    Falls back to ``api_key`` query param for backward compat (logged as deprecated).
     """
     from helm.api.middleware import _valid_api_keys
 
-    # Verify API key from query params before accepting the connection
-    api_key = ws.query_params.get("api_key", "")
+    # Phase 3.8: Prefer token from subprotocol header; query-param is deprecated
+    protocols = ws.headers.get("sec-websocket-protocol", "")
+    token = ""
+    if protocols:
+        parts = [p.strip() for p in protocols.split(",")]
+        # Look for a bearer token after the "bearer" protocol
+        if len(parts) >= 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+
+    api_key = token or ws.query_params.get("api_key", "")
+    if not token and ws.query_params.get("api_key"):
+        _routes_logger.warning(
+            "DEPRECATED: WebSocket API key passed via query param — migrate to Sec-WebSocket-Protocol header"
+        )
+
     valid_keys = _valid_api_keys()
     if valid_keys and api_key not in valid_keys:
         await ws.close(code=4001, reason="Invalid or missing API key")
@@ -324,6 +349,13 @@ async def google_chat_webhook(request: Request, _: None = Depends(rate_limit_web
 async def voice_transcribe(file: UploadFile, user: dict = Depends(get_current_user)):
     """Upload an audio file and get a text transcription."""
     audio_bytes = await file.read()
+    # Phase 3.3: Validate upload size and type
+    upload_error = validate_upload(
+        file.filename, file.content_type, len(audio_bytes),
+        allowed_extensions=ALLOWED_AUDIO_EXTENSIONS,
+    )
+    if upload_error:
+        raise HTTPException(status_code=400, detail=upload_error)
     text = await voice_processor.transcribe(audio_bytes, filename=file.filename or "audio.ogg")
     if text is None:
         return {"error": "Transcription failed. Check voice API configuration."}
@@ -354,6 +386,13 @@ async def voice_synthesize(request: Request, user: dict = Depends(get_current_us
 async def voice_chat(file: UploadFile, user: dict = Depends(get_current_user)):
     """Full voice round-trip: upload audio → transcribe → AI reply → synthesize."""
     audio_bytes = await file.read()
+    # Phase 3.3: Validate upload size and type
+    upload_error = validate_upload(
+        file.filename, file.content_type, len(audio_bytes),
+        allowed_extensions=ALLOWED_AUDIO_EXTENSIONS,
+    )
+    if upload_error:
+        raise HTTPException(status_code=400, detail=upload_error)
     reply_text, reply_audio = await voice_processor.voice_chat(
         audio_bytes, filename=file.filename or "audio.ogg"
     )
@@ -378,6 +417,9 @@ async def voice_chat(file: UploadFile, user: dict = Depends(get_current_user)):
 @router.get("/files")
 async def list_files(path: str = "/", user: dict = Depends(get_current_user)):
     """List files at a path. Supports prefixes: drive://, ws://, or default."""
+    # Phase 3.2: Validate path against traversal attacks
+    if ".." in path:
+        raise HTTPException(status_code=400, detail="Invalid path")
     if not file_manager.active_backends:
         return {"path": path, "files": [], "note": "No file backends configured"}
     files = await file_manager.list_files(path)
@@ -424,6 +466,11 @@ async def write_file(request: Request, user: dict = Depends(get_current_user)):
     path = data.get("path", "")
     if not path:
         return {"error": "No path provided"}
+    # Phase 3.2: Validate path against traversal attacks
+    clean_path = validate_file_path(path)
+    if clean_path is None:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    path = clean_path
     if not file_manager.active_backends:
         return {"error": "No file backends configured"}
 
@@ -505,6 +552,7 @@ async def workspace_execute(request: Request, user: dict = Depends(get_current_u
     """Execute code in the virtual workspace sandbox. Admin only."""
     # SECURITY FIX #8: Restrict code execution to admin users only
     if not user.get("is_admin"):
+        audit_log("workspace_execute_denied", user_id=user.get("user_id", ""), success=False)
         raise HTTPException(status_code=403, detail="Admin access required")
 
     data = await request.json()
@@ -594,6 +642,8 @@ async def onboarding_complete(request: Request, user: dict = Depends(get_current
     answers = data.get("answers", {})
     if not answers:
         return {"error": "No answers provided. Send {\"answers\": {\"name\": \"...\", ...}}"}
+    # Phase 2.1: Sanitize all onboarding answers
+    answers = sanitize_dict(answers)
     if not answers.get("name"):
         return {"error": "At minimum, a name is required."}
 
