@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Save, Globe, Calculator, Loader2, Cloud, HardDrive } from 'lucide-react'
+import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import HelmHubConnect from './helmhubconnect'
 import AiProviderUserSettings from './AiProviderUserSettings'
+import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
 import {
   getGoogleDriveAuthUrl,
   submitGoogleDriveCode,
@@ -35,6 +36,91 @@ export default function Settings() {
   const [dropboxConnecting, setDropboxConnecting] = useState(false)
   const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false)
   const [dropboxDisconnecting, setDropboxDisconnecting] = useState(false)
+
+  // ── Profile & Company ────────────────────────────────────
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [companyInfo, setCompanyInfo] = useState({
+    company_name: '',
+    company_address: '',
+    company_city: '',
+    company_state: '',
+    company_zip: '',
+    company_phone: '',
+    company_website: '',
+  })
+  const [investingProfile, setInvestingProfile] = useState({
+    investing_experience: '',
+    deal_types: [] as string[],
+    primary_market: '',
+  })
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const status = await getOnboardingStatus()
+        const u = status.user
+        setCompanyInfo({
+          company_name: u.company_name ?? '',
+          company_address: u.company_address ?? '',
+          company_city: u.company_city ?? '',
+          company_state: u.company_state ?? '',
+          company_zip: u.company_zip ?? '',
+          company_phone: u.company_phone ?? '',
+          company_website: u.company_website ?? '',
+        })
+        // deal_types comes as comma-separated string from the backend
+        const dtArr = u.deal_types ? u.deal_types.split(',').map((s: string) => s.trim()).filter(Boolean) : []
+        setInvestingProfile({
+          investing_experience: u.investing_experience ?? '',
+          deal_types: dtArr,
+          primary_market: u.primary_market ?? '',
+        })
+      } catch {
+        // silently fail — user may not be fully authenticated yet
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+    loadProfile()
+  }, [])
+
+  const handleSaveCompanyInfo = async () => {
+    setProfileSaving(true)
+    try {
+      await saveStep(1, companyInfo)
+      toast.success('Company info saved.')
+    } catch {
+      toast.error('Failed to save company info.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  const handleSaveInvestingProfile = async () => {
+    setProfileSaving(true)
+    try {
+      await saveStep(2, {
+        investing_experience: investingProfile.investing_experience,
+        deal_types: investingProfile.deal_types,
+        primary_market: investingProfile.primary_market,
+      })
+      toast.success('Investing profile saved.')
+    } catch {
+      toast.error('Failed to save investing profile.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  const toggleDealType = (type: string) => {
+    setInvestingProfile((prev) => ({
+      ...prev,
+      deal_types: prev.deal_types.includes(type)
+        ? prev.deal_types.filter((t) => t !== type)
+        : [...prev.deal_types, type],
+    }))
+  }
 
   // ── Deal Analyzer Preferences ──────────────────────────────
   const [analyzerPrefs, setAnalyzerPrefs] = useState({
@@ -244,6 +330,157 @@ export default function Settings() {
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-slate-800">Settings</h1>
         <p className="text-sm md:text-base text-slate-600">Configure your preferences and integrations</p>
+      </div>
+
+      {/* Profile & Company */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Building2 className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Profile & Company</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Your company details and investing profile. You can update these any time.
+        </p>
+
+        {profileLoading ? (
+          <div className="flex items-center justify-center h-24">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Company Info */}
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">Company Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
+                  <input type="text" value={companyInfo.company_name}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, company_name: e.target.value })}
+                    placeholder="Your Company LLC"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Street Address</label>
+                  <input type="text" value={companyInfo.company_address}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, company_address: e.target.value })}
+                    placeholder="123 Main St"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                  <input type="text" value={companyInfo.company_city}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, company_city: e.target.value })}
+                    placeholder="Austin"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                    <input type="text" value={companyInfo.company_state} maxLength={2}
+                      onChange={(e) => setCompanyInfo({ ...companyInfo, company_state: e.target.value.toUpperCase() })}
+                      placeholder="TX"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
+                    <input type="text" value={companyInfo.company_zip} maxLength={10}
+                      onChange={(e) => setCompanyInfo({ ...companyInfo, company_zip: e.target.value })}
+                      placeholder="78701"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                  <input type="tel" value={companyInfo.company_phone}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, company_phone: e.target.value })}
+                    placeholder="(555) 123-4567"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Website</label>
+                  <input type="url" value={companyInfo.company_website}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, company_website: e.target.value })}
+                    placeholder="https://yourcompany.com"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={handleSaveCompanyInfo}
+                  disabled={profileSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+                >
+                  {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Company Info
+                </button>
+              </div>
+            </div>
+
+            {/* Investing Profile */}
+            <div className="border-t border-slate-200 pt-5">
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">Investing Profile</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Experience Level</label>
+                  <select
+                    value={investingProfile.investing_experience}
+                    onChange={(e) => setInvestingProfile({ ...investingProfile, investing_experience: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                  >
+                    <option value="">Select your experience level</option>
+                    <option value="beginner">Beginner (0-2 deals)</option>
+                    <option value="intermediate">Intermediate (3-10 deals)</option>
+                    <option value="experienced">Experienced (10+ deals)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Deal Types</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 'subject_to', label: 'Subject-To' },
+                      { value: 'cash_purchase', label: 'Cash Purchase' },
+                      { value: 'owner_financing', label: 'Owner Financing' },
+                      { value: 'lease_option', label: 'Lease Option' },
+                      { value: 'fix_and_flip', label: 'Fix & Flip' },
+                    ].map((dt) => (
+                      <button
+                        key={dt.value}
+                        type="button"
+                        onClick={() => toggleDealType(dt.value)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                          investingProfile.deal_types.includes(dt.value)
+                            ? 'bg-primary-500 text-white border-primary-500'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-primary-400'
+                        }`}
+                      >
+                        {dt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Primary Market</label>
+                  <input type="text" value={investingProfile.primary_market}
+                    onChange={(e) => setInvestingProfile({ ...investingProfile, primary_market: e.target.value })}
+                    placeholder="e.g. Dallas-Fort Worth, TX"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={handleSaveInvestingProfile}
+                  disabled={profileSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+                >
+                  {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Investing Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Deal Analyzer Defaults */}

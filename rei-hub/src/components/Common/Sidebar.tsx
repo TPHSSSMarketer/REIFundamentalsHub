@@ -27,10 +27,11 @@ import {
   Globe,
   LifeBuoy,
   GitBranch,
+  LogOut,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
-import { getCurrentUser } from '@/services/auth'
+import { getCurrentUser, logout } from '@/services/auth'
 import { cn } from '@/utils/helpers'
 
 const navItems = [
@@ -195,6 +196,13 @@ export default function Sidebar() {
                 <span className="block text-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 mb-1">{billingStatus.plan}</span>
               )}
               <p className="text-xs text-primary-800 font-semibold text-center">REI Fundamentals Hub</p>
+              <button
+                onClick={() => logout()}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Log Out
+              </button>
             </div>
           </aside>
         </div>
@@ -340,19 +348,36 @@ export default function Sidebar() {
         </nav>
 
         {/* Footer */}
-        {!isSidebarCollapsed && (
-          <div className="p-4 border-t border-slate-200">
-            {billingStatus?.plan && (
-              <span className="block text-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 mb-1">{billingStatus.plan}</span>
-            )}
-            <p className="text-xs text-primary-800 font-semibold text-center">
-              REI Fundamentals Hub
-            </p>
-            <p className="text-[10px] text-slate-400 text-center mt-0.5">
-              Power Up Your Real Estate Business
-            </p>
+        <div className="border-t border-slate-200">
+          {!isSidebarCollapsed && (
+            <div className="px-4 pt-3">
+              {billingStatus?.plan && (
+                <span className="block text-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 mb-1">{billingStatus.plan}</span>
+              )}
+              <p className="text-xs text-primary-800 font-semibold text-center">
+                REI Fundamentals Hub
+              </p>
+              <p className="text-[10px] text-slate-400 text-center mt-0.5">
+                Power Up Your Real Estate Business
+              </p>
+            </div>
+          )}
+          <div className={isSidebarCollapsed ? 'p-2' : 'px-4 pb-3 pt-2'}>
+            <button
+              onClick={() => logout()}
+              className={cn(
+                'flex items-center gap-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors',
+                isSidebarCollapsed
+                  ? 'w-full justify-center p-2.5'
+                  : 'w-full px-3 py-2 justify-center'
+              )}
+              title="Log Out"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              {!isSidebarCollapsed && <span>Log Out</span>}
+            </button>
           </div>
-        )}
+        </div>
       </aside>
     </>
   )
