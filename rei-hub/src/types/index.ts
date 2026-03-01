@@ -131,22 +131,43 @@ export interface Deal {
   anyOffers?: string
   previousOfferAmount?: number
 
-  // ── Homeowner Financials ──
+  // ── Homeowner Financials: Lender 1 (1st Mortgage) ──
+  mortgageCompany1st?: string
   mortgageBalance?: number
+  monthlyMortgagePayment?: number  // lender 1 monthly payment
+  interestRate1st?: number
+  loanType?: string  // lender 1 loan type
+  prepaymentPenalty?: string  // lender 1
+  paymentsCurrent?: string  // lender 1
+  monthsBehind?: number  // lender 1
+  amountBehind?: number  // lender 1
+
+  // ── Homeowner Financials: Lender 2 (2nd Mortgage/HELOC) ──
+  mortgageCompany2nd?: string
   mortgageBalance2nd?: number
-  monthlyMortgagePayment?: number
+  monthlyPayment2nd?: number
+  interestRate2nd?: number
+  loanType2nd?: string
+  prepaymentPenalty2nd?: string
+  paymentsCurrent2nd?: string
+  monthsBehind2nd?: number
+  amountBehind2nd?: number
+
+  // ── Homeowner Financials: Lender 3 (3rd Lien) ──
+  mortgageCompany3rd?: string
+  mortgageBalance3rd?: number
+  monthlyPayment3rd?: number
+  interestRate3rd?: number
+  loanType3rd?: string
+  prepaymentPenalty3rd?: string
+  paymentsCurrent3rd?: string
+  monthsBehind3rd?: number
+  amountBehind3rd?: number
+
+  // ── Homeowner Financials: Shared ──
   taxesInsuranceIncluded?: string
   monthlyTaxAmount?: number
   monthlyInsuranceAmount?: number
-  interestRate1st?: number
-  interestRate2nd?: number
-  loanType?: string
-  prepaymentPenalty?: string
-  mortgageCompany1st?: string
-  mortgageCompany2nd?: string
-  paymentsCurrent?: string
-  monthsBehind?: number
-  amountBehind?: number
   backTaxes?: number
   otherLiens?: string
   otherLienAmount?: number

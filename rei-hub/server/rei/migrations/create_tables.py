@@ -94,6 +94,21 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "insurance_assignable", "TEXT DEFAULT NULL"),
     ("crm_deals", "buyer_down_payment", "REAL DEFAULT NULL"),
     ("crm_deals", "source_of_funds", "TEXT DEFAULT NULL"),
+    ("crm_deals", "monthly_payment_2nd", "REAL DEFAULT NULL"),
+    ("crm_deals", "loan_type_2nd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "prepayment_penalty_2nd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "payments_current_2nd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "months_behind_2nd", "INTEGER DEFAULT NULL"),
+    ("crm_deals", "amount_behind_2nd", "REAL DEFAULT NULL"),
+    ("crm_deals", "mortgage_balance_3rd", "REAL DEFAULT NULL"),
+    ("crm_deals", "monthly_payment_3rd", "REAL DEFAULT NULL"),
+    ("crm_deals", "interest_rate_3rd", "REAL DEFAULT NULL"),
+    ("crm_deals", "loan_type_3rd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "prepayment_penalty_3rd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "mortgage_company_3rd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "payments_current_3rd", "TEXT DEFAULT NULL"),
+    ("crm_deals", "months_behind_3rd", "INTEGER DEFAULT NULL"),
+    ("crm_deals", "amount_behind_3rd", "REAL DEFAULT NULL"),
 ]
 
 

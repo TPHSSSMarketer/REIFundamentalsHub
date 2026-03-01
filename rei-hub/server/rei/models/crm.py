@@ -192,6 +192,25 @@ class CrmDeal(Base):
     other_liens: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     other_lien_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # ── Lender 2 per-lender fields ──
+    monthly_payment_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    loan_type_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    prepayment_penalty_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    payments_current_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    months_behind_2nd: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
+    amount_behind_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+
+    # ── Lender 3 (3rd Lien) ──
+    mortgage_balance_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    monthly_payment_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    interest_rate_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    loan_type_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    prepayment_penalty_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    mortgage_company_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    payments_current_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    months_behind_3rd: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
+    amount_behind_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+
     # ── Foreclosure Details ──
     foreclosure_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     auction_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -171,6 +171,23 @@ class CreateDealBody(BaseModel):
     insuranceAssignable: Optional[str] = None
     buyerDownPayment: Optional[float] = None
     sourceOfFunds: Optional[str] = None
+    # Lender 2 per-lender fields
+    monthlyPayment2nd: Optional[float] = None
+    loanType2nd: Optional[str] = None
+    prepaymentPenalty2nd: Optional[str] = None
+    paymentsCurrent2nd: Optional[str] = None
+    monthsBehind2nd: Optional[int] = None
+    amountBehind2nd: Optional[float] = None
+    # Lender 3 (3rd Lien)
+    mortgageBalance3rd: Optional[float] = None
+    monthlyPayment3rd: Optional[float] = None
+    interestRate3rd: Optional[float] = None
+    loanType3rd: Optional[str] = None
+    prepaymentPenalty3rd: Optional[str] = None
+    mortgageCompany3rd: Optional[str] = None
+    paymentsCurrent3rd: Optional[str] = None
+    monthsBehind3rd: Optional[int] = None
+    amountBehind3rd: Optional[float] = None
 
 
 class UpdateDealBody(CreateDealBody):
@@ -305,6 +322,21 @@ _FIELD_MAP: dict[str, str] = {
     "insuranceAssignable": "insurance_assignable",
     "buyerDownPayment": "buyer_down_payment",
     "sourceOfFunds": "source_of_funds",
+    "monthlyPayment2nd": "monthly_payment_2nd",
+    "loanType2nd": "loan_type_2nd",
+    "prepaymentPenalty2nd": "prepayment_penalty_2nd",
+    "paymentsCurrent2nd": "payments_current_2nd",
+    "monthsBehind2nd": "months_behind_2nd",
+    "amountBehind2nd": "amount_behind_2nd",
+    "mortgageBalance3rd": "mortgage_balance_3rd",
+    "monthlyPayment3rd": "monthly_payment_3rd",
+    "interestRate3rd": "interest_rate_3rd",
+    "loanType3rd": "loan_type_3rd",
+    "prepaymentPenalty3rd": "prepayment_penalty_3rd",
+    "mortgageCompany3rd": "mortgage_company_3rd",
+    "paymentsCurrent3rd": "payments_current_3rd",
+    "monthsBehind3rd": "months_behind_3rd",
+    "amountBehind3rd": "amount_behind_3rd",
 }
 
 # Date fields need special parsing
@@ -454,6 +486,21 @@ def _deal_to_dict(d: CrmDeal) -> dict:
         "insuranceAssignable": d.insurance_assignable,
         "buyerDownPayment": d.buyer_down_payment,
         "sourceOfFunds": d.source_of_funds,
+        "monthlyPayment2nd": d.monthly_payment_2nd,
+        "loanType2nd": d.loan_type_2nd,
+        "prepaymentPenalty2nd": d.prepayment_penalty_2nd,
+        "paymentsCurrent2nd": d.payments_current_2nd,
+        "monthsBehind2nd": d.months_behind_2nd,
+        "amountBehind2nd": d.amount_behind_2nd,
+        "mortgageBalance3rd": d.mortgage_balance_3rd,
+        "monthlyPayment3rd": d.monthly_payment_3rd,
+        "interestRate3rd": d.interest_rate_3rd,
+        "loanType3rd": d.loan_type_3rd,
+        "prepaymentPenalty3rd": d.prepayment_penalty_3rd,
+        "mortgageCompany3rd": d.mortgage_company_3rd,
+        "paymentsCurrent3rd": d.payments_current_3rd,
+        "monthsBehind3rd": d.months_behind_3rd,
+        "amountBehind3rd": d.amount_behind_3rd,
         "createdAt": d.created_at.isoformat() if d.created_at else None,
         "updatedAt": d.updated_at.isoformat() if d.updated_at else None,
     }

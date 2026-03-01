@@ -401,6 +401,25 @@ export default function NewDealModal({
         ? parseFloat(formData.other_lien_amount)
         : undefined,
 
+      // Lender 2 per-lender fields
+      monthlyPayment2nd: formData.monthly_payment_2nd ? parseFloat(formData.monthly_payment_2nd) : undefined,
+      loanType2nd: formData.loan_type_2nd || undefined,
+      prepaymentPenalty2nd: formData.prepayment_penalty_2nd || undefined,
+      paymentsCurrent2nd: formData.payments_current_2nd || undefined,
+      monthsBehind2nd: formData.months_behind_2nd ? parseInt(formData.months_behind_2nd, 10) : undefined,
+      amountBehind2nd: formData.amount_behind_2nd ? parseFloat(formData.amount_behind_2nd) : undefined,
+
+      // Lender 3 fields
+      mortgageBalance3rd: formData.mortgage_balance_3rd ? parseFloat(formData.mortgage_balance_3rd) : undefined,
+      monthlyPayment3rd: formData.monthly_payment_3rd ? parseFloat(formData.monthly_payment_3rd) : undefined,
+      interestRate3rd: formData.interest_rate_3rd ? parseFloat(formData.interest_rate_3rd) : undefined,
+      loanType3rd: formData.loan_type_3rd || undefined,
+      prepaymentPenalty3rd: formData.prepayment_penalty_3rd || undefined,
+      mortgageCompany3rd: formData.mortgage_company_3rd || undefined,
+      paymentsCurrent3rd: formData.payments_current_3rd || undefined,
+      monthsBehind3rd: formData.months_behind_3rd ? parseInt(formData.months_behind_3rd, 10) : undefined,
+      amountBehind3rd: formData.amount_behind_3rd ? parseFloat(formData.amount_behind_3rd) : undefined,
+
       // Foreclosure Details
       foreclosureStatus: formData.foreclosure_status || undefined,
       auctionDate: formData.auction_date || undefined,
@@ -1079,148 +1098,296 @@ export default function NewDealModal({
           </CollapsibleSection>
           )}
 
-          {/* Section 4: Homeowner Financials */}
+          {/* Section 4: Homeowner Financials — 3 Lender Sections */}
           {showSection('homeowner_financials') && (
           <CollapsibleSection
             title="Homeowner Financials"
             isOpen={openSections['homeowner_financials'] || false}
             onToggle={() => toggleSection('homeowner_financials')}
           >
-            <div className="grid grid-cols-2 gap-3">
-              <NumberField
-                label="Mortgage Balance (1st)"
-                value={formData.mortgage_balance || ''}
-                onChange={(val) => setField('mortgage_balance', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <NumberField
-                label="Mortgage Balance (2nd)"
-                value={formData.mortgage_balance_2nd || ''}
-                onChange={(val) => setField('mortgage_balance_2nd', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <NumberField
-                label="Monthly Mortgage Payment"
-                value={formData.monthly_mortgage_payment || ''}
-                onChange={(val) => setField('monthly_mortgage_payment', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <SelectField
-                label="Taxes & Insurance Included"
-                value={formData.taxes_insurance_included || ''}
-                onChange={(val) => setField('taxes_insurance_included', val)}
-                options={[
-                  { label: 'Yes', value: 'yes' },
-                  { label: 'No', value: 'no' },
-                ]}
-              />
-              <NumberField
-                label="Monthly Tax Amount"
-                value={formData.monthly_tax_amount || ''}
-                onChange={(val) => setField('monthly_tax_amount', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <NumberField
-                label="Monthly Insurance Amount"
-                value={formData.monthly_insurance_amount || ''}
-                onChange={(val) => setField('monthly_insurance_amount', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <NumberField
-                label="Interest Rate (1st)"
-                value={formData.interest_rate_1st || ''}
-                onChange={(val) => setField('interest_rate_1st', val)}
-                suffix="%"
-                placeholder="0"
-              />
-              <NumberField
-                label="Interest Rate (2nd)"
-                value={formData.interest_rate_2nd || ''}
-                onChange={(val) => setField('interest_rate_2nd', val)}
-                suffix="%"
-                placeholder="0"
-              />
-              <SelectField
-                label="Loan Type (1st)"
-                value={formData.loan_type || ''}
-                onChange={(val) => setField('loan_type', val)}
-                options={[
-                  { label: 'Fixed', value: 'fixed' },
-                  { label: 'Adjustable', value: 'adjustable' },
-                  { label: 'FHA', value: 'fha' },
-                  { label: 'VA', value: 'va' },
-                  { label: 'USDA', value: 'usda' },
-                  { label: 'Conventional', value: 'conventional' },
-                ]}
-              />
-              <SelectField
-                label="Prepayment Penalty"
-                value={formData.prepayment_penalty || ''}
-                onChange={(val) => setField('prepayment_penalty', val)}
-                options={[
-                  { label: 'Yes', value: 'yes' },
-                  { label: 'No', value: 'no' },
-                ]}
-              />
-              <TextField
-                label="Mortgage Company (1st)"
-                value={formData.mortgage_company_1st || ''}
-                onChange={(val) => setField('mortgage_company_1st', val)}
-                placeholder="Bank name"
-              />
-              <TextField
-                label="Mortgage Company (2nd)"
-                value={formData.mortgage_company_2nd || ''}
-                onChange={(val) => setField('mortgage_company_2nd', val)}
-                placeholder="Bank name"
-              />
-              <SelectField
-                label="Payments Current"
-                value={formData.payments_current || ''}
-                onChange={(val) => setField('payments_current', val)}
-                options={[
-                  { label: 'Yes', value: 'yes' },
-                  { label: 'No', value: 'no' },
-                ]}
-              />
-              <NumberField
-                label="Months Behind"
-                value={formData.months_behind || ''}
-                onChange={(val) => setField('months_behind', val)}
-                placeholder="0"
-              />
-              <NumberField
-                label="Amount Behind"
-                value={formData.amount_behind || ''}
-                onChange={(val) => setField('amount_behind', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <NumberField
-                label="Back Taxes"
-                value={formData.back_taxes || ''}
-                onChange={(val) => setField('back_taxes', val)}
-                prefix="$"
-                placeholder="0"
-              />
-              <TextField
-                label="Other Liens"
-                value={formData.other_liens || ''}
-                onChange={(val) => setField('other_liens', val)}
-                placeholder="Description"
-              />
-              <NumberField
-                label="Other Lien Amount"
-                value={formData.other_lien_amount || ''}
-                onChange={(val) => setField('other_lien_amount', val)}
-                prefix="$"
-                placeholder="0"
-              />
+            <div className="space-y-5">
+              {/* ── Lender 1: 1st Mortgage ── */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 pb-1 border-b border-slate-200">Lender 1 — 1st Mortgage</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <TextField
+                    label="Mortgage Company"
+                    value={formData.mortgage_company_1st || ''}
+                    onChange={(val) => setField('mortgage_company_1st', val)}
+                    placeholder="e.g. Wells Fargo"
+                  />
+                  <NumberField
+                    label="Balance Owed"
+                    value={formData.mortgage_balance || ''}
+                    onChange={(val) => setField('mortgage_balance', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Monthly Payment"
+                    value={formData.monthly_mortgage_payment || ''}
+                    onChange={(val) => setField('monthly_mortgage_payment', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Interest Rate"
+                    value={formData.interest_rate_1st || ''}
+                    onChange={(val) => setField('interest_rate_1st', val)}
+                    suffix="%"
+                    placeholder="0"
+                  />
+                  <SelectField
+                    label="Loan Type"
+                    value={formData.loan_type || ''}
+                    onChange={(val) => setField('loan_type', val)}
+                    options={[
+                      { label: 'Fixed', value: 'fixed' },
+                      { label: 'Adjustable', value: 'adjustable' },
+                      { label: 'FHA', value: 'fha' },
+                      { label: 'VA', value: 'va' },
+                      { label: 'USDA', value: 'usda' },
+                      { label: 'Conventional', value: 'conventional' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Prepayment Penalty"
+                    value={formData.prepayment_penalty || ''}
+                    onChange={(val) => setField('prepayment_penalty', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Payments Current"
+                    value={formData.payments_current || ''}
+                    onChange={(val) => setField('payments_current', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <NumberField
+                    label="Months Behind"
+                    value={formData.months_behind || ''}
+                    onChange={(val) => setField('months_behind', val)}
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Amount Behind"
+                    value={formData.amount_behind || ''}
+                    onChange={(val) => setField('amount_behind', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* ── Lender 2: 2nd Mortgage / HELOC ── */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 pb-1 border-b border-slate-200">Lender 2 — 2nd Mortgage / HELOC</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <TextField
+                    label="Mortgage Company"
+                    value={formData.mortgage_company_2nd || ''}
+                    onChange={(val) => setField('mortgage_company_2nd', val)}
+                    placeholder="e.g. Chase"
+                  />
+                  <NumberField
+                    label="Balance Owed"
+                    value={formData.mortgage_balance_2nd || ''}
+                    onChange={(val) => setField('mortgage_balance_2nd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Monthly Payment"
+                    value={formData.monthly_payment_2nd || ''}
+                    onChange={(val) => setField('monthly_payment_2nd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Interest Rate"
+                    value={formData.interest_rate_2nd || ''}
+                    onChange={(val) => setField('interest_rate_2nd', val)}
+                    suffix="%"
+                    placeholder="0"
+                  />
+                  <SelectField
+                    label="Loan Type"
+                    value={formData.loan_type_2nd || ''}
+                    onChange={(val) => setField('loan_type_2nd', val)}
+                    options={[
+                      { label: 'Fixed', value: 'fixed' },
+                      { label: 'Adjustable', value: 'adjustable' },
+                      { label: 'HELOC', value: 'heloc' },
+                      { label: 'Home Equity Loan', value: 'home_equity' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Prepayment Penalty"
+                    value={formData.prepayment_penalty_2nd || ''}
+                    onChange={(val) => setField('prepayment_penalty_2nd', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Payments Current"
+                    value={formData.payments_current_2nd || ''}
+                    onChange={(val) => setField('payments_current_2nd', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <NumberField
+                    label="Months Behind"
+                    value={formData.months_behind_2nd || ''}
+                    onChange={(val) => setField('months_behind_2nd', val)}
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Amount Behind"
+                    value={formData.amount_behind_2nd || ''}
+                    onChange={(val) => setField('amount_behind_2nd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* ── Lender 3: 3rd Lien / Other ── */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 pb-1 border-b border-slate-200">Lender 3 — 3rd Lien / Other</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <TextField
+                    label="Lien Holder / Company"
+                    value={formData.mortgage_company_3rd || ''}
+                    onChange={(val) => setField('mortgage_company_3rd', val)}
+                    placeholder="e.g. Private lender, IRS, etc."
+                  />
+                  <NumberField
+                    label="Balance Owed"
+                    value={formData.mortgage_balance_3rd || ''}
+                    onChange={(val) => setField('mortgage_balance_3rd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Monthly Payment"
+                    value={formData.monthly_payment_3rd || ''}
+                    onChange={(val) => setField('monthly_payment_3rd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Interest Rate"
+                    value={formData.interest_rate_3rd || ''}
+                    onChange={(val) => setField('interest_rate_3rd', val)}
+                    suffix="%"
+                    placeholder="0"
+                  />
+                  <SelectField
+                    label="Lien Type"
+                    value={formData.loan_type_3rd || ''}
+                    onChange={(val) => setField('loan_type_3rd', val)}
+                    options={[
+                      { label: 'Mortgage', value: 'mortgage' },
+                      { label: 'HELOC', value: 'heloc' },
+                      { label: 'Tax Lien', value: 'tax_lien' },
+                      { label: 'Judgment Lien', value: 'judgment' },
+                      { label: 'Mechanic\'s Lien', value: 'mechanics' },
+                      { label: 'Private Loan', value: 'private' },
+                      { label: 'Other', value: 'other' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Prepayment Penalty"
+                    value={formData.prepayment_penalty_3rd || ''}
+                    onChange={(val) => setField('prepayment_penalty_3rd', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <SelectField
+                    label="Payments Current"
+                    value={formData.payments_current_3rd || ''}
+                    onChange={(val) => setField('payments_current_3rd', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <NumberField
+                    label="Months Behind"
+                    value={formData.months_behind_3rd || ''}
+                    onChange={(val) => setField('months_behind_3rd', val)}
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Amount Behind"
+                    value={formData.amount_behind_3rd || ''}
+                    onChange={(val) => setField('amount_behind_3rd', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* ── Taxes, Insurance & Other ── */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 pb-1 border-b border-slate-200">Taxes, Insurance & Other</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <SelectField
+                    label="Taxes & Insurance in Payment"
+                    value={formData.taxes_insurance_included || ''}
+                    onChange={(val) => setField('taxes_insurance_included', val)}
+                    options={[
+                      { label: 'Yes', value: 'yes' },
+                      { label: 'No', value: 'no' },
+                    ]}
+                  />
+                  <NumberField
+                    label="Monthly Tax Amount"
+                    value={formData.monthly_tax_amount || ''}
+                    onChange={(val) => setField('monthly_tax_amount', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Monthly Insurance Amount"
+                    value={formData.monthly_insurance_amount || ''}
+                    onChange={(val) => setField('monthly_insurance_amount', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <NumberField
+                    label="Back Taxes Owed"
+                    value={formData.back_taxes || ''}
+                    onChange={(val) => setField('back_taxes', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                  <TextField
+                    label="Other Liens"
+                    value={formData.other_liens || ''}
+                    onChange={(val) => setField('other_liens', val)}
+                    placeholder="Description of other liens"
+                  />
+                  <NumberField
+                    label="Other Lien Amount"
+                    value={formData.other_lien_amount || ''}
+                    onChange={(val) => setField('other_lien_amount', val)}
+                    prefix="$"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
             </div>
           </CollapsibleSection>
           )}
