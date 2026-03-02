@@ -4,24 +4,6 @@ version: '3.9'
 
 services:
 
-  # ── Helm Hub (Python/FastAPI AI backend) ──────────────────
-  helm-hub:
-    build:
-      context: ./helm-hub
-      dockerfile: docker/Dockerfile
-    container_name: helm-hub
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env.local
-    volumes:
-      - ./helm-hub:/app
-      - helm_workspace:/app/workspace
-      - helm_workspaces:/app/workspaces
-    networks:
-      - helm-network
-    restart: unless-stopped
-
   # ── REIFundamentals Hub (React SPA via Nginx) ─────────────
   rei-hub:
     build:
@@ -31,15 +13,11 @@ services:
     ports:
       - "3000:80"
     networks:
-      - helm-network
+      - rei-network
     restart: unless-stopped
-    depends_on:
-      - helm-hub
 
-volumes:
-  helm_workspace:
-  helm_workspaces:
+volumes: {}
 
 networks:
-  helm-network:
+  rei-network:
     driver: bridge

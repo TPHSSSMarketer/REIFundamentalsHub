@@ -16,8 +16,6 @@ from rei.api.deps import get_current_user, get_db
 from rei.config import (
     PLANS,
     TRIAL_DAYS,
-    get_addon_price_id,
-    get_paypal_addon_plan_id,
     get_paypal_plan_id,
     get_plan_price_id,
     get_settings,
@@ -126,8 +124,6 @@ def _resolve_plan_from_paypal_plan_id(paypal_plan_id: str) -> tuple[str, str] | 
     for plan_key in PLANS:
         for interval in ("monthly", "annual"):
             if get_paypal_plan_id(plan_key, interval, settings) == paypal_plan_id:
-                return (plan_key, interval)
-            if get_paypal_addon_plan_id(plan_key, interval, settings) == paypal_plan_id:
                 return (plan_key, interval)
     return None
 

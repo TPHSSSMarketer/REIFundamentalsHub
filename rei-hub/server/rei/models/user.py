@@ -40,8 +40,8 @@ class User(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
     paypal_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    helm_addon_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    helm_addon_billing_interval: Mapped[str | None] = mapped_column(String, nullable=True)
+    helm_addon_active: Mapped[bool] = mapped_column(Boolean, default=False)  # DEPRECATED — kept for DB compatibility
+    helm_addon_billing_interval: Mapped[str | None] = mapped_column(String, nullable=True)  # DEPRECATED — kept for DB compatibility
     seats_used: Mapped[int] = mapped_column(Integer, default=1)
     trial_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -287,7 +287,7 @@ class Subscription(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
     paypal_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    helm_addon: Mapped[bool] = mapped_column(Boolean, default=False)
+    helm_addon: Mapped[bool] = mapped_column(Boolean, default=False)  # DEPRECATED — kept for DB compatibility
     billing_cycle: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

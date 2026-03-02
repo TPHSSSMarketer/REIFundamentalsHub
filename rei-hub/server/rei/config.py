@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     stripe_pro_annual_price_id: str = ""
     stripe_team_monthly_price_id: str = ""
     stripe_team_annual_price_id: str = ""
-    stripe_starter_addon_monthly_price_id: str = ""
-    stripe_starter_addon_annual_price_id: str = ""
-    stripe_pro_addon_monthly_price_id: str = ""
-    stripe_pro_addon_annual_price_id: str = ""
     paypal_client_id: str = ""
     paypal_client_secret: str = ""
     paypal_mode: str = "sandbox"
@@ -44,10 +40,6 @@ class Settings(BaseSettings):
     paypal_pro_annual_plan_id: str = ""
     paypal_team_monthly_plan_id: str = ""
     paypal_team_annual_plan_id: str = ""
-    paypal_starter_addon_monthly_plan_id: str = ""
-    paypal_starter_addon_annual_plan_id: str = ""
-    paypal_pro_addon_monthly_plan_id: str = ""
-    paypal_pro_addon_annual_plan_id: str = ""
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"  # sandbox, development, production
@@ -249,12 +241,6 @@ def get_plan_price_id(plan: str, interval: str, settings: Settings) -> str:
     return getattr(settings, key, "")
 
 
-def get_addon_price_id(plan: str, interval: str, settings: Settings) -> str:
-    """Return the Stripe addon price ID for a given plan + interval."""
-    key = f"stripe_{plan}_addon_{interval}_price_id"
-    return getattr(settings, key, "")
-
-
 # ── Helpers to resolve PayPal plan IDs from settings ───────────────────
 
 
@@ -264,7 +250,3 @@ def get_paypal_plan_id(plan: str, interval: str, settings: Settings) -> str:
     return getattr(settings, key, "")
 
 
-def get_paypal_addon_plan_id(plan: str, interval: str, settings: Settings) -> str:
-    """Return the PayPal addon plan ID for a given plan + interval."""
-    key = f"paypal_{plan}_addon_{interval}_plan_id"
-    return getattr(settings, key, "")
