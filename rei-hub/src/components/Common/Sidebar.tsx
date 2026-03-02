@@ -244,19 +244,19 @@ export default function Sidebar() {
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
+        <div className={cn('flex items-center justify-between px-4 border-b border-slate-200', isSidebarCollapsed ? 'h-16' : 'py-4')}>
           <div className="flex items-center gap-2 min-w-0">
             {isSidebarCollapsed ? (
               <img
                 src="/REIFundamentals_Hub_favicon.png"
                 alt="REI Fundamentals Hub"
-                className="w-8 h-8 object-contain rounded"
+                className="w-10 h-10 object-contain rounded"
               />
             ) : (
               <img
                 src="/REIFundamentals_Hub_Logo.png"
                 alt="REI Fundamentals Hub"
-                className="h-10 object-contain"
+                className="w-full max-h-24 object-contain"
               />
             )}
           </div>

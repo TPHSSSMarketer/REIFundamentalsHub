@@ -45,7 +45,7 @@ export default function DealDetailModal({ deal, onClose }: DealDetailModalProps)
   const location = [deal.address, deal.city, deal.state, deal.zip].filter(Boolean).join(', ')
 
   return (
-    <Modal isOpen={!!deal} onClose={onClose} title={deal.title} size="md">
+    <Modal isOpen={!!deal} onClose={onClose} title={deal.address || deal.title} size="md">
       <div className="space-y-6">
         {/* Urgent Badge */}
         {deal.isUrgent && (

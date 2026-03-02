@@ -574,6 +574,10 @@ async def create_deal(
     updates = body.model_dump(exclude_none=True)
     _apply_updates(deal, updates)
 
+    # Default title to address when not explicitly provided
+    if not deal.title and deal.address:
+        deal.title = deal.address
+
     db.add(deal)
     await db.commit()
     await db.refresh(deal)

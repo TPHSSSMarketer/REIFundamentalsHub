@@ -39,6 +39,7 @@ import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
 import { getAuthHeader } from '@/services/auth'
 import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
+import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
 import DealExpenditures from './DealExpenditures'
@@ -159,6 +160,9 @@ export default function DealDetailPage() {
   const [matchesLoading, setMatchesLoading] = useState(false)
   const [sendingMatch, setSendingMatch] = useState<string | null>(null)
   const [sendingAll, setSendingAll] = useState(false)
+
+  // Add Task Modal
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false)
 
   // Deal Analyzer preferences
   const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
@@ -466,7 +470,7 @@ export default function DealDetailPage() {
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800 truncate">{deal.title}</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 truncate">{deal.address || deal.title}</h1>
             {deal.isUrgent && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full shrink-0">
                 <AlertTriangle className="w-3 h-3" />
@@ -474,7 +478,7 @@ export default function DealDetailPage() {
               </span>
             )}
             <button
-              onClick={() => navigate(`/calendar?deal=${dealId}&action=add-task`)}
+              onClick={() => setShowAddTaskModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors min-h-[36px] shrink-0"
             >
               <Calendar className="w-3.5 h-3.5" /> Add Task
@@ -1798,6 +1802,15 @@ export default function DealDetailPage() {
           />
         </div>
       )}
+
+      {/* ── Add Task / Event Modal ──────────────────────────── */}
+      <AddTaskModal
+        isOpen={showAddTaskModal}
+        onClose={() => setShowAddTaskModal(false)}
+        dealId={dealId}
+        dealAddress={deal?.address}
+        contactId={deal?.contactId}
+      />
     </div>
   )
 }

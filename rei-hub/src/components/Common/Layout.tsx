@@ -36,7 +36,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-2">
               <Beaker className="w-4 h-4" />
               <span className="text-sm font-medium">
-                Demo Mode - Using sample data. Configure API for real data.
+                Demo Mode - Using sample data.
               </span>
             </div>
             <button
