@@ -70,7 +70,7 @@ function AppLayout() {
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/proof-of-funds" element={<ProofOfFundsPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
-        <Route path="/email-marketing" element={<EmailMarketingPage />} />
+        <Route path="/email-marketing" element={<Navigate to="/assistanthub" replace />} />
         <Route path="/lead-capture" element={<LeadCaptureWebsitesPage />} />
         <Route path="/phone" element={<PhonePage />} />
         <Route path="/calendar" element={<CalendarPage />} />

@@ -43,7 +43,7 @@ const navItems = [
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
   { to: '/proof-of-funds', icon: ShieldCheck, label: 'Proof of Funds' },
   { to: '/documents', icon: FileText, label: 'Documents' },
-  { to: '/email-marketing', icon: Mail, label: 'Email Marketing' },
+  // Email Marketing now lives inside AssistantHub
   { to: '/lead-capture', icon: Globe, label: 'Lead Capture' },
   { to: '/phone', icon: Phone, label: 'Phone' },
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
