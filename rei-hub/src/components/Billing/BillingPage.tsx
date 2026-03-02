@@ -1,0 +1,509 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { useDemoMode } from '@/hooks/useDemoMode'
+import {
+  getBillingStatus,
+  getPlans,
+  createCheckout,
+  openBillingPortal,
+  type BillingStatus,
+  type PlanInfo,
+} from '@/services/billingApi'
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '\u2014'
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function cents(amount: number): string {
+  return `$${(amount / 100).toLocaleString()}`
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  pipeline: 'Pipeline',
+  contacts: 'Contacts',
+  markets: 'Markets',
+  portfolio: 'Portfolio',
+  content_hub: 'ContentHub',
+  wordpress_publish: 'WordPress Publish',
+  cloud_sync: 'Cloud Sync',
+  assistant_hub: 'AssistantHub',
+  csv_export: 'CSV Export',
+  priority_support: 'Priority Support',
+}
+
+const PLAN_ORDER = ['starter', 'pro', 'team'] as const
+
+/* ── Stripe.js CDN loader ────────────────────────────────────── */
+
+let stripeJsPromise: Promise<any> | null = null
+
+function loadStripeJs(publishableKey: string): Promise<any> {
+  if (stripeJsPromise) return stripeJsPromise
+
+  stripeJsPromise = new Promise((resolve, reject) => {
+    if ((window as any).Stripe) {
+      resolve((window as any).Stripe(publishableKey))
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://js.stripe.com/v3/'
+    script.onload = () => {
+      if ((window as any).Stripe) {
+        resolve((window as any).Stripe(publishableKey))
+      } else {
+        reject(new Error('Stripe.js failed to initialize'))
+      }
+    }
+    script.onerror = () => reject(new Error('Failed to load Stripe.js'))
+    document.head.appendChild(script)
+  })
+
+  return stripeJsPromise
+}
+
+/* ── Sub-components ──────────────────────────────────────────── */
+
+function StatusBadge({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    trialing: 'bg-blue-100 text-blue-700',
+    active: 'bg-green-100 text-green-700',
+    canceled: 'bg-slate-100 text-slate-600',
+    past_due: 'bg-red-100 text-red-700',
+  }
+  const cls = colorMap[status] ?? 'bg-slate-100 text-slate-600'
+  return (
+    <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded-full ${cls}`}>
+      {status}
+    </span>
+  )
+}
+
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 4000)
+    return () => clearTimeout(t)
+  }, [onClose])
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+      {message}
+      <button onClick={onClose} className="text-slate-300 hover:text-white">&times;</button>
+    </div>
+  )
+}
+
+/* ── Main Component ──────────────────────────────────────────── */
+
+export default function BillingPage() {
+  const { isDemoMode } = useDemoMode()
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
+  const [plans, setPlans] = useState<Record<string, PlanInfo> | null>(null)
+  const [trialDays, setTrialDays] = useState(7)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [annual, setAnnual] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe')
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const checkoutContainerRef = useRef<HTMLDivElement | null>(null)
+  const embeddedCheckoutRef = useRef<any>(null)
+
+  // Check for ?paypal=success on mount (PayPal checkout success redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('paypal') === 'success') {
+      setShowSuccess(true)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [plansRes, statusRes] = await Promise.all([
+          getPlans(),
+          getBillingStatus(),
+        ])
+        if (cancelled) return
+        setPlans(plansRes.plans)
+        setTrialDays(plansRes.trial_days)
+        if (statusRes) setBillingStatus(statusRes)
+      } catch (err: unknown) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load billing data')
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const destroyEmbeddedCheckout = useCallback(() => {
+    if (embeddedCheckoutRef.current) {
+      try { embeddedCheckoutRef.current.destroy() } catch { /* noop */ }
+      embeddedCheckoutRef.current = null
+    }
+    setShowCheckoutModal(false)
+  }, [])
+
+  async function handleSelectPlan(planKey: string) {
+    if (checkoutLoading) return
+    setCheckoutLoading(planKey)
+    try {
+      const res = await createCheckout(
+        planKey,
+        annual ? 'annual' : 'monthly',
+        paymentMethod,
+      )
+
+      // Stripe: open embedded checkout in modal
+      if (paymentMethod === 'stripe' && res.client_secret) {
+        const pk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ''
+        if (!pk) {
+          setToast('Stripe publishable key not configured')
+          return
+        }
+        const stripeInstance = await loadStripeJs(pk)
+        setShowCheckoutModal(true)
+
+        // Wait one tick for the modal container to mount
+        await new Promise((r) => setTimeout(r, 0))
+
+        const checkout = await stripeInstance.initEmbeddedCheckout({
+          clientSecret: res.client_secret,
+        })
+        embeddedCheckoutRef.current = checkout
+        if (checkoutContainerRef.current) {
+          checkout.mount(checkoutContainerRef.current)
+        }
+        return
+      }
+
+      // PayPal: redirect to approval URL (still hosted)
+      if (res.checkout_url) {
+        window.location.href = res.checkout_url
+        return
+      }
+
+      setToast('Billing setup coming soon \u2014 we\u2019ll notify you when payments are live')
+    } catch {
+      setToast('Something went wrong \u2014 please try again')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  async function handleOpenPortal() {
+    if (portalLoading) return
+    setPortalLoading(true)
+    try {
+      const res = await openBillingPortal()
+      if (res.portal_url) {
+        window.location.href = res.portal_url
+      } else {
+        setToast('Billing portal not yet configured')
+      }
+    } catch {
+      setToast('Something went wrong — please try again')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
+
+  /* ── Loading state ───────────────────────────────────────── */
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  /* ── Error state ─────────────────────────────────────────── */
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+          {error}
+        </div>
+      </div>
+    )
+  }
+
+  const currentPlan = billingStatus?.plan ?? 'starter'
+  const anyCheckoutLoading = checkoutLoading !== null
+
+  return (
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8 md:space-y-10">
+
+      {/* ── Success Banner ─────────────────────────────────────── */}
+      {showSuccess && (
+        <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm text-green-800">
+            Welcome! Your subscription is now active.
+          </span>
+          <button
+            onClick={() => setShowSuccess(false)}
+            className="text-green-600 hover:text-green-800 text-sm font-medium"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* ── Current Plan Banner ──────────────────────────────── */}
+      {billingStatus && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-sm text-slate-500">Current Plan</p>
+              <p className="text-xl font-bold text-slate-900 capitalize">{billingStatus.plan ?? 'None'}</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {billingStatus.subscription_status && (
+                <StatusBadge status={billingStatus.subscription_status} />
+              )}
+              {billingStatus.billing_interval && (
+                <span className="text-xs text-slate-500 capitalize">
+                  {billingStatus.billing_interval}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Trial warning */}
+          {billingStatus.is_trial_active && billingStatus.days_remaining_in_trial !== null && (
+            <div className="mt-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-sm text-blue-700">
+              <span className="font-medium">Trial</span>
+              {billingStatus.days_remaining_in_trial} day{billingStatus.days_remaining_in_trial !== 1 ? 's' : ''} remaining
+              {billingStatus.trial_ends_at && (
+                <span className="text-blue-500 ml-1">(ends {formatDate(billingStatus.trial_ends_at)})</span>
+              )}
+            </div>
+          )}
+
+          {/* Past due warning */}
+          {billingStatus.subscription_status === 'past_due' && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-700">
+              Your payment is past due. Please update your payment method to keep access.
+            </div>
+          )}
+
+          {/* Canceled warning */}
+          {billingStatus.subscription_status === 'canceled' && (
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-600">
+              Your subscription has been canceled.
+              {billingStatus.subscription_ends_at && (
+                <span> Access continues until {formatDate(billingStatus.subscription_ends_at)}.</span>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ── Pricing Section ──────────────────────────────────── */}
+      {plans && (
+        <>
+          {/* Header + Toggle */}
+          <div className="text-center">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900">
+              {billingStatus ? 'Change Your Plan' : 'Choose a Plan'}
+            </h2>
+
+            {/* Monthly / Annual toggle */}
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <span className={`text-sm font-medium ${!annual ? 'text-slate-900' : 'text-slate-400'}`}>
+                Monthly
+              </span>
+              <button
+                type="button"
+                onClick={() => setAnnual(!annual)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  annual ? 'bg-primary-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${
+                    annual ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium ${annual ? 'text-slate-900' : 'text-slate-400'}`}>
+                Annual{' '}
+                <span className="text-primary-600 font-semibold">(Save 2 months)</span>
+              </span>
+            </div>
+
+
+            {/* Payment method selector */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('stripe')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  paymentMethod === 'stripe'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Pay with Stripe
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('paypal')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  paymentMethod === 'paypal'
+                    ? 'border-primary-500 bg-primary-50 text-primary-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Pay with PayPal
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm text-slate-500">
+              {trialDays}-day free trial, no credit card required
+            </p>
+          </div>
+
+          {/* Plan Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {PLAN_ORDER.map((planKey) => {
+              const plan = plans[planKey]
+              if (!plan) return null
+
+              const isPopular = planKey === 'pro'
+              const isCurrent = planKey === currentPlan
+              const price = annual ? plan.annual_price_cents : plan.monthly_price_cents
+              const period = annual ? '/yr' : '/mo'
+
+              return (
+                <div
+                  key={planKey}
+                  className={`relative bg-white rounded-xl shadow-sm border p-5 md:p-8 flex flex-col ${
+                    isPopular
+                      ? 'border-primary-500 ring-2 ring-primary-500'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  {isPopular && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                      Most Popular
+                    </span>
+                  )}
+
+                  <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
+
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-3xl md:text-4xl font-extrabold text-slate-900">
+                      {cents(price)}
+                    </span>
+                    <span className="text-slate-500 text-sm">{period}</span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Up to {plan.max_seats === 999 ? 'unlimited' : plan.max_seats} user{plan.max_seats !== 1 ? 's' : ''}
+                  </p>
+
+                  {/* Features list */}
+                  <ul className="mt-6 space-y-3 flex-1">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="text-primary-600 mt-0.5">&#10003;</span>
+                        {FEATURE_LABELS[f] ?? f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA */}
+                  <button
+                    onClick={() => handleSelectPlan(planKey)}
+                    disabled={isCurrent || anyCheckoutLoading}
+                    className={`mt-8 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                      isPopular
+                        ? 'bg-primary-600 text-white hover:bg-primary-700'
+                        : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    {checkoutLoading === planKey && (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {checkoutLoading === planKey
+                      ? 'Processing...'
+                      : isCurrent
+                        ? 'Current Plan'
+                        : 'Select Plan'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+        </>
+      )}
+
+      {/* ── Manage Billing Section ────────────────────────────── */}
+      {billingStatus && (billingStatus.subscription_status === 'active' || billingStatus.subscription_status === 'past_due') && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Manage Billing</h3>
+            <p className="text-sm text-slate-500">
+              View invoices, update payment method, or cancel your subscription.
+            </p>
+          </div>
+          <button
+            onClick={handleOpenPortal}
+            disabled={portalLoading}
+            className="shrink-0 rounded-lg bg-slate-100 text-slate-900 hover:bg-slate-200 px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {portalLoading && (
+              <span className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+            )}
+            {portalLoading ? 'Opening...' : 'Manage Billing & Invoices'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Stripe Embedded Checkout Modal ──────────────────── */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900">Complete Your Subscription</h3>
+              <button
+                onClick={destroyEmbeddedCheckout}
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div ref={checkoutContainerRef} className="p-6 min-h-[300px]" />
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </div>
+  )
+}

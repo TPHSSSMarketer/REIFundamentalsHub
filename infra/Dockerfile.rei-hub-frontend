@@ -1,0 +1,18 @@
+# ── Stage 1: Builder ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY rei-hub/package.json rei-hub/package-lock.json ./
+RUN npm ci
+
+COPY rei-hub/ .
+RUN npm run build
+
+# ── Stage 2: Runtime (Nginx) ─────────────────────────────────
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY infra/nginx/spa.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

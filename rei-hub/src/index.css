@@ -1,0 +1,335 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f1f5f9;
+}
+
+/* ── Darker borders in light mode ─────────────────────────── */
+@layer base {
+  .border-slate-200 {
+    border-color: #c2c8d4;
+  }
+  .border-b-slate-200,
+  .border-t-slate-200,
+  .border-l-slate-200,
+  .border-r-slate-200 {
+    border-color: #c2c8d4;
+  }
+  .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #c2c8d4;
+  }
+}
+
+/* Custom scrollbar — Light */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — Global overrides when <html class="dark">
+   This approach avoids editing every component file.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Body & base backgrounds ─────────────────────────────── */
+.dark body {
+  background-color: #0c1222;
+  color: #e2e8f0;
+}
+
+/* ── White surfaces → dark slate ─────────────────────────── */
+.dark .bg-white {
+  background-color: #1a2332 !important;
+}
+.dark .bg-slate-50 {
+  background-color: #111927 !important;
+}
+.dark .bg-slate-100 {
+  background-color: #182030 !important;
+}
+.dark .bg-slate-200 {
+  background-color: #1e293b !important;
+}
+
+/* ── Border colors ───────────────────────────────────────── */
+.dark .border-slate-200,
+.dark .border-b-slate-200,
+.dark .border-t-slate-200,
+.dark .border-l-slate-200,
+.dark .border-r-slate-200 {
+  border-color: #2d3a4d !important;
+}
+.dark .border-slate-300 {
+  border-color: #334155 !important;
+}
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2d3a4d !important;
+}
+
+/* ── Text colors ─────────────────────────────────────────── */
+.dark .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-500 {
+  color: #8392a5 !important;
+}
+.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* ── Primary text/bg adjustments for dark ────────────────── */
+.dark .text-primary-800 {
+  color: #A3BBE0 !important;
+}
+.dark .text-primary-700 {
+  color: #7599D0 !important;
+}
+.dark .text-primary-600 {
+  color: #4A73B8 !important;
+}
+.dark .bg-primary-50 {
+  background-color: rgba(34, 61, 125, 0.15) !important;
+}
+.dark .bg-primary-100 {
+  background-color: rgba(34, 61, 125, 0.25) !important;
+}
+
+/* ── Accent / red adjustments ────────────────────────────── */
+.dark .bg-red-50 {
+  background-color: rgba(237, 27, 36, 0.12) !important;
+}
+.dark .bg-red-100 {
+  background-color: rgba(237, 27, 36, 0.2) !important;
+}
+.dark .text-red-700 {
+  color: #f87171 !important;
+}
+.dark .bg-accent-50,
+.dark .bg-accent-100 {
+  background-color: rgba(237, 27, 36, 0.15) !important;
+}
+
+/* ── Success / green adjustments ─────────────────────────── */
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+.dark .bg-green-100 {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+}
+.dark .text-green-600,
+.dark .text-green-700 {
+  color: #34d399 !important;
+}
+.dark .text-success-600 {
+  color: #34d399 !important;
+}
+.dark .bg-success-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+/* ── Amber / warning adjustments ─────────────────────────── */
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+}
+.dark .text-amber-600,
+.dark .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+/* ── Blue adjustments ────────────────────────────────────── */
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+.dark .text-blue-600,
+.dark .text-blue-700 {
+  color: #60a5fa !important;
+}
+
+/* ── Purple adjustments ──────────────────────────────────── */
+.dark .bg-purple-100 {
+  background-color: rgba(147, 51, 234, 0.2) !important;
+}
+.dark .text-purple-700 {
+  color: #a78bfa !important;
+}
+
+/* ── Indigo adjustments ──────────────────────────────────── */
+.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+.dark .text-indigo-700 {
+  color: #818cf8 !important;
+}
+
+/* ── Orange adjustments ──────────────────────────────────── */
+.dark .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.2) !important;
+}
+.dark .text-orange-700 {
+  color: #fb923c !important;
+}
+
+/* ── Cyan adjustments ────────────────────────────────────── */
+.dark .bg-cyan-100 {
+  background-color: rgba(6, 182, 212, 0.2) !important;
+}
+.dark .text-cyan-700 {
+  color: #22d3ee !important;
+}
+
+/* ── Hover states ────────────────────────────────────────── */
+.dark .hover\:bg-slate-100:hover {
+  background-color: #1e293b !important;
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: #182030 !important;
+}
+
+/* ── Form inputs ─────────────────────────────────────────── */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #111927 !important;
+  border-color: #2d3a4d !important;
+  color: #e2e8f0 !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #4A73B8 !important;
+  box-shadow: 0 0 0 2px rgba(34, 61, 125, 0.3) !important;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.dark .bg-primary-500 {
+  background-color: #2a4d96 !important;
+}
+.dark .hover\:bg-primary-600:hover {
+  background-color: #1C3268 !important;
+}
+
+/* ── Gradient banners ────────────────────────────────────── */
+.dark .bg-gradient-to-r.from-purple-500 {
+  background: linear-gradient(to right, #5b21b6, #1C3268) !important;
+}
+
+/* ── Scrollbar — Dark ────────────────────────────────────── */
+.dark ::-webkit-scrollbar-track {
+  background: #111927;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ── Tables ──────────────────────────────────────────────── */
+.dark th {
+  background-color: #182030 !important;
+  color: #94a3b8 !important;
+}
+.dark td {
+  color: #cbd5e1 !important;
+}
+.dark tr {
+  border-color: #2d3a4d !important;
+}
+
+/* ── Tooltips & popovers ─────────────────────────────────── */
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl,
+.dark .shadow-2xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.4);
+}
+
+/* ── Ring colors ─────────────────────────────────────────── */
+.dark .ring-primary-300 {
+  --tw-ring-color: rgba(74, 115, 184, 0.5) !important;
+}
+
+/* ── Animate pulse skeleton ──────────────────────────────── */
+.dark .animate-pulse {
+  background-color: #1e293b !important;
+}
+
+/* ── Backdrop blur modals ────────────────────────────────── */
+.dark .backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+}
+
+/* ── Specific overrides for common badge patterns ────────── */
+.dark .bg-slate-50.rounded-lg,
+.dark .p-3.bg-slate-50 {
+  background-color: #111927 !important;
+}
+
+/* ── Trial/upgrade banner ────────────────────────────────── */
+.dark .bg-gradient-to-r.from-amber-50 {
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.12), rgba(34, 61, 125, 0.12)) !important;
+}
+
+/* ── Smooth transition when toggling ─────────────────────── */
+html.dark {
+  color-scheme: dark;
+}
+body,
+.bg-white,
+.bg-slate-50,
+.bg-slate-100,
+input,
+select,
+textarea {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}

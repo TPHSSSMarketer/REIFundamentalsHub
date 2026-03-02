@@ -1,0 +1,5 @@
+rei_hub.db
+.env
+__pycache__/
+*.pyc
+.venv/

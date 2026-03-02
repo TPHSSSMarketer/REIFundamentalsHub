@@ -1,40 +1,41 @@
-# Dependencies
-node_modules
-.pnp
-.pnp.js
-
-# Testing
-coverage
-
-# Build output
-dist
-.next/
-out/
-build
-
-# Misc
-.DS_Store
-*.pem
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Local env files
+# Environment files
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
+.env.*.local
 
-# Vercel
-.vercel
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
+# Editor
+.vscode/
+.idea/
+*.suo
+*.user
 
-# IDE
-.idea
-.vscode
+# Build outputs
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Dependencies
+node_modules/
+
+# Python venv
+venv/
+.venv/
+
+# Databases
+*.db
+*.sqlite
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

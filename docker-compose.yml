@@ -1,0 +1,23 @@
+# ⚠️  DEVELOPMENT ONLY — DO NOT use in production.
+# For production deployments, use infra/docker-compose.prod.yml instead.
+version: '3.9'
+
+services:
+
+  # ── REIFundamentals Hub (React SPA via Nginx) ─────────────
+  rei-hub:
+    build:
+      context: ./rei-hub
+      dockerfile: Dockerfile
+    container_name: rei-hub
+    ports:
+      - "3000:80"
+    networks:
+      - rei-network
+    restart: unless-stopped
+
+volumes: {}
+
+networks:
+  rei-network:
+    driver: bridge
