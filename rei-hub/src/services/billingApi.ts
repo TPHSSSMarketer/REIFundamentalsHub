@@ -106,8 +106,8 @@ const DEMO_BILLING_STATUS: BillingStatus = {
   days_remaining_in_trial: 5,
   features: [
     'dashboard', 'pipeline', 'contacts', 'markets', 'portfolio',
-    'content_hub', 'wordpress_publish', 'cloud_sync', 'csv_export',
-    'priority_support',
+    'content_hub', 'wordpress_publish', 'cloud_sync', 'assistant_hub',
+    'csv_export', 'priority_support',
   ],
   can_access: {
     dashboard: true,
@@ -120,7 +120,7 @@ const DEMO_BILLING_STATUS: BillingStatus = {
     cloud_sync: true,
     csv_export: true,
     priority_support: true,
-    assistant_hub: false,
+    assistant_hub: true,
     helm_hub: false,
   },
 }
