@@ -46,23 +46,7 @@ type KnowledgeSubTab = 'knowledge-base'
 
 const TAB_GROUPS: { id: TabGroup; label: string; icon: React.ElementType; subTabs: { id: string; label: string; icon: React.ElementType }[] }[] = [
   {
-    id: 'email', label: 'Email Marketing', icon: Mail,
-    subTabs: [
-      { id: 'domains', label: 'Domains', icon: Globe },
-      { id: 'lists', label: 'Lists & Subscribers', icon: List },
-      { id: 'campaigns', label: 'Campaigns', icon: Send },
-      { id: 'sequences', label: 'Sequences', icon: GitBranch },
-      { id: 'templates', label: 'Templates', icon: FileText },
-    ],
-  },
-  {
-    id: 'sms', label: 'SMS Marketing', icon: MessageSquare,
-    subTabs: [
-      { id: 'sms-campaigns', label: 'SMS Campaigns', icon: Megaphone },
-    ],
-  },
-  {
-    id: 'voice', label: 'AI Voice', icon: Mic,
+    id: 'voice', label: 'VoiceAI', icon: Mic,
     subTabs: [
       { id: 'callcommander', label: 'CallCommander AI', icon: Headphones },
       { id: 'agents', label: 'AI Agents', icon: Bot },
@@ -72,9 +56,25 @@ const TAB_GROUPS: { id: TabGroup; label: string; icon: React.ElementType; subTab
     ],
   },
   {
+    id: 'sms', label: 'SMS Marketing', icon: MessageSquare,
+    subTabs: [
+      { id: 'sms-campaigns', label: 'SMS Campaigns', icon: Megaphone },
+    ],
+  },
+  {
     id: 'webchat', label: 'Web Chat', icon: MessageCircle,
     subTabs: [
       { id: 'settings', label: 'Settings', icon: Globe },
+    ],
+  },
+  {
+    id: 'email', label: 'Email Marketing', icon: Mail,
+    subTabs: [
+      { id: 'domains', label: 'Domains', icon: Globe },
+      { id: 'lists', label: 'Lists & Subscribers', icon: List },
+      { id: 'campaigns', label: 'Campaigns', icon: Send },
+      { id: 'sequences', label: 'Sequences', icon: GitBranch },
+      { id: 'templates', label: 'Templates', icon: FileText },
     ],
   },
   {
@@ -111,8 +111,8 @@ const personas: Persona[] = [
 // ═══════════════════════════════════════════════════════════════
 
 export default function AssistantHub() {
-  const [activeGroup, setActiveGroup] = useState<TabGroup>('email')
-  const [activeSubTab, setActiveSubTab] = useState<string>('domains')
+  const [activeGroup, setActiveGroup] = useState<TabGroup>('voice')
+  const [activeSubTab, setActiveSubTab] = useState<string>('callcommander')
   const [emailProvider, setEmailProvider] = useState('')
 
   // Voice / CallCommander state
@@ -148,7 +148,7 @@ export default function AssistantHub() {
 
   // Initialize first sub-tab on mount
   useEffect(() => {
-    handleGroupChange('email')
+    handleGroupChange('voice')
   }, [])
 
   // ── Contact search helpers ──────────────────────────────────
