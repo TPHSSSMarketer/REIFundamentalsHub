@@ -914,13 +914,6 @@ async def revenue_overview(
     revenue_by_plan: dict[str, dict] = {}
     for u in active_users:
         monthly = _plan_monthly_cents(u.plan, u.billing_interval)
-        # Add helm addon if active
-        if u.helm_addon_active:
-            plan_data = PLANS.get(u.plan, {})
-            if u.helm_addon_billing_interval == "annual":
-                monthly += int(plan_data.get("helm_addon_annual_cents", 0) / 12)
-            else:
-                monthly += plan_data.get("helm_addon_monthly_cents", 0)
         mrr_cents += monthly
 
         plan_name = u.plan

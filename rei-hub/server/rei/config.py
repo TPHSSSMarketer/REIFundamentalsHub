@@ -160,8 +160,6 @@ PLANS: dict[str, dict] = {
         "paypal_annual_plan_id": "",
         "max_seats": 1,
         "features": ["dashboard", "pipeline", "contacts", "markets", "portfolio"],
-        "helm_addon_monthly_cents": 4900,
-        "helm_addon_annual_cents": 49000,
     },
     "pro": {
         "name": "Pro",
@@ -177,8 +175,6 @@ PLANS: dict[str, dict] = {
             "content_hub", "wordpress_publish", "cloud_sync",
             "assistant_hub", "csv_export",
         ],
-        "helm_addon_monthly_cents": 7900,
-        "helm_addon_annual_cents": 79000,
     },
     "team": {
         "name": "Team",
@@ -194,8 +190,6 @@ PLANS: dict[str, dict] = {
             "content_hub", "wordpress_publish", "cloud_sync",
             "assistant_hub", "csv_export", "priority_support", "helm_hub",
         ],
-        "helm_addon_monthly_cents": 0,
-        "helm_addon_annual_cents": 0,
     },
 }
 

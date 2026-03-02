@@ -9,8 +9,6 @@ interface PlanConfig {
   badge: string | null
   features: string[]
   excluded: string[]
-  helmAddon: { monthly: number; annual: number } | null
-  helmIncluded: boolean
 }
 
 const PLANS: PlanConfig[] = [
@@ -30,8 +28,6 @@ const PLANS: PlanConfig[] = [
       'Proof of Funds',
     ],
     excluded: ['AI Voicemail Drops (Pro+)'],
-    helmAddon: { monthly: 49, annual: 399 },
-    helmIncluded: false,
   },
   {
     key: 'pro',
@@ -50,8 +46,6 @@ const PLANS: PlanConfig[] = [
       'Portfolio Tracking',
     ],
     excluded: [],
-    helmAddon: { monthly: 79, annual: 659 },
-    helmIncluded: false,
   },
   {
     key: 'team',
@@ -69,8 +63,6 @@ const PLANS: PlanConfig[] = [
       'Team member access',
     ],
     excluded: [],
-    helmAddon: null,
-    helmIncluded: true,
   },
 ]
 
@@ -165,25 +157,6 @@ export default function PricingPage() {
                       {f}
                     </li>
                   ))}
-
-                  {/* Helm addon line */}
-                  {plan.helmIncluded && (
-                    <li className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="text-primary-600 mt-0.5">&#10003;</span>
-                      Helm Hub AI{' '}
-                      <span className="inline-block bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                        Included
-                      </span>
-                    </li>
-                  )}
-                  {plan.helmAddon && (
-                    <li className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="text-primary-600 mt-0.5">+</span>
-                      Helm Hub add-on available (+$
-                      {annual ? plan.helmAddon.annual : plan.helmAddon.monthly}
-                      {period})
-                    </li>
-                  )}
                 </ul>
 
                 {/* CTA */}
@@ -212,11 +185,6 @@ export default function PricingPage() {
           </ul>
         </div>
 
-        {/* Helm Hub upsell note */}
-        <p className="mt-10 text-center text-sm text-slate-500">
-          Helm Hub is an optional AI assistant add-on. Available standalone or as
-          an add-on to Starter and Pro plans.
-        </p>
       </div>
     </div>
   )

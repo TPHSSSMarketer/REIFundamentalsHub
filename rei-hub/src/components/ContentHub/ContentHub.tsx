@@ -50,8 +50,10 @@ export default function ContentHub() {
       setSourceMode('text')
       toast.success('URL scraped — content loaded as text.')
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
-        toast.error('Helm Hub subscription required for URL scraping.')
+      if (err instanceof HelmProxyError && err.status === 503) {
+        toast.error('URL scraping is coming soon. Paste the content manually.')
+      } else if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('URL scraping is being upgraded. Check back soon.')
       } else {
         toast.error('Could not fetch that URL. Paste the content manually.')
       }
@@ -94,10 +96,12 @@ export default function ContentHub() {
       }))
       setPublishHistory((prev) => [...newEntries, ...prev].slice(0, 50))
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
-        toast.error('Helm Hub subscription required for content generation.')
+      if (err instanceof HelmProxyError && err.status === 503) {
+        toast.error('Content generation is coming soon. Check back later.')
+      } else if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('Content generation is being upgraded. Check back soon.')
       } else {
-        toast.error('Generation failed. Check Helm Hub connection.')
+        toast.error('Content generation failed. Please try again later.')
       }
     } finally {
       setIsGenerating(false)
@@ -131,8 +135,10 @@ export default function ContentHub() {
       const result = await helmGenerateImagePrompts(topic || 'real estate investing', imagePlatform)
       setImagePrompts(result.prompts)
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
-        toast.error('Helm Hub subscription required for image prompts.')
+      if (err instanceof HelmProxyError && err.status === 503) {
+        toast.error('Image prompt generation is coming soon. Check back later.')
+      } else if (err instanceof HelmProxyError && err.status === 403) {
+        toast.error('Image prompts are being upgraded. Check back soon.')
       } else {
         toast.error('Image prompt generation failed.')
       }
@@ -153,40 +159,6 @@ export default function ContentHub() {
     setLibrary(updated)
     localStorage.setItem('content_library', JSON.stringify(updated))
     toast.success('Saved to library.')
-    const helmUrl = localStorage.getItem('helm_hub_url')
-    if (helmUrl) {
-      const md = [
-        `# ${topic || 'Untitled'}`,
-        '',
-        '## Facebook',
-        waterfall.facebook,
-        '',
-        '## Instagram',
-        waterfall.instagram,
-        '',
-        '## LinkedIn',
-        waterfall.linkedin,
-        '',
-        '## YouTube Script',
-        waterfall.youtube_script,
-        '',
-        '## YouTube Short',
-        waterfall.youtube_short,
-        '',
-        '## Blog Post',
-        waterfall.blog_post,
-      ].join('\n')
-      try {
-        const result = await helmSaveContentToCloud(`${topic || 'content'}-${Date.now()}.md`, md)
-        if (result.errors && result.errors.length > 0) {
-          toast.warning('Cloud sync partial: ' + result.errors.join(', '))
-        } else if (result.google_drive || result.dropbox) {
-          toast.success('Synced to cloud ☁️')
-        }
-      } catch (err) {
-        // Silent fail — local save already succeeded
-      }
-    }
   }, [waterfall, topic, library])
 
   const handlePublishToWordPress = useCallback(async () => {
@@ -227,6 +199,11 @@ export default function ContentHub() {
 
   return (
     <div className="space-y-6">
+      {/* Coming Soon Banner */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        <span>AI content generation is being upgraded to native AI. Some features may be temporarily unavailable.</span>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -338,11 +315,6 @@ export default function ContentHub() {
           )}
         </button>
 
-        {!localStorage.getItem('helm_hub_url') && (
-          <p className="text-xs text-slate-500 mt-2 text-center">
-            ⚡ Powered by Helm Hub AI — connect in Settings to enable
-          </p>
-        )}
       </div>
 
       {/* Waterfall Output Section */}
@@ -502,9 +474,6 @@ export default function ContentHub() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-500 mt-4">
-            💡 Connect Helm Hub to sync your library across devices
-          </p>
         </div>
       )}
     </div>

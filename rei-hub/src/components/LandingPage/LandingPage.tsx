@@ -29,7 +29,6 @@ const FEATURE_LABELS: Record<string, string> = {
   assistant_hub: 'AssistantHub',
   csv_export: 'CSV Export',
   priority_support: 'Priority Support',
-  helm_hub: 'Helm Hub AI',
 }
 
 const PLAN_ORDER = ['starter', 'pro', 'team'] as const
@@ -74,10 +73,10 @@ const features = [
   },
   {
     name: 'AI Assistant',
-    description: 'Connect Helm Hub for AI-powered deal insights',
+    description: 'AI-powered deal insights (coming soon)',
     icon: Zap,
     color: 'bg-accent-100 text-accent-600',
-    badge: 'Add-on',
+    badge: null,
   },
 ]
 
@@ -291,10 +290,6 @@ export default function LandingPage() {
                   ? plan.annual_price_cents
                   : plan.monthly_price_cents
                 const period = annual ? '/yr' : '/mo'
-                const helmPrice = annual
-                  ? plan.helm_addon_annual_cents
-                  : plan.helm_addon_monthly_cents
-                const helmIncluded = plan.features.includes('helm_hub')
 
                 return (
                   <div
@@ -340,24 +335,6 @@ export default function LandingPage() {
                           {FEATURE_LABELS[f] ?? f}
                         </li>
                       ))}
-
-                      {helmIncluded ? (
-                        <li className="flex items-start gap-2 text-sm text-slate-700">
-                          <span className="text-primary-600 mt-0.5">
-                            &#10003;
-                          </span>
-                          Helm Hub AI{' '}
-                          <span className="inline-block bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                            Included
-                          </span>
-                        </li>
-                      ) : helmPrice > 0 ? (
-                        <li className="flex items-start gap-2 text-sm text-slate-700">
-                          <span className="text-primary-600 mt-0.5">+</span>
-                          Helm Hub add-on (+{cents(helmPrice)}
-                          {period})
-                        </li>
-                      ) : null}
                     </ul>
 
                     <Link

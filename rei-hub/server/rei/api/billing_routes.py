@@ -52,7 +52,6 @@ class CreateCheckoutRequest(BaseModel):
     plan: str = Field(description="One of: starter, pro, team")
     interval: str = Field(description="monthly or annual")
     payment_method: str = Field(description="stripe or paypal")
-    helm_addon: bool = False
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────
@@ -160,7 +159,6 @@ async def billing_status(current_user: User = Depends(get_current_user)):
     billing_interval = getattr(current_user, "billing_interval", "monthly")
     trial_ends = getattr(current_user, "trial_ends_at", None)
     sub_ends = getattr(current_user, "subscription_ends_at", None)
-    helm_addon = getattr(current_user, "helm_addon_active", False)
     seats_used = getattr(current_user, "seats_used", 1)
 
     return {
@@ -169,7 +167,6 @@ async def billing_status(current_user: User = Depends(get_current_user)):
         "subscription_status": sub_status,
         "trial_ends_at": trial_ends.isoformat() if trial_ends else None,
         "subscription_ends_at": sub_ends.isoformat() if sub_ends else None,
-        "helm_addon_active": helm_addon,
         "seats_used": seats_used,
         "is_trial_active": _is_trial_active(current_user),
         "days_remaining_in_trial": _days_remaining_in_trial(current_user),
@@ -260,11 +257,6 @@ async def _create_stripe_checkout(
 
     line_items = [{"price": main_price_id, "quantity": 1}]
 
-    if body.helm_addon and body.plan != "team":
-        addon_price_id = get_addon_price_id(body.plan, body.interval, settings)
-        if addon_price_id:
-            line_items.append({"price": addon_price_id, "quantity": 1})
-
     try:
         stripe.api_key = settings.stripe_secret_key
         session = stripe.checkout.Session.create(
@@ -279,7 +271,6 @@ async def _create_stripe_checkout(
                     "user_id": str(current_user.id),
                     "plan": body.plan,
                     "interval": body.interval,
-                    "helm_addon": str(body.helm_addon),
                 },
             },
             metadata={"user_id": str(current_user.id)},
@@ -314,7 +305,6 @@ async def _create_paypal_checkout(
     return_url = (
         f"{settings.hub_url}/billing"
         f"?paypal=success&plan={body.plan}&interval={body.interval}"
-        f"&helm_addon={str(body.helm_addon).lower()}"
     )
     cancel_url = f"{settings.hub_url}/billing?paypal=cancel"
 
@@ -347,11 +337,6 @@ async def _create_paypal_checkout(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="PayPal did not return an approval URL",
         )
-
-    # NOTE: PayPal doesn't support multiple plans in one subscription.
-    # If helm_addon is true and plan != team, the addon would need to be
-    # a separate subscription. For now we handle only the main plan here.
-    # Addon billing for PayPal users will be handled in a future iteration.
 
     return {"checkout_url": approval_url, "message": "ok"}
 
@@ -440,14 +425,12 @@ async def _handle_stripe_checkout_completed(data_object: dict, db: AsyncSession)
     sub_metadata = data_object.get("subscription_data", {}).get("metadata", metadata)
     plan = sub_metadata.get("plan", user.plan)
     interval = sub_metadata.get("interval", user.billing_interval)
-    helm_addon = sub_metadata.get("helm_addon", "False").lower() == "true"
 
     user.subscription_status = "active"
     user.stripe_subscription_id = subscription_id
     user.stripe_customer_id = customer_id
     user.plan = plan
     user.billing_interval = interval
-    user.helm_addon_active = helm_addon
     await db.commit()
     logger.info("User %s activated: plan=%s interval=%s", user_id, plan, interval)
 

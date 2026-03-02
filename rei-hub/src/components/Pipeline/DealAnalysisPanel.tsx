@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { Brain, Sparkles, Loader2 } from 'lucide-react'
-import { helmAnalyzeDeal, HelmProxyError } from '@/services/helmProxy'
+import { helmAnalyzeDeal } from '@/services/helmProxy'
+import { toast } from 'sonner'
 
 interface DealAnalysisPanelProps {
   address: string
@@ -21,32 +21,6 @@ export default function DealAnalysisPanel({
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [analysisText, setAnalysisText] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
-  const [isConnected, setIsConnected] = useState(false)
-
-  useEffect(() => {
-    const email = localStorage.getItem('helmHub_linkedEmail')
-    setIsConnected(!!email)
-  }, [])
-
-  if (!isConnected) {
-    return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Brain className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-slate-800">AI Deal Analysis</h2>
-        </div>
-        <p className="text-sm text-slate-600 mb-4">
-          Helm Hub is an optional AI assistant add-on. Connect it in Settings to unlock AI-powered deal analysis — or use REI Hub without it.
-        </p>
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm"
-        >
-          Connect Helm Hub (Optional) →
-        </Link>
-      </div>
-    )
-  }
 
   const handleAnalyze = async () => {
     setAnalysisState('loading')
@@ -64,13 +38,8 @@ export default function DealAnalysisPanel({
       setAnalysisText(response.analysis)
       setAnalysisState('success')
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
-        setErrorMessage('REI plugin subscription required. Check your Helm Hub connection in Settings.')
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message)
-      } else {
-        setErrorMessage('An unexpected error occurred.')
-      }
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred.'
+      setErrorMessage(msg)
       setAnalysisState('error')
     }
   }
@@ -79,22 +48,21 @@ export default function DealAnalysisPanel({
     <div className="bg-white rounded-xl border border-slate-200 p-6">
       <div className="flex items-center gap-3 mb-4">
         <Brain className="w-5 h-5 text-primary-600" />
-        <h2 className="text-lg font-semibold text-slate-800">
-          AI Deal Analysis — Powered by Helm Hub
-        </h2>
+        <h2 className="text-lg font-semibold text-slate-800">AI Deal Analysis</h2>
+        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Coming Soon</span>
       </div>
+
+      <p className="text-sm text-slate-500 mb-4">
+        AI-powered deal analysis is being upgraded to native AI. This feature will be available soon.
+      </p>
 
       <button
         onClick={handleAnalyze}
-        disabled={analysisState === 'loading'}
+        disabled={true}
         className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {analysisState === 'loading' ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Sparkles className="w-4 h-4" />
-        )}
-        {analysisState === 'loading' ? 'Analyzing...' : 'Analyze This Deal'}
+        <Sparkles className="w-4 h-4" />
+        Analyze This Deal
       </button>
 
       {analysisState === 'success' && (

@@ -8,7 +8,6 @@ export interface BillingStatus {
   subscription_status: string | null
   trial_ends_at: string | null
   subscription_ends_at: string | null
-  helm_addon_active: boolean
   seats_used: number
   is_trial_active: boolean
   days_remaining_in_trial: number | null
@@ -22,8 +21,6 @@ export interface PlanInfo {
   annual_price_cents: number
   features: string[]
   max_seats: number
-  helm_addon_monthly_cents: number
-  helm_addon_annual_cents: number
 }
 
 export interface PlansResponse {
@@ -62,8 +59,6 @@ const DEMO_PLANS: PlansResponse = {
       annual_price_cents: 49000,
       features: ['dashboard', 'pipeline', 'contacts', 'markets', 'portfolio', 'csv_export'],
       max_seats: 1,
-      helm_addon_monthly_cents: 2900,
-      helm_addon_annual_cents: 29000,
     },
     pro: {
       name: 'Pro',
@@ -75,8 +70,6 @@ const DEMO_PLANS: PlansResponse = {
         'priority_support',
       ],
       max_seats: 3,
-      helm_addon_monthly_cents: 4900,
-      helm_addon_annual_cents: 49000,
     },
     team: {
       name: 'Team',
@@ -85,11 +78,9 @@ const DEMO_PLANS: PlansResponse = {
       features: [
         'dashboard', 'pipeline', 'contacts', 'markets', 'portfolio',
         'content_hub', 'wordpress_publish', 'cloud_sync', 'assistant_hub',
-        'csv_export', 'priority_support', 'helm_hub',
+        'csv_export', 'priority_support',
       ],
       max_seats: 999,
-      helm_addon_monthly_cents: 0,
-      helm_addon_annual_cents: 0,
     },
   },
 }
@@ -100,7 +91,6 @@ const DEMO_BILLING_STATUS: BillingStatus = {
   subscription_status: 'trialing',
   trial_ends_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
   subscription_ends_at: null,
-  helm_addon_active: false,
   seats_used: 1,
   is_trial_active: true,
   days_remaining_in_trial: 5,
@@ -121,7 +111,6 @@ const DEMO_BILLING_STATUS: BillingStatus = {
     csv_export: true,
     priority_support: true,
     assistant_hub: true,
-    helm_hub: false,
   },
 }
 
@@ -173,8 +162,7 @@ export async function getBillingStatus(): Promise<BillingStatus> {
 export async function createCheckout(
   plan: string,
   interval: 'monthly' | 'annual',
-  paymentMethod: 'stripe' | 'paypal',
-  helmAddon: boolean = false
+  paymentMethod: 'stripe' | 'paypal'
 ): Promise<{ client_secret?: string | null; checkout_url?: string | null; message: string }> {
   return withDemoFallback(async () => {
     const res = await fetch(`${BASE_URL}/api/billing/create-checkout`, {
@@ -188,7 +176,6 @@ export async function createCheckout(
         plan,
         interval,
         payment_method: paymentMethod,
-        helm_addon: helmAddon,
       }),
     })
     return handleResponse<{ client_secret?: string | null; checkout_url?: string | null; message: string }>(res)

@@ -1,4 +1,13 @@
-const HELM_HUB_URL = import.meta.env.VITE_HELM_HUB_URL || 'http://localhost:8000'
+/**
+ * helmProxy.ts
+ *
+ * AI service proxy — currently stubbed while migrating from Helm Hub
+ * to native AI integration. All functions throw a friendly "coming soon"
+ * error so the UI can display appropriate messages.
+ *
+ * Phase 3 will replace these stubs with direct OpenAI/Anthropic calls
+ * via REI Hub's own /api/ai/ endpoints.
+ */
 
 export class HelmProxyError extends Error {
   status: number
@@ -28,45 +37,6 @@ export type HelmDealAnalysisRequest = {
 }
 
 export type HelmDealAnalysisResponse = { analysis: string; model: string }
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (res.status === 403) {
-    throw new HelmProxyError(403, 'REI plugin subscription required')
-  }
-  if (res.status === 502) {
-    throw new HelmProxyError(502, 'AI service temporarily unavailable')
-  }
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new HelmProxyError(res.status, data.detail || 'Unknown error')
-  }
-  return res.json() as Promise<T>
-}
-
-export async function helmChat(
-  messages: HelmChatMessage[],
-  system?: string,
-): Promise<HelmChatResponse> {
-  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, system }),
-    credentials: 'include',
-  })
-  return handleResponse<HelmChatResponse>(res)
-}
-
-export async function helmAnalyzeDeal(
-  deal: HelmDealAnalysisRequest,
-): Promise<HelmDealAnalysisResponse> {
-  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/analyze-deal`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(deal),
-    credentials: 'include',
-  })
-  return handleResponse<HelmDealAnalysisResponse>(res)
-}
 
 export type ContentWaterfallRequest = {
   source_text: string
@@ -100,51 +70,49 @@ export type ScrapeUrlResponse = {
   char_count: number
 }
 
+// ── Stubbed functions — will be replaced with native AI calls ──
+
+function comingSoon(feature: string): never {
+  throw new HelmProxyError(
+    503,
+    `${feature} is being upgraded to native AI. Check back soon!`,
+  )
+}
+
+export async function helmChat(
+  _messages: HelmChatMessage[],
+  _system?: string,
+): Promise<HelmChatResponse> {
+  comingSoon('AI Chat')
+}
+
+export async function helmAnalyzeDeal(
+  _deal: HelmDealAnalysisRequest,
+): Promise<HelmDealAnalysisResponse> {
+  comingSoon('AI Deal Analysis')
+}
+
 export async function helmGenerateWaterfall(
-  req: ContentWaterfallRequest,
+  _req: ContentWaterfallRequest,
 ): Promise<ContentWaterfallResponse> {
-  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/content-waterfall`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req),
-    credentials: 'include',
-  })
-  return handleResponse<ContentWaterfallResponse>(res)
+  comingSoon('AI Content Generation')
 }
 
 export async function helmGenerateImagePrompts(
-  topic: string,
-  platform: string,
+  _topic: string,
+  _platform: string,
 ): Promise<ImagePromptsResponse> {
-  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/image-prompts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, platform }),
-    credentials: 'include',
-  })
-  return handleResponse<ImagePromptsResponse>(res)
+  comingSoon('AI Image Prompts')
 }
 
-export async function helmScrapeUrl(url: string): Promise<ScrapeUrlResponse> {
-  const res = await fetch(`${HELM_HUB_URL}/api/plugins/rei/hub/ai/scrape-url`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-    credentials: 'include',
-  })
-  return handleResponse<ScrapeUrlResponse>(res)
+export async function helmScrapeUrl(_url: string): Promise<ScrapeUrlResponse> {
+  comingSoon('URL Scraping')
 }
 
 export async function helmSaveContentToCloud(
-  filename: string,
-  content: string,
-  mimeType: string = 'text/markdown'
+  _filename: string,
+  _content: string,
+  _mimeType: string = 'text/markdown',
 ): Promise<{ google_drive: unknown; dropbox: unknown; errors: string[] }> {
-  const res = await fetch(`${HELM_HUB_URL}/api/cloud-storage/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, content, mime_type: mimeType }),
-    credentials: 'include',
-  })
-  return handleResponse<{ google_drive: unknown; dropbox: unknown; errors: string[] }>(res)
+  comingSoon('Cloud Storage Save')
 }

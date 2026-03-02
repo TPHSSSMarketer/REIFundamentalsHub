@@ -37,7 +37,6 @@ const FEATURE_LABELS: Record<string, string> = {
   assistant_hub: 'AssistantHub',
   csv_export: 'CSV Export',
   priority_support: 'Priority Support',
-  helm_hub: 'Helm Hub AI',
 }
 
 const PLAN_ORDER = ['starter', 'pro', 'team'] as const
@@ -113,7 +112,6 @@ export default function BillingPage() {
   const [annual, setAnnual] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-  const [helmAddon, setHelmAddon] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe')
@@ -172,7 +170,6 @@ export default function BillingPage() {
         planKey,
         annual ? 'annual' : 'monthly',
         paymentMethod,
-        planKey === 'team' ? false : helmAddon,
       )
 
       // Stripe: open embedded checkout in modal
@@ -321,15 +318,6 @@ export default function BillingPage() {
             </div>
           )}
 
-          {/* Helm addon status */}
-          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-            <p className="text-sm text-slate-700">Helm Hub Add-on</p>
-            {billingStatus.helm_addon_active ? (
-              <span className="text-sm font-medium text-green-700">Active</span>
-            ) : (
-              <span className="text-sm text-slate-400">Not active</span>
-            )}
-          </div>
         </div>
       )}
 
@@ -366,28 +354,6 @@ export default function BillingPage() {
               </span>
             </div>
 
-            {/* Helm addon checkbox */}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <input
-                type="checkbox"
-                id="helm-addon-toggle"
-                checked={helmAddon}
-                onChange={(e) => setHelmAddon(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-              />
-              <label htmlFor="helm-addon-toggle" className="text-sm text-slate-700">
-                Add Helm Hub AI Assistant
-                {plans[currentPlan] && (
-                  <span className="ml-1 text-slate-500">
-                    (+{cents(
-                      annual
-                        ? (plans[currentPlan]?.helm_addon_annual_cents ?? 0)
-                        : (plans[currentPlan]?.helm_addon_monthly_cents ?? 0)
-                    )}{annual ? '/yr' : '/mo'})
-                  </span>
-                )}
-              </label>
-            </div>
 
             {/* Payment method selector */}
             <div className="mt-4 flex items-center justify-center gap-2">
@@ -430,9 +396,6 @@ export default function BillingPage() {
               const isCurrent = planKey === currentPlan
               const price = annual ? plan.annual_price_cents : plan.monthly_price_cents
               const period = annual ? '/yr' : '/mo'
-              const helmPrice = annual ? plan.helm_addon_annual_cents : plan.helm_addon_monthly_cents
-              const helmIncluded = plan.features.includes('helm_hub')
-              const isTeam = planKey === 'team'
 
               return (
                 <div
@@ -470,30 +433,7 @@ export default function BillingPage() {
                         {FEATURE_LABELS[f] ?? f}
                       </li>
                     ))}
-
-                    {/* Helm addon line */}
-                    {helmIncluded ? (
-                      <li className="flex items-start gap-2 text-sm text-slate-700">
-                        <span className="text-primary-600 mt-0.5">&#10003;</span>
-                        Helm Hub AI{' '}
-                        <span className="inline-block bg-primary-100 text-primary-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                          Included
-                        </span>
-                      </li>
-                    ) : helmPrice > 0 ? (
-                      <li className="flex items-start gap-2 text-sm text-slate-700">
-                        <span className="text-primary-600 mt-0.5">+</span>
-                        Helm Hub add-on (+{cents(helmPrice)}{period})
-                      </li>
-                    ) : null}
                   </ul>
-
-                  {/* Helm addon note for Team */}
-                  {isTeam && (
-                    <p className="mt-2 text-xs text-primary-600 font-medium">
-                      Helm Hub AI included free
-                    </p>
-                  )}
 
                   {/* CTA */}
                   <button
@@ -519,27 +459,6 @@ export default function BillingPage() {
             })}
           </div>
 
-          {/* ── Helm Hub Add-on Callout ───────────────────────── */}
-          <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-primary-900">Helm Hub AI Assistant</h3>
-              <p className="mt-1 text-sm text-primary-700">
-                Supercharge your real estate workflow with AI-powered deal analysis,
-                market insights, and automated follow-ups. Available as an add-on for
-                Starter and Pro plans, or included free with Team.
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-sm font-semibold text-primary-900">Starting at</p>
-              <p className="text-2xl font-extrabold text-primary-900">
-                {cents(annual
-                  ? (plans.starter?.helm_addon_annual_cents ?? 49000)
-                  : (plans.starter?.helm_addon_monthly_cents ?? 4900)
-                )}
-                <span className="text-sm font-normal text-primary-600">{annual ? '/yr' : '/mo'}</span>
-              </p>
-            </div>
-          </div>
         </>
       )}
 

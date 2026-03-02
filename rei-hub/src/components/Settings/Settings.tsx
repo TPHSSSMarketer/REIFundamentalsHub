@@ -3,7 +3,7 @@ import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Su
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
-import HelmHubConnect from './helmhubconnect'
+// HelmHubConnect removed — Helm Hub integration deprecated
 import AiProviderUserSettings from './AiProviderUserSettings'
 import { useTheme } from '@/hooks/useTheme'
 import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
@@ -888,9 +888,6 @@ export default function Settings() {
           </div>
         )}
       </div>
-
-      {/* Helm Hub AI Connection */}
-      <HelmHubConnect />
 
       {/* AI Provider Settings (only shown if admin allows override) */}
       <AiProviderUserSettings />

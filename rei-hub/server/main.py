@@ -42,7 +42,6 @@ from rei.api.payment_portal_routes import payment_portal_router
 from rei.api.phone_routes import phone_router
 from rei.api.voice_ai_routes import voice_ai_router
 from rei.api.plaid_routes import plaid_router
-from rei.api.plugin_routes import plugin_router
 from rei.api.superadmin_routes import superadmin_router
 from rei.api.ticket_routes import ticket_router
 from rei.api.cloud_storage_routes import cloud_storage_router
@@ -281,7 +280,6 @@ app.include_router(contacts_router, prefix="/api")
 app.include_router(deals_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
 app.include_router(plaid_router, prefix="/api")
-app.include_router(plugin_router, prefix="/api")
 app.include_router(email_marketing_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(phone_router, prefix="/api")

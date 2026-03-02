@@ -26,7 +26,6 @@ class AdjustPlanRequest(BaseModel):
     plan: str
     billing_interval: str
     subscription_status: str
-    helm_addon_active: bool
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -54,7 +53,6 @@ def _user_to_dict(user: User) -> dict:
         "subscription_ends_at": (
             user.subscription_ends_at.isoformat() if user.subscription_ends_at else None
         ),
-        "helm_addon_active": user.helm_addon_active,
         "seats_used": user.seats_used,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
@@ -156,7 +154,6 @@ async def adjust_plan(
     user.plan = body.plan
     user.billing_interval = body.billing_interval
     user.subscription_status = body.subscription_status
-    user.helm_addon_active = body.helm_addon_active
     await db.commit()
     await db.refresh(user)
 
@@ -209,7 +206,6 @@ async def admin_stats(
     past_due = 0
     canceled = 0
     by_plan: dict[str, int] = {k: 0 for k in PLANS}
-    helm_addon_count = 0
     mrr_cents = 0
 
     for u in users:
@@ -226,27 +222,14 @@ async def admin_stats(
         if u.plan in by_plan:
             by_plan[u.plan] += 1
 
-        if u.helm_addon_active:
-            helm_addon_count += 1
-
         # MRR: only count active or trialing users
         if st in ("active", "trialing") and u.plan in PLANS:
             plan_data = PLANS[u.plan]
             if u.billing_interval == "annual":
                 base = plan_data["annual_price_cents"] // 12
-                addon = (
-                    plan_data["helm_addon_annual_cents"] // 12
-                    if u.helm_addon_active
-                    else 0
-                )
             else:
                 base = plan_data["monthly_price_cents"]
-                addon = (
-                    plan_data["helm_addon_monthly_cents"]
-                    if u.helm_addon_active
-                    else 0
-                )
-            mrr_cents += base + addon
+            mrr_cents += base
 
     return {
         "total_subscribers": total_subscribers,
@@ -255,6 +238,5 @@ async def admin_stats(
         "past_due": past_due,
         "canceled": canceled,
         "by_plan": by_plan,
-        "helm_addon_count": helm_addon_count,
         "mrr_cents": mrr_cents,
     }

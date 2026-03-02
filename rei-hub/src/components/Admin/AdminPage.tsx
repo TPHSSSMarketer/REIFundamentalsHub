@@ -121,7 +121,6 @@ function EditModal({
   const [plan, setPlan] = useState(subscriber.plan ?? 'starter')
   const [interval, setInterval] = useState(subscriber.billing_interval ?? 'monthly')
   const [status, setStatus] = useState(subscriber.subscription_status ?? 'active')
-  const [helmAddon, setHelmAddon] = useState(subscriber.helm_addon_active)
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -131,7 +130,6 @@ function EditModal({
         plan,
         billing_interval: interval,
         subscription_status: status,
-        helm_addon_active: helmAddon,
       })
       onSaved('Subscriber updated')
     } catch (err) {
@@ -209,19 +207,6 @@ function EditModal({
             </select>
           </div>
 
-          {/* Helm Addon */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="helm-addon"
-              checked={helmAddon}
-              onChange={(e) => setHelmAddon(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-            />
-            <label htmlFor="helm-addon" className="text-sm text-slate-700">
-              Helm Addon Active
-            </label>
-          </div>
         </div>
 
         <div className="mt-6 flex items-center justify-between">
@@ -317,7 +302,6 @@ export default function AdminPage() {
         canceled: 0,
         mrr_cents: 29700,
         by_plan: { starter: 2, pro: 3, team: 1 },
-        helm_addon_count: 1,
       } as AdminStats)
       return
     }
@@ -706,13 +690,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Helm addon count */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-sm font-medium text-slate-500">Helm Hub Add-on</p>
-            <p className="text-2xl font-bold text-primary-600 mt-1">
-              {stats.helm_addon_count} <span className="text-sm font-normal text-slate-400">subscribers</span>
-            </p>
-          </div>
         </div>
       )}
 
@@ -755,7 +732,6 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Interval</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Trial Ends</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-500">Helm</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Actions</th>
                   </tr>
                 </thead>
@@ -774,13 +750,6 @@ export default function AdminPage() {
                         <td className="px-4 py-3"><StatusBadge status={sub.subscription_status} /></td>
                         <td className="px-4 py-3 capitalize text-slate-600">{sub.billing_interval ?? '\u2014'}</td>
                         <td className="px-4 py-3 text-slate-600">{formatDate(sub.trial_ends_at)}</td>
-                        <td className="px-4 py-3">
-                          {sub.helm_addon_active ? (
-                            <span className="text-xs font-medium text-green-700">Yes</span>
-                          ) : (
-                            <span className="text-xs text-slate-400">No</span>
-                          )}
-                        </td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setEditing(sub)}

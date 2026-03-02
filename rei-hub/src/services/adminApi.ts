@@ -40,7 +40,6 @@ const DEMO_ADMIN_STATS: AdminStats = {
     pro: 72,
     team: 18,
   },
-  helm_addon_count: 52,
 }
 
 const DEMO_SUBSCRIBERS_RESPONSE: SubscribersResponse = {
@@ -52,7 +51,6 @@ const DEMO_SUBSCRIBERS_RESPONSE: SubscribersResponse = {
       billing_interval: 'monthly',
       subscription_status: 'active',
       trial_ends_at: null,
-      helm_addon_active: true,
     },
     {
       user_id: 2,
@@ -61,7 +59,6 @@ const DEMO_SUBSCRIBERS_RESPONSE: SubscribersResponse = {
       billing_interval: 'annual',
       subscription_status: 'active',
       trial_ends_at: null,
-      helm_addon_active: true,
     },
     {
       user_id: 3,
@@ -70,7 +67,6 @@ const DEMO_SUBSCRIBERS_RESPONSE: SubscribersResponse = {
       billing_interval: 'monthly',
       subscription_status: 'trialing',
       trial_ends_at: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-      helm_addon_active: false,
     },
   ],
   total: 145,
@@ -85,7 +81,6 @@ export interface Subscriber {
   billing_interval: string | null
   subscription_status: string | null
   trial_ends_at: string | null
-  helm_addon_active: boolean
 }
 
 export interface SubscribersResponse {
@@ -103,7 +98,6 @@ export interface AdminStats {
   canceled: number
   mrr_cents: number
   by_plan: Record<string, number>
-  helm_addon_count: number
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -173,7 +167,6 @@ export async function adjustPlan(
     plan?: string
     billing_interval?: string
     subscription_status?: string
-    helm_addon_active?: boolean
   }
 ): Promise<{ ok: boolean }> {
   return withDemoFallback(
