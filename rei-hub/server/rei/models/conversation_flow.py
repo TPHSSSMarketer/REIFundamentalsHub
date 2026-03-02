@@ -43,7 +43,10 @@ class Persona(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    # NULL = platform-level system persona (available to all users)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -76,7 +79,17 @@ class Persona(Base):
     # Example: '{"uses_emojis": true, "occasional_typos": false, "says_um": true}'
     quirks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Voice assignment (ElevenLabs voice ID for TTS)
+    elevenlabs_voice_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Platform / system persona support
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True = platform-provided starter persona (read-only, can be cloned)
+    cloned_from: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # If this persona was cloned from a system persona, stores the original ID
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

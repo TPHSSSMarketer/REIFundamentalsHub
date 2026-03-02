@@ -419,12 +419,18 @@ export interface Persona {
   name: string
   tone?: string
   personality_traits?: string
+  personality_prompt?: string
   response_style?: string
+  response_length?: string
+  description?: string
   quirks?: string
   created_at: string
   role?: string
   system_prompt?: string
   is_default?: boolean
+  is_system?: boolean
+  cloned_from?: string
+  elevenlabs_voice_id?: string
 }
 
 export interface FlowExecution {

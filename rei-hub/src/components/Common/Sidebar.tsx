@@ -26,7 +26,6 @@ import {
   MoreHorizontal,
   Globe,
   LifeBuoy,
-  GitBranch,
   LogOut,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
@@ -49,7 +48,6 @@ const navItems = [
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
   { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
-  { to: '/flow-builder', icon: GitBranch, label: 'Flow Builder' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/help', icon: LifeBuoy, label: 'Help' },

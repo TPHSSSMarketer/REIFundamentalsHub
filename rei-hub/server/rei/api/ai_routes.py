@@ -723,11 +723,14 @@ async def seed_knowledge(
     Safe to call multiple times — won't duplicate existing entries.
     """
     from rei.seeds.knowledge_seeds import seed_platform_knowledge
+    from rei.seeds.persona_seeds import seed_platform_personas
 
     entries_created = await seed_platform_knowledge(db)
+    personas_created = await seed_platform_personas(db)
     entries_embedded = await rebuild_all_embeddings(user.id, db)
     return {
         "status": "completed",
         "entries_created": entries_created,
+        "personas_created": personas_created,
         "entries_embedded": entries_embedded,
     }

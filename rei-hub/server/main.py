@@ -162,6 +162,13 @@ async def _tracking_processor_loop() -> None:
 async def lifespan(app: FastAPI):
     """Create database tables on startup and launch background tasks."""
     await create_tables()
+    # Seed platform personas on startup (safe to call multiple times)
+    try:
+        async with async_session_factory() as db:
+            from rei.seeds.persona_seeds import seed_platform_personas
+            await seed_platform_personas(db)
+    except Exception:
+        logger.exception("Failed to seed platform personas on startup")
     task_trial = asyncio.create_task(_trial_reminder_loop())
     task_seq = asyncio.create_task(_sequence_processor_loop())
     task_credits = asyncio.create_task(_credit_reset_loop())

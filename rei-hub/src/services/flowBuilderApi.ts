@@ -185,6 +185,15 @@ export async function deletePersona(personaId: string): Promise<void> {
   }
 }
 
+export async function clonePersona(personaId: string): Promise<Persona> {
+  const res = await fetch(`${BASE_URL}/api/flow-builder/personas/${personaId}/clone`, {
+    method: 'POST',
+    headers: { ...authHeaders(), ...getCSRFHeaders() },
+    credentials: 'include',
+  })
+  return handleResponse<Persona>(res)
+}
+
 // ── Execution endpoints ──
 
 export async function listExecutions(

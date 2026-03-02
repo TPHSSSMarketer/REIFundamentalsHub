@@ -34,15 +34,27 @@ import VoicemailDropsTab from './VoiceTabs/VoicemailDropsTab'
 // Placeholder
 import WebChatTab from './WebChatTab'
 
+// Flow Builder tabs (now integrated into AssistantHub)
+import FlowList from '../FlowBuilder/FlowList'
+import PersonaManager from '../FlowBuilder/PersonaManager'
+import ExecutionHistory from '../FlowBuilder/ExecutionHistory'
+import WebchatConfig from '../FlowBuilder/WebchatConfig'
+
+// Unified persona + voice hooks (replaces hardcoded personas)
+import { usePersonas, useVoices } from '@/hooks/useFlowBuilder'
+import type { ElevenLabsVoice } from '@/hooks/useFlowBuilder'
+import type { Persona as DBPersona } from '@/types'
+
 // ── Tab Group Definitions ─────────────────────────────────────
 
-type TabGroup = 'email' | 'sms' | 'voice' | 'webchat' | 'knowledge'
+type TabGroup = 'email' | 'sms' | 'voice' | 'webchat' | 'knowledge' | 'flows'
 
 type EmailSubTab = 'domains' | 'lists' | 'campaigns' | 'sequences' | 'templates'
 type SMSSubTab = 'sms-campaigns'
 type VoiceSubTab = 'callcommander' | 'agents' | 'voicemail-drops' | 'voice-campaigns' | 'conversations'
 type WebChatSubTab = 'settings'
 type KnowledgeSubTab = 'knowledge-base'
+type FlowsSubTab = 'my-flows' | 'flow-personas' | 'exec-history' | 'widget-config'
 
 const TAB_GROUPS: { id: TabGroup; label: string; icon: React.ElementType; subTabs: { id: string; label: string; icon: React.ElementType }[] }[] = [
   {
@@ -83,28 +95,19 @@ const TAB_GROUPS: { id: TabGroup; label: string; icon: React.ElementType; subTab
       { id: 'knowledge-base', label: 'Knowledge Base', icon: BookOpen },
     ],
   },
-]
-
-// ── Persona definitions (for CallCommander AI) ────────────────
-
-interface Persona {
-  id: string; name: string; role: string; tone: string; systemPrompt: string
-}
-
-const personas: Persona[] = [
   {
-    id: 'lead-qualifier', name: 'Grace', role: 'Lead Qualifier', tone: 'Warm & empathetic',
-    systemPrompt: 'You are Grace, a warm and empathetic AI assistant for a real estate investor. Your job is to qualify motivated seller leads — understand their situation, timeline, and motivation. Ask one question at a time. Be conversational, not salesy. Always end your response with a soft follow-up question.',
-  },
-  {
-    id: 'appointment-setter', name: 'Marcus', role: 'Appointment Setter', tone: 'Direct & confident',
-    systemPrompt: 'You are Marcus, a direct and confident AI assistant for a real estate investor. Your job is to move qualified leads toward booking a call or walkthrough appointment. Be clear, concise, and action-oriented. Guide every conversation toward a specific next step.',
-  },
-  {
-    id: 'followup-agent', name: 'Sofia', role: 'Follow-up Agent', tone: 'Friendly & persistent',
-    systemPrompt: "You are Sofia, a friendly and persistent AI assistant for a real estate investor. Your job is to re-engage leads who went quiet — check in naturally, remind them of the investor's value, and gently re-open the conversation. Never be pushy. Build rapport first.",
+    id: 'flows', label: 'Flow Builder', icon: GitBranch,
+    subTabs: [
+      { id: 'my-flows', label: 'My Flows', icon: GitBranch },
+      { id: 'flow-personas', label: 'Personas', icon: Bot },
+      { id: 'exec-history', label: 'Execution History', icon: History },
+      { id: 'widget-config', label: 'Widget Config', icon: Globe },
+    ],
   },
 ]
+
+// Default fallback prompt when no DB personas are loaded yet
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful, professional real estate assistant. Your job is to qualify motivated seller leads — understand their situation, timeline, and motivation. Ask one question at a time. Be conversational, not salesy.'
 
 // ═══════════════════════════════════════════════════════════════
 // Main Component
@@ -115,8 +118,17 @@ export default function AssistantHub() {
   const [activeSubTab, setActiveSubTab] = useState<string>('callcommander')
   const [emailProvider, setEmailProvider] = useState('')
 
+  // Unified personas from database (replaces hardcoded Grace/Marcus/Sofia)
+  const { data: dbPersonas } = usePersonas()
+  // Available voices for showing voice names on persona cards
+  const { data: voicesList } = useVoices()
+  const getVoiceName = (voiceId?: string) => {
+    if (!voiceId || !voicesList) return null
+    return voicesList.find((v: ElevenLabsVoice) => v.voice_id === voiceId)?.name ?? null
+  }
+
   // Voice / CallCommander state
-  const [activePersona, setActivePersona] = useState('lead-qualifier')
+  const [activePersona, setActivePersona] = useState('')
   const [conversations, setConversations] = useState<Record<string, Array<{ role: 'user' | 'assistant'; content: string }>>>({})
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
@@ -225,12 +237,13 @@ export default function AssistantHub() {
     setChatInput('')
     setIsChatLoading(true)
     try {
-      const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+      const persona = dbPersonas?.find((p: DBPersona) => p.id === activePersona) ?? dbPersonas?.[0]
+      const systemPrompt = persona?.personality_prompt || persona?.system_prompt || DEFAULT_SYSTEM_PROMPT
       const updatedMessages = [...conversationMessages, userMessage]
       // Conversation windowing: only send the last 10 messages to save tokens
       const MAX_HISTORY = 10
       const recentMessages = updatedMessages.slice(-MAX_HISTORY)
-      const response = await aiChat(recentMessages, persona.systemPrompt, 'chat', activeLead?.id)
+      const response = await aiChat(recentMessages, systemPrompt, 'chat', activeLead?.id)
       setConversations(prev => ({
         ...prev,
         [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
@@ -262,10 +275,11 @@ export default function AssistantHub() {
     if (!activeLead || isChatLoading) return
     setIsChatLoading(true)
     try {
-      const persona = personas.find(p => p.id === activePersona) ?? personas[0]
+      const persona = dbPersonas?.find((p: DBPersona) => p.id === activePersona) ?? dbPersonas?.[0]
+      const systemPrompt = persona?.personality_prompt || persona?.system_prompt || DEFAULT_SYSTEM_PROMPT
       const response = await aiChat(
         [{ role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead.name}. Keep it under 3 sentences.` }],
-        persona.systemPrompt,
+        systemPrompt,
         'opener',
       )
       setConversations(prev => ({
@@ -407,8 +421,8 @@ export default function AssistantHub() {
           <div>
             {/* Persona Selector */}
             <div className="p-4 border-b border-slate-200">
-              <div className="grid grid-cols-3 gap-3">
-                {personas.map((p) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {dbPersonas?.map((p: DBPersona) => (
                   <button
                     key={p.id}
                     onClick={() => setActivePersona(p.id)}
@@ -419,8 +433,17 @@ export default function AssistantHub() {
                     }`}
                   >
                     <p className="font-semibold text-slate-800">{p.name}</p>
-                    <p className="text-sm text-slate-500">{p.role}</p>
-                    <span className="inline-block mt-1 text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">{p.tone}</span>
+                    <p className="text-sm text-slate-500">{p.role || p.description || ''}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {p.tone && <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">{p.tone}</span>}
+                      {getVoiceName(p.elevenlabs_voice_id) ? (
+                        <span className="text-xs bg-emerald-50 text-emerald-700 rounded-full px-2 py-0.5">
+                          {getVoiceName(p.elevenlabs_voice_id)}
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-slate-50 text-slate-400 rounded-full px-2 py-0.5">No voice</span>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -483,7 +506,11 @@ export default function AssistantHub() {
                         <h2 className="text-lg font-semibold text-slate-800">Qualifying: {activeLead.name}</h2>
                         <p className="text-sm text-slate-500">{formatPhone(activeLead.phone ?? '')}</p>
                         <span className="text-xs text-slate-400">
-                          AI Persona: {personas.find(p => p.id === activePersona)?.name} — {personas.find(p => p.id === activePersona)?.role}
+                          AI Persona: {dbPersonas?.find((p: DBPersona) => p.id === activePersona)?.name ?? 'Default'} — {dbPersonas?.find((p: DBPersona) => p.id === activePersona)?.role ?? 'Assistant'}
+                          {(() => {
+                            const voiceName = getVoiceName(dbPersonas?.find((p: DBPersona) => p.id === activePersona)?.elevenlabs_voice_id)
+                            return voiceName ? ` · Voice: ${voiceName}` : ''
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -561,6 +588,20 @@ export default function AssistantHub() {
         {/* ── Knowledge Base Tab ─────────────────────────────── */}
         {activeGroup === 'knowledge' && (
           <div className="p-6"><KnowledgeBaseTab /></div>
+        )}
+
+        {/* ── Flow Builder Tabs ────────────────────────────────── */}
+        {activeGroup === 'flows' && activeSubTab === 'my-flows' && (
+          <div className="p-6"><FlowList /></div>
+        )}
+        {activeGroup === 'flows' && activeSubTab === 'flow-personas' && (
+          <div className="p-6"><PersonaManager /></div>
+        )}
+        {activeGroup === 'flows' && activeSubTab === 'exec-history' && (
+          <div className="p-6"><ExecutionHistory /></div>
+        )}
+        {activeGroup === 'flows' && activeSubTab === 'widget-config' && (
+          <div className="p-6"><WebchatConfig /></div>
         )}
       </div>
     </div>

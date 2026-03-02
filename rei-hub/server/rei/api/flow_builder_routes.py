@@ -141,6 +141,7 @@ class CreatePersonaRequest(BaseModel):
     min_response_delay_seconds: int = 0
     max_response_delay_seconds: int = 0
     quirks: Optional[str] = None  # JSON
+    elevenlabs_voice_id: Optional[str] = None
 
 
 class UpdatePersonaRequest(BaseModel):
@@ -155,6 +156,7 @@ class UpdatePersonaRequest(BaseModel):
     max_response_delay_seconds: Optional[int] = None
     quirks: Optional[str] = None
     is_active: Optional[bool] = None
+    elevenlabs_voice_id: Optional[str] = None
 
 
 # ════════════════════════════════════════════════════════════════
@@ -580,10 +582,16 @@ async def list_personas(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all personas for the current user."""
+    """List all personas: system (platform-level) + user-owned."""
+    from sqlalchemy import or_
+
     result = await db.execute(
-        select(Persona).where(Persona.user_id == user.id)
-        .order_by(Persona.created_at.desc())
+        select(Persona).where(
+            or_(
+                Persona.user_id == user.id,
+                and_(Persona.user_id.is_(None), Persona.is_system.is_(True)),
+            )
+        ).order_by(Persona.is_system.desc(), Persona.created_at.desc())
     )
     personas = result.scalars().all()
 
@@ -597,7 +605,10 @@ async def list_personas(
             "personality_prompt": p.personality_prompt,
             "ai_provider": p.ai_provider,
             "ai_model": p.ai_model,
+            "elevenlabs_voice_id": p.elevenlabs_voice_id,
             "is_active": p.is_active,
+            "is_system": p.is_system,
+            "cloned_from": p.cloned_from,
             "created_at": p.created_at.isoformat() if p.created_at else None,
         }
         for p in personas
@@ -623,6 +634,7 @@ async def create_persona(
         min_response_delay_seconds=body.min_response_delay_seconds,
         max_response_delay_seconds=body.max_response_delay_seconds,
         quirks=body.quirks,
+        elevenlabs_voice_id=body.elevenlabs_voice_id,
     )
     db.add(persona)
     await db.commit()
@@ -638,7 +650,7 @@ async def update_persona(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a persona."""
+    """Update a persona. System personas cannot be edited."""
     result = await db.execute(
         select(Persona).where(
             and_(Persona.id == persona_id, Persona.user_id == user.id)
@@ -647,6 +659,11 @@ async def update_persona(
     persona = result.scalar_one_or_none()
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
+    if persona.is_system:
+        raise HTTPException(
+            status_code=403,
+            detail="System personas cannot be edited. Clone it first to make your own version.",
+        )
 
     update_fields = body.model_dump(exclude_none=True)
     for field, value in update_fields.items():
@@ -664,7 +681,7 @@ async def delete_persona(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a persona."""
+    """Delete a persona. System personas cannot be deleted."""
     result = await db.execute(
         select(Persona).where(
             and_(Persona.id == persona_id, Persona.user_id == user.id)
@@ -673,11 +690,64 @@ async def delete_persona(
     persona = result.scalar_one_or_none()
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
+    if persona.is_system:
+        raise HTTPException(
+            status_code=403,
+            detail="System personas cannot be deleted.",
+        )
 
     await db.delete(persona)
     await db.commit()
 
     return {"status": "deleted", "id": persona_id}
+
+
+@flow_builder_router.post("/personas/{persona_id}/clone")
+async def clone_persona(
+    persona_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clone a persona (system or user-owned) into a new user-owned copy."""
+    from sqlalchemy import or_
+
+    # Allow cloning system personas (user_id=NULL) or own personas
+    result = await db.execute(
+        select(Persona).where(
+            and_(
+                Persona.id == persona_id,
+                or_(
+                    Persona.user_id == user.id,
+                    Persona.user_id.is_(None),
+                ),
+            )
+        )
+    )
+    source = result.scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Persona not found")
+
+    clone = Persona(
+        user_id=user.id,
+        name=f"{source.name} (Copy)",
+        description=source.description,
+        personality_prompt=source.personality_prompt,
+        tone=source.tone,
+        response_length=source.response_length,
+        ai_provider=source.ai_provider,
+        ai_model=source.ai_model,
+        min_response_delay_seconds=source.min_response_delay_seconds,
+        max_response_delay_seconds=source.max_response_delay_seconds,
+        quirks=source.quirks,
+        elevenlabs_voice_id=source.elevenlabs_voice_id,
+        is_system=False,
+        cloned_from=source.id,
+    )
+    db.add(clone)
+    await db.commit()
+    await db.refresh(clone)
+
+    return {"id": clone.id, "name": clone.name, "status": "cloned"}
 
 
 # ════════════════════════════════════════════════════════════════

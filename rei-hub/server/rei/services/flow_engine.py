@@ -47,6 +47,7 @@ from rei.models.conversation_flow import (
     Persona,
 )
 from rei.services.ai_service import ai_complete
+from rei.services.rag_service import retrieve_relevant_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -490,10 +491,40 @@ async def process_message(
         "timestamp": datetime.utcnow().isoformat(),
     })
 
-    # 3. Build the focused prompt for this node
+    # 3. Retrieve relevant knowledge via RAG (scripts, objection handlers, etc.)
+    knowledge = []
+    if current_node.node_type in ("objective", "conversation", "statement", "greeting"):
+        try:
+            knowledge = await retrieve_relevant_knowledge(
+                user_id=execution.user_id,
+                query=contact_message,
+                db=db,
+                top_k=5,  # Fewer than chat (7) since node prompts are already focused
+            )
+        except Exception:
+            logger.warning("RAG retrieval failed for flow execution %s — continuing without knowledge", execution_id)
+
+    training = [e for e in knowledge if e.get("entry_type") == "training"]
+    situational = [e for e in knowledge if e.get("entry_type") != "training"]
+
+    # 4. Build the focused prompt for this node
     node_prompt = _build_node_prompt(current_node, variables, persona, flow.name)
 
-    # 4. Build the message list for the AI (system prompt + recent history)
+    # Inject knowledge: training first (sets mindset), then situational after
+    if training:
+        knowledge_prefix = "CORE TRAINING & APPROACH:\n"
+        knowledge_prefix += "Always follow this training to set your mindset, tone, and approach.\n\n"
+        for entry in training:
+            knowledge_prefix += f"--- {entry['name']} ---\n{entry['content']}\n\n"
+        node_prompt = knowledge_prefix + "\n" + node_prompt
+
+    if situational:
+        knowledge_suffix = "\nRELEVANT KNOWLEDGE (use naturally if applicable):\n"
+        for entry in situational:
+            knowledge_suffix += f"--- {entry['name']} ---\n{entry['content']}\n\n"
+        node_prompt = node_prompt + knowledge_suffix
+
+    # 5. Build the message list for the AI (system prompt + recent history)
     ai_messages = [
         {"role": "system", "content": node_prompt},
     ]

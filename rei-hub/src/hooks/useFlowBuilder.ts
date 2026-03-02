@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as flowBuilderApi from '../services/flowBuilderApi'
+import { getVoices } from '../services/voiceAiApi'
+import type { ElevenLabsVoice } from '../services/voiceAiApi'
 import { ConversationFlow, FlowNode, FlowEdge, Persona, FlowExecution } from '../types'
+
+export type { ElevenLabsVoice }
 
 // ── Query Keys ──
 
@@ -12,6 +16,7 @@ export const flowBuilderKeys = {
   persona: (id: string) => [...flowBuilderKeys.all, 'persona', id] as const,
   executions: () => [...flowBuilderKeys.all, 'executions'] as const,
   execution: (id: string) => [...flowBuilderKeys.all, 'execution', id] as const,
+  voices: () => [...flowBuilderKeys.all, 'voices'] as const,
 }
 
 // ── Flow Hooks ──
@@ -199,6 +204,16 @@ export function useDeletePersona() {
   })
 }
 
+export function useClonePersona() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (personaId: string) => flowBuilderApi.clonePersona(personaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: flowBuilderKeys.personas() })
+    },
+  })
+}
+
 // ── Execution Hooks ──
 
 export function useExecutions(params?: Record<string, string | number | boolean>) {
@@ -213,5 +228,15 @@ export function useExecution(executionId: string | undefined) {
     queryKey: flowBuilderKeys.execution(executionId || ''),
     queryFn: () => flowBuilderApi.getExecution(executionId!),
     enabled: !!executionId,
+  })
+}
+
+// ── Voice Hooks ──
+
+export function useVoices() {
+  return useQuery({
+    queryKey: flowBuilderKeys.voices(),
+    queryFn: () => getVoices(),
+    staleTime: 5 * 60 * 1000, // Cache voices for 5 minutes
   })
 }

@@ -88,7 +88,7 @@ function AppLayout() {
             <ContentHub />
           </UpgradeGate>
         } />
-        <Route path="/flow-builder" element={<FlowBuilder />} />
+        <Route path="/flow-builder" element={<Navigate to="/assistanthub" replace />} />
         <Route path="/flow-builder/:flowId" element={<FlowEditor />} />
         <Route path="/help" element={<HelpTicketsPage />} />
         <Route path="/settings" element={<Settings />} />
