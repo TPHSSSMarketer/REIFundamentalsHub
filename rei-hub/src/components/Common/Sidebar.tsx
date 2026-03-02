@@ -33,6 +33,7 @@ import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
 import { getCurrentUser, logout } from '@/services/auth'
 import { cn } from '@/utils/helpers'
+// ThemeToggle lives in Settings page
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -200,7 +201,7 @@ export default function Sidebar() {
               <p className="text-xs text-primary-800 font-semibold text-center">REI Fundamentals Hub</p>
               <button
                 onClick={() => logout()}
-                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 Log Out
@@ -368,7 +369,7 @@ export default function Sidebar() {
               </p>
             </div>
           )}
-          <div className={isSidebarCollapsed ? 'p-2' : 'px-4 pb-3 pt-2'}>
+          <div className={isSidebarCollapsed ? 'p-2 space-y-1' : 'px-4 pb-3 pt-2 space-y-1'}>
             <button
               onClick={() => logout()}
               className={cn(

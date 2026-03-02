@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User } from 'lucide-react'
+import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import HelmHubConnect from './helmhubconnect'
 import AiProviderUserSettings from './AiProviderUserSettings'
+import { useTheme } from '@/hooks/useTheme'
 import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
 import {
   getGoogleDriveAuthUrl,
@@ -21,6 +22,7 @@ const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 export default function Settings() {
   const [searchParams] = useSearchParams()
+  const { theme, setTheme } = useTheme()
 
   const [settings, setSettings] = useState({
     wpUrl: localStorage.getItem('wp_url') || '',
@@ -330,6 +332,41 @@ export default function Settings() {
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-slate-800">Settings</h1>
         <p className="text-sm md:text-base text-slate-600">Configure your preferences and integrations</p>
+      </div>
+
+      {/* Appearance */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Monitor className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Appearance</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Choose how the app looks. Pick Light or Dark mode.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setTheme('light')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              theme === 'light'
+                ? 'bg-primary-50 border-primary-500 text-primary-700'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
+            }`}
+          >
+            <Sun className="w-4 h-4" />
+            Light Mode
+          </button>
+          <button
+            onClick={() => setTheme('dark')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              theme === 'dark'
+                ? 'bg-primary-50 border-primary-500 text-primary-700'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
+            }`}
+          >
+            <Moon className="w-4 h-4" />
+            Dark Mode
+          </button>
+        </div>
       </div>
 
       {/* Profile & Company */}
