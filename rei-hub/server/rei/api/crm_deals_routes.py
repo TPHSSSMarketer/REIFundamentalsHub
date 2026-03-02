@@ -622,7 +622,7 @@ async def update_deal_stage(
         "lead", "contacted", "analysis", "offer", "under_contract",
         "due_diligence", "closing", "closed_won", "closed_lost",
         # Investor Buyers pipeline
-        "new_lead", "qualified", "sent_deals", "negotiating", "funded", "inactive",
+        "new_lead", "qualified", "active_buyer", "sent_deals", "negotiating", "funded", "inactive",
         # Retail Buyers pipeline
         "pre_approved", "showing", "offer_received",
         # Tax Deals pipeline

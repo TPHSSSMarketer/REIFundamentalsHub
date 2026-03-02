@@ -10,6 +10,7 @@ interface PipelineColumnProps {
   color: string
   loading?: boolean
   onDealClick: (deal: Deal) => void
+  pipelineId: string
 }
 
 export default function PipelineColumn({
@@ -18,6 +19,7 @@ export default function PipelineColumn({
   color,
   loading,
   onDealClick,
+  pipelineId,
 }: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
@@ -73,6 +75,7 @@ export default function PipelineColumn({
                 key={deal.id}
                 deal={deal}
                 onClick={() => onDealClick(deal)}
+                pipelineId={pipelineId}
               />
             ))
           )}

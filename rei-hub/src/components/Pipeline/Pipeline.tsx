@@ -238,13 +238,14 @@ export default function Pipeline() {
                 color={getStageColor(index)}
                 loading={dealsLoading}
                 onDealClick={(deal) => navigate(`/deals/${deal.id}`)}
+                pipelineId={activePipeline?.id || ''}
               />
             ))}
         </div>
 
         <DragOverlay>
           {activeDragDeal && (
-            <DealCard deal={activeDragDeal} isDragging />
+            <DealCard deal={activeDragDeal} isDragging pipelineId={activePipeline?.id || ''} />
           )}
         </DragOverlay>
       </DndContext>

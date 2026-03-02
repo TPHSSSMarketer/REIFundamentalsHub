@@ -242,7 +242,7 @@ export default function NewDealModal({
   // Which sections to show per pipeline
   const PIPELINE_SECTIONS: Record<string, string[]> = {
     'pipeline-deals': ['property_details', 'seller_motivation', 'listing_information', 'homeowner_financials', 'foreclosure_details', 'deal_financials'],
-    'pipeline-investor-buyers': ['buyer_criteria', 'deal_financials'],
+    'pipeline-investor-buyers': ['buyer_criteria'],
     'pipeline-retail-buyers': ['buyer_criteria', 'subject_to_details', 'deal_financials'],
     'pipeline-tax-deals': ['property_details', 'foreclosure_details', 'deal_financials'],
   }
