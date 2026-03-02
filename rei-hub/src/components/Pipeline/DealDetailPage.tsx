@@ -28,6 +28,11 @@ import {
   SkipForward,
   Mail,
   Users,
+  Home,
+  HeartHandshake,
+  ListChecks,
+  Banknote,
+  Gavel,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
@@ -607,6 +612,507 @@ export default function DealDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Property Details */}
+          {(deal.propertyType || deal.bedrooms || deal.bathrooms || deal.squareFootage || deal.yearBuilt || deal.lotSize || deal.garage || deal.propertyCondition || deal.occupancyStatus || deal.repairsNeeded || deal.specialFeatures) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Home className="w-3.5 h-3.5" />
+                Property Details
+              </h3>
+              <div className="space-y-2.5">
+                {deal.propertyType && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Property Type</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.propertyType}</span>
+                  </div>
+                )}
+                {(deal.bedrooms != null || deal.bathrooms != null) && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Bed / Bath</span>
+                    <span className="text-sm font-medium text-slate-800">
+                      {deal.bedrooms ?? '—'} bd / {deal.bathrooms ?? '—'} ba
+                    </span>
+                  </div>
+                )}
+                {deal.squareFootage != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Sq Ft</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.squareFootage.toLocaleString()}</span>
+                  </div>
+                )}
+                {deal.lotSize && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Lot Size</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.lotSize}</span>
+                  </div>
+                )}
+                {deal.yearBuilt != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Year Built</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.yearBuilt}</span>
+                  </div>
+                )}
+                {deal.garage && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Garage</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.garage}</span>
+                  </div>
+                )}
+                {deal.propertyCondition && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Condition</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.propertyCondition}</span>
+                  </div>
+                )}
+                {deal.occupancyStatus && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Occupancy</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.occupancyStatus}</span>
+                  </div>
+                )}
+                {deal.repairsNeeded && (
+                  <div>
+                    <p className="text-sm text-slate-500 mb-1">Repairs Needed</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.repairsNeeded}</p>
+                  </div>
+                )}
+                {deal.specialFeatures && (
+                  <div>
+                    <p className="text-sm text-slate-500 mb-1">Special Features</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.specialFeatures}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Seller Motivation */}
+          {(deal.reasonForSelling || deal.motivationLevel || deal.timelineToSell || deal.askingPrice != null || deal.priceFlexible || deal.howEstablishedPrice || deal.bestCashOffer != null || deal.whatIfDoesntSell || deal.openToTerms) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <HeartHandshake className="w-3.5 h-3.5" />
+                Seller Motivation
+              </h3>
+              <div className="space-y-2.5">
+                {deal.reasonForSelling && (
+                  <div>
+                    <p className="text-sm text-slate-500 mb-1">Reason for Selling</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.reasonForSelling}</p>
+                  </div>
+                )}
+                {deal.motivationLevel && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Motivation Level</span>
+                    <span className={cn(
+                      'text-sm font-semibold px-2 py-0.5 rounded-full',
+                      deal.motivationLevel === 'high' ? 'bg-green-100 text-green-700' :
+                      deal.motivationLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
+                      'bg-slate-100 text-slate-600'
+                    )}>
+                      {deal.motivationLevel.charAt(0).toUpperCase() + deal.motivationLevel.slice(1)}
+                    </span>
+                  </div>
+                )}
+                {deal.timelineToSell && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Timeline to Sell</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.timelineToSell}</span>
+                  </div>
+                )}
+                {deal.askingPrice != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Asking Price</span>
+                    <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.askingPrice)}</span>
+                  </div>
+                )}
+                {deal.priceFlexible && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Price Flexible?</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.priceFlexible}</span>
+                  </div>
+                )}
+                {deal.howEstablishedPrice && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">How Price Established</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.howEstablishedPrice}</span>
+                  </div>
+                )}
+                {deal.bestCashOffer != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Best Cash Offer</span>
+                    <span className="text-sm font-semibold text-green-600">{formatCurrency(deal.bestCashOffer)}</span>
+                  </div>
+                )}
+                {deal.whatIfDoesntSell && (
+                  <div>
+                    <p className="text-sm text-slate-500 mb-1">What If Doesn't Sell?</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.whatIfDoesntSell}</p>
+                  </div>
+                )}
+                {deal.openToTerms && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Open to Terms?</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.openToTerms}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Listing Information */}
+          {(deal.isListed || deal.realtorName || deal.realtorPhone || deal.listingExpires || deal.howLongListed || deal.anyOffers || deal.previousOfferAmount != null) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <ListChecks className="w-3.5 h-3.5" />
+                Listing Information
+              </h3>
+              <div className="space-y-2.5">
+                {deal.isListed && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Currently Listed?</span>
+                    <span className={cn(
+                      'text-sm font-semibold px-2 py-0.5 rounded-full',
+                      deal.isListed === 'yes' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                    )}>
+                      {deal.isListed.charAt(0).toUpperCase() + deal.isListed.slice(1)}
+                    </span>
+                  </div>
+                )}
+                {deal.realtorName && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Realtor Name</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.realtorName}</span>
+                  </div>
+                )}
+                {deal.realtorPhone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Realtor Phone</span>
+                    <a href={`tel:${deal.realtorPhone}`} className="text-sm font-medium text-primary-600 hover:underline">{deal.realtorPhone}</a>
+                  </div>
+                )}
+                {deal.howLongListed && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">How Long Listed</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.howLongListed}</span>
+                  </div>
+                )}
+                {deal.listingExpires && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Listing Expires</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.listingExpires}</span>
+                  </div>
+                )}
+                {deal.anyOffers && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Any Offers?</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.anyOffers}</span>
+                  </div>
+                )}
+                {deal.previousOfferAmount != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Previous Offer</span>
+                    <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.previousOfferAmount)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Homeowner Financials */}
+          {(deal.mortgageCompany1st || deal.mortgageBalance != null || deal.monthlyMortgagePayment != null ||
+            deal.mortgageCompany2nd || deal.mortgageBalance2nd != null ||
+            deal.mortgageCompany3rd || deal.mortgageBalance3rd != null ||
+            deal.taxesInsuranceIncluded || deal.monthlyTaxAmount != null || deal.monthlyInsuranceAmount != null ||
+            deal.backTaxes != null || deal.otherLiens || deal.otherLienAmount != null) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Banknote className="w-3.5 h-3.5" />
+                Homeowner Financials
+              </h3>
+              <div className="space-y-4">
+                {/* Lender 1 */}
+                {(deal.mortgageCompany1st || deal.mortgageBalance != null || deal.monthlyMortgagePayment != null) && (
+                  <div>
+                    <p className="text-xs font-semibold text-primary-600 uppercase mb-2">1st Mortgage</p>
+                    <div className="space-y-2 pl-3 border-l-2 border-primary-200">
+                      {deal.mortgageCompany1st && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Lender</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany1st}</span>
+                        </div>
+                      )}
+                      {deal.mortgageBalance != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Balance</span>
+                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance)}</span>
+                        </div>
+                      )}
+                      {deal.monthlyMortgagePayment != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Monthly Payment</span>
+                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyMortgagePayment)}</span>
+                        </div>
+                      )}
+                      {deal.interestRate1st != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Interest Rate</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.interestRate1st}%</span>
+                        </div>
+                      )}
+                      {deal.loanType && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Loan Type</span>
+                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.loanType}</span>
+                        </div>
+                      )}
+                      {deal.paymentsCurrent && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Payments Current?</span>
+                          <span className={cn(
+                            'text-sm font-semibold px-2 py-0.5 rounded-full',
+                            deal.paymentsCurrent === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          )}>
+                            {deal.paymentsCurrent.charAt(0).toUpperCase() + deal.paymentsCurrent.slice(1)}
+                          </span>
+                        </div>
+                      )}
+                      {deal.monthsBehind != null && deal.monthsBehind > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Months Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind}</span>
+                        </div>
+                      )}
+                      {deal.amountBehind != null && deal.amountBehind > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Amount Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind)}</span>
+                        </div>
+                      )}
+                      {deal.prepaymentPenalty && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Prepayment Penalty?</span>
+                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.prepaymentPenalty}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lender 2 */}
+                {(deal.mortgageCompany2nd || deal.mortgageBalance2nd != null) && (
+                  <div>
+                    <p className="text-xs font-semibold text-blue-600 uppercase mb-2">2nd Mortgage / HELOC</p>
+                    <div className="space-y-2 pl-3 border-l-2 border-blue-200">
+                      {deal.mortgageCompany2nd && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Lender</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany2nd}</span>
+                        </div>
+                      )}
+                      {deal.mortgageBalance2nd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Balance</span>
+                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance2nd)}</span>
+                        </div>
+                      )}
+                      {deal.monthlyPayment2nd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Monthly Payment</span>
+                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyPayment2nd)}</span>
+                        </div>
+                      )}
+                      {deal.interestRate2nd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Interest Rate</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.interestRate2nd}%</span>
+                        </div>
+                      )}
+                      {deal.paymentsCurrent2nd && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Payments Current?</span>
+                          <span className={cn(
+                            'text-sm font-semibold px-2 py-0.5 rounded-full',
+                            deal.paymentsCurrent2nd === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          )}>
+                            {deal.paymentsCurrent2nd.charAt(0).toUpperCase() + deal.paymentsCurrent2nd.slice(1)}
+                          </span>
+                        </div>
+                      )}
+                      {deal.monthsBehind2nd != null && deal.monthsBehind2nd > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Months Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind2nd}</span>
+                        </div>
+                      )}
+                      {deal.amountBehind2nd != null && deal.amountBehind2nd > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Amount Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind2nd)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lender 3 */}
+                {(deal.mortgageCompany3rd || deal.mortgageBalance3rd != null) && (
+                  <div>
+                    <p className="text-xs font-semibold text-amber-600 uppercase mb-2">3rd Lien</p>
+                    <div className="space-y-2 pl-3 border-l-2 border-amber-200">
+                      {deal.mortgageCompany3rd && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Lender</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany3rd}</span>
+                        </div>
+                      )}
+                      {deal.mortgageBalance3rd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Balance</span>
+                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance3rd)}</span>
+                        </div>
+                      )}
+                      {deal.monthlyPayment3rd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Monthly Payment</span>
+                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyPayment3rd)}</span>
+                        </div>
+                      )}
+                      {deal.interestRate3rd != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Interest Rate</span>
+                          <span className="text-sm font-medium text-slate-800">{deal.interestRate3rd}%</span>
+                        </div>
+                      )}
+                      {deal.paymentsCurrent3rd && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Payments Current?</span>
+                          <span className={cn(
+                            'text-sm font-semibold px-2 py-0.5 rounded-full',
+                            deal.paymentsCurrent3rd === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          )}>
+                            {deal.paymentsCurrent3rd.charAt(0).toUpperCase() + deal.paymentsCurrent3rd.slice(1)}
+                          </span>
+                        </div>
+                      )}
+                      {deal.monthsBehind3rd != null && deal.monthsBehind3rd > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Months Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind3rd}</span>
+                        </div>
+                      )}
+                      {deal.amountBehind3rd != null && deal.amountBehind3rd > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Amount Behind</span>
+                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind3rd)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Taxes, Insurance, Liens */}
+                {(deal.taxesInsuranceIncluded || deal.monthlyTaxAmount != null || deal.monthlyInsuranceAmount != null || deal.backTaxes != null || deal.otherLiens || deal.otherLienAmount != null) && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Taxes, Insurance & Liens</p>
+                    <div className="space-y-2 pl-3 border-l-2 border-slate-200">
+                      {deal.taxesInsuranceIncluded && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">T&I Included in Payment?</span>
+                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.taxesInsuranceIncluded}</span>
+                        </div>
+                      )}
+                      {deal.monthlyTaxAmount != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Monthly Tax</span>
+                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyTaxAmount)}</span>
+                        </div>
+                      )}
+                      {deal.monthlyInsuranceAmount != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Monthly Insurance</span>
+                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyInsuranceAmount)}</span>
+                        </div>
+                      )}
+                      {deal.backTaxes != null && deal.backTaxes > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Back Taxes Owed</span>
+                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.backTaxes)}</span>
+                        </div>
+                      )}
+                      {deal.otherLiens && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Other Liens?</span>
+                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.otherLiens}</span>
+                        </div>
+                      )}
+                      {deal.otherLienAmount != null && deal.otherLienAmount > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Lien Amount</span>
+                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.otherLienAmount)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Foreclosure Details */}
+          {(deal.foreclosureStatus || deal.auctionDate || deal.reinstatementAmount != null || deal.attorneyInvolved || deal.attorneyName || deal.attorneyPhone) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Gavel className="w-3.5 h-3.5" />
+                Foreclosure Details
+              </h3>
+              <div className="space-y-2.5">
+                {deal.foreclosureStatus && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Status</span>
+                    <span className={cn(
+                      'text-sm font-semibold px-2 py-0.5 rounded-full',
+                      deal.foreclosureStatus === 'none' ? 'bg-green-100 text-green-700' :
+                      deal.foreclosureStatus === 'pre_foreclosure' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    )}>
+                      {deal.foreclosureStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                  </div>
+                )}
+                {deal.auctionDate && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Auction Date</span>
+                    <span className="text-sm font-semibold text-red-600">{formatDate(deal.auctionDate)}</span>
+                  </div>
+                )}
+                {deal.reinstatementAmount != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Reinstatement Amount</span>
+                    <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.reinstatementAmount)}</span>
+                  </div>
+                )}
+                {deal.attorneyInvolved && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Attorney Involved?</span>
+                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.attorneyInvolved}</span>
+                  </div>
+                )}
+                {deal.attorneyName && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Attorney Name</span>
+                    <span className="text-sm font-medium text-slate-800">{deal.attorneyName}</span>
+                  </div>
+                )}
+                {deal.attorneyPhone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Attorney Phone</span>
+                    <a href={`tel:${deal.attorneyPhone}`} className="text-sm font-medium text-primary-600 hover:underline">{deal.attorneyPhone}</a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Bank Negotiations */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">

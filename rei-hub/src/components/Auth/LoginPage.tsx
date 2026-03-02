@@ -81,7 +81,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">REI Fundamentals Hub</h1>
+          <img
+            src="/REIFundamentals_Hub_Logo.png"
+            alt="REI Fundamentals Hub"
+            className="h-16 mx-auto mb-4 object-contain"
+          />
           <p className="mt-2 text-slate-500">Sign in to your account</p>
         </div>
 

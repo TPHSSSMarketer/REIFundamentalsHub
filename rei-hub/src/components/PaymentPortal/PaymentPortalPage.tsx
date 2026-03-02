@@ -24,8 +24,8 @@ const BRAND = {
   green: '#2E7D32',
 } as const
 
-const LOGO_WIDE = '/TriPoint_Home_Solutions_Logo_-_Wide_Transparent.png'
-const FAVICON = '/TriPoint_Home_Solutions_Favacon.png'
+const LOGO_WIDE = '/REIFundamentals_Hub_Logo.png'
+const FAVICON = '/REIFundamentals_Hub_favicon.png'
 
 // ── Types ───────────────────────────────────────────────────────────────
 
