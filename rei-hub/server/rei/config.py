@@ -196,6 +196,11 @@ EMAIL_PLAN_LIMITS: dict[str, int] = {
 
 OVERAGE_RATE_PER_THOUSAND = 1.50
 
+# ── Universal Credit Markup ───────────────────────────────────────────
+# When users purchase credits and spend them (after exhausting their plan
+# allowance), every deduction is marked up 30% over our raw cost.
+CREDIT_MARKUP: float = 1.30
+
 # ── Phone System pricing ──────────────────────────────────────────────
 PHONE_PRICING: dict[str, float] = {
     "outbound_per_min": 0.03,
@@ -221,9 +226,9 @@ PHONE_PLAN_LIMITS: dict[str, dict[str, int]] = {
 }
 
 CREDIT_BUNDLES: dict[str, dict[str, int]] = {
-    "starter": {"price_cents": 2500, "credits_cents": 3000},
-    "growth": {"price_cents": 5000, "credits_cents": 6500},
-    "power": {"price_cents": 10000, "credits_cents": 14000},
+    "starter": {"price_cents": 2500, "credits_cents": 2500},       # no bonus
+    "growth": {"price_cents": 5000, "credits_cents": 5500},        # 10% bonus
+    "power": {"price_cents": 10000, "credits_cents": 11500},       # 15% bonus
 }
 
 # Pro and Team plans UNLOCK ACCESS to AI voicemail drops.

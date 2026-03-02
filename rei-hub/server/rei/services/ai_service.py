@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.config import AI_PLAN_ALLOWANCES, AI_TOKEN_PRICING, Settings
+from rei.config import AI_PLAN_ALLOWANCES, AI_TOKEN_PRICING, CREDIT_MARKUP, Settings
 from rei.models.user import AIProviderConfig, KnowledgeEntry, User
 
 logger = logging.getLogger(__name__)
@@ -454,9 +454,10 @@ async def ai_complete(
 
             # Accumulate cost — or deduct from universal credits if over allowance
             if allowance_cents > 0 and (user_obj.ai_cost_cents or 0) >= allowance_cents:
-                # Over monthly allowance → deduct from universal credits instead
+                # Over monthly allowance → deduct from universal credits with 15% markup
+                marked_up_cents = int(cost_cents * CREDIT_MARKUP)
                 user_obj.phone_credits_cents = max(
-                    0, (user_obj.phone_credits_cents or 0) - cost_cents
+                    0, (user_obj.phone_credits_cents or 0) - marked_up_cents
                 )
             else:
                 # Under allowance → add to ai_cost_cents as normal

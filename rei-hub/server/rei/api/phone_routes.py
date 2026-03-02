@@ -20,6 +20,7 @@ from rei.api.deps import get_current_user, get_db
 from rei.config import (
     AI_VOICEMAIL_PLANS,
     CREDIT_BUNDLES,
+    CREDIT_MARKUP,
     PHONE_PLAN_LIMITS,
     PHONE_PRICING,
     get_settings,
@@ -150,12 +151,13 @@ def _check_minutes(user: User, minutes_needed: int = 1) -> bool:
     limits = _get_plan_limits(user)
     if user.phone_minutes_used < limits["minutes"]:
         return True
-    cost_cents = int(minutes_needed * PHONE_PRICING["outbound_per_min"] * 100)
-    return user.phone_credits_cents >= cost_cents
+    raw_cost = int(minutes_needed * PHONE_PRICING["outbound_per_min"] * 100)
+    marked_up = int(raw_cost * CREDIT_MARKUP)
+    return user.phone_credits_cents >= marked_up
 
 
 def _deduct_minutes(user: User, minutes: int) -> float:
-    """Deduct minutes from allotment first, then credits. Returns cost in dollars."""
+    """Deduct minutes from allotment first, then credits (with markup). Returns cost in dollars."""
     limits = _get_plan_limits(user)
     remaining_allotment = max(0, limits["minutes"] - user.phone_minutes_used)
     if minutes <= remaining_allotment:
@@ -165,9 +167,10 @@ def _deduct_minutes(user: User, minutes: int) -> float:
     from_allotment = remaining_allotment
     from_credits = minutes - from_allotment
     user.phone_minutes_used += from_allotment
-    cost_cents = int(from_credits * PHONE_PRICING["outbound_per_min"] * 100)
-    user.phone_credits_cents = max(0, user.phone_credits_cents - cost_cents)
-    return cost_cents / 100
+    raw_cost_cents = int(from_credits * PHONE_PRICING["outbound_per_min"] * 100)
+    marked_up_cents = int(raw_cost_cents * CREDIT_MARKUP)
+    user.phone_credits_cents = max(0, user.phone_credits_cents - marked_up_cents)
+    return marked_up_cents / 100
 
 
 def _check_sms(user: User) -> bool:
@@ -175,25 +178,28 @@ def _check_sms(user: User) -> bool:
     limits = _get_plan_limits(user)
     if user.phone_sms_used < limits["sms"]:
         return True
-    cost_cents = int(PHONE_PRICING["outbound_sms"] * 100)
-    return user.phone_credits_cents >= cost_cents
+    raw_cost = int(PHONE_PRICING["outbound_sms"] * 100)
+    marked_up = int(raw_cost * CREDIT_MARKUP)
+    return user.phone_credits_cents >= marked_up
 
 
 def _deduct_sms(user: User) -> float:
-    """Deduct one SMS from allotment first, then credits. Returns cost in dollars."""
+    """Deduct one SMS from allotment first, then credits (with markup). Returns cost in dollars."""
     limits = _get_plan_limits(user)
     if user.phone_sms_used < limits["sms"]:
         user.phone_sms_used += 1
         return 0.00
-    cost_cents = int(PHONE_PRICING["outbound_sms"] * 100)
-    user.phone_credits_cents = max(0, user.phone_credits_cents - cost_cents)
-    return cost_cents / 100
+    raw_cost_cents = int(PHONE_PRICING["outbound_sms"] * 100)
+    marked_up_cents = int(raw_cost_cents * CREDIT_MARKUP)
+    user.phone_credits_cents = max(0, user.phone_credits_cents - marked_up_cents)
+    return marked_up_cents / 100
 
 
 def _deduct_credits_cents(user: User, cents: int) -> float:
-    """Deduct arbitrary credits amount. Returns cost in dollars."""
-    user.phone_credits_cents = max(0, user.phone_credits_cents - cents)
-    return cents / 100
+    """Deduct arbitrary credits with 15% markup. Returns marked-up cost in dollars."""
+    marked_up_cents = int(cents * CREDIT_MARKUP)
+    user.phone_credits_cents = max(0, user.phone_credits_cents - marked_up_cents)
+    return marked_up_cents / 100
 
 
 async def _bill_ai_call(conv_log: ConversationLog, db: AsyncSession) -> float:
