@@ -28,15 +28,6 @@ check_var REI_PLUGIN_SHARED_SECRET
 check_var REI_HUB_URL
 
 echo ""
-echo "=== Helm Hub Required Variables ==="
-echo ""
-check_var HELM_DATABASE_URL
-check_var HELM_JWT_SECRET
-check_var HELM_STRIPE_SECRET_KEY
-check_var HELM_STRIPE_WEBHOOK_SECRET
-check_var HELM_HUB_URL
-
-echo ""
 echo "==============================="
 if [ "$MISSING" -gt 0 ]; then
   printf "  \033[31m%d variable(s) missing\033[0m\n" "$MISSING"

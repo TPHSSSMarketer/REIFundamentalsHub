@@ -76,7 +76,6 @@ cp .env.example .env
 ```env
 VITE_REI_SERVER_URL=http://localhost:8001
 VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_key
-VITE_HELM_HUB_URL=http://localhost:8000
 ```
 
 5. Run the development server:

@@ -51,29 +51,12 @@ services:
       - rei-hub-backend
     restart: unless-stopped
 
-  # ── Helm Hub (FastAPI) ─────────────────────────────────────
-  helm-hub:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.helm-hub
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    env_file:
-      - ../helm-hub/.env
-    environment:
-      HELM_ENVIRONMENT: production
-    restart: unless-stopped
-
   # ── Nginx Reverse Proxy ────────────────────────────────────
   nginx:
     image: nginx:alpine
     depends_on:
       - rei-hub-backend
       - rei-hub-frontend
-      - helm-hub
     ports:
       - "80:80"
       - "443:443"

@@ -180,7 +180,7 @@ PLANS: dict[str, dict] = {
         "features": [
             "dashboard", "pipeline", "contacts", "markets", "portfolio",
             "content_hub", "wordpress_publish", "cloud_sync",
-            "assistant_hub", "csv_export", "priority_support", "helm_hub",
+            "assistant_hub", "csv_export", "priority_support",
         ],
     },
 }

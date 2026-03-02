@@ -3,7 +3,6 @@ import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Su
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
-// HelmHubConnect removed — Helm Hub integration deprecated
 import AiProviderUserSettings from './AiProviderUserSettings'
 import { useTheme } from '@/hooks/useTheme'
 import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
