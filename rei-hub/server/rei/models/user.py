@@ -195,6 +195,29 @@ class User(Base):
     ai_override_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
 
+    # ── Per-User AI Usage Tracking ────────────────────────────
+    ai_total_requests: Mapped[int] = mapped_column(
+        Integer, default=0)
+    ai_total_tokens: Mapped[int] = mapped_column(
+        Integer, default=0)
+    ai_last_request_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    ai_cost_cents: Mapped[int] = mapped_column(
+        Integer, default=0)
+    # Cumulative AI cost in cents for current billing period
+    ai_cost_reset_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True)
+    # When the cost counter last reset (start of current month)
+    ai_reminder_75_sent: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # True once we've emailed about 75% usage (25% remaining)
+    ai_reminder_90_sent: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # True once we've emailed about 90% usage (10% remaining)
+    ai_reminder_95_sent: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+    # True once we've emailed about 95% usage (5% remaining)
+
     # ── Loan Servicing ─────────────────────────────────────────
     loan_servicing_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
@@ -1640,6 +1663,33 @@ class KnowledgeEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+# ── NEW MODEL: Knowledge Embedding (RAG) ──────────────────────────────
+# Stores vector embeddings for knowledge entries to enable semantic search
+
+
+class KnowledgeEmbedding(Base):
+    __tablename__ = "knowledge_embeddings"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    entry_id: Mapped[str] = mapped_column(
+        String, ForeignKey("knowledge_entries.id"), unique=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # Mirrors KnowledgeEntry.user_id for fast filtering
+
+    # Embedding data
+    embedding: Mapped[str] = mapped_column(Text)  # JSON list of 384 floats
+    model_name: Mapped[str] = mapped_column(
+        String, default="all-MiniLM-L6-v2"
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 # ── NEW MODEL: Conversation Log ────────────────────────────────────────

@@ -1,13 +1,11 @@
 /**
  * aiService.ts
  *
- * AI service — currently stubbed while building native AI integration.
- * All functions throw a friendly "coming soon" error so the UI can
- * display appropriate messages.
- *
- * Next phase will replace these stubs with direct AI calls
- * via REI Hub's own /api/ai/ endpoints.
+ * AI service — provides typed wrappers around REI Hub's /api/ai/ endpoints.
+ * Chat is fully wired; remaining features will be connected in future phases.
  */
+
+import { chatWithAi, chatWithAiAndContact, extractContactData } from './aiApi'
 
 export class AiServiceError extends Error {
   status: number
@@ -90,12 +88,21 @@ function comingSoon(feature: string): never {
   )
 }
 
+export type AiTaskType = 'chat' | 'sms_draft' | 'opener'
+
 export async function aiChat(
-  _messages: AiChatMessage[],
-  _system?: string,
+  messages: AiChatMessage[],
+  system?: string,
+  taskType?: AiTaskType,
+  contactId?: string,
 ): Promise<AiChatResponse> {
-  comingSoon('AI Chat')
+  if (contactId) {
+    return chatWithAiAndContact(messages, system, taskType, contactId)
+  }
+  return chatWithAi(messages, system, taskType)
 }
+
+export { extractContactData }
 /** @deprecated Use aiChat */
 export const helmChat = aiChat
 

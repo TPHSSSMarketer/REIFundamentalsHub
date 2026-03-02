@@ -43,7 +43,7 @@ export interface ElevenLabsVoice {
 export interface KnowledgeEntry {
   id: string
   name: string
-  entry_type: 'account_data' | 'custom_script' | 'objection_handler'
+  entry_type: 'account_data' | 'custom_script' | 'objection_handler' | 'training'
   content: string
   is_platform: boolean
   is_active: boolean
@@ -52,7 +52,7 @@ export interface KnowledgeEntry {
 
 export interface CreateKnowledgePayload {
   name: string
-  entry_type: 'account_data' | 'custom_script' | 'objection_handler'
+  entry_type: 'account_data' | 'custom_script' | 'objection_handler' | 'training'
   content: string
 }
 

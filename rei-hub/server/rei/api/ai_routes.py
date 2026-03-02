@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
-from rei.config import Settings, get_settings
+from rei.config import AI_PLAN_ALLOWANCES, Settings, get_settings
+from rei.models.crm import CrmContact
 from rei.models.user import AIProviderConfig, User
 from rei.services.ai_service import (
     PROVIDER_CONFIGS,
@@ -21,8 +22,11 @@ from rei.services.ai_service import (
     ai_research,
     decrypt_api_key,
     encrypt_api_key,
+    extract_conversation_data_with_db,
+    get_user_knowledge,
     mask_api_key,
 )
+from rei.services.rag_service import rebuild_all_embeddings, retrieve_relevant_knowledge
 
 logger = logging.getLogger(__name__)
 ai_router = APIRouter(prefix="/ai", tags=["ai"])
@@ -57,9 +61,34 @@ class TestRequest(BaseModel):
     message: str
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+    system: Optional[str] = None
+    task_type: Optional[str] = "chat"  # chat, sms_draft, opener
+    contact_id: Optional[str] = None   # CRM contact for lead context injection
+
+
+# Per-task token limits and temperature — keeps costs low for simple tasks
+_TASK_SETTINGS = {
+    "sms_draft": {"max_tokens": 150, "temperature": 0.7, "skip_rag": False, "rag_top_k": 3},
+    "opener":    {"max_tokens": 300, "temperature": 0.7, "skip_rag": False, "rag_top_k": 5},
+    "chat":      {"max_tokens": 1500, "temperature": 0.7, "skip_rag": False, "rag_top_k": 7},
+}
+
+
 class ResearchRequest(BaseModel):
     query: str
     context: Optional[str] = ""
+
+
+class ExtractContactRequest(BaseModel):
+    contact_id: str
+    messages: list[ChatMessage]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -185,26 +214,32 @@ async def get_admin_usage(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return usage statistics across all users."""
+    """Return usage statistics across all users — global and per-user."""
     _require_superadmin(user)
     config = await _get_or_create_global_config(db)
 
-    # Get per-user stats from users who have overrides enabled
+    # Get per-user stats for ALL users who have made AI requests
     result = await db.execute(
-        select(User).where(User.ai_override_enabled.is_(True))
+        select(User).where(User.ai_total_requests > 0)
     )
-    users_with_overrides = result.scalars().all()
+    active_users = result.scalars().all()
 
     per_user = []
-    for u in users_with_overrides:
+    for u in active_users:
         per_user.append({
             "user_id": u.id,
             "email": u.email,
             "provider": u.ai_provider_override or config.active_provider,
             "model": u.ai_model_override or config.active_model,
-            "requests": 0,  # Per-user tracking would need a separate table
-            "tokens": 0,
+            "requests": u.ai_total_requests or 0,
+            "tokens": u.ai_total_tokens or 0,
+            "last_request_at": (
+                u.ai_last_request_at.isoformat() if u.ai_last_request_at else None
+            ),
         })
+
+    # Sort by tokens descending so heaviest users are at the top
+    per_user.sort(key=lambda x: x["tokens"], reverse=True)
 
     return {
         "total_requests": config.total_requests,
@@ -412,6 +447,228 @@ async def test_ai_provider(
     }
 
 
+@ai_router.post("/chat")
+async def chat(
+    body: ChatRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Multi-turn chat with the AI provider, enriched with Knowledge Base via RAG."""
+    settings = _settings()
+
+    # Resolve per-task settings (token limits, temperature, RAG behavior)
+    task = body.task_type or "chat"
+    task_cfg = _TASK_SETTINGS.get(task, _TASK_SETTINGS["chat"])
+
+    # Extract the latest user message for semantic search
+    latest_user_msg = ""
+    for msg in reversed(body.messages):
+        if msg.role == "user":
+            latest_user_msg = msg.content
+            break
+
+    # Use RAG to find relevant knowledge entries — unless this task type
+    # skips RAG (e.g. SMS drafts don't need the full knowledge base).
+    knowledge = []
+    if not task_cfg.get("skip_rag"):
+        knowledge = await retrieve_relevant_knowledge(
+            user_id=user.id,
+            query=latest_user_msg,
+            db=db,
+            top_k=task_cfg.get("rag_top_k", 7),
+        )
+
+    # Separate training entries (always-on foundation) from situational knowledge
+    training = [e for e in knowledge if e.get("entry_type") == "training"]
+    situational = [e for e in knowledge if e.get("entry_type") != "training"]
+
+    # Build system prompt: training first (sets mindset/tone), then
+    # any frontend system text, then situational knowledge.
+    system_content = ""
+
+    # Training comes FIRST — it's the AI's core approach and mindset
+    if training:
+        system_content += "CORE TRAINING & APPROACH:\n"
+        system_content += "Always follow this training to set your mindset, tone, "
+        system_content += "and approach for every interaction.\n\n"
+        for entry in training:
+            system_content += f"--- {entry['name']} ---\n{entry['content']}\n\n"
+
+    # Then any persona/context from the frontend
+    if body.system:
+        system_content += body.system + "\n"
+
+    # Then situational knowledge (scripts, objection handlers, etc.)
+    if situational:
+        system_content += "\nRELEVANT KNOWLEDGE:\n"
+        for entry in situational:
+            system_content += f"--- {entry['name']} ---\n{entry['content']}\n\n"
+
+    # Inject CRM lead context if a contact_id was provided
+    if body.contact_id:
+        result_q = await db.execute(
+            select(CrmContact).where(
+                CrmContact.id == body.contact_id,
+                CrmContact.user_id == user.id,
+                CrmContact.is_deleted == False,
+            )
+        )
+        contact = result_q.scalar_one_or_none()
+        if contact:
+            context_lines = []
+            if contact.name:
+                context_lines.append(f"Name: {contact.name}")
+            if contact.phone:
+                context_lines.append(f"Phone: {contact.phone}")
+            if contact.email:
+                context_lines.append(f"Email: {contact.email}")
+            if contact.notes:
+                context_lines.append(f"Notes: {contact.notes}")
+            if contact.source:
+                context_lines.append(f"Source: {contact.source}")
+            if context_lines:
+                system_content += "\nLEAD CONTEXT (what we already know about this person):\n"
+                system_content += "\n".join(f"- {line}" for line in context_lines)
+                system_content += "\nDo NOT re-ask for information already listed above.\n\n"
+
+    # Build the messages list, prepending system message if we have one
+    messages = []
+    if system_content.strip():
+        messages.append({"role": "system", "content": system_content})
+    for msg in body.messages:
+        messages.append({"role": msg.role, "content": msg.content})
+
+    # ── Check AI usage limit before calling the model ──
+    # If over allowance: allow if user has own key OR has universal credits.
+    allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
+    allowance_cents = allowance["monthly_allowance_cents"]
+    has_own_key = user.ai_override_enabled and bool(
+        getattr(user, "ai_own_anthropic_key", None)
+        or getattr(user, "ai_own_nvidia_key", None)
+    )
+    over_allowance = (user.ai_cost_cents or 0) >= allowance_cents
+    if over_allowance and not has_own_key:
+        # No own key — check if they have universal credits
+        if (user.phone_credits_cents or 0) <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="ai_limit_reached",
+            )
+        # Has credits → let through, credits will be deducted in ai_complete()
+
+    result = await ai_complete(
+        messages=messages,
+        user_id=user.id,
+        db=db,
+        settings=settings,
+        task_type=task,
+        max_tokens=task_cfg["max_tokens"],
+        temperature=task_cfg["temperature"],
+    )
+
+    response: dict = {
+        "content": result["content"],
+        "model": result["model"],
+        "usage": {
+            "input_tokens": result.get("input_tokens", 0),
+            "output_tokens": result.get("output_tokens", 0),
+            "cost_cents": result.get("cost_cents", 0),
+        },
+    }
+    # Include warning threshold if one was crossed on this call
+    if result.get("warning_pct"):
+        response["usage"]["warning_pct"] = result["warning_pct"]
+    return response
+
+
+@ai_router.get("/usage")
+async def get_my_usage(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's AI usage and remaining allowance."""
+    allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
+    allowance_cents = allowance["monthly_allowance_cents"]
+    cost = user.ai_cost_cents or 0
+    has_own_key = user.ai_override_enabled and bool(
+        getattr(user, "ai_own_anthropic_key", None)
+        or getattr(user, "ai_own_nvidia_key", None)
+    )
+
+    return {
+        "total_requests": user.ai_total_requests or 0,
+        "total_tokens": user.ai_total_tokens or 0,
+        "cost_cents": cost,
+        "allowance_cents": allowance_cents,
+        "remaining_cents": max(0, allowance_cents - cost),
+        "credits_cents": user.phone_credits_cents or 0,
+        "has_own_key": has_own_key,
+        "plan": user.plan,
+        "reset_at": user.ai_cost_reset_at.isoformat() if user.ai_cost_reset_at else None,
+    }
+
+
+@ai_router.post("/extract-contact-data")
+async def extract_contact_data(
+    body: ExtractContactRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Extract lead data from a conversation using NVIDIA (free) and update the CRM contact."""
+    settings = _settings()
+
+    # Convert messages to dicts
+    msgs = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    extracted = await extract_conversation_data_with_db(msgs, db, settings)
+    if not extracted:
+        return {"extracted": {}, "updated": False}
+
+    # Look up the CRM contact
+    result = await db.execute(
+        select(CrmContact).where(
+            CrmContact.id == body.contact_id,
+            CrmContact.user_id == user.id,
+            CrmContact.is_deleted == False,
+        )
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        return {"extracted": extracted, "updated": False}
+
+    # Only update fields that are currently empty on the contact
+    field_map = {
+        "name": "name",
+        "first_name": "first_name",
+        "last_name": "last_name",
+        "email": "email",
+        "phone": "phone",
+        "notes": "notes",
+    }
+    updated_any = False
+    for json_key, db_col in field_map.items():
+        value = extracted.get(json_key)
+        if value and not getattr(contact, db_col, None):
+            setattr(contact, db_col, value)
+            updated_any = True
+
+    # Special handling: property_address goes into notes if notes is empty
+    prop_addr = extracted.get("property_address")
+    if prop_addr and not contact.notes:
+        contact.notes = f"Property: {prop_addr}"
+        updated_any = True
+    elif prop_addr and contact.notes and "Property:" not in contact.notes:
+        contact.notes = f"{contact.notes}\nProperty: {prop_addr}"
+        updated_any = True
+
+    if updated_any:
+        from datetime import datetime
+        contact.last_activity = datetime.utcnow()
+        await db.commit()
+
+    return {"extracted": extracted, "updated": updated_any}
+
+
 @ai_router.post("/research")
 async def run_research(
     body: ResearchRequest,
@@ -433,4 +690,44 @@ async def run_research(
         "content": result["content"],
         "provider": result["provider"],
         "model": result["model"],
+    }
+
+
+@ai_router.post("/rebuild-embeddings")
+async def rebuild_embeddings(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-embed all active knowledge entries for the current user.
+
+    Useful after bulk-adding entries or when first setting up the RAG system.
+    This creates or updates the embedding fingerprint for every active
+    knowledge entry (both platform-level and user-level).
+    """
+    count = await rebuild_all_embeddings(user.id, db)
+    return {
+        "status": "completed",
+        "entries_embedded": count,
+    }
+
+
+@ai_router.post("/seed-knowledge")
+async def seed_knowledge(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Seed platform-level starter knowledge entries and embed them.
+
+    Creates standard REI scripts, objection handlers, and templates
+    if they don't already exist, then generates embeddings for all of them.
+    Safe to call multiple times — won't duplicate existing entries.
+    """
+    from rei.seeds.knowledge_seeds import seed_platform_knowledge
+
+    entries_created = await seed_platform_knowledge(db)
+    entries_embedded = await rebuild_all_embeddings(user.id, db)
+    return {
+        "status": "completed",
+        "entries_created": entries_created,
+        "entries_embedded": entries_embedded,
     }

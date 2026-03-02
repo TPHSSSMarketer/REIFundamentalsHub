@@ -1,4 +1,5 @@
 import { getAuthHeader } from './auth'
+import type { AiChatMessage, AiChatResponse, AiTaskType } from './aiService'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -190,6 +191,72 @@ export async function runResearch(
       content: 'Real estate market analysis indicates opportunities in undervalued properties with strong appreciation potential. Consider diversifying across multiple markets and property types.',
       provider: 'anthropic',
       model: 'claude-3-5-sonnet',
+    }
+  )
+}
+
+export async function chatWithAi(
+  messages: AiChatMessage[],
+  system?: string,
+  taskType?: AiTaskType
+): Promise<AiChatResponse> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ messages, system, task_type: taskType ?? 'chat' }),
+        credentials: 'include',
+      }).then((res) => handleResponse<AiChatResponse>(res)),
+    {
+      content:
+        'This is a demo response. In production, Claude would help you with real estate investing questions, draft SMS messages, and more.',
+      model: 'claude-3-5-sonnet',
+      usage: { input_tokens: 120, output_tokens: 85 },
+    }
+  )
+}
+
+export async function extractContactData(
+  contactId: string,
+  messages: Array<{ role: string; content: string }>,
+): Promise<Record<string, unknown>> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/extract-contact-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ contact_id: contactId, messages }),
+        credentials: 'include',
+      }).then((res) => handleResponse<Record<string, unknown>>(res)),
+    {}
+  )
+}
+
+export async function chatWithAiAndContact(
+  messages: AiChatMessage[],
+  system?: string,
+  taskType?: AiTaskType,
+  contactId?: string,
+): Promise<AiChatResponse> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          messages,
+          system,
+          task_type: taskType ?? 'chat',
+          contact_id: contactId,
+        }),
+        credentials: 'include',
+      }).then((res) => handleResponse<AiChatResponse>(res)),
+    {
+      content:
+        'This is a demo response. In production, Claude would help you with real estate investing questions, draft SMS messages, and more.',
+      model: 'claude-3-5-sonnet',
+      usage: { input_tokens: 120, output_tokens: 85 },
     }
   )
 }

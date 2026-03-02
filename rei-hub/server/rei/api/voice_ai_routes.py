@@ -38,7 +38,8 @@ from rei.models.user import (
     User,
 )
 from rei.services import elevenlabs_service
-from rei.services.ai_service import build_voice_agent_prompt
+from rei.services.ai_service import build_voice_agent_prompt, get_user_knowledge
+from rei.services.rag_service import delete_embedding, embed_knowledge_entry
 from rei.services.callback_scheduler import create_callback_from_conversation
 from rei.services.campaign_scheduler import (
     get_campaign_stats,
@@ -186,7 +187,7 @@ async def update_agent(
     if agent.elevenlabs_agent_id and (body.elevenlabs_voice_id or body.system_prompt):
         try:
             # Build the full prompt with knowledge base
-            knowledge = await _get_agent_knowledge(user.id, db)
+            knowledge = await get_user_knowledge(user.id, db)
             full_prompt = build_voice_agent_prompt(
                 agent_name=agent.name,
                 agent_role=agent.role,
@@ -244,7 +245,7 @@ async def provision_agent(
         )
 
     # Gather knowledge base
-    knowledge = await _get_agent_knowledge(user.id, db)
+    knowledge = await get_user_knowledge(user.id, db)
     knowledge_text = "\n\n".join(
         f"=== {k['name']} ===\n{k['content']}" for k in knowledge
     )
@@ -336,10 +337,11 @@ async def create_knowledge(
     This is how investors add their company data or custom scripts.
     """
     # Only allow account-level types (not platform_script)
-    if body.entry_type not in ("account_data", "custom_script", "objection_handler"):
+    allowed = ("account_data", "custom_script", "objection_handler", "training")
+    if body.entry_type not in allowed:
         raise HTTPException(
             status_code=400,
-            detail="entry_type must be 'account_data', 'custom_script', or 'objection_handler'"
+            detail=f"entry_type must be one of: {', '.join(allowed)}"
         )
 
     entry = KnowledgeEntry(
@@ -350,6 +352,12 @@ async def create_knowledge(
     )
     db.add(entry)
     await db.commit()
+
+    # Generate embedding for RAG retrieval (non-blocking — failure won't break create)
+    try:
+        await embed_knowledge_entry(entry.id, db)
+    except Exception:
+        logger.warning("Failed to embed new entry %s — will retry later.", entry.id)
 
     return {"status": "created", "id": entry.id}
 
@@ -384,6 +392,12 @@ async def update_knowledge(
     entry.updated_at = datetime.utcnow()
     await db.commit()
 
+    # Re-embed the updated entry for RAG retrieval
+    try:
+        await embed_knowledge_entry(entry_id, db)
+    except Exception:
+        logger.warning("Failed to re-embed entry %s — will retry later.", entry_id)
+
     return {"status": "updated", "id": entry_id}
 
 
@@ -405,6 +419,12 @@ async def delete_knowledge(
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
+
+    # Remove the embedding first (before deleting the entry)
+    try:
+        await delete_embedding(entry_id, db)
+    except Exception:
+        logger.warning("Failed to delete embedding for entry %s.", entry_id)
 
     await db.delete(entry)
     await db.commit()
@@ -532,20 +552,6 @@ async def _create_default_agents(user_id: int, db: AsyncSession) -> list[AIAgent
 
     await db.commit()
     return agents
-
-
-async def _get_agent_knowledge(user_id: int, db: AsyncSession) -> list[dict]:
-    """Get all active knowledge entries for a user (platform + account level)."""
-    result = await db.execute(
-        select(KnowledgeEntry).where(
-            and_(
-                (KnowledgeEntry.user_id == user_id) | (KnowledgeEntry.user_id.is_(None)),
-                KnowledgeEntry.is_active == True,
-            )
-        )
-    )
-    entries = result.scalars().all()
-    return [{"name": e.name, "content": e.content} for e in entries]
 
 
 # ════════════════════════════════════════════════════════════════════════

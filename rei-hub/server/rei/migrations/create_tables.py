@@ -111,6 +111,17 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "amount_behind_3rd", "REAL DEFAULT NULL"),
     # ── Contact: buying entity ──
     ("crm_contacts", "buying_entity", "VARCHAR"),
+    # ── Per-user AI usage tracking ──
+    ("users", "ai_total_requests", "INTEGER DEFAULT 0"),
+    ("users", "ai_total_tokens", "INTEGER DEFAULT 0"),
+    ("users", "ai_last_request_at", "DATETIME"),
+    # ── AI dollar-cost tracking ──
+    ("users", "ai_cost_cents", "INTEGER DEFAULT 0"),
+    ("users", "ai_cost_reset_at", "DATETIME"),
+    # ── AI usage reminder flags ──
+    ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT 0"),
+    ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT 0"),
+    ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT 0"),
 ]
 
 

@@ -8,14 +8,15 @@ import base64
 import json
 import logging
 import time
+from datetime import datetime
 from typing import Optional
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.config import Settings
-from rei.models.user import AIProviderConfig, User
+from rei.config import AI_PLAN_ALLOWANCES, AI_TOKEN_PRICING, Settings
+from rei.models.user import AIProviderConfig, KnowledgeEntry, User
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +151,15 @@ async def _call_anthropic(
             content += block.get("text", "")
 
     usage = data.get("usage", {})
-    tokens_used = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+    input_tokens = usage.get("input_tokens", 0)
+    output_tokens = usage.get("output_tokens", 0)
 
-    return {"content": content, "tokens_used": tokens_used}
+    return {
+        "content": content,
+        "tokens_used": input_tokens + output_tokens,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
 
 
 async def _call_nvidia(
@@ -191,9 +198,16 @@ async def _call_nvidia(
         content = choices[0].get("message", {}).get("content", "")
 
     usage = data.get("usage", {})
-    tokens_used = usage.get("total_tokens", 0)
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
+    total_tokens = usage.get("total_tokens", 0) or (prompt_tokens + completion_tokens)
 
-    return {"content": content, "tokens_used": tokens_used}
+    return {
+        "content": content,
+        "tokens_used": total_tokens,
+        "input_tokens": prompt_tokens or total_tokens,
+        "output_tokens": completion_tokens or 0,
+    }
 
 
 # ── Core completion function ──────────────────────────────────────────────
@@ -255,6 +269,12 @@ async def _resolve_provider(
                     user.ai_own_nvidia_key, settings.ai_encryption_key
                 )
 
+    # Smart model routing: simple tasks use cheaper/faster models
+    # Only applies when using Anthropic — NVIDIA models don't have a Haiku equivalent
+    _HAIKU_TASKS = {"sms_draft", "opener", "chat"}
+    if task_type in _HAIKU_TASKS and provider == "anthropic":
+        model = "claude-haiku-4-5-20251001"
+
     # For legal/research tasks, prefer nvidia_aiq if configured
     if task_type in ("legal", "research") and nvidia_key:
         provider = "nvidia_aiq"
@@ -292,6 +312,31 @@ async def _resolve_provider(
     }
 
 
+def _fire_usage_reminder(user_obj: User, pct_used: int, settings: Settings) -> None:
+    """Schedule a usage reminder email (fire-and-forget, non-blocking)."""
+    import asyncio
+
+    async def _send():
+        try:
+            from rei.services.email import send_ai_usage_reminder_email
+
+            await send_ai_usage_reminder_email(
+                to_email=user_obj.email,
+                full_name=user_obj.full_name or user_obj.email,
+                pct_used=pct_used,
+                plan=getattr(user_obj, "plan", "starter"),
+                settings=settings,
+            )
+        except Exception as exc:
+            logger.warning("Failed to send AI usage reminder: %s", exc)
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_send())
+    except RuntimeError:
+        pass  # No running loop — skip (shouldn't happen in FastAPI)
+
+
 async def ai_complete(
     messages: list[dict],
     user_id: Optional[int],
@@ -313,6 +358,8 @@ async def ai_complete(
             "provider": resolved["provider"],
             "model": resolved["model"],
             "tokens_used": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
         }
 
     try:
@@ -345,6 +392,8 @@ async def ai_complete(
             "provider": resolved["provider"],
             "model": resolved["model"],
             "tokens_used": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
         }
     except Exception as exc:
         logger.exception("AI provider call failed")
@@ -353,21 +402,267 @@ async def ai_complete(
             "provider": resolved["provider"],
             "model": resolved["model"],
             "tokens_used": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
         }
 
-    # Update usage tracking on global config
+    # Update usage tracking — global config + per-user
+    tokens_used = result.get("tokens_used", 0)
+    input_tokens = result.get("input_tokens", 0)
+    output_tokens = result.get("output_tokens", 0)
+
     global_config = await _get_global_config(db)
     if global_config:
         global_config.total_requests += 1
-        global_config.total_tokens += result.get("tokens_used", 0)
-        await db.commit()
+        global_config.total_tokens += tokens_used
+
+    # ── Calculate dollar cost from token pricing ──
+    pricing = AI_TOKEN_PRICING.get(
+        resolved["model"], {"input_per_1m": 0, "output_per_1m": 0}
+    )
+    cost_dollars = (
+        (input_tokens / 1_000_000) * pricing["input_per_1m"]
+        + (output_tokens / 1_000_000) * pricing["output_per_1m"]
+    )
+    cost_cents = round(cost_dollars * 100)  # Integer cents
+
+    # Per-user tracking (tokens + dollar cost + threshold reminders)
+    warning_pct = None  # Will be set if a threshold is crossed
+    if user_id:
+        user_obj = await db.get(User, user_id)
+        if user_obj:
+            user_obj.ai_total_requests = (user_obj.ai_total_requests or 0) + 1
+            user_obj.ai_total_tokens = (user_obj.ai_total_tokens or 0) + tokens_used
+            user_obj.ai_last_request_at = datetime.utcnow()
+
+            # Monthly reset: if we're in a new month, zero out cost + reminder flags
+            now = datetime.utcnow()
+            start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if user_obj.ai_cost_reset_at is None or user_obj.ai_cost_reset_at < start_of_month:
+                user_obj.ai_cost_cents = 0
+                user_obj.ai_cost_reset_at = start_of_month
+                user_obj.ai_reminder_75_sent = False
+                user_obj.ai_reminder_90_sent = False
+                user_obj.ai_reminder_95_sent = False
+
+            # Determine plan allowance for credit logic + reminders
+            plan_allowance = AI_PLAN_ALLOWANCES.get(
+                getattr(user_obj, "plan", "starter"),
+                AI_PLAN_ALLOWANCES["starter"],
+            )
+            allowance_cents = plan_allowance["monthly_allowance_cents"]
+
+            # Accumulate cost — or deduct from universal credits if over allowance
+            if allowance_cents > 0 and (user_obj.ai_cost_cents or 0) >= allowance_cents:
+                # Over monthly allowance → deduct from universal credits instead
+                user_obj.phone_credits_cents = max(
+                    0, (user_obj.phone_credits_cents or 0) - cost_cents
+                )
+            else:
+                # Under allowance → add to ai_cost_cents as normal
+                user_obj.ai_cost_cents = (user_obj.ai_cost_cents or 0) + cost_cents
+
+            # ── Check usage thresholds and send reminders ──
+            if allowance_cents > 0:
+                pct_used = ((user_obj.ai_cost_cents or 0) / allowance_cents) * 100
+                if pct_used >= 95 and not user_obj.ai_reminder_95_sent:
+                    user_obj.ai_reminder_95_sent = True
+                    warning_pct = 95
+                    _fire_usage_reminder(user_obj, 95, settings)
+                elif pct_used >= 90 and not user_obj.ai_reminder_90_sent:
+                    user_obj.ai_reminder_90_sent = True
+                    warning_pct = 90
+                    _fire_usage_reminder(user_obj, 90, settings)
+                elif pct_used >= 75 and not user_obj.ai_reminder_75_sent:
+                    user_obj.ai_reminder_75_sent = True
+                    warning_pct = 75
+                    _fire_usage_reminder(user_obj, 75, settings)
+
+    await db.commit()
 
     return {
         "content": result["content"],
         "provider": resolved["provider"],
         "model": resolved["model"],
-        "tokens_used": result.get("tokens_used", 0),
+        "tokens_used": tokens_used,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost_cents": cost_cents,
+        "warning_pct": warning_pct,
     }
+
+
+# ── Knowledge Base helper ─────────────────────────────────────────────────
+
+
+async def get_user_knowledge(user_id: int, db: AsyncSession) -> list[dict]:
+    """Get all active knowledge entries for a user (platform + account level)."""
+    result = await db.execute(
+        select(KnowledgeEntry).where(
+            and_(
+                (KnowledgeEntry.user_id == user_id) | (KnowledgeEntry.user_id.is_(None)),
+                KnowledgeEntry.is_active == True,
+            )
+        )
+    )
+    entries = result.scalars().all()
+    return [{"name": e.name, "content": e.content} for e in entries]
+
+
+# ── Conversation data extraction (NVIDIA — free) ─────────────────────────
+
+
+async def extract_conversation_data(
+    messages: list[dict],
+    settings: Settings,
+) -> dict:
+    """Extract structured lead data from a conversation using NVIDIA (free).
+
+    Returns a dict of extracted fields (null for anything not mentioned).
+    Uses NVIDIA models so there is zero token cost.
+    """
+    # Build the extraction prompt
+    conversation_text = ""
+    for msg in messages:
+        role = "Agent" if msg.get("role") == "assistant" else "Lead"
+        conversation_text += f"{role}: {msg.get('content', '')}\n"
+
+    extraction_prompt = f"""Analyze this real estate conversation and extract any mentioned information.
+Return ONLY a valid JSON object with these fields (use null for anything not mentioned):
+
+{{
+    "name": "<full name or null>",
+    "first_name": "<first name or null>",
+    "last_name": "<last name or null>",
+    "email": "<email address or null>",
+    "phone": "<phone number or null>",
+    "property_address": "<property address or null>",
+    "motivation": "<why they want to sell or null>",
+    "timeline": "<when they want to sell or null>",
+    "asking_price": "<their price expectation as a number or null>",
+    "notes": "<any other relevant details or null>"
+}}
+
+CONVERSATION:
+{conversation_text}
+
+Return ONLY the JSON object, nothing else."""
+
+    # Resolve NVIDIA API key from global config
+    global_config = None
+    nvidia_key = ""
+    # We need a DB session but this is called from the endpoint which has one
+    # The caller passes settings which has the encryption key
+    # We'll use the key from settings or global config
+    # For simplicity, try to get the key from env/settings first
+    nvidia_key = getattr(settings, "nvidia_api_key", "") or ""
+
+    if not nvidia_key:
+        # Try decrypting from global config — but we don't have db here.
+        # The endpoint will pass the key or we fall back gracefully.
+        logger.warning("No NVIDIA key available for extraction — skipping")
+        return {}
+
+    try:
+        result = await _call_nvidia(
+            messages=[{"role": "user", "content": extraction_prompt}],
+            model="moonshotai/kimi-k2.5-instruct",
+            api_key=nvidia_key,
+            base_url="https://integrate.api.nvidia.com",
+            max_tokens=500,
+            temperature=0.1,
+        )
+
+        response_text = result.get("content", "").strip()
+
+        # Clean up potential markdown formatting
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0]
+
+        return json.loads(response_text.strip())
+
+    except json.JSONDecodeError as exc:
+        logger.warning("Failed to parse extraction JSON: %s", exc)
+        return {}
+    except Exception as exc:
+        logger.warning("Conversation data extraction failed: %s", exc)
+        return {}
+
+
+async def extract_conversation_data_with_db(
+    messages: list[dict],
+    db: AsyncSession,
+    settings: Settings,
+) -> dict:
+    """Wrapper that resolves the NVIDIA key from global config + settings."""
+    # Try to get NVIDIA key from global config
+    global_config = await _get_global_config(db)
+    nvidia_key = ""
+    if global_config and global_config.nvidia_api_key:
+        nvidia_key = decrypt_api_key(
+            global_config.nvidia_api_key, settings.ai_encryption_key
+        )
+
+    if not nvidia_key:
+        nvidia_key = getattr(settings, "nvidia_api_key", "") or ""
+
+    if not nvidia_key:
+        logger.warning("No NVIDIA key for extraction")
+        return {}
+
+    # Build extraction prompt inline to avoid passing settings for key
+    conversation_text = ""
+    for msg in messages:
+        role = "Agent" if msg.get("role") == "assistant" else "Lead"
+        conversation_text += f"{role}: {msg.get('content', '')}\n"
+
+    extraction_prompt = f"""Analyze this real estate conversation and extract any mentioned information.
+Return ONLY a valid JSON object with these fields (use null for anything not mentioned):
+
+{{
+    "name": "<full name or null>",
+    "first_name": "<first name or null>",
+    "last_name": "<last name or null>",
+    "email": "<email address or null>",
+    "phone": "<phone number or null>",
+    "property_address": "<property address or null>",
+    "motivation": "<why they want to sell or null>",
+    "timeline": "<when they want to sell or null>",
+    "asking_price": "<their price expectation as a number or null>",
+    "notes": "<any other relevant details or null>"
+}}
+
+CONVERSATION:
+{conversation_text}
+
+Return ONLY the JSON object, nothing else."""
+
+    try:
+        result = await _call_nvidia(
+            messages=[{"role": "user", "content": extraction_prompt}],
+            model="moonshotai/kimi-k2.5-instruct",
+            api_key=nvidia_key,
+            base_url="https://integrate.api.nvidia.com",
+            max_tokens=500,
+            temperature=0.1,
+        )
+
+        response_text = result.get("content", "").strip()
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0]
+
+        return json.loads(response_text.strip())
+
+    except json.JSONDecodeError as exc:
+        logger.warning("Failed to parse extraction JSON: %s", exc)
+        return {}
+    except Exception as exc:
+        logger.warning("Conversation data extraction failed: %s", exc)
+        return {}
 
 
 # ── Research helper ───────────────────────────────────────────────────────

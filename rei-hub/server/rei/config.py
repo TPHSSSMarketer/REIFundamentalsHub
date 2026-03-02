@@ -231,6 +231,26 @@ CREDIT_BUNDLES: dict[str, dict[str, int]] = {
 # Starter plan cannot use AI voicemail drops at all.
 AI_VOICEMAIL_PLANS: list[str] = ["pro", "team"]
 
+# ── AI Token Pricing (cost per 1 million tokens) ────────────────────────
+# Used to calculate real dollar costs for each AI call.
+AI_TOKEN_PRICING: dict[str, dict[str, float]] = {
+    "claude-sonnet-4-6":          {"input_per_1m": 3.00,  "output_per_1m": 15.00},
+    "claude-haiku-4-5-20251001":  {"input_per_1m": 0.80,  "output_per_1m": 4.00},
+    "claude-opus-4-6":            {"input_per_1m": 15.00, "output_per_1m": 75.00},
+    # NVIDIA NIM models — free tier
+    "moonshotai/kimi-k2.5-instruct":           {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "minimax/minimax-text-01":                  {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "nvidia/llama-3.3-nemotron-super-49b-v1":   {"input_per_1m": 0.00, "output_per_1m": 0.00},
+}
+
+# ── AI Plan Allowances (monthly free AI usage in cents) ─────────────────
+# When a user hits their allowance, they must use their own API key or upgrade.
+AI_PLAN_ALLOWANCES: dict[str, dict[str, int]] = {
+    "starter": {"monthly_allowance_cents": 500},    # $5.00/month
+    "pro":     {"monthly_allowance_cents": 2000},   # $20.00/month
+    "team":    {"monthly_allowance_cents": 5000},    # $50.00/month
+}
+
 
 # ── Helpers to resolve Stripe price IDs from settings ──────────────────
 

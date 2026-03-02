@@ -217,6 +217,37 @@ async def send_payment_failed_email(user: User, settings: Settings) -> bool:
     )
 
 
+async def send_ai_usage_reminder_email(
+    to_email: str,
+    full_name: str,
+    pct_used: int,
+    plan: str,
+    settings: Settings,
+) -> bool:
+    """Send a reminder when AI usage hits 75%, 90%, or 95% of the monthly allowance."""
+    name = full_name or to_email
+    pct_remaining = 100 - pct_used
+    hub_url = settings.hub_url
+
+    body = (
+        f"<p>Hi {name},</p>"
+        f"<p>You've used <strong>{pct_used}%</strong> of your monthly AI allowance "
+        f"on the <strong>{plan}</strong> plan — only {pct_remaining}% remaining.</p>"
+        f"<p>To keep using AI features once your allowance runs out, you can:</p>"
+        f"<p><strong>Option 1:</strong> Add your own API key in AI Settings<br>"
+        f"<strong>Option 2:</strong> Buy credits (works for AI, phone, SMS, and fax)</p>"
+        f"{_cta_button('Buy Credits', f'{hub_url}/billing')}"
+    )
+
+    return await send_email(
+        to_email=to_email,
+        to_name=name,
+        subject=f"AI usage alert — {pct_remaining}% of your monthly allowance remaining",
+        html_content=_build_html(body),
+        settings=settings,
+    )
+
+
 async def send_subscription_canceled_email(user: User, settings: Settings) -> bool:
     """Notification when a subscription is canceled."""
     name = user.full_name or user.email

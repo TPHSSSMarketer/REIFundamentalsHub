@@ -22,15 +22,17 @@ import {
   type UpdateKnowledgePayload,
 } from '@/services/voiceAiApi'
 
-type EntryType = 'account_data' | 'custom_script' | 'objection_handler'
+type EntryType = 'account_data' | 'custom_script' | 'objection_handler' | 'training'
 
 const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
+  training: 'Training',
   account_data: 'Account Data',
   custom_script: 'Custom Script',
   objection_handler: 'Objection Handler',
 }
 
 const ENTRY_TYPE_COLORS: Record<EntryType, string> = {
+  training: 'bg-green-100 text-green-700',
   account_data: 'bg-blue-100 text-blue-700',
   custom_script: 'bg-purple-100 text-purple-700',
   objection_handler: 'bg-orange-100 text-orange-700',

@@ -7,7 +7,7 @@ import {
 import { toast } from 'sonner'
 import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
-import { aiChat, AiServiceError } from '../../services/aiService'
+import { aiChat, AiServiceError, extractContactData } from '../../services/aiService'
 import type { Contact } from '@/types'
 
 // Voice sub-tabs (existing)
@@ -160,6 +160,15 @@ export default function AssistantHub() {
     (c) => c.name.toLowerCase().includes(emailSearch.toLowerCase()) || c.email.toLowerCase().includes(emailSearch.toLowerCase())
   )
 
+  // ── Background data extraction (NVIDIA, free) ──────────────
+
+  const _extractContactData = (contactId: string, msgs: Array<{ role: string; content: string }>) => {
+    // Fire-and-forget: extract lead info from conversation using NVIDIA (free)
+    extractContactData(contactId, msgs).catch(() => {
+      // Silently fail — extraction is best-effort
+    })
+  }
+
   // ── SMS handlers ────────────────────────────────────────────
 
   const handleSendSMS = async (e: React.FormEvent) => {
@@ -178,10 +187,12 @@ export default function AssistantHub() {
     try {
       const result = await aiChat([
         { role: 'user', content: `Write a short, friendly SMS message (under 160 characters) to a motivated seller lead named ${contact.name}. The message should re-engage them and invite a quick reply. Do not include any explanation — just the SMS text itself.` },
-      ])
+      ], undefined, 'sms_draft')
       setSmsMessage(result.content)
     } catch (error) {
-      if (error instanceof AiServiceError && error.status === 403) {
+      if (error instanceof AiServiceError && error.status === 429) {
+        toast.error('You\'ve used your monthly AI allowance and have no credits remaining. Buy credits or add your own API key to continue.', { duration: 8000 })
+      } else if (error instanceof AiServiceError && error.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else {
         toast.error(error instanceof Error ? error.message : 'Failed to generate draft')
@@ -216,13 +227,28 @@ export default function AssistantHub() {
     try {
       const persona = personas.find(p => p.id === activePersona) ?? personas[0]
       const updatedMessages = [...conversationMessages, userMessage]
-      const response = await aiChat(updatedMessages, persona.systemPrompt)
+      // Conversation windowing: only send the last 10 messages to save tokens
+      const MAX_HISTORY = 10
+      const recentMessages = updatedMessages.slice(-MAX_HISTORY)
+      const response = await aiChat(recentMessages, persona.systemPrompt, 'chat', activeLead?.id)
       setConversations(prev => ({
         ...prev,
         [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
       }))
+      // Show usage warning toast if a threshold was crossed
+      const warningPct = (response as any).usage?.warning_pct
+      if (warningPct) {
+        toast.warning(`You've used ${warningPct}% of your monthly AI allowance. Buy credits or add your own API key to avoid interruption.`, { duration: 8000 })
+      }
+      // Fire-and-forget: extract lead data from conversation via NVIDIA (free)
+      if (activeLead) {
+        const allMessages = [...conversationMessages, userMessage, { role: 'assistant' as const, content: response.content }]
+        _extractContactData(activeLead.id, allMessages)
+      }
     } catch (err) {
-      if (err instanceof AiServiceError && err.status === 403) {
+      if (err instanceof AiServiceError && err.status === 429) {
+        toast.error('You\'ve used your monthly AI allowance and have no credits remaining. Buy credits or add your own API key to continue.', { duration: 8000 })
+      } else if (err instanceof AiServiceError && err.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else if (err instanceof Error) {
         toast.error(err.message)
@@ -240,13 +266,16 @@ export default function AssistantHub() {
       const response = await aiChat(
         [{ role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead.name}. Keep it under 3 sentences.` }],
         persona.systemPrompt,
+        'opener',
       )
       setConversations(prev => ({
         ...prev,
         [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
       }))
     } catch (err) {
-      if (err instanceof AiServiceError && err.status === 403) {
+      if (err instanceof AiServiceError && err.status === 429) {
+        toast.error('You\'ve used your monthly AI allowance and have no credits remaining. Buy credits or add your own API key to continue.', { duration: 8000 })
+      } else if (err instanceof AiServiceError && err.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else if (err instanceof Error) {
         toast.error(err.message)
