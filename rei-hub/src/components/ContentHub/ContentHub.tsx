@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { toast } from 'sonner'
-import { helmGenerateWaterfall, helmGenerateImagePrompts, helmScrapeUrl, helmSaveContentToCloud, HelmProxyError, ContentWaterfallOutput } from '@/services/helmProxy'
+import { aiGenerateWaterfall, aiGenerateImagePrompts, aiScrapeUrl, aiSaveContentToCloud, AiServiceError, ContentWaterfallOutput } from '@/services/aiService'
 import PublishHistory, { PublishEntry } from './PublishHistory'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
@@ -45,14 +45,14 @@ export default function ContentHub() {
   const handleScrapeUrl = useCallback(async () => {
     setIsScraping(true)
     try {
-      const result = await helmScrapeUrl(sourceUrl)
+      const result = await aiScrapeUrl(sourceUrl)
       setSourceText(result.text)
       setSourceMode('text')
       toast.success('URL scraped — content loaded as text.')
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 503) {
+      if (err instanceof AiServiceError && err.status === 503) {
         toast.error('URL scraping is coming soon. Paste the content manually.')
-      } else if (err instanceof HelmProxyError && err.status === 403) {
+      } else if (err instanceof AiServiceError && err.status === 403) {
         toast.error('URL scraping is being upgraded. Check back soon.')
       } else {
         toast.error('Could not fetch that URL. Paste the content manually.')
@@ -71,7 +71,7 @@ export default function ContentHub() {
     setWaterfall(null)
     setImagePrompts([])
     try {
-      const result = await helmGenerateWaterfall({
+      const result = await aiGenerateWaterfall({
         source_text: sourceText,
         topic: topic || sourceText.slice(0, 60),
       })
@@ -96,9 +96,9 @@ export default function ContentHub() {
       }))
       setPublishHistory((prev) => [...newEntries, ...prev].slice(0, 50))
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 503) {
+      if (err instanceof AiServiceError && err.status === 503) {
         toast.error('Content generation is coming soon. Check back later.')
-      } else if (err instanceof HelmProxyError && err.status === 403) {
+      } else if (err instanceof AiServiceError && err.status === 403) {
         toast.error('Content generation is being upgraded. Check back soon.')
       } else {
         toast.error('Content generation failed. Please try again later.')
@@ -132,12 +132,12 @@ export default function ContentHub() {
     }
     const imagePlatform = platformMap[activeTab]
     try {
-      const result = await helmGenerateImagePrompts(topic || 'real estate investing', imagePlatform)
+      const result = await aiGenerateImagePrompts(topic || 'real estate investing', imagePlatform)
       setImagePrompts(result.prompts)
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 503) {
+      if (err instanceof AiServiceError && err.status === 503) {
         toast.error('Image prompt generation is coming soon. Check back later.')
-      } else if (err instanceof HelmProxyError && err.status === 403) {
+      } else if (err instanceof AiServiceError && err.status === 403) {
         toast.error('Image prompts are being upgraded. Check back soon.')
       } else {
         toast.error('Image prompt generation failed.')

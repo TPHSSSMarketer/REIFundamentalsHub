@@ -7,7 +7,7 @@ import {
 import { toast } from 'sonner'
 import { useContacts, useSendSMS, useSendEmail } from '@/hooks/useApi'
 import { formatPhone } from '@/utils/helpers'
-import { helmChat, HelmProxyError } from '../../services/helmProxy'
+import { aiChat, AiServiceError } from '../../services/aiService'
 import type { Contact } from '@/types'
 
 // Voice sub-tabs (existing)
@@ -176,12 +176,12 @@ export default function AssistantHub() {
     if (!contact) return
     setIsSmsAiLoading(true)
     try {
-      const result = await helmChat([
+      const result = await aiChat([
         { role: 'user', content: `Write a short, friendly SMS message (under 160 characters) to a motivated seller lead named ${contact.name}. The message should re-engage them and invite a quick reply. Do not include any explanation — just the SMS text itself.` },
       ])
       setSmsMessage(result.content)
     } catch (error) {
-      if (error instanceof HelmProxyError && error.status === 403) {
+      if (error instanceof AiServiceError && error.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else {
         toast.error(error instanceof Error ? error.message : 'Failed to generate draft')
@@ -216,13 +216,13 @@ export default function AssistantHub() {
     try {
       const persona = personas.find(p => p.id === activePersona) ?? personas[0]
       const updatedMessages = [...conversationMessages, userMessage]
-      const response = await helmChat(updatedMessages, persona.systemPrompt)
+      const response = await aiChat(updatedMessages, persona.systemPrompt)
       setConversations(prev => ({
         ...prev,
         [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
       }))
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
+      if (err instanceof AiServiceError && err.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else if (err instanceof Error) {
         toast.error(err.message)
@@ -237,7 +237,7 @@ export default function AssistantHub() {
     setIsChatLoading(true)
     try {
       const persona = personas.find(p => p.id === activePersona) ?? personas[0]
-      const response = await helmChat(
+      const response = await aiChat(
         [{ role: 'user', content: `Generate a warm, professional opening message to qualify a motivated seller lead named ${activeLead.name}. Keep it under 3 sentences.` }],
         persona.systemPrompt,
       )
@@ -246,7 +246,7 @@ export default function AssistantHub() {
         [activeLead!.id]: [...(prev[activeLead!.id] ?? []), { role: 'assistant', content: response.content }],
       }))
     } catch (err) {
-      if (err instanceof HelmProxyError && err.status === 403) {
+      if (err instanceof AiServiceError && err.status === 403) {
         toast.error('AI features coming soon — being upgraded to native AI.')
       } else if (err instanceof Error) {
         toast.error(err.message)

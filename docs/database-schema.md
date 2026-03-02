@@ -2,13 +2,12 @@
 
 ## Overview
 
-Both products share a single Supabase PostgreSQL project.
+REI Hub uses a dedicated Supabase PostgreSQL project.
 
 | Product | Access Method | Key | Can Write |
 |---------|-------------|-----|-----------|
 | REIFundamentals Hub (browser) | Supabase client (anon key + RLS) | VITE_SUPABASE_ANON_KEY | Own rows only |
-| Helm Hub (server) | Supabase client (service role key) | SUPABASE_SERVICE_ROLE_KEY | Any row |
-| Helm Hub (local dev) | SQLite (helm.db) | — | All (no RLS) |
+| REI Hub Backend (server) | Supabase client (service role key) | SUPABASE_SERVICE_ROLE_KEY | Any row |
 
 ---
 
@@ -33,11 +32,11 @@ The primary tenant record for REIFundamentals Hub.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| id | UUID PK | Referenced by rei_* tables and Helm's rei_organization_id |
+| id | UUID PK | Referenced by rei_* tables |
 | name | TEXT | Organization/company name |
 | owner_id | UUID FK → profiles | The account owner |
 | plan | TEXT | 'free', 'starter', 'pro', 'team' |
-| trial_ends_at | TIMESTAMPTZ | Helm checks this for entitlement |
+| trial_ends_at | TIMESTAMPTZ | Used for trial gating |
 | ghl_* | TEXT | GoHighLevel API keys (legacy — may be removed) |
 | google_* | TEXT | Google OAuth tokens |
 | created_at | TIMESTAMPTZ | |
@@ -55,7 +54,7 @@ User profiles — one per Supabase auth user.
 | role | TEXT | 'owner', 'member', 'admin' |
 
 ### `rei_deals` (from 002)
-The deal pipeline. Written by REI Hub's Pipeline Kanban, read by Helm.
+The deal pipeline. Written by REI Hub's Pipeline Kanban.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -81,7 +80,7 @@ The deal pipeline. Written by REI Hub's Pipeline Kanban, read by Helm.
 | passed_reason | TEXT | Why deal was rejected |
 
 ### `rei_contacts` (from 002)
-CRM contacts for REI. Written by REI Hub Contacts, read by Helm.
+CRM contacts for REI. Written by REI Hub Contacts.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -95,10 +94,10 @@ CRM contacts for REI. Written by REI Hub Contacts, read by Helm.
 | markets | TEXT[] | Array of zip codes or metro names |
 | rating | INTEGER | 1-5 stars |
 | last_contacted_at | TIMESTAMPTZ | Used for follow-up reminders |
-| interaction_count | INTEGER | Incremented by Helm after each contact |
+| interaction_count | INTEGER | Incremented after each contact |
 
 ### `rei_rules` (from 002)
-Investment criteria. Written via REI Hub Settings UI, read by Helm for deal evaluation.
+Investment criteria. Written via REI Hub Settings UI, used for deal evaluation.
 One row per user (UNIQUE on user_id).
 
 | Column | Type | Notes |
@@ -114,7 +113,7 @@ One row per user (UNIQUE on user_id).
 | target_markets | TEXT[] | Zip codes or metro names |
 
 ### `rei_market_data` (from 002)
-Market research per zip code. Written by Helm's market scan, read by both.
+Market research per zip code.
 UNIQUE on (user_id, zip).
 
 | Column | Type | Notes |

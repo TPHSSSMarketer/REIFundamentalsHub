@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Brain, Sparkles, Loader2 } from 'lucide-react'
-import { helmAnalyzeDeal } from '@/services/helmProxy'
+import { aiAnalyzeDeal } from '@/services/aiService'
 import { toast } from 'sonner'
 
 interface DealAnalysisPanelProps {
@@ -28,7 +28,7 @@ export default function DealAnalysisPanel({
     setAnalysisText('')
 
     try {
-      const response = await helmAnalyzeDeal({
+      const response = await aiAnalyzeDeal({
         address,
         arv,
         asking_price: askingPrice,

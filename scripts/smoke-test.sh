@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# smoke-test.sh — End-to-end smoke tests for REI Hub and Helm Hub.
-# Usage: ./scripts/smoke-test.sh [base_url_rei] [base_url_helm]
+# smoke-test.sh — End-to-end smoke tests for REI Hub.
+# Usage: ./scripts/smoke-test.sh [base_url_rei]
 set -euo pipefail
 
 REI_BASE="${1:-http://localhost:8001}"
-HELM_BASE="${2:-http://localhost:8000}"
 
 PASSED=0
 FAILED=0
@@ -98,37 +97,6 @@ if [ -n "$TOKEN" ]; then
   fi
 else
   fail "REI /api/admin/stats returns 403 for non-admin" "skipped — no auth token"
-fi
-
-# ── Helm Hub Tests ────────────────────────────────────────────────────────────
-
-echo ""
-echo "=== Helm Hub Tests ($HELM_BASE) ==="
-echo ""
-
-# 8. Health check
-RESP=$(curl -sf "$HELM_BASE/api/health" 2>/dev/null || true)
-if echo "$RESP" | grep -q '"status".*"ok"'; then
-  pass "Helm /api/health returns status ok"
-else
-  fail "Helm /api/health returns status ok" "got: $RESP"
-fi
-
-# 9. Helm plans — expect 200 with 2 plans
-RESP=$(curl -sf "$HELM_BASE/api/billing/helm/plans" 2>/dev/null || true)
-PLAN_COUNT=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('plans',{})))" 2>/dev/null || echo "0")
-if [ "$PLAN_COUNT" = "2" ]; then
-  pass "Helm /api/billing/helm/plans returns 2 plans"
-else
-  fail "Helm /api/billing/helm/plans returns 2 plans" "got $PLAN_COUNT plans"
-fi
-
-# 10. Dashboard summary
-HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "$HELM_BASE/api/dashboard/summary" 2>/dev/null || echo "000")
-if [ "$HTTP_CODE" = "200" ]; then
-  pass "Helm /api/dashboard/summary returns 200"
-else
-  fail "Helm /api/dashboard/summary returns 200" "got HTTP $HTTP_CODE"
 fi
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────

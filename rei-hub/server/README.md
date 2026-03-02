@@ -1,6 +1,6 @@
 # REI Hub Server
 
-Standalone FastAPI backend for REI Fundamentals Hub. Independent of Helm Hub — has its own database, users table, and JWT auth.
+Standalone FastAPI backend for REI Fundamentals Hub. Has its own database, users table, and JWT auth.
 
 ## Setup
 
@@ -13,7 +13,7 @@ cp .env.example .env        # then edit .env with your secrets
 python -m uvicorn main:app --reload --port 8001
 ```
 
-The server runs on **port 8001** (Helm Hub uses 8000).
+The server runs on **port 8001**.
 
 ## Endpoints
 

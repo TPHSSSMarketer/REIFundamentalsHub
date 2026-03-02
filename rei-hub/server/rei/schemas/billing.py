@@ -8,13 +8,13 @@ from pydantic import BaseModel, Field
 
 
 class CreateStripeSubscriptionRequest(BaseModel):
-    plan: str = Field(description="One of: starter, pro, team, helm_solo, helm_pro")
+    plan: str = Field(description="One of: starter, pro, team")
     billing_cycle: str = Field(description="monthly or annual")
     payment_method_id: str = Field(description="Stripe PaymentMethod ID from frontend")
 
 
 class CreatePayPalSubscriptionRequest(BaseModel):
-    plan: str = Field(description="One of: starter, pro, team, helm_solo, helm_pro")
+    plan: str = Field(description="One of: starter, pro, team")
     billing_cycle: str = Field(description="monthly or annual")
 
 

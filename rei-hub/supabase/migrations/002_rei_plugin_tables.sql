@@ -1,5 +1,5 @@
 -- ── rei_deals ─────────────────────────────────────────────────────────────────
--- Written by REI Hub frontend, read by Helm Hub context-sync
+-- Written by REI Hub frontend
 CREATE TABLE IF NOT EXISTS rei_deals (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

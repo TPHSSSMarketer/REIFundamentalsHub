@@ -47,13 +47,13 @@ rei-hub/src/
 | organizations | Tenant/org record — plan, trial_ends_at, API keys |
 | profiles | User profiles linked to organizations |
 
-**Tables to be added (migration 002 — see plugin-contract.md):**
+**Tables to be added (migration 002):**
 | Table | Purpose |
 |-------|---------|
-| rei_deals | Deal pipeline (written by REI Hub, read by Helm) |
-| rei_contacts | Contacts CRM (written by REI Hub, read by Helm) |
-| rei_rules | Investment rules/criteria (written by REI Hub UI, read by Helm) |
-| rei_market_data | Market research per zip code (read/written by both) |
+| rei_deals | Deal pipeline |
+| rei_contacts | Contacts CRM |
+| rei_rules | Investment rules/criteria |
+| rei_market_data | Market research per zip code |
 | rei_portfolio | Current holdings and performance data |
 
 ---
