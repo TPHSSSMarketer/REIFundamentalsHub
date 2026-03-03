@@ -417,6 +417,11 @@ async def process_message(
 ) -> dict:
     """Process an incoming message through the conversation flow engine.
 
+    CHANNEL GUARD: This engine handles SMS and WebChat channels ONLY.
+    ElevenLabs TTS is NEVER activated here — voice calls use phone_routes.py
+    which handles TTS via ElevenLabs Conversational AI signed URLs.
+    All AI responses here are pure text via ai_complete().
+
     THIS IS THE MAIN FUNCTION — called every time a contact sends a message.
 
     Args:

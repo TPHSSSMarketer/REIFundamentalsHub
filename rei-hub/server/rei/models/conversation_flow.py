@@ -81,6 +81,12 @@ class Persona(Base):
 
     # Voice assignment (ElevenLabs voice ID for TTS)
     elevenlabs_voice_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # ElevenLabs Conversational AI agent ID (provisioned for voice calls)
+    elevenlabs_agent_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Role (for voice agent use cases)
+    # "lead_qualifier", "appointment_setter", "follow_up", "negotiator", "buyer_intake"
+    role: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 

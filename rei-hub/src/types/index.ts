@@ -431,6 +431,7 @@ export interface Persona {
   is_system?: boolean
   cloned_from?: string
   elevenlabs_voice_id?: string
+  elevenlabs_agent_id?: string
 }
 
 export interface FlowExecution {

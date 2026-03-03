@@ -122,6 +122,13 @@ _COLUMN_MIGRATIONS = [
     ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT 0"),
     ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT 0"),
     ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT 0"),
+    # ── Agent→Persona Unification ──
+    ("personas", "elevenlabs_agent_id", "VARCHAR"),
+    ("personas", "role", "VARCHAR"),
+    ("phone_numbers", "persona_id", "VARCHAR"),
+    ("conversation_logs", "persona_id", "VARCHAR"),
+    ("scheduled_callbacks", "persona_id", "VARCHAR"),
+    ("call_campaigns", "persona_id", "VARCHAR"),
 ]
 
 

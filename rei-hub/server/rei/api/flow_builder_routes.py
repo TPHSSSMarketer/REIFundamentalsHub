@@ -142,6 +142,8 @@ class CreatePersonaRequest(BaseModel):
     max_response_delay_seconds: int = 0
     quirks: Optional[str] = None  # JSON
     elevenlabs_voice_id: Optional[str] = None
+    elevenlabs_agent_id: Optional[str] = None
+    role: Optional[str] = None
 
 
 class UpdatePersonaRequest(BaseModel):
@@ -157,6 +159,8 @@ class UpdatePersonaRequest(BaseModel):
     quirks: Optional[str] = None
     is_active: Optional[bool] = None
     elevenlabs_voice_id: Optional[str] = None
+    elevenlabs_agent_id: Optional[str] = None
+    role: Optional[str] = None
 
 
 # ════════════════════════════════════════════════════════════════
@@ -606,6 +610,8 @@ async def list_personas(
             "ai_provider": p.ai_provider,
             "ai_model": p.ai_model,
             "elevenlabs_voice_id": p.elevenlabs_voice_id,
+            "elevenlabs_agent_id": p.elevenlabs_agent_id,
+            "role": p.role,
             "is_active": p.is_active,
             "is_system": p.is_system,
             "cloned_from": p.cloned_from,
@@ -635,6 +641,8 @@ async def create_persona(
         max_response_delay_seconds=body.max_response_delay_seconds,
         quirks=body.quirks,
         elevenlabs_voice_id=body.elevenlabs_voice_id,
+        elevenlabs_agent_id=body.elevenlabs_agent_id,
+        role=body.role,
     )
     db.add(persona)
     await db.commit()
@@ -740,6 +748,8 @@ async def clone_persona(
         max_response_delay_seconds=source.max_response_delay_seconds,
         quirks=source.quirks,
         elevenlabs_voice_id=source.elevenlabs_voice_id,
+        elevenlabs_agent_id=None,  # Don't clone ElevenLabs provisioning — user must re-provision
+        role=source.role,
         is_system=False,
         cloned_from=source.id,
     )

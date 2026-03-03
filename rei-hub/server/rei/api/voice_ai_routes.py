@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
 from rei.models.user import (
-    AIAgent,
     CallCampaign,
     CampaignContact,
     ConversationLog,
@@ -37,6 +36,7 @@ from rei.models.user import (
     ScheduledCallback,
     User,
 )
+from rei.models.conversation_flow import Persona
 from rei.services import elevenlabs_service
 from rei.services.ai_service import build_voice_agent_prompt, get_user_knowledge
 from rei.services.rag_service import delete_embedding, embed_knowledge_entry
@@ -122,30 +122,29 @@ async def list_agents(
 ):
     """
     List all AI agents for the current user.
-    Returns Grace, Marcus, and Sofia (or any custom agents).
+    Shows user's own personas AND system personas (platform-level).
     """
     result = await db.execute(
-        select(AIAgent).where(AIAgent.user_id == user.id)
+        select(Persona).where(
+            (Persona.user_id == user.id) | (Persona.is_system.is_(True))
+        )
     )
-    agents = result.scalars().all()
-
-    # If no agents exist yet, create the default three
-    if not agents:
-        agents = await _create_default_agents(user.id, db)
+    personas = result.scalars().all()
 
     return [
         {
-            "id": a.id,
-            "name": a.name,
-            "role": a.role,
-            "personality": a.personality,
-            "elevenlabs_voice_id": a.elevenlabs_voice_id,
-            "elevenlabs_agent_id": a.elevenlabs_agent_id,
-            "system_prompt": a.system_prompt,
-            "is_active": a.is_active,
-            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "id": p.id,
+            "name": p.name,
+            "role": p.role or "",
+            "personality": p.personality_prompt,
+            "elevenlabs_voice_id": p.elevenlabs_voice_id,
+            "elevenlabs_agent_id": p.elevenlabs_agent_id,
+            "system_prompt": p.personality_prompt,
+            "is_active": p.is_active,
+            "is_system": p.is_system,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
         }
-        for a in agents
+        for p in personas
     ]
 
 
@@ -161,43 +160,43 @@ async def update_agent(
     This is how investors customize their agents' voice, personality, and scripts.
     """
     result = await db.execute(
-        select(AIAgent).where(
-            and_(AIAgent.id == agent_id, AIAgent.user_id == user.id)
+        select(Persona).where(
+            and_(Persona.id == agent_id, Persona.user_id == user.id)
         )
     )
-    agent = result.scalar_one_or_none()
-    if not agent:
+    persona = result.scalar_one_or_none()
+    if not persona:
         raise HTTPException(status_code=404, detail="Agent not found")
 
     # Update fields
     if body.name is not None:
-        agent.name = body.name
+        persona.name = body.name
     if body.personality is not None:
-        agent.personality = body.personality
+        persona.personality_prompt = body.personality
     if body.elevenlabs_voice_id is not None:
-        agent.elevenlabs_voice_id = body.elevenlabs_voice_id
+        persona.elevenlabs_voice_id = body.elevenlabs_voice_id
     if body.system_prompt is not None:
-        agent.system_prompt = body.system_prompt
+        persona.personality_prompt = body.system_prompt
     if body.is_active is not None:
-        agent.is_active = body.is_active
+        persona.is_active = body.is_active
 
-    agent.updated_at = datetime.utcnow()
+    persona.updated_at = datetime.utcnow()
 
     # If voice or prompt changed, update the ElevenLabs agent too
-    if agent.elevenlabs_agent_id and (body.elevenlabs_voice_id or body.system_prompt):
+    if persona.elevenlabs_agent_id and (body.elevenlabs_voice_id or body.system_prompt):
         try:
             # Build the full prompt with knowledge base
             knowledge = await get_user_knowledge(user.id, db)
             full_prompt = build_voice_agent_prompt(
-                agent_name=agent.name,
-                agent_role=agent.role,
-                agent_personality=agent.personality,
-                custom_system_prompt=agent.system_prompt,
+                agent_name=persona.name,
+                agent_role=persona.role or "assistant",
+                agent_personality=persona.personality_prompt,
+                custom_system_prompt=persona.personality_prompt,
                 knowledge_entries=knowledge,
             )
 
             await elevenlabs_service.update_conversational_agent(
-                agent_id=agent.elevenlabs_agent_id,
+                agent_id=persona.elevenlabs_agent_id,
                 system_prompt=full_prompt if body.system_prompt else None,
                 voice_id=body.elevenlabs_voice_id,
                 first_message=body.first_message,
@@ -230,15 +229,15 @@ async def provision_agent(
     5. Saves the ElevenLabs agent ID back to our database
     """
     result = await db.execute(
-        select(AIAgent).where(
-            and_(AIAgent.id == agent_id, AIAgent.user_id == user.id)
+        select(Persona).where(
+            and_(Persona.id == agent_id, Persona.user_id == user.id)
         )
     )
-    agent = result.scalar_one_or_none()
-    if not agent:
+    persona = result.scalar_one_or_none()
+    if not persona:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    if not agent.elevenlabs_voice_id:
+    if not persona.elevenlabs_voice_id:
         raise HTTPException(
             status_code=400,
             detail="Agent must have an ElevenLabs voice selected before provisioning"
@@ -252,31 +251,31 @@ async def provision_agent(
 
     # Build system prompt
     full_prompt = build_voice_agent_prompt(
-        agent_name=agent.name,
-        agent_role=agent.role,
-        agent_personality=agent.personality,
-        custom_system_prompt=agent.system_prompt,
+        agent_name=persona.name,
+        agent_role=persona.role or "assistant",
+        agent_personality=persona.personality_prompt,
+        custom_system_prompt=persona.personality_prompt,
         knowledge_entries=knowledge,
     )
 
     # Create on ElevenLabs
     result_data = await elevenlabs_service.create_conversational_agent(
-        agent_name=f"{agent.name} - {agent.role}",
+        agent_name=f"{persona.name} - {persona.role}",
         system_prompt=full_prompt,
-        voice_id=agent.elevenlabs_voice_id,
+        voice_id=persona.elevenlabs_voice_id,
         knowledge_base_text=knowledge_text,
         settings=settings,
     )
 
     # Save the ElevenLabs agent ID
-    agent.elevenlabs_agent_id = result_data.get("agent_id")
-    agent.updated_at = datetime.utcnow()
+    persona.elevenlabs_agent_id = result_data.get("agent_id")
+    persona.updated_at = datetime.utcnow()
     await db.commit()
 
     return {
         "status": "provisioned",
         "agent_id": agent_id,
-        "elevenlabs_agent_id": agent.elevenlabs_agent_id,
+        "elevenlabs_agent_id": persona.elevenlabs_agent_id,
     }
 
 
@@ -466,6 +465,7 @@ async def list_conversations(
             "id": c.id,
             "call_log_id": c.call_log_id,
             "agent_id": c.agent_id,
+            "persona_id": c.persona_id,
             "caller_mood": c.caller_mood,
             "deal_eagerness": c.deal_eagerness,
             "outcome": c.outcome,
@@ -506,6 +506,7 @@ async def get_conversation(
         "id": conv.id,
         "call_log_id": conv.call_log_id,
         "agent_id": conv.agent_id,
+        "persona_id": conv.persona_id,
         "elevenlabs_conversation_id": conv.elevenlabs_conversation_id,
         "transcript": json.loads(conv.transcript) if conv.transcript else [],
         "extracted_data": json.loads(conv.extracted_data) if conv.extracted_data else {},
@@ -520,39 +521,6 @@ async def get_conversation(
 
 
 # ── Helper Functions ────────────────────────────────────────────────────
-
-async def _create_default_agents(user_id: int, db: AsyncSession) -> list[AIAgent]:
-    """Create the default three AI agents for a new user."""
-    defaults = [
-        {
-            "name": "Grace",
-            "role": "lead_qualifier",
-            "personality": "Warm & empathetic",
-            "system_prompt": "You specialize in qualifying inbound leads. Your goal is to determine if the caller has a property to sell and if they're motivated.",
-        },
-        {
-            "name": "Marcus",
-            "role": "appointment_setter",
-            "personality": "Direct & confident",
-            "system_prompt": "You specialize in scheduling appointments between motivated sellers and the investor. Be efficient and action-oriented.",
-        },
-        {
-            "name": "Sofia",
-            "role": "follow_up",
-            "personality": "Friendly & persistent",
-            "system_prompt": "You specialize in following up with leads who haven't responded. Be warm, understanding, and gently persistent.",
-        },
-    ]
-
-    agents = []
-    for d in defaults:
-        agent = AIAgent(user_id=user_id, **d)
-        db.add(agent)
-        agents.append(agent)
-
-    await db.commit()
-    return agents
-
 
 # ════════════════════════════════════════════════════════════════════════
 # SCHEDULED CALLBACKS
@@ -587,6 +555,7 @@ async def list_callbacks(
             "timezone": cb.timezone,
             "callback_type": cb.callback_type,
             "agent_id": cb.agent_id,
+            "persona_id": cb.persona_id,
             "status": cb.status,
             "attempt_count": cb.attempt_count,
             "max_attempts": cb.max_attempts,
@@ -713,6 +682,7 @@ async def list_campaigns(
             "id": c.id,
             "name": c.name,
             "agent_id": c.agent_id,
+            "persona_id": c.persona_id,
             "phone_number_id": c.phone_number_id,
             "status": c.status,
             "total_contacts": c.total_contacts,
@@ -743,6 +713,7 @@ async def create_campaign(
         user_id=user.id,
         name=body.name,
         agent_id=body.agent_id,
+        persona_id=body.agent_id,
         phone_number_id=body.phone_number_id,
         calling_window_start=body.calling_window_start,
         calling_window_end=body.calling_window_end,

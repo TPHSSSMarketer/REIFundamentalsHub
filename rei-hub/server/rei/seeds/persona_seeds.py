@@ -42,6 +42,7 @@ PLATFORM_PERSONAS = [
         ),
         "tone": "empathetic",
         "response_length": "medium",
+        "role": "lead_qualifier",
     },
     {
         "name": "Marcus",
@@ -66,6 +67,7 @@ PLATFORM_PERSONAS = [
         ),
         "tone": "professional",
         "response_length": "short",
+        "role": "appointment_setter",
     },
     {
         "name": "Sofia",
@@ -90,6 +92,7 @@ PLATFORM_PERSONAS = [
         ),
         "tone": "friendly",
         "response_length": "medium",
+        "role": "follow_up",
     },
     {
         "name": "Alex",
@@ -117,6 +120,7 @@ PLATFORM_PERSONAS = [
         ),
         "tone": "persuasive",
         "response_length": "medium",
+        "role": "negotiator",
     },
     {
         "name": "Jordan",
@@ -142,6 +146,7 @@ PLATFORM_PERSONAS = [
         ),
         "tone": "casual",
         "response_length": "medium",
+        "role": "buyer_intake",
     },
 ]
 
@@ -173,6 +178,7 @@ async def seed_platform_personas(db: AsyncSession) -> int:
             personality_prompt=persona_data["personality_prompt"],
             tone=persona_data["tone"],
             response_length=persona_data["response_length"],
+            role=persona_data.get("role"),
         )
         db.add(persona)
         created += 1

@@ -32,8 +32,8 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.config import Settings
+from rei.models.conversation_flow import Persona
 from rei.models.user import (
-    AIAgent,
     CallCampaign,
     CallLog,
     CampaignContact,
@@ -144,9 +144,10 @@ async def execute_campaign_call(
     await db.commit()
 
     try:
-        # Look up the AI agent
+        # Look up the persona (unified agent/persona)
+        persona_id = campaign.persona_id or campaign.agent_id  # fallback to legacy agent_id
         result = await db.execute(
-            select(AIAgent).where(AIAgent.id == campaign.agent_id)
+            select(Persona).where(Persona.id == persona_id)
         )
         agent = result.scalar_one_or_none()
 
@@ -209,7 +210,8 @@ async def execute_campaign_call(
             conv_log = ConversationLog(
                 user_id=campaign.user_id,
                 call_log_id=call_log.id,
-                agent_id=agent.id,
+                agent_id=agent.id,  # legacy compat
+                persona_id=agent.id,
                 status="in_progress",
                 started_at=datetime.utcnow(),
             )

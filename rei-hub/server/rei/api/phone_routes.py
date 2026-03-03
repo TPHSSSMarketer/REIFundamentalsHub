@@ -27,8 +27,8 @@ from rei.config import (
 )
 from datetime import time as dt_time
 
+from rei.models.conversation_flow import Persona
 from rei.models.user import (
-    AIAgent,
     CallLog,
     ConversationLog,
     FaxLog,
@@ -1438,18 +1438,28 @@ def _is_within_business_hours(phone: PhoneNumber) -> bool:
 async def _route_to_ai_agent(
     phone: PhoneNumber, caller: str, call_log: CallLog, db: AsyncSession
 ) -> str:
-    """Route the call to an AI agent via ElevenLabs ConversationRelay."""
-    result = await db.execute(
-        select(AIAgent).where(AIAgent.id == phone.ai_agent_id)
-    )
-    agent = result.scalar_one_or_none()
+    """Route the call to an AI persona via ElevenLabs ConversationRelay.
 
-    if not agent or not agent.elevenlabs_agent_id:
-        logger.warning(f"No valid AI agent for phone {phone.id}, falling back to voicemail")
+    VOICE-ONLY: This is the ONLY path where ElevenLabs TTS is activated.
+    SMS and WebChat channels NEVER reach this function.
+    """
+    # Use persona_id (unified), fall back to legacy ai_agent_id
+    persona_id = phone.persona_id or phone.ai_agent_id
+    if not persona_id:
+        logger.warning(f"No persona assigned to phone {phone.id}, falling back to voicemail")
+        return twilio_service.generate_voicemail_twiml()
+
+    result = await db.execute(
+        select(Persona).where(Persona.id == persona_id)
+    )
+    persona = result.scalar_one_or_none()
+
+    if not persona or not persona.elevenlabs_agent_id:
+        logger.warning(f"No valid persona/agent for phone {phone.id}, falling back to voicemail")
         return twilio_service.generate_voicemail_twiml()
 
     signed_url = await elevenlabs_service.get_signed_url(
-        agent.elevenlabs_agent_id, settings,
+        persona.elevenlabs_agent_id, settings,
     )
     if not signed_url:
         logger.error("Failed to get ElevenLabs signed URL, falling back to voicemail")
@@ -1459,7 +1469,8 @@ async def _route_to_ai_agent(
     conversation_log = ConversationLog(
         user_id=phone.user_id,
         call_log_id=call_log.id,
-        agent_id=agent.id,
+        agent_id=persona.id,  # legacy compat
+        persona_id=persona.id,
         status="in_progress",
         started_at=datetime.utcnow(),
     )

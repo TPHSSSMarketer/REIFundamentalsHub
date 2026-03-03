@@ -625,7 +625,10 @@ class PhoneNumber(Base):
     )  # "off", "always", "when_unavailable", "after_hours"
     ai_agent_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
-    )  # FK to ai_agents — which AI agent handles calls for this number
+    )  # DEPRECATED — use persona_id instead
+    persona_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FK to personas — which persona handles calls for this number
     ring_targets: Mapped[str] = mapped_column(
         String, default='["softphone"]'
     )  # JSON: ["softphone"], ["cell"], or ["softphone", "cell"]
@@ -1707,7 +1710,10 @@ class ConversationLog(Base):
     )
     agent_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("ai_agents.id"), nullable=True
-    )
+    )  # DEPRECATED — use persona_id
+    persona_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FK to personas — unified agent/persona reference
 
     # Conversation data
     elevenlabs_conversation_id: Mapped[Optional[str]] = mapped_column(
@@ -1778,7 +1784,10 @@ class ScheduledCallback(Base):
     )  # "ai" = AI agent calls, "human" = just notify the investor
     agent_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("ai_agents.id"), nullable=True
-    )
+    )  # DEPRECATED — use persona_id
+    persona_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FK to personas — unified agent/persona reference
     phone_number_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("phone_numbers.id"), nullable=True
     )
@@ -1833,7 +1842,10 @@ class CallCampaign(Base):
     # Campaign configuration
     agent_id: Mapped[str] = mapped_column(
         String, ForeignKey("ai_agents.id"), nullable=False
-    )
+    )  # DEPRECATED — use persona_id
+    persona_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FK to personas — unified agent/persona reference
     phone_number_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("phone_numbers.id"), nullable=False
     )

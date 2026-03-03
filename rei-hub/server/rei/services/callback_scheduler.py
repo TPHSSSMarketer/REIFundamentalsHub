@@ -29,8 +29,8 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.config import Settings
+from rei.models.conversation_flow import Persona
 from rei.models.user import (
-    AIAgent,
     CallLog,
     ConversationLog,
     PhoneNumber,
@@ -97,11 +97,12 @@ async def execute_callback(
     await db.commit()
 
     try:
-        # Look up the AI agent
+        # Look up the persona (unified agent/persona)
         agent = None
-        if callback.agent_id:
+        persona_id = callback.persona_id or callback.agent_id  # fallback to legacy
+        if persona_id:
             result = await db.execute(
-                select(AIAgent).where(AIAgent.id == callback.agent_id)
+                select(Persona).where(Persona.id == persona_id)
             )
             agent = result.scalar_one_or_none()
 
@@ -176,7 +177,8 @@ async def execute_callback(
                 conv_log = ConversationLog(
                     user_id=callback.user_id,
                     call_log_id=call_log.id,
-                    agent_id=agent.id,
+                    agent_id=agent.id,  # legacy compat
+                    persona_id=agent.id,
                     status="in_progress",
                     started_at=datetime.utcnow(),
                 )
