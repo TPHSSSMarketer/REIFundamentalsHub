@@ -67,6 +67,14 @@ class UpdateNumberRequest(BaseModel):
     friendly_name: Optional[str] = None
     forward_to: Optional[str] = None
     use_softphone: Optional[bool] = None
+    persona_id: Optional[str] = None  # Which persona handles AI calls for this number
+    ai_agent_id: Optional[str] = None  # Legacy — maps to persona_id
+    ai_mode: Optional[str] = None  # "off", "always", "when_unavailable", "after_hours"
+    ring_targets: Optional[str] = None  # JSON: ["softphone"], ["cell"], etc.
+    cell_forward_number: Optional[str] = None
+    ai_schedule: Optional[str] = None  # JSON business hours
+    user_available: Optional[bool] = None
+    ring_schedule: Optional[str] = None  # JSON device ring windows
 
 
 class DialRequest(BaseModel):
@@ -448,6 +456,22 @@ async def update_number(
         phone.use_softphone = body.use_softphone
         if body.use_softphone:
             phone.forward_to = None
+    if body.persona_id is not None:
+        phone.persona_id = body.persona_id
+    if body.ai_agent_id is not None:
+        phone.ai_agent_id = body.ai_agent_id  # Legacy compat
+    if body.ai_mode is not None:
+        phone.ai_mode = body.ai_mode
+    if body.ring_targets is not None:
+        phone.ring_targets = body.ring_targets
+    if body.cell_forward_number is not None:
+        phone.cell_forward_number = body.cell_forward_number
+    if body.ai_schedule is not None:
+        phone.ai_schedule = body.ai_schedule
+    if body.user_available is not None:
+        phone.user_available = body.user_available
+    if body.ring_schedule is not None:
+        phone.ring_schedule = body.ring_schedule
 
     await db.commit()
     return {"ok": True}
