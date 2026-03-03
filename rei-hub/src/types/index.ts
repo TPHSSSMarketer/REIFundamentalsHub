@@ -445,3 +445,87 @@ export interface FlowExecution {
   started_at: string
   completed_at?: string
 }
+
+// ── AI Admin Assistant Types ─────────────────────────────────────
+
+export interface AdminSession {
+  id: string
+  user_id: number
+  title: string
+  context_summary?: string
+  is_active: boolean
+  message_count: number
+  created_at: string
+  last_message_at?: string
+}
+
+export interface AdminMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  tool_calls?: Record<string, any>[]
+  tokens_used?: number
+  model_used?: string
+  created_at: string
+}
+
+export interface AdminActionLog {
+  id: string
+  session_id?: string
+  action_type: string
+  action_name: string
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH'
+  proposed_details?: Record<string, any>
+  approved?: boolean | null
+  approval_method?: string
+  approval_message?: string
+  execution_status: 'pending' | 'approved' | 'executing' | 'success' | 'failed' | 'rejected'
+  result_data?: Record<string, any>
+  error_message?: string
+  created_at: string
+  approved_at?: string
+  executed_at?: string
+}
+
+export interface AdminTrustSetting {
+  action_type: string
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH'
+  trust_level: 'auto' | 'ask' | 'never'
+  approval_count: number
+  rejection_count: number
+  suggested_auto: boolean
+  last_approved_at?: string
+}
+
+export interface AdminSkill {
+  id: string
+  user_id?: number
+  name: string
+  description: string
+  category: string
+  is_system: boolean
+  action_steps: Record<string, any>[]
+  trigger_conditions?: Record<string, any>
+  icon?: string
+  enabled: boolean
+  total_runs: number
+  last_run_at?: string
+  created_at: string
+}
+
+export interface AdminScheduledTask {
+  id: string
+  user_id: number
+  skill_id: string
+  name: string
+  description?: string
+  cron_expression: string
+  timezone: string
+  enabled: boolean
+  last_run_at?: string
+  next_run_at?: string
+  last_run_status?: string
+  total_runs: number
+  created_at: string
+}

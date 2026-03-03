@@ -203,14 +203,16 @@ CREDIT_MARKUP: float = 1.30
 
 # ── Phone System pricing ──────────────────────────────────────────────
 PHONE_PRICING: dict[str, float] = {
+    # ── Standard rates (markup over Twilio/provider cost) ──────
     "outbound_per_min": 0.03,
-    "inbound_per_min": 0.03,
+    "inbound_per_min": 0.025,
     "voicemail_drop": 0.05,
     "outbound_sms": 0.02,
-    "inbound_sms": 0.00,
+    "inbound_sms": 0.00,            # Free — platform perk
     "fax_sent_per_page": 0.04,
-    "fax_received_per_page": 0.02,
+    "fax_received_per_page": 0.04,
     "additional_number_per_month": 2.00,
+    # AI voicemail drop (ElevenLabs TTS generation)
     "ai_voicemail_drop": 0.25,
     # ── AI Voice Call pricing (ElevenLabs + Claude + Twilio) ──────
     # These are higher than regular calls because of LLM + voice AI costs

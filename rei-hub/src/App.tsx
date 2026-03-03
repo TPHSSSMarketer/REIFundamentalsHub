@@ -37,6 +37,7 @@ import AnalyticsPage from './components/Analytics/AnalyticsPage'
 import HelpTicketsPage from './components/HelpTickets/HelpTicketsPage'
 import FlowBuilder from './components/FlowBuilder/FlowBuilder'
 import FlowEditor from './components/FlowBuilder/FlowEditor'
+import AdminAssistantPage from './components/AdminAssistant/AdminAssistantPage'
 import { isAuthenticated } from './services/auth'
 
 function BillingCompletePage() {
@@ -81,6 +82,11 @@ function AppLayout() {
         <Route path="/assistanthub" element={
           <UpgradeGate feature="assistant_hub" requiredPlan="Pro">
             <AssistantHub />
+          </UpgradeGate>
+        } />
+        <Route path="/assistant" element={
+          <UpgradeGate feature="assistant" requiredPlan="Pro">
+            <AdminAssistantPage />
           </UpgradeGate>
         } />
         <Route path="/contenthub" element={

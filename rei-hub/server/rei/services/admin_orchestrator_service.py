@@ -1,0 +1,646 @@
+"""AI Admin Assistant — Orchestrator Service.
+
+This is the brain of the admin assistant. It:
+1. Takes user messages and processes them through the AI
+2. Builds comprehensive system prompts with trust context
+3. Parses tool calls from AI responses
+4. Executes tools and records actions
+5. Maintains session state and conversation history
+
+The orchestrator follows a trust-based model:
+- LOW risk tools (read-only): execute immediately
+- MEDIUM risk tools (write): ask user for confirmation by default
+- HIGH risk tools (delete, spend): always ask for confirmation
+
+Tool calling works via inline markers [TOOL_CALL: tool_name({...})] that
+the AI includes in its response text. The orchestrator extracts these,
+validates them against trust settings, and executes them.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from datetime import datetime
+from typing import Any, Optional
+
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from rei.config import Settings
+from rei.models.admin_assistant import AdminActionLog, AdminMessage, AdminSession
+from rei.models.user import User
+from rei.services.admin_tools_definitions import (
+    ALL_TOOLS,
+    TOOLS_BY_NAME,
+    get_risk_level,
+    get_tools_for_ai,
+)
+from rei.services.admin_trust_service import (
+    get_all_trust_settings,
+    get_trust_level,
+    should_auto_approve,
+)
+from rei.services.ai_service import ai_complete
+
+logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SYSTEM PROMPT — The orchestrator's instructions
+# ═══════════════════════════════════════════════════════════════════════════
+
+ORCHESTRATOR_SYSTEM_PROMPT = """You are an AI administrative assistant for REIFundamentals Hub, a real estate investing business platform.
+Your job is to help users manage their CRM, analyze their pipeline, send communications, and automate business tasks.
+
+YOU HAVE ACCESS TO POWERFUL TOOLS across these domains:
+- CRM: Manage contacts, deals, and portfolio properties
+- Phone/SMS: Send messages, schedule callbacks, view call history
+- Analytics: Dashboard stats, pipeline reports, lead conversion analysis
+- Calendar/Tasks: Create reminders, follow-up tasks, view upcoming events
+- Email: Send campaigns, view performance stats, manage subscriber lists
+
+CRITICAL INSTRUCTIONS FOR TOOL CALLING:
+
+When you want to execute a tool, format it EXACTLY like this:
+[TOOL_CALL: tool_name({"param1": "value1", "param2": "value2"})]
+
+Examples:
+- [TOOL_CALL: get_contacts({"tag": "hot_leads", "limit": 10})]
+- [TOOL_CALL: send_sms({"contact_phone": "+1-555-0100", "message": "Hi Sarah, quick follow-up..."})]
+- [TOOL_CALL: get_pipeline_summary({})]
+
+TRUST & SAFETY MODEL:
+
+You have three risk levels:
+1. LOW (read-only): Get contacts, view reports, analyze stats — EXECUTE IMMEDIATELY
+2. MEDIUM (write): Send messages, create tasks, update records — PROPOSE FIRST, then execute if approved
+3. HIGH (dangerous): Bulk operations, spend credits, delete records — ALWAYS PROPOSE and wait for explicit approval
+
+YOUR BEHAVIOR:
+- For LOW risk tools: Use them directly to gather information and help the user
+- For MEDIUM risk tools: Explain what you want to do BEFORE the tool call (e.g., "I'll send an SMS to Sarah...") then use [TOOL_CALL: ...]
+- For HIGH risk tools: ALWAYS ask the user to approve first. Explain the action, wait for their OK, then execute
+- Never use multiple HIGH-risk tools in one response — ask for approval one at a time
+
+WHEN YOU SEE TOOL RESULTS:
+After a tool executes, the system will show you the result. Use this to inform your next response:
+- Summarize findings for the user in natural language
+- If the tool failed, offer an alternative approach
+- Ask clarifying questions if needed
+- Suggest next steps based on the data
+
+CONVERSATION STYLE:
+- Be helpful, conversational, and proactive
+- Use real estate terminology appropriately (deals, pipeline, properties, investors, etc.)
+- When showing data, format it nicely with bullet points, tables, or summaries
+- Ask clarifying questions if user requests are ambiguous
+- Remember context from earlier in the conversation
+- Be honest when you don't have enough information
+
+REMEMBER: Your goal is to help the user run their real estate business more efficiently. Be intelligent about suggesting workflows (e.g., "I found 5 stalled deals — should I create follow-up tasks for these?") but don't overwhelm them with options."""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOOL CALL EXTRACTION & EXECUTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def extract_tool_calls(response_text: str) -> list[dict]:
+    """Extract [TOOL_CALL: tool_name({...})] markers from AI response text.
+
+    Returns list of dicts: [{"tool": "name", "params": {...}, "raw": "..."}, ...]
+    """
+    tool_calls = []
+    # Match [TOOL_CALL: tool_name({...})] with proper JSON parsing
+    pattern = r'\[TOOL_CALL:\s*(\w+)\s*\(\s*({[^}]*})\s*\)\s*\]'
+
+    for match in re.finditer(pattern, response_text):
+        tool_name = match.group(1)
+        params_str = match.group(2)
+
+        try:
+            params = json.loads(params_str)
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse tool params: {params_str}")
+            continue
+
+        tool_calls.append({
+            "tool": tool_name,
+            "params": params,
+            "raw": match.group(0),
+        })
+
+    return tool_calls
+
+
+async def execute_tool(
+    tool_name: str,
+    params: dict,
+    user_id: int,
+    db: AsyncSession,
+) -> dict:
+    """Execute a tool and return the result.
+
+    This is a placeholder that would be implemented to actually call
+    the various tool implementations (CRM, phone, analytics, etc.).
+
+    Returns: {"success": bool, "data": Any, "error": Optional[str]}
+    """
+    try:
+        # Validate tool exists
+        if tool_name not in TOOLS_BY_NAME:
+            return {
+                "success": False,
+                "error": f"Unknown tool: {tool_name}",
+            }
+
+        # TODO: Route to appropriate service based on tool domain
+        # For now, return a placeholder result
+        # In production, this would call:
+        # - admin_crm_service.py for CRM tools
+        # - admin_phone_service.py for phone/SMS tools
+        # - admin_analytics_service.py for analytics tools
+        # - admin_calendar_service.py for calendar/tasks
+        # - admin_email_service.py for email tools
+
+        logger.info(f"Tool execution not yet implemented: {tool_name} with params {params}")
+
+        return {
+            "success": False,
+            "error": "Tool execution not yet implemented",
+        }
+
+    except Exception as e:
+        logger.exception(f"Tool execution failed: {tool_name}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SYSTEM PROMPT BUILDER
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def build_system_prompt(
+    user_id: int,
+    trust_settings: list[dict],
+    db: AsyncSession,
+) -> str:
+    """Build the complete system prompt for the orchestrator.
+
+    Includes:
+    - Core orchestrator instructions
+    - Available tools with descriptions, grouped by domain
+    - Trust level context (which actions are auto-approved vs need approval)
+    """
+    from rei.services.admin_tools_definitions import TOOLS_BY_DOMAIN
+
+    prompt = ORCHESTRATOR_SYSTEM_PROMPT + "\n\n"
+
+    # Build trust context
+    prompt += "═" * 77 + "\n"
+    prompt += "YOUR TRUST SETTINGS (how the system handles different action types):\n"
+    prompt += "═" * 77 + "\n\n"
+
+    # Group by trust level
+    auto_approved = []
+    needs_approval = []
+    blocked = []
+
+    for setting in trust_settings:
+        action = setting["action_type"]
+        level = setting["trust_level"]
+
+        if level == "auto":
+            auto_approved.append(action)
+        elif level == "ask":
+            needs_approval.append(action)
+        elif level == "never":
+            blocked.append(action)
+
+    if auto_approved:
+        prompt += f"AUTO-APPROVED (execute immediately without asking):\n"
+        for action in sorted(auto_approved):
+            prompt += f"  - {action}\n"
+        prompt += "\n"
+
+    if needs_approval:
+        prompt += f"NEEDS USER APPROVAL (propose first, then wait for ok):\n"
+        for action in sorted(needs_approval):
+            prompt += f"  - {action}\n"
+        prompt += "\n"
+
+    if blocked:
+        prompt += f"BLOCKED (never execute these without explicit user override):\n"
+        for action in sorted(blocked):
+            prompt += f"  - {action}\n"
+        prompt += "\n"
+
+    # Add tool descriptions grouped by domain
+    prompt += "\n" + "═" * 77 + "\n"
+    prompt += "AVAILABLE TOOLS BY DOMAIN:\n"
+    prompt += "═" * 77 + "\n\n"
+
+    for domain in ["crm", "phone", "analytics", "calendar", "email"]:
+        tools = TOOLS_BY_DOMAIN.get(domain, [])
+        if not tools:
+            continue
+
+        prompt += f"### {domain.upper()} DOMAIN\n\n"
+        for tool in tools:
+            prompt += f"**{tool['name']}** [{tool['risk_level']}]\n"
+            prompt += f"  {tool['description']}\n"
+
+            # List parameters
+            params = tool.get("parameters", {}).get("properties", {})
+            if params:
+                prompt += "  Parameters: " + ", ".join(params.keys()) + "\n"
+            prompt += "\n"
+
+    return prompt
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SESSION & MESSAGE MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def get_session_messages(
+    session_id: str,
+    db: AsyncSession,
+    limit: int = 20,
+) -> list[dict]:
+    """Load recent messages from a session formatted for the AI.
+
+    Returns list of dicts: [{"role": "user", "content": "..."}, ...]
+    """
+    result = await db.execute(
+        select(AdminMessage)
+        .where(AdminMessage.session_id == session_id)
+        .order_by(AdminMessage.created_at.asc())
+        .limit(limit)
+    )
+    messages = result.scalars().all()
+
+    return [
+        {"role": msg.role, "content": msg.content}
+        for msg in messages
+    ]
+
+
+async def create_session(
+    user_id: int,
+    title: str,
+    db: AsyncSession,
+) -> AdminSession:
+    """Create a new chat session."""
+    session = AdminSession(
+        user_id=user_id,
+        title=title,
+        message_count=0,
+    )
+    db.add(session)
+    await db.commit()
+    return session
+
+
+async def list_sessions(
+    user_id: int,
+    db: AsyncSession,
+    limit: int = 20,
+) -> list[dict]:
+    """List user's chat sessions, most recent first."""
+    result = await db.execute(
+        select(AdminSession)
+        .where(AdminSession.user_id == user_id)
+        .order_by(desc(AdminSession.last_message_at))
+        .limit(limit)
+    )
+    sessions = result.scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "message_count": s.message_count,
+            "last_message_at": s.last_message_at.isoformat() if s.last_message_at else None,
+            "created_at": s.created_at.isoformat(),
+        }
+        for s in sessions
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN ORCHESTRATION FUNCTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def process_message(
+    session_id: Optional[str],
+    user_message: str,
+    user: User,
+    db: AsyncSession,
+    settings: Settings,
+) -> dict:
+    """Main entry point: process a user message through the orchestrator.
+
+    Flow:
+    1. Load or create session
+    2. Save user message to database
+    3. Load recent message history
+    4. Build system prompt with trust settings
+    5. Call AI to generate response
+    6. Extract and validate tool calls
+    7. Execute tools (respecting trust settings)
+    8. Save assistant response and tool results
+    9. Return formatted response to user
+
+    Args:
+        session_id: Existing session ID, or None to create new
+        user_message: The user's input text
+        user: User object
+        db: Database session
+        settings: App configuration
+
+    Returns:
+        {
+            "session_id": str,
+            "response": str,
+            "tool_calls": list[dict],
+            "tool_results": list[dict],
+            "pending_actions": list[dict],
+            "suggestions": list[str],
+        }
+    """
+
+    # ── Load or create session ──
+    if session_id:
+        session = await db.get(AdminSession, session_id)
+        if not session or session.user_id != user.id:
+            return {
+                "error": "Session not found or access denied",
+            }
+    else:
+        # Create new session — title from first message
+        title = user_message[:50] + ("..." if len(user_message) > 50 else "")
+        session = await create_session(user.id, title, db)
+        session_id = session.id
+
+    # ── Save user message ──
+    user_msg = AdminMessage(
+        session_id=session_id,
+        role="user",
+        content=user_message,
+    )
+    db.add(user_msg)
+    await db.commit()
+
+    # ── Load recent history ──
+    history = await get_session_messages(session_id, db, limit=20)
+
+    # ── Get trust settings ──
+    trust_settings = await get_all_trust_settings(user.id, db)
+
+    # ── Build system prompt ──
+    system_prompt = await build_system_prompt(user.id, trust_settings, db)
+
+    # ── Prepare messages for AI ──
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *history,
+        {"role": "user", "content": user_message},
+    ]
+
+    # ── Call AI ──
+    ai_response = await ai_complete(
+        messages=messages,
+        user_id=user.id,
+        db=db,
+        settings=settings,
+        task_type="admin_orchestration",
+        max_tokens=3000,
+        temperature=0.3,
+    )
+
+    if not ai_response.get("content"):
+        return {
+            "error": "AI provider error: " + ai_response.get("content", "Unknown error"),
+        }
+
+    response_text = ai_response["content"]
+
+    # ── Extract tool calls from response ──
+    tool_calls = extract_tool_calls(response_text)
+
+    # ── Process tool calls ──
+    tool_results = []
+    pending_actions = []
+
+    for tool_call in tool_calls:
+        tool_name = tool_call["tool"]
+        params = tool_call["params"]
+
+        # Validate tool
+        if tool_name not in TOOLS_BY_NAME:
+            logger.warning(f"AI tried to call unknown tool: {tool_name}")
+            continue
+
+        tool_def = TOOLS_BY_NAME[tool_name]
+        risk_level = tool_def["risk_level"]
+
+        # Check trust level
+        should_auto = await should_auto_approve(user.id, tool_name, risk_level, db)
+
+        if should_auto:
+            # Auto-approve and execute
+            logger.info(f"Auto-executing tool: {tool_name}")
+            result = await execute_tool(tool_name, params, user.id, db)
+
+            # Log the action
+            action_log = AdminActionLog(
+                user_id=user.id,
+                session_id=session_id,
+                action_type=tool_name,
+                action_name=f"{tool_name}({json.dumps(params)[:50]}...)",
+                risk_level=risk_level,
+                proposed_details=json.dumps(params),
+                approved=True,
+                approval_method="auto",
+                execution_status="executing" if result["success"] else "failed",
+                result_data=json.dumps(result),
+                executed_at=datetime.utcnow(),
+            )
+            db.add(action_log)
+            await db.commit()
+
+            tool_results.append({
+                "tool": tool_name,
+                "status": "executed" if result["success"] else "failed",
+                "result": result,
+            })
+        else:
+            # Mark as pending — user approval needed
+            action_log = AdminActionLog(
+                user_id=user.id,
+                session_id=session_id,
+                action_type=tool_name,
+                action_name=f"{tool_name}({json.dumps(params)[:50]}...)",
+                risk_level=risk_level,
+                proposed_details=json.dumps(params),
+                approved=None,  # Pending
+                approval_method=None,
+                execution_status="pending",
+            )
+            db.add(action_log)
+            await db.commit()
+
+            pending_actions.append({
+                "action_id": action_log.id,
+                "tool": tool_name,
+                "params": params,
+                "risk_level": risk_level,
+                "description": tool_def["description"],
+            })
+
+    # ── Save assistant response ──
+    assistant_msg = AdminMessage(
+        session_id=session_id,
+        role="assistant",
+        content=response_text,
+        tool_calls=json.dumps(tool_calls) if tool_calls else None,
+        tokens_used=ai_response.get("tokens_used", 0),
+        input_tokens=ai_response.get("input_tokens", 0),
+        output_tokens=ai_response.get("output_tokens", 0),
+        cost_cents=ai_response.get("cost_cents", 0),
+        model_used=ai_response.get("model"),
+    )
+    db.add(assistant_msg)
+
+    # ── Update session metadata ──
+    session.message_count += 2  # User + assistant
+    session.last_message_at = datetime.utcnow()
+
+    # If first message, set title from user's message
+    if session.message_count == 2:
+        session.title = user_message[:60] + ("..." if len(user_message) > 60 else "")
+
+    await db.commit()
+
+    # ── Build suggestions for next steps ──
+    suggestions = []
+    if not tool_calls and not pending_actions:
+        # If no tools were used, suggest some common next steps
+        if "pipeline" in user_message.lower() or "deal" in user_message.lower():
+            suggestions.append("Get pipeline summary")
+            suggestions.append("Find stalled deals")
+        elif "contact" in user_message.lower():
+            suggestions.append("Search contacts")
+            suggestions.append("Get contact details")
+        elif "follow" in user_message.lower():
+            suggestions.append("Create follow-up task")
+            suggestions.append("View upcoming tasks")
+
+    return {
+        "session_id": session_id,
+        "response": response_text,
+        "tool_calls": tool_calls,
+        "tool_results": tool_results,
+        "pending_actions": pending_actions,
+        "suggestions": suggestions,
+        "tokens_used": ai_response.get("tokens_used", 0),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# APPROVAL HANDLERS — User responds to pending actions
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def approve_action(
+    action_id: str,
+    user: User,
+    db: AsyncSession,
+) -> dict:
+    """User explicitly approves a pending action.
+
+    Returns: {"success": bool, "result": Any, "error": Optional[str]}
+    """
+    action_log = await db.get(AdminActionLog, action_id)
+
+    if not action_log or action_log.user_id != user.id:
+        return {
+            "success": False,
+            "error": "Action not found or access denied",
+        }
+
+    if action_log.execution_status != "pending":
+        return {
+            "success": False,
+            "error": f"Action is already {action_log.execution_status}",
+        }
+
+    # Execute the tool
+    try:
+        params = json.loads(action_log.proposed_details or "{}")
+        result = await execute_tool(action_log.action_type, params, user.id, db)
+
+        # Update the log
+        action_log.approved = True
+        action_log.approval_method = "user"
+        action_log.approved_at = datetime.utcnow()
+        action_log.execution_status = "success" if result["success"] else "failed"
+        action_log.result_data = json.dumps(result)
+        action_log.executed_at = datetime.utcnow()
+
+        await db.commit()
+
+        return {
+            "success": result["success"],
+            "result": result,
+        }
+
+    except Exception as e:
+        logger.exception("Failed to execute approved action")
+        action_log.approved = True
+        action_log.approval_method = "user"
+        action_log.execution_status = "failed"
+        action_log.error_message = str(e)
+        await db.commit()
+
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+async def reject_action(
+    action_id: str,
+    user: User,
+    rejection_reason: Optional[str],
+    db: AsyncSession,
+) -> dict:
+    """User explicitly rejects a pending action."""
+    action_log = await db.get(AdminActionLog, action_id)
+
+    if not action_log or action_log.user_id != user.id:
+        return {
+            "success": False,
+            "error": "Action not found or access denied",
+        }
+
+    action_log.approved = False
+    action_log.approval_method = "rejected"
+    action_log.approval_message = rejection_reason
+    action_log.execution_status = "rejected"
+    action_log.approved_at = datetime.utcnow()
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": "Action rejected",
+    }

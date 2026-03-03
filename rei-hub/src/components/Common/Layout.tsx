@@ -6,6 +6,7 @@ import NewContactModal from './NewContactModal'
 import SMSModal from './SMSModal'
 import TrialBanner from './TrialBanner'
 import Softphone from '@/components/Phone/Softphone'
+import FloatingAssistantBubble from '@/components/AdminAssistant/FloatingAssistantBubble'
 import { useStore } from '@/hooks/useStore'
 import { useDemoMode } from '@/hooks/useDemoMode'
 import { Beaker, X } from 'lucide-react'
@@ -63,6 +64,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Floating Softphone Widget */}
       <Softphone />
+      <FloatingAssistantBubble />
     </div>
   )
 }

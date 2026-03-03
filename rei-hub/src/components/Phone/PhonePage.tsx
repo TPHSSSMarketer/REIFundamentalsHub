@@ -50,19 +50,21 @@ const DISPOSITIONS = [
 ]
 
 const CREDIT_BUNDLES = [
-  { key: 'starter', label: 'Starter Pack', price: '$25.00', credits: '$30.00', bonus: '17%' },
-  { key: 'growth', label: 'Growth Pack', price: '$50.00', credits: '$65.00', bonus: '30%', popular: true },
-  { key: 'power', label: 'Power Pack', price: '$100.00', credits: '$140.00', bonus: '40%' },
+  { key: 'starter', label: 'Starter Pack', price: '$25.00', credits: '$25.00', bonus: '' },
+  { key: 'growth', label: 'Growth Pack', price: '$50.00', credits: '$55.00', bonus: '10%', popular: true },
+  { key: 'power', label: 'Power Pack', price: '$100.00', credits: '$115.00', bonus: '15%' },
 ]
 
 const PRICING_TABLE = [
   { item: 'Outbound calls', rate: '$0.03/min' },
-  { item: 'Inbound calls', rate: '$0.03/min' },
+  { item: 'Inbound calls', rate: '$0.025/min' },
   { item: 'Outbound SMS', rate: '$0.02/msg' },
   { item: 'Inbound SMS', rate: 'Free' },
   { item: 'Fax sent', rate: '$0.04/page' },
-  { item: 'Fax received', rate: '$0.02/page' },
+  { item: 'Fax received', rate: '$0.04/page' },
   { item: 'Additional numbers', rate: '$2.00/mo' },
+  { item: 'AI voice calls', rate: '$0.20/min' },
+  { item: 'AI voicemail drop', rate: '$0.25/drop' },
 ]
 
 export default function PhonePage() {
@@ -1116,9 +1118,11 @@ function CreditsTab() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">{b.label}</h3>
               <p className="text-2xl font-bold text-slate-900 mt-2">{b.price}</p>
               <p className="text-sm text-slate-600 mt-1">Get {b.credits} in credits</p>
-              <span className="inline-block text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-2">
-                {b.bonus} bonus
-              </span>
+              {b.bonus && (
+                <span className="inline-block text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-2">
+                  {b.bonus} bonus
+                </span>
+              )}
               <button
                 onClick={() => handlePurchase(b.key)}
                 disabled={!!purchasing}
@@ -1158,6 +1162,9 @@ function CreditsTab() {
           </div>
         )}
       </div>
+
+      {/* Spacer so the floating Phone Ready button doesn't overlap the rates table */}
+      <div className="h-16" />
     </div>
   )
 }

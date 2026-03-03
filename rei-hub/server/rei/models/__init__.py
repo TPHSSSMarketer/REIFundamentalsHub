@@ -36,6 +36,14 @@ from rei.models.conversation_flow import (
     FlowExecution,
     ChatSession,
 )
+from rei.models.admin_assistant import (
+    AdminSession,
+    AdminMessage,
+    AdminActionLog,
+    AdminTrustSetting,
+    AdminSkill,
+    AdminScheduledTask,
+)
 
 __all__ = [
     "User",
@@ -74,4 +82,10 @@ __all__ = [
     "FlowEdge",
     "FlowExecution",
     "ChatSession",
+    "AdminSession",
+    "AdminMessage",
+    "AdminActionLog",
+    "AdminTrustSetting",
+    "AdminSkill",
+    "AdminScheduledTask",
 ]

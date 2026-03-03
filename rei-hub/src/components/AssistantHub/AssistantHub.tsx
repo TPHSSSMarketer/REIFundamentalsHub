@@ -319,7 +319,7 @@ export default function AssistantHub() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">AssistantHub</h1>
+        <h1 className="text-2xl font-bold text-slate-800">AI Studio</h1>
         <p className="text-slate-600">Marketing Command Center — generate and nurture new leads</p>
       </div>
 

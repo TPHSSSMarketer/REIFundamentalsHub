@@ -47,6 +47,7 @@ from rei.api.ticket_routes import ticket_router
 from rei.api.cloud_storage_routes import cloud_storage_router
 from rei.api.flow_builder_routes import flow_builder_router
 from rei.api.webchat_routes import webchat_router, webchat_public_router
+from rei.api.admin_assistant_routes import admin_assistant_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -158,6 +159,18 @@ async def _tracking_processor_loop() -> None:
         await asyncio.sleep(_TRACKING_PROCESSOR_INTERVAL_SECS)
 
 
+async def _admin_task_scheduler_loop() -> None:
+    """Execute scheduled admin assistant tasks every 60 seconds."""
+    while True:
+        try:
+            async with async_session_factory() as db:
+                from rei.services.admin_task_scheduler import process_due_tasks
+                await process_due_tasks(db, settings)
+        except Exception:
+            logger.exception("Admin task scheduler error")
+        await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create database tables on startup and launch background tasks."""
@@ -169,6 +182,13 @@ async def lifespan(app: FastAPI):
             await seed_platform_personas(db)
     except Exception:
         logger.exception("Failed to seed platform personas on startup")
+    # Seed system skills for admin assistant
+    try:
+        from rei.seeds.skill_seeds import seed_system_skills
+        async with async_session_factory() as db:
+            await seed_system_skills(db)
+    except Exception:
+        logger.exception("Failed to seed system skills on startup")
     task_trial = asyncio.create_task(_trial_reminder_loop())
     task_seq = asyncio.create_task(_sequence_processor_loop())
     task_credits = asyncio.create_task(_credit_reset_loop())
@@ -176,6 +196,7 @@ async def lifespan(app: FastAPI):
     task_reminders = asyncio.create_task(_reminder_processor_loop())
     task_state_law = asyncio.create_task(_state_law_processor_loop())
     task_tracking = asyncio.create_task(_tracking_processor_loop())
+    task_admin = asyncio.create_task(_admin_task_scheduler_loop())
     yield
     task_trial.cancel()
     task_seq.cancel()
@@ -184,6 +205,7 @@ async def lifespan(app: FastAPI):
     task_reminders.cancel()
     task_state_law.cancel()
     task_tracking.cancel()
+    task_admin.cancel()
 
 
 app = FastAPI(
@@ -313,6 +335,7 @@ app.include_router(cloud_storage_router, prefix="/api")
 app.include_router(flow_builder_router, prefix="/api")
 app.include_router(webchat_router, prefix="/api")
 app.include_router(webchat_public_router)
+app.include_router(admin_assistant_router, prefix="/api")
 
 
 @app.get("/health")

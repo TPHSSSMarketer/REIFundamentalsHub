@@ -27,6 +27,7 @@ import {
   Globe,
   LifeBuoy,
   LogOut,
+  Bot,
 } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
@@ -46,7 +47,8 @@ const navItems = [
   { to: '/lead-capture', icon: Globe, label: 'Lead Capture' },
   { to: '/phone', icon: Phone, label: 'Phone' },
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
-  { to: '/assistanthub', icon: Headphones, label: 'AssistantHub' },
+  { to: '/assistant', icon: Bot, label: 'Assistant' },
+  { to: '/assistanthub', icon: Headphones, label: 'AI Studio' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
