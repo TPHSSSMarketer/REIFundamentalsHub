@@ -107,6 +107,17 @@ export default function TodayWidget() {
     }
   }
 
+  /** Navigate to the best destination for a task or event */
+  const goToItem = (item: any) => {
+    if (item.deal_id) {
+      navigate(`/pipeline/${item.deal_id}`)
+    } else if (item.contact_id) {
+      navigate(`/contacts/${item.contact_id}`)
+    } else {
+      navigate('/calendar')
+    }
+  }
+
   const today = new Date()
   const formatted = today.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -156,10 +167,14 @@ export default function TodayWidget() {
           </div>
           <div className="space-y-1">
             {data.tasks_overdue.slice(0, 2).map((t: any) => (
-              <div key={t.id} className="flex items-center gap-2 text-sm text-red-700">
+              <button
+                key={t.id}
+                onClick={() => goToItem(t)}
+                className="flex items-center gap-2 text-sm text-red-700 hover:text-red-900 w-full text-left group"
+              >
                 <span className="w-1.5 h-1.5 bg-red-500 rounded-full shrink-0" />
-                <span className="truncate">{t.title}</span>
-              </div>
+                <span className="truncate group-hover:underline">{t.title}</span>
+              </button>
             ))}
             {overdueCount > 2 && (
               <p className="text-[10px] text-red-500 pl-3.5">+{overdueCount - 2} more</p>
@@ -183,7 +198,12 @@ export default function TodayWidget() {
                 >
                   {t.status === 'completed' && <Check className="w-2.5 h-2.5 text-green-600" />}
                 </button>
-                <span className="text-sm text-slate-700 truncate">{t.title}</span>
+                <button
+                  onClick={() => goToItem(t)}
+                  className="text-sm text-slate-700 truncate hover:text-primary-700 hover:underline text-left"
+                >
+                  {t.title}
+                </button>
                 {t.due_time && (
                   <span className="text-[10px] text-slate-400 ml-auto shrink-0">{t.due_time}</span>
                 )}
@@ -201,19 +221,23 @@ export default function TodayWidget() {
           </p>
           <div className="space-y-1">
             {data.events_today.slice(0, 3).map((e: any) => (
-              <div key={e.id} className="flex items-center gap-2 text-sm text-slate-700">
+              <button
+                key={e.id}
+                onClick={() => goToItem(e)}
+                className="flex items-center gap-2 text-sm text-slate-700 hover:text-primary-700 w-full text-left group"
+              >
                 <span className={cn(
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   e.event_type === 'closing' ? 'bg-green-500' :
                   e.event_type === 'callback' ? 'bg-yellow-500' : 'bg-blue-500'
                 )} />
-                <span className="truncate">{e.title}</span>
+                <span className="truncate group-hover:underline">{e.title}</span>
                 {e.start_datetime && (
                   <span className="text-[10px] text-slate-400 ml-auto shrink-0">
                     {new Date(e.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -226,9 +250,13 @@ export default function TodayWidget() {
             Upcoming Closings (7 days)
           </p>
           {data.upcoming_closings.map((c: any) => (
-            <div key={c.id} className="text-sm text-slate-700">
+            <button
+              key={c.id}
+              onClick={() => goToItem(c)}
+              className="text-sm text-slate-700 hover:text-primary-700 hover:underline block text-left w-full"
+            >
               {c.title} &mdash; {c.start_datetime ? new Date(c.start_datetime).toLocaleDateString() : ''}
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -240,7 +268,13 @@ export default function TodayWidget() {
             Expiring POF (24hrs)
           </p>
           {data.expiring_pof.map((p: any) => (
-            <div key={p.id} className="text-sm text-orange-700">{p.title}</div>
+            <button
+              key={p.id}
+              onClick={() => goToItem(p)}
+              className="text-sm text-orange-700 hover:text-orange-900 hover:underline block text-left w-full"
+            >
+              {p.title}
+            </button>
           ))}
         </div>
       )}
