@@ -572,9 +572,17 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 3).map((ev) => (
                       <div
                         key={ev.id}
+                        onClick={(e) => {
+                          if (ev.deal_id || ev.contact_id) {
+                            e.stopPropagation()
+                            if (ev.deal_id) navigate(`/pipeline/${ev.deal_id}`)
+                            else if (ev.contact_id) navigate(`/contacts/${ev.contact_id}`)
+                          }
+                        }}
                         className={cn(
                           'text-[10px] px-1 py-0.5 rounded text-white truncate',
                           EVENT_COLORS[ev.event_type] || 'bg-blue-500',
+                          (ev.deal_id || ev.contact_id) && 'hover:opacity-80 cursor-pointer',
                         )}
                       >
                         {ev.title}
@@ -614,18 +622,36 @@ export default function CalendarPage() {
           ) : (
             <div className="space-y-2">
               {getEventsForDate(selectedDay).map((ev) => (
-                <div key={ev.id} className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
-                  <div className={cn('w-2 h-2 rounded-full', EVENT_COLORS[ev.event_type] || 'bg-blue-500')} />
+                <button
+                  key={ev.id}
+                  onClick={() => {
+                    if (ev.deal_id) navigate(`/pipeline/${ev.deal_id}`)
+                    else if (ev.contact_id) navigate(`/contacts/${ev.contact_id}`)
+                  }}
+                  className={cn(
+                    'flex items-center gap-3 p-2 bg-slate-50 rounded-lg w-full text-left',
+                    (ev.deal_id || ev.contact_id) && 'hover:bg-slate-100 cursor-pointer group',
+                  )}
+                >
+                  <div className={cn('w-2 h-2 rounded-full shrink-0', EVENT_COLORS[ev.event_type] || 'bg-blue-500')} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{ev.title}</p>
-                    {ev.start_datetime && (
-                      <p className="text-xs text-slate-500">
-                        {new Date(ev.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        {ev.location && ` \u00b7 ${ev.location}`}
-                      </p>
-                    )}
+                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-primary-700">{ev.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {ev.start_datetime && (
+                        <span className="text-xs text-slate-500">
+                          {new Date(ev.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {ev.location && ` \u00b7 ${ev.location}`}
+                        </span>
+                      )}
+                      {ev.deal_id && (
+                        <span className="text-[10px] text-primary-600">Deal</span>
+                      )}
+                      {ev.contact_id && !ev.deal_id && (
+                        <span className="text-[10px] text-primary-600">Contact</span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -661,7 +687,13 @@ export default function CalendarPage() {
                     )}
                     {slotEvents.map((ev) => (
                       <div key={ev.id}
-                        className={cn('text-[10px] px-1 py-0.5 rounded text-white truncate mb-0.5', EVENT_COLORS[ev.event_type] || 'bg-blue-500')}>
+                        onClick={() => {
+                          if (ev.deal_id) navigate(`/pipeline/${ev.deal_id}`)
+                          else if (ev.contact_id) navigate(`/contacts/${ev.contact_id}`)
+                        }}
+                        className={cn('text-[10px] px-1 py-0.5 rounded text-white truncate mb-0.5', EVENT_COLORS[ev.event_type] || 'bg-blue-500',
+                          (ev.deal_id || ev.contact_id) && 'hover:opacity-80 cursor-pointer',
+                        )}>
                         {ev.title}
                       </div>
                     ))}
@@ -950,7 +982,18 @@ function TaskSection({
             </button>
             <div className={cn('w-2 h-2 rounded-full shrink-0', PRIORITY_DOTS[t.priority] || 'bg-slate-400')} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate">{t.title}</p>
+              <button
+                onClick={() => {
+                  if (t.deal_id) navigate(`/pipeline/${t.deal_id}`)
+                  else if (t.contact_id) navigate(`/contacts/${t.contact_id}`)
+                }}
+                className={cn(
+                  'text-sm font-medium text-slate-800 truncate block text-left w-full',
+                  (t.deal_id || t.contact_id) && 'hover:text-primary-700 hover:underline cursor-pointer',
+                )}
+              >
+                {t.title}
+              </button>
               <div className="flex items-center gap-2 mt-0.5">
                 {t.due_date && (
                   <span className="text-[10px] text-slate-500">

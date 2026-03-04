@@ -10,6 +10,19 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
+// ── Demo Mode Helper ──────────────────────────────────────────
+
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
 // ── Error Handling ─────────────────────────────────────────────
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -41,6 +54,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
 // ── Chat Sessions ──────────────────────────────────────────────
 
 export async function createSession(title?: string): Promise<AdminSession> {
+  if (isDemoMode()) {
+    const id = `demo-${Date.now()}`
+    return { id, title: title || 'New Conversation', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), message_count: 0 } as AdminSession
+  }
   const body = title ? { title } : {}
   return fetch(`${BASE_URL}/api/admin-assistant/sessions`, {
     method: 'POST',
@@ -51,6 +68,7 @@ export async function createSession(title?: string): Promise<AdminSession> {
 }
 
 export async function listSessions(): Promise<AdminSession[]> {
+  if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/admin-assistant/sessions`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -58,6 +76,7 @@ export async function listSessions(): Promise<AdminSession[]> {
 }
 
 export async function getSessionMessages(sessionId: string): Promise<AdminMessage[]> {
+  if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/admin-assistant/sessions/${sessionId}/messages`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -68,6 +87,9 @@ export async function sendMessage(
   sessionId: string,
   content: string
 ): Promise<{ response: string; tool_results: any[]; pending_actions: any[]; suggestions: any[] }> {
+  if (isDemoMode()) {
+    return { response: 'The AI Assistant is not available in Demo Mode. Please upgrade to a paid plan to use this feature.', tool_results: [], pending_actions: [], suggestions: [] }
+  }
   return fetch(`${BASE_URL}/api/admin-assistant/sessions/${sessionId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -83,6 +105,7 @@ export async function getActionLog(params?: {
   offset?: number
   status?: string
 }): Promise<AdminActionLog[]> {
+  if (isDemoMode()) return []
   const searchParams = new URLSearchParams()
   if (params?.limit) searchParams.set('limit', String(params.limit))
   if (params?.offset) searchParams.set('offset', String(params.offset))
@@ -118,6 +141,7 @@ export async function rejectAction(actionId: string, reason?: string): Promise<a
 // ── Trust Settings ─────────────────────────────────────────────
 
 export async function getTrustSettings(): Promise<AdminTrustSetting[]> {
+  if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/admin-assistant/trust-settings`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -156,6 +180,7 @@ export async function resetTrustDefaults(): Promise<any> {
 // ── Skills ─────────────────────────────────────────────────────
 
 export async function getSkillLibrary(): Promise<AdminSkill[]> {
+  if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/admin-assistant/skills`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -205,6 +230,7 @@ export async function executeSkill(skillId: string): Promise<any> {
 // ── Scheduled Tasks ────────────────────────────────────────────
 
 export async function getScheduledTasks(): Promise<AdminScheduledTask[]> {
+  if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',

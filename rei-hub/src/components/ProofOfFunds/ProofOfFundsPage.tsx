@@ -577,12 +577,9 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
       const parts = [deal.address, deal.city, deal.state, deal.zip].filter(Boolean)
       setPropAddress(parts.join(', '))
     }
-    // Auto-fill buyer info from deal if available
-    if (deal.contactName || deal.buyerName) {
-      setBuyerName(deal.contactName || deal.buyerName || '')
-    }
-    if (deal.contactEmail) {
-      setBuyerEmail(deal.contactEmail)
+    // Auto-fill buyer name from deal's buyer linking (NOT the seller/homeowner contactName)
+    if (deal.buyerName) {
+      setBuyerName(deal.buyerName)
     }
     setSelectedDealId(deal.id)
     setPulledDealName(deal.title || deal.address)
