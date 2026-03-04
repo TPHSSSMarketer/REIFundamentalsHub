@@ -48,6 +48,7 @@ export interface DealFile {
   fileContent?: string  // base64 (only on single-file fetch)
   thumbnail?: string    // base64 thumbnail (photos only)
   notes?: string
+  transactionPhase?: 'buying' | 'selling' | 'holding'
   createdAt: string
 }
 
@@ -243,6 +244,9 @@ export interface Deal {
   buyerDownPayment?: number
   sourceOfFunds?: string
 
+  // ── Front Photo (from deal list) ──
+  frontPhotoThumbnail?: string  // base64 thumbnail of front-of-house photo
+
   createdAt: string
   updatedAt: string
 }
@@ -317,6 +321,8 @@ export interface PortfolioProperty {
   monthlyMortgage?: number
   monthlyRent?: number
   notes?: string
+  sourceDealId?: string
+  frontPhotoThumbnail?: string
   createdAt: string
   updatedAt: string
 }

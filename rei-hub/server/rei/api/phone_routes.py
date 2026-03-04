@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_, or_, distinct
@@ -28,6 +28,7 @@ from rei.config import (
 from datetime import time as dt_time
 
 from rei.models.conversation_flow import Persona
+from rei.models.crm import DealFile
 from rei.models.user import (
     CallLog,
     ConversationLog,
@@ -138,8 +139,10 @@ class VoicemailCampaignRequest(BaseModel):
 class SendFaxRequest(BaseModel):
     to_number: str
     from_number_id: str
-    media_url: str
+    media_url: str = ""
     contact_id: Optional[str] = None
+    deal_id: Optional[str] = None
+    deal_file_id: Optional[str] = None
 
 
 class PurchaseCreditsRequest(BaseModel):
@@ -1234,6 +1237,38 @@ async def send_fax(
     if not phone:
         raise HTTPException(status_code=404, detail="Phone number not found")
 
+    # Resolve media URL — either from body.media_url or from a deal file
+    media_url = body.media_url
+    if body.deal_file_id and body.deal_id and not media_url:
+        # Fetch deal file and serve via temporary URL
+        file_result = await db.execute(
+            select(DealFile).where(
+                DealFile.user_id == user.id,
+                DealFile.deal_id == body.deal_id,
+                DealFile.id == body.deal_file_id,
+            )
+        )
+        deal_file = file_result.scalar_one_or_none()
+        if not deal_file:
+            raise HTTPException(status_code=404, detail="Deal file not found")
+        if not deal_file.file_content:
+            raise HTTPException(status_code=400, detail="Deal file has no content")
+
+        # Save file to temp and create a local serving URL
+        import base64
+        import tempfile
+        import os
+        decoded = base64.b64decode(deal_file.file_content)
+        suffix = ".pdf" if "pdf" in (deal_file.mime_type or "") else ".bin"
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir="/tmp")
+        tmp_file.write(decoded)
+        tmp_file.close()
+        # Create a URL via the hub's own server for Twilio to fetch
+        media_url = f"{settings.hub_url}/api/phone/fax/temp-file/{os.path.basename(tmp_file.name)}"
+
+    if not media_url:
+        raise HTTPException(status_code=400, detail="No document provided — supply a PDF URL, upload a file, or select a deal document")
+
     # Charge minimum 1 page
     cost_per_page = PHONE_PRICING["fax_sent_per_page"]
     cost_cents = int(cost_per_page * 100)  # minimum 1 page
@@ -1243,7 +1278,7 @@ async def send_fax(
     result = await twilio_service.send_fax(
         phone.number,
         body.to_number,
-        body.media_url,
+        media_url,
         user.twilio_subaccount_sid or settings.twilio_account_sid,
         settings,
     )
@@ -1258,13 +1293,49 @@ async def send_fax(
         to_number=body.to_number,
         status="queued",
         pages=1,
-        media_url=body.media_url,
+        media_url=media_url,
         contact_id=body.contact_id,
+        deal_id=body.deal_id,
         cost=cost_per_page,
     )
     db.add(fax)
     await db.commit()
     return {"fax_sid": result["fax_sid"]}
+
+
+@phone_router.get("/fax/temp-file/{filename}")
+async def serve_temp_fax_file(filename: str):
+    """Serve a temporary file for Twilio fax pickup. No auth — short-lived temp files."""
+    import os
+    path = os.path.join("/tmp", filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    content_type = "application/pdf" if filename.endswith(".pdf") else "application/octet-stream"
+    with open(path, "rb") as f:
+        data = f.read()
+    # Clean up after serving
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    return Response(content=data, media_type=content_type)
+
+
+@phone_router.post("/fax/upload")
+async def upload_fax_document(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Upload a document for faxing. Returns a URL that Twilio can fetch."""
+    import tempfile
+    import os
+    file_bytes = await file.read()
+    suffix = ".pdf" if "pdf" in (file.content_type or "") else ".bin"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir="/tmp")
+    tmp.write(file_bytes)
+    tmp.close()
+    url = f"{settings.hub_url}/api/phone/fax/temp-file/{os.path.basename(tmp.name)}"
+    return {"media_url": url}
 
 
 # ── CREDITS ────────────────────────────────────────────────────────────

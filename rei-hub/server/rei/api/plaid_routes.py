@@ -43,6 +43,7 @@ class PofRequestCreate(BaseModel):
     property_address: str = Field(description="Property address")
     required_amount: float = Field(description="Required proof of funds amount")
     notes: Optional[str] = Field(default=None, description="Additional context")
+    deal_id: Optional[str] = Field(default=None, description="Associated deal ID")
 
 
 class PublicVerifyRequest(BaseModel):
@@ -311,6 +312,7 @@ async def create_pof_request(
         request_token=request_token,
         expires_at=expires_at,
         notes=body.notes,
+        deal_id=body.deal_id,
     )
     db.add(pof_req)
     await db.commit()

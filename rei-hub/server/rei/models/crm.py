@@ -305,6 +305,7 @@ class CrmPortfolioProperty(Base):
     monthly_mortgage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     monthly_rent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -338,6 +339,8 @@ class DealFile(Base):
     thumbnail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # base64 small thumbnail
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Transaction phase: buying, selling, holding (for document organization)
+    transaction_phase: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -68,16 +68,29 @@ def merge_document(docx_base64: str, merge_data: dict[str, str]) -> str:
 def generate_file_name(
     template_name: str,
     homeowner_name: str,
-    buying_entity: str,
+    property_address: str = "",
+    buying_entity: str = "",
     date: str | None = None,
 ) -> str:
     """Build a standardised contract file name.
 
-    Returns ``"{template_name} - {homeowner_name} - {buying_entity} - {date}.docx"``
+    Format: ``"Document Name - Homeowner Name - Address.docx"``
+    where address = "street, city, ST zip"
+
+    Falls back to buying_entity + date if no address provided.
     """
-    if date is None:
-        date = datetime.utcnow().strftime("%Y-%m-%d")
-    return f"{template_name} - {homeowner_name} - {buying_entity} - {date}.docx"
+    parts = [template_name]
+    if homeowner_name:
+        parts.append(homeowner_name)
+    if property_address:
+        parts.append(property_address)
+    elif buying_entity:
+        parts.append(buying_entity)
+    name = " - ".join(parts)
+    # Sanitise characters that are invalid in file names
+    for ch in ('/', '\\', ':', '*', '?', '"', '<', '>', '|'):
+        name = name.replace(ch, '_')
+    return f"{name}.docx"
 
 
 def build_merge_data(user, contract_data: dict) -> dict[str, str]:

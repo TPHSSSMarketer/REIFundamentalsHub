@@ -33,12 +33,19 @@ import {
   ListChecks,
   Banknote,
   Gavel,
+  FolderOpen,
+  Download,
+  ChevronRight,
+  RefreshCw,
+  Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
 import { getAuthHeader } from '@/services/auth'
 import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
+import { getTemplates, generateContractFromDeal } from '@/services/documentsApi'
+import { createPortfolioProperty } from '@/services/crmApi'
 import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
@@ -120,6 +127,7 @@ const DOC_CATEGORIES = [
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'expenditures', label: 'Expenditures', icon: Receipt },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'photos', label: 'Photos', icon: Camera },
   { id: 'files', label: 'Files', icon: FileText },
   { id: 'matches', label: 'Matched Buyers', icon: Users },
@@ -166,6 +174,16 @@ export default function DealDetailPage() {
 
   // Deal Analyzer preferences
   const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
+
+  // Document Templates & Generation
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; category: string }>>([])
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
+  const [generatingDoc, setGeneratingDoc] = useState(false)
+  const [expandedPhase, setExpandedPhase] = useState<string | null>('buying')
+
+  // Add to Portfolio
+  const [addingToPortfolio, setAddingToPortfolio] = useState(false)
+  const [addedToPortfolio, setAddedToPortfolio] = useState(false)
 
   // Bank Negotiations
   const [lenderData, setLenderData] = useState<any>(null)
@@ -252,6 +270,18 @@ export default function DealDetailPage() {
       .finally(() => setLenderLoading(false))
   }, [deal?.address])
 
+  // Load document templates when Documents tab is opened
+  useEffect(() => {
+    if (activeTab === 'documents' && !templatesLoaded) {
+      getTemplates()
+        .then((data) => {
+          setTemplates(data.templates || [])
+          setTemplatesLoaded(true)
+        })
+        .catch(() => setTemplatesLoaded(true))
+    }
+  }, [activeTab, templatesLoaded])
+
   // Fetch analyzer preferences
   useEffect(() => {
     async function fetchPrefs() {
@@ -277,6 +307,33 @@ export default function DealDetailPage() {
     updateDeal.mutate({ id: deal.id, data: { stage: stageId as Deal['stage'] } })
   }
 
+  const handleAddToPortfolio = async () => {
+    if (!deal) return
+    setAddingToPortfolio(true)
+    try {
+      await createPortfolioProperty({
+        address: deal.address || '',
+        city: deal.city,
+        state: deal.state,
+        zip: deal.zip,
+        propertyType: (deal.propertyType as any) || 'single_family',
+        units: 1,
+        purchaseDate: new Date().toISOString().slice(0, 10),
+        purchasePrice: deal.purchasePrice ?? undefined,
+        loanBalance: deal.loanAmount ?? undefined,
+        monthlyRent: deal.monthlyRent ?? undefined,
+        notes: `Added from deal: ${deal.contactName || deal.address || ''}`,
+        sourceDealId: deal.id,
+      })
+      setAddedToPortfolio(true)
+      toast.success('Property added to Portfolio!')
+    } catch {
+      toast.error('Failed to add to portfolio')
+    } finally {
+      setAddingToPortfolio(false)
+    }
+  }
+
   const handleAddNote = async () => {
     if (!dealId || !newNote.trim()) return
     setAddingNote(true)
@@ -300,6 +357,97 @@ export default function DealDetailPage() {
       toast.success('Note deleted')
     } catch {
       toast.error('Failed to delete note')
+    }
+  }
+
+  // ── Document Upload (with transaction phase) ────────────────
+  const handleDocUpload = async (phase: 'buying' | 'selling' | 'holding', file: File) => {
+    if (!dealId) return
+    setUploading(`doc-phase-${phase}`)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('category', 'other')
+      formData.append('file_type', 'document')
+      formData.append('transaction_phase', phase)
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      toast.success('Document uploaded')
+      await loadDealFiles()
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  // ── Replace / Overwrite Document ─────────────────────────────
+  const handleDocReplace = async (fileId: string, file: File) => {
+    if (!dealId) return
+    setUploading(`replace-${fileId}`)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('category', 'other')
+      formData.append('file_type', 'document')
+      formData.append('replace_file_id', fileId)
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+      })
+      if (!res.ok) throw new Error('Replace failed')
+      toast.success('Document replaced')
+      await loadDealFiles()
+    } catch {
+      toast.error('Failed to replace document')
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  // ── Generate Contract from Deal ────────────────────────────
+  const handleGenerateContract = async (templateId: string, phase: 'buying' | 'selling' | 'holding') => {
+    if (!dealId) return
+    setGeneratingDoc(true)
+    try {
+      await generateContractFromDeal(dealId, templateId, phase)
+      toast.success('Contract generated')
+      await loadDealFiles()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate contract')
+    } finally {
+      setGeneratingDoc(false)
+    }
+  }
+
+  // ── Download document ──────────────────────────────────────
+  const handleDocDownload = async (fileId: string, fileName: string) => {
+    if (!dealId) return
+    try {
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
+        headers: getAuthHeader(),
+      })
+      if (!res.ok) throw new Error('Download failed')
+      const data = await res.json()
+      if (data.fileContent) {
+        const byteChars = atob(data.fileContent)
+        const byteArray = new Uint8Array(byteChars.length)
+        for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+        const blob = new Blob([byteArray], { type: data.mimeType || 'application/octet-stream' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch {
+      toast.error('Failed to download file')
     }
   }
 
@@ -520,6 +668,25 @@ export default function DealDetailPage() {
                 )
               })}
             </div>
+
+            {/* Add to Portfolio — visible on closed_won */}
+            {deal.stage === 'closed_won' && !addedToPortfolio && (
+              <button
+                onClick={handleAddToPortfolio}
+                disabled={addingToPortfolio}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-medium text-sm"
+              >
+                {addingToPortfolio ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Building2 className="w-4 h-4" />
+                )}
+                Add to Portfolio
+              </button>
+            )}
+            {deal.stage === 'closed_won' && addedToPortfolio && (
+              <p className="mt-3 text-center text-sm text-green-600 font-medium">Added to Portfolio</p>
+            )}
           </div>
 
           {/* Financial Summary */}
@@ -1315,6 +1482,157 @@ export default function DealDetailPage() {
               {/* ── Expenditures Tab ──────────────────── */}
               {activeTab === 'expenditures' && dealId && (
                 <DealExpenditures dealId={dealId} />
+              )}
+
+              {/* ── Documents Tab (Buying / Selling / Holding) ── */}
+              {activeTab === 'documents' && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold text-slate-900">Deal Documents</h3>
+                  <p className="text-sm text-slate-500">
+                    Upload and generate documents organized by transaction phase.
+                  </p>
+
+                  {(['buying', 'selling', 'holding'] as const).map((phase) => {
+                    const phaseDocs = documents.filter(d => d.transactionPhase === phase)
+                    const isExpanded = expandedPhase === phase
+                    const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1)
+
+                    return (
+                      <div key={phase} className="border border-slate-200 rounded-lg overflow-hidden">
+                        {/* Phase Header */}
+                        <button
+                          onClick={() => setExpandedPhase(isExpanded ? null : phase)}
+                          className="w-full flex items-center justify-between bg-slate-50 px-4 py-3 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <ChevronRight className={cn('w-4 h-4 text-slate-400 transition-transform', isExpanded && 'rotate-90')} />
+                            <FolderOpen className="w-4 h-4 text-primary-500" />
+                            <span className="font-medium text-slate-800">{phaseLabel}</span>
+                            <span className="text-xs text-slate-400 ml-1">({phaseDocs.length} document{phaseDocs.length !== 1 ? 's' : ''})</span>
+                          </div>
+                        </button>
+
+                        {/* Expanded Content */}
+                        {isExpanded && (
+                          <div className="p-4 space-y-3">
+                            {/* Action Buttons */}
+                            <div className="flex flex-wrap gap-2">
+                              {/* Upload Button */}
+                              <label className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 cursor-pointer transition-colors">
+                                {uploading === `doc-phase-${phase}` ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Upload className="w-3.5 h-3.5" />
+                                )}
+                                Upload Document
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  disabled={!!uploading}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) handleDocUpload(phase, file)
+                                    e.target.value = ''
+                                  }}
+                                />
+                              </label>
+
+                              {/* Generate Contract Dropdown */}
+                              {templates.length > 0 && (
+                                <div className="relative group">
+                                  <button
+                                    disabled={generatingDoc}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {generatingDoc ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <FileText className="w-3.5 h-3.5" />
+                                    )}
+                                    Generate Contract
+                                    <ChevronDown className="w-3 h-3" />
+                                  </button>
+                                  <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 hidden group-hover:block">
+                                    {templates.map(t => (
+                                      <button
+                                        key={t.id}
+                                        onClick={() => handleGenerateContract(t.id, phase)}
+                                        disabled={generatingDoc}
+                                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 first:rounded-t-lg last:rounded-b-lg"
+                                      >
+                                        {t.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Document List */}
+                            {phaseDocs.length === 0 ? (
+                              <p className="text-sm text-slate-400 italic py-2">No documents yet for this phase.</p>
+                            ) : (
+                              <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
+                                {phaseDocs.map(doc => (
+                                  <div key={doc.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                                      <div className="min-w-0">
+                                        <p className="text-sm text-slate-700 truncate">{doc.fileName}</p>
+                                        <p className="text-xs text-slate-400">
+                                          {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : ''}
+                                          {doc.category && ` · ${doc.category}`}
+                                          {doc.createdAt && ` · ${formatDate(doc.createdAt)}`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {/* Replace / Overwrite */}
+                                      <label
+                                        className="p-1.5 rounded hover:bg-amber-50 transition-colors cursor-pointer"
+                                        title="Replace (overwrite with signed version)"
+                                      >
+                                        {uploading === `replace-${doc.id}` ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                                        ) : (
+                                          <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                                        )}
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          disabled={!!uploading}
+                                          onChange={(e) => {
+                                            const f = e.target.files?.[0]
+                                            if (f) handleDocReplace(doc.id, f)
+                                            e.target.value = ''
+                                          }}
+                                        />
+                                      </label>
+                                      <button
+                                        onClick={() => handleDocDownload(doc.id, doc.fileName)}
+                                        className="p-1.5 rounded hover:bg-blue-50 transition-colors"
+                                        title="Download"
+                                      >
+                                        <Download className="w-3.5 h-3.5 text-blue-400" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleFileDelete(doc.id)}
+                                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               )}
 
               {/* ── Photos Tab ────────────────────────── */}

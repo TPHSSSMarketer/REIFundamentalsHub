@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
-from rei.models.crm import CrmDeal, DealBuyerMatch
+from rei.models.crm import CrmDeal, DealBuyerMatch, DealFile
 from rei.models.user import User
 from rei.services.buyer_matching import match_buyers_for_deal
 
@@ -538,7 +538,32 @@ async def list_deals(
         .order_by(CrmDeal.created_at.desc())
     )
     deals = result.scalars().all()
-    return [_deal_to_dict(d) for d in deals]
+
+    # Batch-fetch front photo thumbnails for all deals
+    deal_ids = [d.id for d in deals]
+    front_thumbs: dict[str, str] = {}
+    if deal_ids:
+        thumb_result = await db.execute(
+            select(DealFile.deal_id, DealFile.thumbnail)
+            .where(
+                DealFile.user_id == user.id,
+                DealFile.deal_id.in_(deal_ids),
+                DealFile.file_type == "photo",
+                DealFile.category == "front",
+                DealFile.thumbnail.isnot(None),
+            )
+            .order_by(DealFile.created_at.desc())
+        )
+        for row in thumb_result:
+            if row.deal_id not in front_thumbs:
+                front_thumbs[row.deal_id] = row.thumbnail
+
+    result_list = []
+    for d in deals:
+        data = _deal_to_dict(d)
+        data["frontPhotoThumbnail"] = front_thumbs.get(d.id)
+        result_list.append(data)
+    return result_list
 
 
 @crm_deals_router.get("/{deal_id}")

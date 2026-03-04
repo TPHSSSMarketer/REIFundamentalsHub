@@ -354,6 +354,7 @@ class PofRequest(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     certificate_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -773,6 +774,7 @@ class FaxLog(Base):
     pages: Mapped[int] = mapped_column(Integer, default=0)
     media_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     cost: Mapped[float] = mapped_column(Float, default=0.00)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -33,11 +33,11 @@ import { toast } from 'sonner'
 type TabKey = 'numbers' | 'dialer' | 'sms' | 'fax' | 'credits'
 
 const TABS: { key: TabKey; label: string; icon: typeof Phone }[] = [
-  { key: 'numbers', label: 'Numbers', icon: Phone },
   { key: 'dialer', label: 'Dialer', icon: PhoneCall },
   { key: 'sms', label: 'SMS', icon: MessageSquare },
   { key: 'fax', label: 'Fax', icon: FileText },
   { key: 'credits', label: 'Credits & Usage', icon: CreditCard },
+  { key: 'numbers', label: 'Numbers', icon: Phone },
 ]
 
 const DISPOSITIONS = [
@@ -68,7 +68,7 @@ const PRICING_TABLE = [
 ]
 
 export default function PhonePage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('numbers')
+  const [activeTab, setActiveTab] = useState<TabKey>('dialer')
 
   // Read tab from URL params
   useEffect(() => {
@@ -871,10 +871,26 @@ function FaxTab() {
   const [loading, setLoading] = useState(true)
   const [toNumber, setToNumber] = useState('')
   const [fromNumberId, setFromNumberId] = useState('')
-  const [mediaUrl, setMediaUrl] = useState('')
+  // Document source mode: 'deal' | 'upload'
+  const [docSource, setDocSource] = useState<'deal' | 'upload'>('deal')
+
+  // Deal document picker
+  const [deals, setDeals] = useState<any[]>([])
+  const [selectedDealId, setSelectedDealId] = useState('')
+  const [dealDocs, setDealDocs] = useState<any[]>([])
+  const [selectedDocId, setSelectedDocId] = useState('')
+  const [loadingDeals, setLoadingDeals] = useState(false)
+  const [loadingDocs, setLoadingDocs] = useState(false)
+
+  // File upload
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
   useEffect(() => {
     loadData()
+    loadDeals()
   }, [])
 
   async function loadData() {
@@ -893,22 +909,102 @@ function FaxTab() {
     }
   }
 
-  async function handleSendFax() {
-    if (!toNumber || !fromNumberId || !mediaUrl) return
+  async function loadDeals() {
+    setLoadingDeals(true)
     try {
-      await phoneApi.sendFax({
-        to_number: toNumber,
-        from_number_id: fromNumberId,
-        media_url: mediaUrl,
+      const { getDeals } = await import('@/services/crmApi')
+      const allDeals = await getDeals('local-user')
+      setDeals(Array.isArray(allDeals) ? allDeals.filter((d: any) => d.address) : [])
+    } catch {
+      toast.error('Failed to load deals')
+    } finally {
+      setLoadingDeals(false)
+    }
+  }
+
+  async function loadDealDocs(dealId: string) {
+    setLoadingDocs(true)
+    try {
+      const { getAuthHeader } = await import('@/services/auth')
+      const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files?file_type=document`, {
+        headers: getAuthHeader(),
+        credentials: 'include',
       })
+      if (res.ok) {
+        const docs = await res.json()
+        setDealDocs(docs)
+      }
+    } catch {
+      setDealDocs([])
+    } finally {
+      setLoadingDocs(false)
+    }
+  }
+
+  function handleDealChange(dealId: string) {
+    setSelectedDealId(dealId)
+    setSelectedDocId('')
+    setDealDocs([])
+    if (dealId) loadDealDocs(dealId)
+  }
+
+  async function handleSendFax() {
+    if (!toNumber || !fromNumberId) return
+
+    // Determine what we're sending
+    let sendData: any = {
+      to_number: toNumber,
+      from_number_id: fromNumberId,
+    }
+
+    if (docSource === 'deal') {
+      if (!selectedDealId || !selectedDocId) { toast.error('Select a deal and document'); return }
+      sendData.deal_id = selectedDealId
+      sendData.deal_file_id = selectedDocId
+    } else if (docSource === 'upload') {
+      if (!uploadFile) { toast.error('Select a file to upload'); return }
+      // Upload file first, then send fax with returned URL
+      setUploading(true)
+      try {
+        const { getAuthHeader } = await import('@/services/auth')
+        const formData = new FormData()
+        formData.append('file', uploadFile)
+        const uploadRes = await fetch(`${BASE_URL}/api/phone/fax/upload`, {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: formData,
+          credentials: 'include',
+        })
+        if (!uploadRes.ok) throw new Error('Upload failed')
+        const { media_url } = await uploadRes.json()
+        sendData.media_url = media_url
+      } catch {
+        toast.error('Failed to upload document')
+        setUploading(false)
+        return
+      } finally {
+        setUploading(false)
+      }
+    }
+
+    try {
+      await phoneApi.sendFax(sendData)
       toast.success('Fax sent successfully')
       setToNumber('')
-      setMediaUrl('')
+      setSelectedDealId('')
+      setSelectedDocId('')
+      setUploadFile(null)
+      setDealDocs([])
       loadData()
     } catch (e: any) {
       toast.error(e.message || 'Failed to send fax')
     }
   }
+
+  const canSend = toNumber && fromNumberId && (
+    (docSource === 'deal' && selectedDealId && selectedDocId) ||
+    (docSource === 'upload' && uploadFile)
+  )
 
   if (loading) {
     return <div className="animate-pulse h-48 bg-slate-100 rounded-lg" />
@@ -943,23 +1039,85 @@ function FaxTab() {
             </select>
           </div>
         </div>
+
+        {/* Document Source Selector */}
         <div className="mt-4">
-          <label className="block text-sm font-medium text-slate-700 mb-1">PDF URL</label>
-          <input
-            type="url"
-            value={mediaUrl}
-            onChange={(e) => setMediaUrl(e.target.value)}
-            placeholder="https://example.com/document.pdf"
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
+          <label className="block text-sm font-medium text-slate-700 mb-2">Document Source</label>
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setDocSource('deal')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${docSource === 'deal' ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Deal Documents
+            </button>
+            <button
+              onClick={() => setDocSource('upload')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${docSource === 'upload' ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Upload File
+            </button>
+          </div>
+
+          {/* Deal document picker */}
+          {docSource === 'deal' && (
+            <div className="space-y-3">
+              <select
+                value={selectedDealId}
+                onChange={(e) => handleDealChange(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                disabled={loadingDeals}
+              >
+                <option value="">{loadingDeals ? 'Loading deals...' : 'Select a deal...'}</option>
+                {deals.map((d: any) => (
+                  <option key={d.id} value={d.id}>
+                    {d.contactName || d.address} — {d.address}
+                  </option>
+                ))}
+              </select>
+              {selectedDealId && (
+                <select
+                  value={selectedDocId}
+                  onChange={(e) => setSelectedDocId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                  disabled={loadingDocs}
+                >
+                  <option value="">{loadingDocs ? 'Loading documents...' : 'Select a document...'}</option>
+                  {dealDocs.map((doc: any) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.fileName} ({doc.category})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedDealId && !loadingDocs && dealDocs.length === 0 && (
+                <p className="text-xs text-slate-400">No documents found for this deal</p>
+              )}
+            </div>
+          )}
+
+          {/* File upload */}
+          {docSource === 'upload' && (
+            <div>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+              />
+              {uploadFile && (
+                <p className="text-xs text-slate-500 mt-1">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(0)} KB)</p>
+              )}
+            </div>
+          )}
+
           <p className="text-xs text-slate-400 mt-1">Estimated cost: $0.04/page</p>
         </div>
         <button
           onClick={handleSendFax}
-          disabled={!toNumber || !fromNumberId || !mediaUrl}
+          disabled={!canSend || uploading}
           className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
         >
-          <Send className="w-4 h-4" /> Send Fax
+          <Send className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Send Fax'}
         </button>
       </div>
 

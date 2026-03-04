@@ -41,7 +41,6 @@ const navItems = [
   { to: '/contacts', icon: Users, label: 'Contacts' },
   { to: '/markets', icon: MapPin, label: 'Markets' },
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
-  { to: '/proof-of-funds', icon: ShieldCheck, label: 'Proof of Funds' },
   { to: '/documents', icon: FileText, label: 'Documents' },
   // Email Marketing now lives inside AssistantHub
   { to: '/lead-capture', icon: Globe, label: 'Lead Capture' },
@@ -51,6 +50,7 @@ const navItems = [
   { to: '/assistanthub', icon: Headphones, label: 'AI Studio' },
   { to: '/contenthub', icon: PenTool, label: 'ContentHub' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/proof-of-funds', icon: ShieldCheck, label: 'Proof of Funds' },
   { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/help', icon: LifeBuoy, label: 'Help' },
   { to: '/settings', icon: Settings, label: 'Settings' },

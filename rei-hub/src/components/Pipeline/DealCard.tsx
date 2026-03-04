@@ -46,32 +46,43 @@ export default function DealCard({ deal, isDragging, onClick, pipelineId }: Deal
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:shadow-md transition-shadow',
+        'bg-white rounded-lg border border-slate-200 cursor-pointer hover:shadow-md transition-shadow overflow-hidden',
         (isDragging || isSortableDragging) && 'opacity-50 shadow-lg',
         isDragging && 'rotate-2',
         deal.isUrgent && 'border-l-4 border-l-red-500'
       )}
       onClick={onClick}
     >
-      <div className="flex items-start gap-2">
-        {/* Drag Handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 p-1 rounded hover:bg-slate-100 cursor-grab active:cursor-grabbing"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="w-4 h-4 text-slate-400" />
-        </button>
+      {/* Front-of-house photo */}
+      {deal.frontPhotoThumbnail && (
+        <img
+          src={`data:image/jpeg;base64,${deal.frontPhotoThumbnail}`}
+          alt={deal.address || deal.title || 'Property'}
+          className="w-full h-28 object-cover"
+        />
+      )}
 
-        <div className="flex-1 min-w-0">
-          {isInvestorBuyer ? (
-            <InvestorBuyerLayout deal={deal} />
-          ) : isRetailBuyer ? (
-            <RetailBuyerLayout deal={deal} />
-          ) : (
-            <DefaultDealLayout deal={deal} />
-          )}
+      <div className="p-3">
+        <div className="flex items-start gap-2">
+          {/* Drag Handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="mt-0.5 p-1 rounded hover:bg-slate-100 cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="w-4 h-4 text-slate-400" />
+          </button>
+
+          <div className="flex-1 min-w-0">
+            {isInvestorBuyer ? (
+              <InvestorBuyerLayout deal={deal} />
+            ) : isRetailBuyer ? (
+              <RetailBuyerLayout deal={deal} />
+            ) : (
+              <DefaultDealLayout deal={deal} />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -235,12 +246,23 @@ function DefaultDealLayout({ deal }: { deal: Deal }) {
 
   return (
     <>
+      {/* Homeowner Name — bold and first */}
+      {deal.contactName && (
+        <div className="flex items-center gap-1">
+          {deal.isUrgent && (
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+          )}
+          <User className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+          <p className="font-semibold text-slate-800 truncate">{deal.contactName}</p>
+        </div>
+      )}
+
       {/* Address */}
-      <div className="flex items-center gap-1">
-        {deal.isUrgent && (
+      <div className="flex items-center gap-1 mt-0.5">
+        {!deal.contactName && deal.isUrgent && (
           <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
         )}
-        <p className="font-medium text-slate-800 truncate">{deal.address}</p>
+        <p className="text-sm text-slate-600 truncate">{deal.address}</p>
       </div>
 
       {/* City/State */}
@@ -248,14 +270,6 @@ function DefaultDealLayout({ deal }: { deal: Deal }) {
         <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-500">
           <MapPin className="w-3 h-3" />
           <span className="truncate">{location}</span>
-        </div>
-      )}
-
-      {/* Contact */}
-      {deal.contactName && (
-        <div className="flex items-center gap-1 mt-1 text-sm text-slate-500">
-          <User className="w-3 h-3" />
-          <span className="truncate">{deal.contactName}</span>
         </div>
       )}
 

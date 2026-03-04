@@ -606,8 +606,10 @@ export async function getFaxHistory() {
 export async function sendFax(data: {
   to_number: string
   from_number_id: string
-  media_url: string
+  media_url?: string
   contact_id?: string
+  deal_id?: string
+  deal_file_id?: string
 }) {
   return withDemoFallback(
     async () => {

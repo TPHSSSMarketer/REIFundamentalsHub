@@ -8,7 +8,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +92,7 @@ def _file_to_dict(f: DealFile) -> dict:
         "mimeType": f.mime_type,
         "fileSize": f.file_size,
         "notes": f.notes,
+        "transactionPhase": f.transaction_phase,
         "createdAt": f.created_at.isoformat() if f.created_at else None,
     }
 
@@ -111,6 +112,7 @@ def _file_to_dict_full(f: DealFile) -> dict:
 async def list_deal_files(
     deal_id: str,
     file_type: Optional[str] = None,
+    transaction_phase: Optional[str] = Query(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -122,6 +124,8 @@ async def list_deal_files(
 
     if file_type:
         query = query.where(DealFile.file_type == file_type)
+    if transaction_phase:
+        query = query.where(DealFile.transaction_phase == transaction_phase)
 
     query = query.order_by(DealFile.created_at.desc())
 
@@ -179,10 +183,21 @@ async def upload_deal_file(
     category: str = Form(...),
     file_type: str = Form(default="photo"),
     notes: Optional[str] = Form(None),
+    transaction_phase: Optional[str] = Form(None),
+    replace_file_id: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a file (photo or document) to a deal."""
+    """Upload a file (photo or document) to a deal.
+
+    Pass ``replace_file_id`` to overwrite an existing file in place
+    (keeps same slot — same category, phase, position — just swaps
+    the content, e.g. unsigned → signed contract).
+    """
+    # Validate transaction_phase if provided
+    if transaction_phase and transaction_phase not in ("buying", "selling", "holding"):
+        raise HTTPException(status_code=400, detail="transaction_phase must be 'buying', 'selling', or 'holding'")
+
     try:
         file_bytes = await file.read()
         mime_type = file.content_type or ""
@@ -198,6 +213,34 @@ async def upload_deal_file(
             file_content_b64 = base64.b64encode(file_bytes).decode("utf-8")
             thumbnail_b64 = None
 
+        # ── Overwrite existing file if replace_file_id provided ──
+        if replace_file_id:
+            result = await db.execute(
+                select(DealFile).where(
+                    DealFile.user_id == user.id,
+                    DealFile.deal_id == deal_id,
+                    DealFile.id == replace_file_id,
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if not existing:
+                raise HTTPException(status_code=404, detail="File to replace not found")
+
+            # Update content in place — keep same id, category, phase, slot
+            existing.file_name = file.filename or existing.file_name
+            existing.mime_type = mime_type
+            existing.file_size = file_size
+            existing.file_content = file_content_b64
+            existing.thumbnail = thumbnail_b64
+            if notes is not None:
+                existing.notes = notes
+            existing.created_at = datetime.utcnow()  # bump timestamp
+
+            await db.commit()
+            await db.refresh(existing)
+            return _file_to_dict(existing)
+
+        # ── Normal: create new file ──
         deal_file = DealFile(
             user_id=user.id,
             deal_id=deal_id,
@@ -209,6 +252,7 @@ async def upload_deal_file(
             file_content=file_content_b64,
             thumbnail=thumbnail_b64,
             notes=notes,
+            transaction_phase=transaction_phase,
             created_at=datetime.utcnow(),
         )
 

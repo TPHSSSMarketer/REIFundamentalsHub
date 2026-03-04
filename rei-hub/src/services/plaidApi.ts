@@ -164,6 +164,7 @@ export async function requestPof(data: {
   property_address: string
   required_amount: number
   notes?: string
+  deal_id?: string
 }): Promise<{ request_id: string; request_token: string; expires_at: string }> {
   return withDemoFallback(
     () =>

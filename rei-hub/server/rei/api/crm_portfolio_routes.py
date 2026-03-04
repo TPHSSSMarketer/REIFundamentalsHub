@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
-from rei.models.crm import CrmPortfolioProperty
+from rei.models.crm import CrmPortfolioProperty, DealFile
 from rei.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ class CreatePortfolioBody(BaseModel):
     monthlyMortgage: Optional[float] = None
     monthlyRent: Optional[float] = None
     notes: Optional[str] = None
+    sourceDealId: Optional[str] = None
 
 
 class UpdatePortfolioBody(BaseModel):
@@ -73,13 +74,14 @@ _FIELD_MAP: dict[str, str] = {
     "monthlyMortgage": "monthly_mortgage",
     "monthlyRent": "monthly_rent",
     "notes": "notes",
+    "sourceDealId": "source_deal_id",
 }
 
 
 # ── Helpers ─────────────────────────────────────────────────
 
 
-def _property_to_dict(p: CrmPortfolioProperty) -> dict:
+def _property_to_dict(p: CrmPortfolioProperty, thumbnail: str | None = None) -> dict:
     return {
         "id": p.id,
         "address": p.address or "",
@@ -96,6 +98,8 @@ def _property_to_dict(p: CrmPortfolioProperty) -> dict:
         "monthlyMortgage": p.monthly_mortgage,
         "monthlyRent": p.monthly_rent,
         "notes": p.notes,
+        "sourceDealId": p.source_deal_id,
+        "frontPhotoThumbnail": thumbnail,
         "createdAt": p.created_at.isoformat() if p.created_at else None,
         "updatedAt": p.updated_at.isoformat() if p.updated_at else None,
     }
@@ -116,7 +120,30 @@ async def list_properties(
         .order_by(CrmPortfolioProperty.created_at.desc())
     )
     props = result.scalars().all()
-    return [_property_to_dict(p) for p in props]
+
+    # Batch-fetch front photo thumbnails for properties linked to deals
+    deal_ids = [p.source_deal_id for p in props if p.source_deal_id]
+    front_thumbs: dict[str, str] = {}
+    if deal_ids:
+        thumb_result = await db.execute(
+            select(DealFile.deal_id, DealFile.thumbnail)
+            .where(
+                DealFile.user_id == user.id,
+                DealFile.deal_id.in_(deal_ids),
+                DealFile.file_type == "photo",
+                DealFile.category == "front",
+                DealFile.thumbnail.isnot(None),
+            )
+            .order_by(DealFile.created_at.desc())
+        )
+        for row in thumb_result:
+            if row.deal_id not in front_thumbs:
+                front_thumbs[row.deal_id] = row.thumbnail
+
+    return [
+        _property_to_dict(p, front_thumbs.get(p.source_deal_id) if p.source_deal_id else None)
+        for p in props
+    ]
 
 
 @crm_portfolio_router.get("/{property_id}")
@@ -163,6 +190,7 @@ async def create_property(
         monthly_mortgage=body.monthlyMortgage,
         monthly_rent=body.monthlyRent,
         notes=body.notes,
+        source_deal_id=body.sourceDealId,
         created_at=now,
         updated_at=now,
     )

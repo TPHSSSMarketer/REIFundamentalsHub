@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings
+from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import (
     ContractChecklistTemplate,
     DealContractChecklist,
@@ -319,9 +320,12 @@ async def generate_contract(
             detail="Failed to merge document",
         ) from e
 
-    # Generate file name
+    # Generate file name: Document Name - Homeowner - Address
     file_name = document_service.generate_file_name(
-        template.name, body.homeowner_name, body.buying_entity
+        template.name,
+        body.homeowner_name,
+        property_address=body.property_address,
+        buying_entity=body.buying_entity,
     )
 
     # Save to storage
@@ -1172,4 +1176,120 @@ async def list_deal_lois(
             }
             for loi in lois
         ]
+    }
+
+
+# ── Generate Contract from Deal Data ──────────────────────────────
+
+
+class GenerateFromDealRequest(BaseModel):
+    template_id: str
+    transaction_phase: str = "buying"  # buying, selling, holding
+    custom_fields: Optional[dict] = None
+
+
+@documents_router.post("/generate-from-deal/{deal_id}")
+async def generate_contract_from_deal(
+    deal_id: str,
+    body: GenerateFromDealRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a contract using a template + deal data, store as DealFile."""
+    if body.transaction_phase not in ("buying", "selling", "holding"):
+        raise HTTPException(status_code=400, detail="transaction_phase must be 'buying', 'selling', or 'holding'")
+
+    # Fetch template
+    result = await db.execute(
+        select(DocumentTemplate).where(
+            DocumentTemplate.id == body.template_id,
+            DocumentTemplate.user_id == current_user.id,
+        )
+    )
+    template = result.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Fetch deal
+    deal_result = await db.execute(
+        select(CrmDeal).where(
+            CrmDeal.id == deal_id,
+            CrmDeal.user_id == current_user.id,
+            CrmDeal.is_deleted == False,
+        )
+    )
+    deal = deal_result.scalar_one_or_none()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+
+    # Build merge data from deal fields
+    full_address = " ".join(filter(None, [deal.address, deal.city, deal.state, deal.zip]))
+    contract_data = {
+        "homeowner_name": deal.contact_name or "",
+        "buying_entity": "",
+        "property_address": full_address,
+        "purchase_price": deal.purchase_price,
+        "closing_date": deal.closing_date.strftime("%m/%d/%Y") if deal.closing_date else "",
+        "emd_amount": deal.earnest_money,
+        "additional_clauses": "",
+    }
+
+    # Add extra deal fields as custom fields for templates that need them
+    deal_custom = {
+        "DEAL_TITLE": deal.title or "",
+        "SELLER_NAME": deal.contact_name or "",
+        "PROPERTY_TYPE": deal.property_type or "",
+        "BEDROOMS": str(deal.bedrooms or ""),
+        "BATHROOMS": str(deal.bathrooms or ""),
+        "SQUARE_FOOTAGE": str(deal.square_footage or ""),
+        "YEAR_BUILT": str(deal.year_built or ""),
+        "LIST_PRICE": str(deal.list_price or ""),
+        "OFFER_PRICE": str(deal.offer_price or ""),
+        "ARV": str(deal.arv or ""),
+        "LOAN_AMOUNT": str(deal.loan_amount or ""),
+        "INTEREST_RATE": str(deal.interest_rate or ""),
+        "MORTGAGE_BALANCE": str(deal.mortgage_balance or ""),
+        "MONTHLY_RENT": str(deal.monthly_rent or ""),
+    }
+    if body.custom_fields:
+        deal_custom.update(body.custom_fields)
+    contract_data["custom_fields"] = deal_custom
+
+    merge_data = document_service.build_merge_data(current_user, contract_data)
+    merged_b64 = document_service.merge_document(template.file_content, merge_data)
+
+    # Generate file name: Document Name - Homeowner - Street, City, ST Zip
+    file_name = document_service.generate_file_name(
+        template.name,
+        deal.contact_name or "Unknown",
+        property_address=full_address,
+    )
+
+    # Save as DealFile
+    deal_file = DealFile(
+        user_id=current_user.id,
+        deal_id=deal_id,
+        file_type="document",
+        category="contract",
+        file_name=file_name,
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        file_size=len(base64.b64decode(merged_b64)),
+        file_content=merged_b64,
+        transaction_phase=body.transaction_phase,
+        created_at=datetime.utcnow(),
+    )
+    db.add(deal_file)
+    await db.commit()
+    await db.refresh(deal_file)
+
+    return {
+        "id": deal_file.id,
+        "dealId": deal_file.deal_id,
+        "fileType": deal_file.file_type,
+        "category": deal_file.category,
+        "fileName": deal_file.file_name,
+        "mimeType": deal_file.mime_type,
+        "fileSize": deal_file.file_size,
+        "transactionPhase": deal_file.transaction_phase,
+        "createdAt": deal_file.created_at.isoformat(),
     }

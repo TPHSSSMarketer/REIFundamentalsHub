@@ -214,8 +214,18 @@ export default function Portfolio() {
             return (
               <div
                 key={prop.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow"
+                className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
               >
+                {/* Front-of-house photo */}
+                {prop.frontPhotoThumbnail && (
+                  <img
+                    src={`data:image/jpeg;base64,${prop.frontPhotoThumbnail}`}
+                    alt={prop.address || 'Property'}
+                    className="w-full h-40 object-cover"
+                  />
+                )}
+
+                <div className="p-5">
                 {/* Top row */}
                 <div className="flex justify-between items-start">
                   <div>
@@ -325,6 +335,7 @@ export default function Portfolio() {
                     Purchased {formatDate(prop.purchaseDate)}
                   </p>
                 )}
+                </div>
               </div>
             )
           })}

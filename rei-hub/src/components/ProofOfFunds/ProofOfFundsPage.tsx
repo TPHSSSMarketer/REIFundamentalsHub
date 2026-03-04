@@ -24,7 +24,8 @@ import {
   cancelRequest,
   getCertificate,
 } from '@/services/plaidApi'
-import { getDeals } from '@/services/crmApi'
+import { getDeals, getContacts } from '@/services/crmApi'
+import type { Contact } from '@/types'
 import { getCurrentUser } from '@/services/auth'
 import type { Deal } from '@/types'
 
@@ -441,11 +442,17 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
   const [sendError, setSendError] = useState('')
   const [successEmail, setSuccessEmail] = useState('')
 
+  // Buyer contact selector
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [showBuyerPicker, setShowBuyerPicker] = useState(false)
+  const [loadingContacts, setLoadingContacts] = useState(false)
+
   // Deal picker state
   const [deals, setDeals] = useState<Deal[]>([])
   const [showDealPicker, setShowDealPicker] = useState(false)
   const [loadingDeals, setLoadingDeals] = useState(false)
   const [pulledDealName, setPulledDealName] = useState('')
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null)
 
   const loadRequests = useCallback(async () => {
     try {
@@ -478,6 +485,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
         property_address: propAddress.trim(),
         required_amount: parsed,
         notes: notes.trim() || undefined,
+        deal_id: selectedDealId || undefined,
       })
       setSuccessEmail(buyerEmail.trim())
       setBuyerName('')
@@ -485,6 +493,7 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
       setPropAddress('')
       setReqAmount('')
       setNotes('')
+      setSelectedDealId(null)
       await loadRequests()
     } catch {
       setSendError('Failed to send request. Please try again.')
@@ -518,6 +527,31 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
     showToast('Certificate link copied to clipboard')
   }
 
+  const handleOpenBuyerPicker = async () => {
+    if (showBuyerPicker) { setShowBuyerPicker(false); return }
+    setLoadingContacts(true)
+    try {
+      const allContacts = await getContacts()
+      // Filter to buyer-role contacts that have an email
+      setContacts(
+        Array.isArray(allContacts)
+          ? allContacts.filter((c) => c.email && c.role === 'buyer')
+          : []
+      )
+      setShowBuyerPicker(true)
+    } catch {
+      showToast('Failed to load contacts')
+    } finally {
+      setLoadingContacts(false)
+    }
+  }
+
+  const handleSelectBuyer = (contact: Contact) => {
+    setBuyerName([contact.firstName, contact.lastName].filter(Boolean).join(' '))
+    if (contact.email) setBuyerEmail(contact.email)
+    setShowBuyerPicker(false)
+  }
+
   const handleOpenDealPicker = async () => {
     if (showDealPicker) {
       setShowDealPicker(false)
@@ -543,12 +577,21 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
       const parts = [deal.address, deal.city, deal.state, deal.zip].filter(Boolean)
       setPropAddress(parts.join(', '))
     }
+    // Auto-fill buyer info from deal if available
+    if (deal.contactName || deal.buyerName) {
+      setBuyerName(deal.contactName || deal.buyerName || '')
+    }
+    if (deal.contactEmail) {
+      setBuyerEmail(deal.contactEmail)
+    }
+    setSelectedDealId(deal.id)
     setPulledDealName(deal.title || deal.address)
     setShowDealPicker(false)
   }
 
   const handleClearPulledDeal = () => {
     setPulledDealName('')
+    setSelectedDealId(null)
   }
 
   const statusBadge = (s: string) => {
@@ -609,6 +652,40 @@ function RequestFromBuyerTab({ showToast }: { showToast: (m: string) => void }) 
             Request sent to <strong>{successEmail}</strong>
           </div>
         )}
+
+        {/* Buyer Contact Selector */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={handleOpenBuyerPicker}
+            disabled={loadingContacts}
+            className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-800 font-medium mb-2"
+          >
+            <Database className="w-3.5 h-3.5" />
+            {loadingContacts ? 'Loading contacts...' : 'Select Buyer from Contacts'}
+          </button>
+          {showBuyerPicker && (
+            <div className="mb-3 border border-slate-200 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
+              {contacts.length === 0 ? (
+                <p className="text-xs text-slate-400 p-3 text-center">No buyer contacts found</p>
+              ) : (
+                contacts.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleSelectBuyer(c)}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-slate-700 block truncate">
+                      {[c.firstName, c.lastName].filter(Boolean).join(' ')}
+                    </span>
+                    <span className="text-xs text-slate-400 block truncate">{c.email}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <div>

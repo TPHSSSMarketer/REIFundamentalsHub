@@ -579,3 +579,25 @@ export async function getDealLois(
     { lois: [] }
   )
 }
+
+
+// ── Deal Document Helpers ────────────────────────────────────────
+
+export async function generateContractFromDeal(
+  dealId: string,
+  templateId: string,
+  transactionPhase: 'buying' | 'selling' | 'holding',
+  customFields?: Record<string, string>
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/documents/generate-from-deal/${dealId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({
+      template_id: templateId,
+      transaction_phase: transactionPhase,
+      custom_fields: customFields,
+    }),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
