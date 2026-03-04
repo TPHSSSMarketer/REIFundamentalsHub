@@ -65,6 +65,8 @@ class MarketResponse(BaseModel):
     rent_to_price_ratio: float
     created_at: str
     updated_at: Optional[str]
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 # ── Helper functions ────────────────────────────────────────────────────
@@ -90,6 +92,8 @@ def _market_to_response(market: SavedMarket) -> MarketResponse:
         rent_to_price_ratio=rent_to_price_ratio,
         created_at=market.created_at.isoformat() if market.created_at else None,
         updated_at=market.updated_at.isoformat() if market.updated_at else None,
+        latitude=market.latitude,
+        longitude=market.longitude,
     )
 
 

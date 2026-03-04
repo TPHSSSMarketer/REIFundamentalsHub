@@ -36,6 +36,11 @@ from rei.api.email_marketing_routes import email_marketing_router
 from rei.api.lead_capture_routes import lead_capture_router, lead_capture_public_router
 from rei.api.loan_routes_payments import router as loan_payments_router
 from rei.api.loan_routes_properties import router as loan_properties_router
+from rei.api.geocoding_routes import geocoding_router
+from rei.api.market_analysis_routes import market_analysis_router
+from rei.api.currency_routes import currency_router
+from rei.api.square_routes import square_router
+from rei.api.social_media_routes import social_media_router
 from rei.api.markets_routes import markets_router
 from rei.api.onboarding_routes import onboarding_router
 from rei.api.payment_portal_routes import payment_portal_router
@@ -208,10 +213,16 @@ async def lifespan(app: FastAPI):
     task_admin.cancel()
 
 
+_docs_url = "/docs" if settings.environment == "development" else None
+_openapi_url = "/openapi.json" if settings.environment == "development" else None
+
 app = FastAPI(
     title="REI Hub API",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=_docs_url,
+    redoc_url=None,  # Disable ReDoc entirely
+    openapi_url=_openapi_url,
 )
 
 # CORS — allow hub frontend with credentials for HttpOnly cookie auth
@@ -292,6 +303,16 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Permissions-Policy"] = (
         "geolocation=(), microphone=(), camera=()"
     )
+    # HSTS — enforce HTTPS for 1 year with subdomains + preload
+    if settings.environment != "development":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
+    # CSP — API server returns JSON, so lock down resources tightly
+    if not path.startswith("/sites/") and "/sites/" not in path:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
     # Public lead capture sites should be embeddable; API routes should not
     if path.startswith("/sites/") or "/sites/" in path:
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
@@ -323,6 +344,11 @@ app.include_router(audit_router, prefix="/api")
 app.include_router(superadmin_router, prefix="/api")
 app.include_router(ticket_router, prefix="/api")
 app.include_router(markets_router, prefix="/api")
+app.include_router(geocoding_router, prefix="/api")
+app.include_router(market_analysis_router, prefix="/api")
+app.include_router(currency_router, prefix="/api")
+app.include_router(square_router, prefix="/api")
+app.include_router(social_media_router, prefix="/api")
 app.include_router(lead_capture_router, prefix="/api")
 app.include_router(lead_capture_public_router)
 app.include_router(crm_buyer_criteria_router, prefix="/api")
@@ -340,7 +366,7 @@ app.include_router(admin_assistant_router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "environment": settings.environment, "version": "1.0.0"}
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

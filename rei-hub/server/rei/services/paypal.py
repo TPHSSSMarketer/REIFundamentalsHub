@@ -105,6 +105,61 @@ async def get_subscription(subscription_id: str, settings) -> dict:
         return resp.json()
 
 
+async def verify_webhook_signature(
+    headers: dict[str, str],
+    body: bytes,
+    webhook_id: str,
+    settings,
+) -> bool:
+    """Verify a PayPal webhook signature using the Notifications API.
+
+    Returns True if the webhook is genuine, False otherwise.
+    """
+    if not webhook_id:
+        logger.warning("PayPal webhook_id not configured — rejecting webhook")
+        return False
+
+    try:
+        token = await get_access_token(settings)
+        base = _base_url(settings)
+
+        verify_payload = {
+            "auth_algo": headers.get("paypal-auth-algo", ""),
+            "cert_url": headers.get("paypal-cert-url", ""),
+            "transmission_id": headers.get("paypal-transmission-id", ""),
+            "transmission_sig": headers.get("paypal-transmission-sig", ""),
+            "transmission_time": headers.get("paypal-transmission-time", ""),
+            "webhook_id": webhook_id,
+            "webhook_event": body if isinstance(body, dict) else {},
+        }
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{base}/v1/notifications/verify-webhook-signature",
+                json=verify_payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    "PayPal webhook signature verification API returned %s: %s",
+                    resp.status_code,
+                    resp.text,
+                )
+                return False
+            result = resp.json()
+            status = result.get("verification_status", "")
+            if status == "SUCCESS":
+                return True
+            logger.warning("PayPal webhook signature verification failed: %s", status)
+            return False
+    except Exception:
+        logger.exception("PayPal webhook signature verification error")
+        return False
+
+
 async def cancel_subscription(subscription_id: str, settings) -> bool:
     """Cancel a PayPal subscription. Returns True on success."""
     token = await get_access_token(settings)

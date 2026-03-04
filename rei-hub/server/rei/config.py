@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     paypal_client_secret: str = ""
     paypal_mode: str = "sandbox"
     paypal_base_url: str = "https://api-m.sandbox.paypal.com"
+    paypal_webhook_id: str = ""  # PayPal webhook ID for signature verification
     paypal_starter_monthly_plan_id: str = ""
     paypal_starter_annual_plan_id: str = ""
     paypal_pro_monthly_plan_id: str = ""
@@ -100,6 +101,43 @@ class Settings(BaseSettings):
     # REI Hub platform Stripe account
     # (receives servicing fees from all tenants)
     stripe_platform_account_id: str = ""
+
+    # ── HUD PD&R (Housing Data) ────────────────────────────────────────
+    hud_api_key: str = ""
+    # Register at: huduser.gov/hudapi/public/register
+    # Used for HUD housing and fair market rent data lookups
+
+    # ── Free API Integrations ─────────────────────────────────────────
+    # OpenWeatherMap (1,000 calls/day free)
+    openweathermap_api_key: str = ""
+    # US Census Bureau API (free with key)
+    census_bureau_api_key: str = ""
+    # FBI Crime Data API (free via data.gov)
+    fbi_crime_api_key: str = ""
+    # Adzuna Jobs API (free tier)
+    adzuna_app_id: str = ""
+    adzuna_api_key: str = ""
+    # Abstract Email Validation (100 free/month)
+    abstract_email_api_key: str = ""
+    # NumVerify Phone Validation (100 free/month)
+    numverify_api_key: str = ""
+    # Square Payments (free dev access, 2.6% + $0.15 per tx)
+    square_access_token: str = ""
+    square_application_id: str = ""
+    square_location_id: str = ""
+    # Nominatim geocoding (no key needed, just a user agent)
+    nominatim_user_agent: str = "reifundamentalshub/1.0"
+
+    # ── Social Media OAuth (developer app credentials) ────────────
+    facebook_app_id: str = ""
+    facebook_app_secret: str = ""
+    facebook_redirect_uri: str = ""
+    linkedin_client_id: str = ""
+    linkedin_client_secret: str = ""
+    linkedin_redirect_uri: str = ""
+    x_twitter_client_id: str = ""
+    x_twitter_client_secret: str = ""
+    x_twitter_redirect_uri: str = ""
 
     # ── USPS Web Tools API ──────────────────────────────────────────
     usps_user_id: str = ""

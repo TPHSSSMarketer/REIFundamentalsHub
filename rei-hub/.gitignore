@@ -38,3 +38,9 @@ next-env.d.ts
 # IDE
 .idea
 .vscode
+
+# Vite build artifacts
+vite.config.ts.timestamp-*
+
+# Server runtime DB
+server/rei/app.db

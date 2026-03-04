@@ -380,6 +380,14 @@ export default function SuperAdminCredentials() {
                   {/* Expanded form */}
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                      {/* Setup instructions */}
+                      {provider.instructions && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-blue-800 mb-1">Setup Instructions</p>
+                          <p className="text-xs text-blue-700 leading-relaxed">{provider.instructions}</p>
+                        </div>
+                      )}
+
                       {/* Field status indicators */}
                       {provider.configured && (
                         <div className="flex flex-wrap gap-2 mb-2">
@@ -461,6 +469,9 @@ export default function SuperAdminCredentials() {
                                 </button>
                               )}
                             </div>
+                            {field.help && (
+                              <p className="text-[11px] text-slate-400 mt-0.5">{field.help}</p>
+                            )}
                           </div>
                         )
                       })}

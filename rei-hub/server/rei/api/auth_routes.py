@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -67,14 +70,22 @@ def _issue_tokens_and_cookies(
 
 
 @auth_router.post("/register", response_model=TokenResponse)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Register a new user with a 7-day starter trial."""
-    # Check for existing email
+    # Rate limit: 5 registrations per hour per IP
+    ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(rl_ip_key(ip, "register"), max_requests=5, window_seconds=3600):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later.",
+        )
+
+    # Check for existing email — use generic message to prevent email enumeration
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail="Registration failed. Please check your details and try again.",
         )
 
     # Create user
@@ -223,17 +234,10 @@ async def refresh(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Refresh tokens using the refresh_token cookie (or body for backward compat)."""
-    # Try cookie first, then fall back to request body
+    """Refresh tokens using the refresh_token HttpOnly cookie."""
+    # Only accept refresh token from HttpOnly cookie — not from request body
+    # This ensures the token is never accessible to JavaScript
     token: str | None = request.cookies.get("refresh_token")
-
-    if not token:
-        # Backward compat: accept token in request body
-        try:
-            body = await request.json()
-            token = body.get("token")
-        except Exception:
-            pass
 
     if not token:
         raise HTTPException(
@@ -302,9 +306,13 @@ async def logout():
 
 
 @auth_router.get("/google/url")
-async def google_oauth_url():
-    """Return the Google OAuth consent URL for login."""
+async def google_oauth_url(request: Request):
+    """Return the Google OAuth consent URL for login with CSRF state parameter."""
+    import secrets
     import urllib.parse
+
+    # Generate cryptographic state token to prevent CSRF on OAuth flow
+    state = secrets.token_urlsafe(32)
 
     params = {
         "client_id": settings.google_login_client_id,
@@ -312,17 +320,34 @@ async def google_oauth_url():
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "online",
+        "state": state,
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    return {"url": auth_url}
+
+    # Return state so the frontend can store it; also set it as a short-lived cookie
+    response = JSONResponse(content={"url": auth_url, "state": state})
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        max_age=600,  # 10 minutes
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        domain=settings.cookie_domain or None,
+    )
+    return response
 
 
 @auth_router.get("/google/redirect")
 async def google_oauth_redirect(request: Request):
     """Redirect browser directly to Google OAuth consent screen (avoids CORS)."""
+    import secrets
     import urllib.parse
 
     callback_url = settings.google_login_redirect_uri
+
+    # Generate cryptographic state token to prevent CSRF on OAuth flow
+    state = secrets.token_urlsafe(32)
 
     params = {
         "client_id": settings.google_login_client_id,
@@ -330,19 +355,38 @@ async def google_oauth_redirect(request: Request):
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "online",
+        "state": state,
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    return RedirectResponse(url=auth_url, status_code=302)
+
+    response = RedirectResponse(url=auth_url, status_code=302)
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        max_age=600,  # 10 minutes
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        domain=settings.cookie_domain or None,
+    )
+    return response
 
 
 @auth_router.get("/google/callback")
 async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    """Handle Google OAuth callback — exchange code, create/login user, set cookies and redirect."""
+    """Handle Google OAuth callback — verify state, exchange code, create/login user, set cookies and redirect."""
     import aiohttp
     import urllib.parse
     from sqlalchemy.exc import IntegrityError
 
     frontend_url = settings.hub_url + "/login"
+
+    # ── Verify CSRF state parameter ─────────────────────────────
+    state_param = request.query_params.get("state")
+    state_cookie = request.cookies.get("oauth_state")
+    if not state_param or not state_cookie or state_param != state_cookie:
+        logger.warning("Google OAuth state mismatch: param=%s cookie=%s", state_param, state_cookie)
+        return RedirectResponse(url=f"{frontend_url}?google_error=state_mismatch", status_code=302)
 
     code = request.query_params.get("code")
     if not code:
@@ -421,7 +465,8 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
                 subscription = Subscription(
                     user_id=user.id,
                     plan="starter",
-                    status="active",
+                    status="trialing",
+                    trial_ends_at=datetime.utcnow() + timedelta(days=7),
                 )
                 db.add(subscription)
                 await db.commit()
@@ -458,5 +503,8 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
     redirect_url = settings_local.hub_url + "/login?auth_success=true"
     response = RedirectResponse(url=redirect_url, status_code=302)
     _issue_tokens_and_cookies(response, user.id)
+
+    # Clear the one-time oauth_state cookie
+    response.delete_cookie("oauth_state", domain=settings_local.cookie_domain or None)
 
     return response

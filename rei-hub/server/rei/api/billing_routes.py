@@ -581,15 +581,53 @@ async def cancel_subscription(
 
 @billing_router.post("/webhook/paypal")
 async def paypal_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """Handle PayPal webhook events."""
+    """Handle PayPal webhook events with signature verification."""
+    from rei.services.credentials_service import get_provider_credentials
+
+    settings = get_settings()
+
     try:
         body = await request.json()
     except Exception:
         return {"received": True}
 
+    # ── Resolve PayPal webhook ID (env var → SuperAdmin credentials DB) ──
+    webhook_id = settings.paypal_webhook_id
+    if not webhook_id:
+        try:
+            creds = await get_provider_credentials(db, "paypal")
+            if creds:
+                webhook_id = creds.get("paypal_webhook_id", "")
+        except Exception:
+            pass
+
+    # ── Verify PayPal webhook signature ──────────────────────────
+    if webhook_id:
+        headers = {
+            "paypal-auth-algo": request.headers.get("paypal-auth-algo", ""),
+            "paypal-cert-url": request.headers.get("paypal-cert-url", ""),
+            "paypal-transmission-id": request.headers.get("paypal-transmission-id", ""),
+            "paypal-transmission-sig": request.headers.get("paypal-transmission-sig", ""),
+            "paypal-transmission-time": request.headers.get("paypal-transmission-time", ""),
+        }
+        is_valid = await paypal_service.verify_webhook_signature(
+            headers=headers,
+            body=body,
+            webhook_id=webhook_id,
+            settings=settings,
+        )
+        if not is_valid:
+            logger.warning("PayPal webhook signature verification FAILED — rejecting")
+            raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    else:
+        logger.warning(
+            "SECURITY: PayPal webhook_id not configured — skipping signature "
+            "verification. Set it in SuperAdmin > Credentials > PayPal!"
+        )
+
     event_type = body.get("event_type", "unknown")
     resource = body.get("resource", {})
-    logger.info("PayPal webhook received: %s", event_type)
+    logger.info("PayPal webhook received (verified): %s", event_type)
 
     try:
         if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":

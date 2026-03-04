@@ -255,3 +255,51 @@ async def delete_contact(
     contact.is_deleted = True
     await db.commit()
     return {"detail": "Contact deleted"}
+
+
+# ── Validation Endpoints ─────────────────────────────────────
+
+
+@crm_contacts_router.post("/validate-email")
+async def validate_contact_email(
+    body: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate an email address using Abstract Email Validation API."""
+    from rei.services.email_validation_service import validate_email
+
+    email = body.get("email", "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    result = await validate_email(email, db=db)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Email validation service unavailable. Check API key in Admin Settings.",
+        )
+    return result
+
+
+@crm_contacts_router.post("/validate-phone")
+async def validate_contact_phone(
+    body: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate a phone number using NumVerify API."""
+    from rei.services.phone_validation_service import validate_phone
+
+    phone = body.get("phone", "").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+
+    country_code = body.get("country_code", "US")
+    result = await validate_phone(phone, country_code=country_code, db=db)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Phone validation service unavailable. Check API key in Admin Settings.",
+        )
+    return result

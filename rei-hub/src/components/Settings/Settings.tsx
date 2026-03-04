@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor } from 'lucide-react'
+import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
@@ -16,6 +16,14 @@ import {
   disconnectDropbox,
   getDropboxStatus,
 } from '@/services/cloudStorageApi'
+import {
+  getSocialAuthUrl,
+  submitSocialCallback,
+  getSocialStatus,
+  disconnectSocial,
+  type SocialPlatform,
+  type SocialStatusResponse,
+} from '@/services/socialMediaApi'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -37,6 +45,17 @@ export default function Settings() {
   const [dropboxConnecting, setDropboxConnecting] = useState(false)
   const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false)
   const [dropboxDisconnecting, setDropboxDisconnecting] = useState(false)
+
+  // Social Media state
+  const [socialStatuses, setSocialStatuses] = useState<Record<SocialPlatform, SocialStatusResponse>>({
+    facebook: { connected: false, account_name: '' },
+    linkedin: { connected: false, account_name: '' },
+    x: { connected: false, account_name: '' },
+    instagram: { connected: false, account_name: '' },
+  })
+  const [socialLoading, setSocialLoading] = useState(true)
+  const [socialConnecting, setSocialConnecting] = useState<SocialPlatform | null>(null)
+  const [socialDisconnecting, setSocialDisconnecting] = useState<SocialPlatform | null>(null)
 
   // ── Profile & Company ────────────────────────────────────
   const [profileLoading, setProfileLoading] = useState(true)
@@ -143,6 +162,10 @@ export default function Settings() {
     lo_default_monthly_credit_pct: '20',
     blend_cash_pct: '50',
   })
+  // Currency converter state
+  const [currencyEnabled, setCurrencyEnabled] = useState(false)
+  const [preferredCurrency, setPreferredCurrency] = useState('EUR')
+
   const [analyzerLoading, setAnalyzerLoading] = useState(true)
   const [analyzerSaving, setAnalyzerSaving] = useState(false)
 
@@ -197,6 +220,80 @@ export default function Settings() {
       handleDropboxCallback(dropboxCode)
     }
   }, [searchParams])
+
+  // ── Social Media ──────────────────────────────────────────
+  useEffect(() => {
+    loadSocialStatuses()
+  }, [])
+
+  useEffect(() => {
+    const platforms: SocialPlatform[] = ['facebook', 'linkedin', 'x', 'instagram']
+    for (const p of platforms) {
+      const code = searchParams.get(`${p}_code`)
+      const verifier = searchParams.get(`${p}_code_verifier`)
+      if (code) {
+        handleSocialCallback(p, code, verifier || undefined)
+        break
+      }
+    }
+  }, [searchParams])
+
+  async function loadSocialStatuses() {
+    setSocialLoading(true)
+    try {
+      const platforms: SocialPlatform[] = ['facebook', 'linkedin', 'x', 'instagram']
+      const results = await Promise.allSettled(platforms.map((p) => getSocialStatus(p)))
+      const fallback: SocialStatusResponse = { connected: false, account_name: '' }
+      setSocialStatuses({
+        facebook: results[0].status === 'fulfilled' ? results[0].value : fallback,
+        linkedin: results[1].status === 'fulfilled' ? results[1].value : fallback,
+        x: results[2].status === 'fulfilled' ? results[2].value : fallback,
+        instagram: results[3].status === 'fulfilled' ? results[3].value : fallback,
+      })
+    } catch {
+      // use defaults
+    } finally {
+      setSocialLoading(false)
+    }
+  }
+
+  async function handleSocialConnect(platform: SocialPlatform) {
+    setSocialConnecting(platform)
+    try {
+      const data = await getSocialAuthUrl(platform)
+      window.location.href = data.auth_url
+    } catch {
+      toast.error(`Failed to initiate ${platform} connection`)
+      setSocialConnecting(null)
+    }
+  }
+
+  async function handleSocialCallback(platform: SocialPlatform, code: string, codeVerifier?: string) {
+    try {
+      const result = await submitSocialCallback(platform, code, codeVerifier)
+      if (result.success) {
+        toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connected successfully`)
+      } else {
+        toast.error(result.error || `Failed to connect ${platform}`)
+      }
+      await loadSocialStatuses()
+    } catch {
+      toast.error(`Failed to connect ${platform}`)
+    }
+  }
+
+  async function handleSocialDisconnect(platform: SocialPlatform) {
+    setSocialDisconnecting(platform)
+    try {
+      await disconnectSocial(platform)
+      toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} disconnected`)
+      await loadSocialStatuses()
+    } catch {
+      toast.error(`Failed to disconnect ${platform}`)
+    } finally {
+      setSocialDisconnecting(null)
+    }
+  }
 
   async function loadCloudStorageStatus() {
     setCloudStorageLoading(true)
@@ -886,6 +983,288 @@ export default function Settings() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Social Accounts */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Share2 className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Social Accounts</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Connect your social media accounts to publish content directly from Content Hub.
+        </p>
+
+        {socialLoading ? (
+          <div className="flex items-center justify-center h-24">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Facebook */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-lg">
+                  <span>f</span>
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">Facebook</h3>
+                  {socialStatuses.facebook.connected && (
+                    <p className="text-xs text-slate-500">{socialStatuses.facebook.account_name}</p>
+                  )}
+                </div>
+                {socialStatuses.facebook.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {socialStatuses.facebook.connected ? (
+                <button
+                  onClick={() => handleSocialDisconnect('facebook')}
+                  disabled={socialDisconnecting === 'facebook'}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {socialDisconnecting === 'facebook' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSocialConnect('facebook')}
+                  disabled={socialConnecting === 'facebook'}
+                  className="w-full px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {socialConnecting === 'facebook' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect Facebook Page'
+                  )}
+                </button>
+              )}
+              <p className="text-xs text-slate-400 mt-2">Posts to your Facebook Page (must be an admin)</p>
+            </div>
+
+            {/* LinkedIn */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-lg font-bold text-blue-700">
+                  <span>in</span>
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">LinkedIn</h3>
+                  {socialStatuses.linkedin.connected && (
+                    <p className="text-xs text-slate-500">{socialStatuses.linkedin.account_name}</p>
+                  )}
+                </div>
+                {socialStatuses.linkedin.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {socialStatuses.linkedin.connected ? (
+                <button
+                  onClick={() => handleSocialDisconnect('linkedin')}
+                  disabled={socialDisconnecting === 'linkedin'}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {socialDisconnecting === 'linkedin' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSocialConnect('linkedin')}
+                  disabled={socialConnecting === 'linkedin'}
+                  className="w-full px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {socialConnecting === 'linkedin' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect LinkedIn'
+                  )}
+                </button>
+              )}
+              <p className="text-xs text-slate-400 mt-2">Posts to your personal LinkedIn profile</p>
+            </div>
+
+            {/* X (Twitter) */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-lg font-bold text-white">
+                  <span>X</span>
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">X (Twitter)</h3>
+                  {socialStatuses.x.connected && (
+                    <p className="text-xs text-slate-500">{socialStatuses.x.account_name}</p>
+                  )}
+                </div>
+                {socialStatuses.x.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {socialStatuses.x.connected ? (
+                <button
+                  onClick={() => handleSocialDisconnect('x')}
+                  disabled={socialDisconnecting === 'x'}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {socialDisconnecting === 'x' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSocialConnect('x')}
+                  disabled={socialConnecting === 'x'}
+                  className="w-full px-3 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {socialConnecting === 'x' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect X'
+                  )}
+                </button>
+              )}
+              <p className="text-xs text-slate-400 mt-2">Posts tweets (280 char max). Free tier: 1,500/month.</p>
+            </div>
+
+            {/* Instagram */}
+            <div className="border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-lg text-white">
+                  <span>IG</span>
+                </div>
+                <div>
+                  <h3 className="font-medium text-slate-800">Instagram</h3>
+                  {socialStatuses.instagram.connected && (
+                    <p className="text-xs text-slate-500">{socialStatuses.instagram.account_name}</p>
+                  )}
+                </div>
+                {socialStatuses.instagram.connected && (
+                  <span className="ml-auto bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                    Connected
+                  </span>
+                )}
+              </div>
+              {socialStatuses.instagram.connected ? (
+                <button
+                  onClick={() => handleSocialDisconnect('instagram')}
+                  disabled={socialDisconnecting === 'instagram'}
+                  className="w-full px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {socialDisconnecting === 'instagram' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Disconnecting...
+                    </span>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSocialConnect('instagram')}
+                  disabled={socialConnecting === 'instagram'}
+                  className="w-full px-3 py-2 text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 transition-colors"
+                >
+                  {socialConnecting === 'instagram' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    'Connect Instagram'
+                  )}
+                </button>
+              )}
+              <p className="text-xs text-slate-400 mt-2">Requires a Business account linked to a Facebook Page. Image required.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Currency Converter */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <DollarSign className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Currency Converter</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Show deal amounts in a secondary currency alongside USD. Powered by the European Central Bank.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Enable Currency Conversion</p>
+              <p className="text-xs text-slate-500">Show converted amounts in Deal Analyzer and deal cards</p>
+            </div>
+            <button
+              onClick={() => setCurrencyEnabled(!currencyEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                currencyEnabled ? 'bg-primary-500' : 'bg-slate-300'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                currencyEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          {currencyEnabled && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Preferred Currency</label>
+              <select
+                value={preferredCurrency}
+                onChange={(e) => setPreferredCurrency(e.target.value)}
+                className="w-full max-w-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-sm"
+              >
+                <option value="EUR">EUR — Euro</option>
+                <option value="GBP">GBP — British Pound</option>
+                <option value="CAD">CAD — Canadian Dollar</option>
+                <option value="AUD">AUD — Australian Dollar</option>
+                <option value="JPY">JPY — Japanese Yen</option>
+                <option value="CHF">CHF — Swiss Franc</option>
+                <option value="CNY">CNY — Chinese Yuan</option>
+                <option value="MXN">MXN — Mexican Peso</option>
+                <option value="BRL">BRL — Brazilian Real</option>
+                <option value="INR">INR — Indian Rupee</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-2">
+                Exchange rates from the European Central Bank, updated daily. No API key needed.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* AI Provider Settings (only shown if admin allows override) */}

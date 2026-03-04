@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { MapPin, Plus, Loader2, Trash2, RefreshCw, Search } from 'lucide-react'
+import { MapPin, Plus, Loader2, Trash2, RefreshCw, Search, Map, List, BarChart3 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   getMarkets,
@@ -7,9 +7,12 @@ import {
   deleteMarket,
   attomLookup,
   refreshMarket,
+  batchGeocodeMarkets,
   type MarketRecord,
   type CreateMarketPayload,
 } from '@/services/marketsApi'
+import PropertyMap, { type MapPin as MapPinType } from '@/components/Map/PropertyMap'
+import MarketAnalysisPanel from '@/components/Markets/MarketAnalysisPanel'
 
 function formatCurrency(n: number) {
   return '$' + n.toLocaleString()
@@ -40,6 +43,9 @@ export default function Markets() {
   const [saving, setSaving] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [geocoding, setGeocoding] = useState(false)
+  const [analyzingMarket, setAnalyzingMarket] = useState<{id: string, city: string, state: string} | null>(null)
 
   useEffect(() => {
     loadMarkets()
@@ -137,6 +143,19 @@ export default function Markets() {
     }
   }
 
+  async function handleGeocodeAll() {
+    setGeocoding(true)
+    try {
+      const result = await batchGeocodeMarkets()
+      toast.success(`Geocoded ${result.geocoded} of ${result.total} markets`)
+      loadMarkets()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to geocode markets')
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
   const inputClass =
     'w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm'
 
@@ -148,13 +167,39 @@ export default function Markets() {
           <h1 className="text-2xl font-bold text-slate-800">Markets</h1>
           <p className="text-slate-500 text-sm">Track and score your target markets</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" />
-          Add Market
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-white border border-slate-300 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center justify-center p-2 rounded transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center justify-center p-2 rounded transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Map view"
+            >
+              <Map className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Add Market
+          </button>
+        </div>
       </div>
 
       {/* Inline Add Form */}
@@ -321,7 +366,7 @@ export default function Markets() {
         </form>
       )}
 
-      {/* Markets Grid */}
+      {/* Markets Content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
@@ -333,7 +378,51 @@ export default function Markets() {
           <p className="text-lg font-medium text-slate-600">No markets tracked yet</p>
           <p className="text-sm text-slate-400 mt-1">Add your first market to start scoring.</p>
         </div>
+      ) : viewMode === 'map' ? (
+        // Map View
+        <div className="space-y-4">
+          {(() => {
+            const marketsWithCoords = markets.filter((m) => m.latitude != null && m.longitude != null)
+            const marketsWithoutCoords = markets.filter((m) => m.latitude == null || m.longitude == null)
+            return (
+              <>
+                {marketsWithoutCoords.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">
+                        {marketsWithoutCoords.length} market{marketsWithoutCoords.length !== 1 ? 's' : ''} need geocoding
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Click "Geocode All" to add coordinates for map display
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleGeocodeAll}
+                      disabled={geocoding}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-amber-600 bg-white rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 whitespace-nowrap ml-3"
+                    >
+                      {geocoding ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
+                      {geocoding ? 'Geocoding...' : 'Geocode All'}
+                    </button>
+                  </div>
+                )}
+                <PropertyMap
+                  pins={marketsWithCoords.map((m) => ({
+                    id: m.id,
+                    latitude: m.latitude!,
+                    longitude: m.longitude!,
+                    label: `${m.city}, ${m.state}`,
+                    sublabel: `Rent-to-Price: ${(m.rent_to_price_ratio ?? 0).toFixed(1)}%`,
+                    type: 'market',
+                  } as MapPinType))}
+                  height="600px"
+                />
+              </>
+            )
+          })()}
+        </div>
       ) : (
+        // List View
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {markets.map((m) => {
             const badge = getRatioBadge(m.rent_to_price_ratio ?? 0)
@@ -383,6 +472,13 @@ export default function Markets() {
 
                 <div className="mt-4 flex items-center gap-2">
                   <button
+                    onClick={() => setAnalyzingMarket({ id: m.id, city: m.city, state: m.state })}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <BarChart3 className="w-3 h-3" />
+                    Analyze
+                  </button>
+                  <button
                     onClick={() => handleRefresh(m.id)}
                     disabled={refreshingId === m.id}
                     className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50"
@@ -402,6 +498,17 @@ export default function Markets() {
             )
           })}
         </div>
+      )}
+
+      {/* Market Analysis Panel */}
+      {analyzingMarket && (
+        <MarketAnalysisPanel
+          marketId={analyzingMarket.id}
+          city={analyzingMarket.city}
+          state={analyzingMarket.state}
+          isOpen={analyzingMarket !== null}
+          onClose={() => setAnalyzingMarket(null)}
+        />
       )}
     </div>
   )

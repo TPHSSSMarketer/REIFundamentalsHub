@@ -247,6 +247,10 @@ export interface Deal {
   // ── Front Photo (from deal list) ──
   frontPhotoThumbnail?: string  // base64 thumbnail of front-of-house photo
 
+  // ── Location Coordinates ──
+  latitude?: number | null
+  longitude?: number | null
+
   createdAt: string
   updatedAt: string
 }
@@ -323,6 +327,8 @@ export interface PortfolioProperty {
   notes?: string
   sourceDealId?: string
   frontPhotoThumbnail?: string
+  latitude?: number | null
+  longitude?: number | null
   createdAt: string
   updatedAt: string
 }

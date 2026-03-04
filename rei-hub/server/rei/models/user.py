@@ -246,6 +246,16 @@ class User(Base):
     dropbox_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dropbox_connected: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # ── Social Media (per-user OAuth tokens) ───────────────────
+    facebook_page_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: page_id, access_token, page_name
+    facebook_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    linkedin_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: access_token, expires_at
+    linkedin_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    x_twitter_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: access_token, refresh_token
+    x_twitter_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    instagram_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: ig_user_id (uses facebook page token)
+    instagram_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # ── Loan Servicing Tenant Config ──────────────────────────
 
     # Stripe Connect (per business)
@@ -2007,6 +2017,11 @@ class SavedMarket(Base):
     inventory_count: Mapped[int] = mapped_column(Integer, default=0)
     price_change_pct: Mapped[float] = mapped_column(Float, default=0)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ── Geocoding ──
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True

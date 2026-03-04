@@ -26,6 +26,8 @@ import PofRequestModal from './PofRequestModal'
 import EmailComposeModal from './EmailComposeModal'
 import { formatPhone, getInitials, cn } from '@/utils/helpers'
 import type { Contact } from '@/types'
+import { validateEmail, validatePhone } from '@/services/contactValidationApi'
+import type { EmailValidationResult, PhoneValidationResult } from '@/services/contactValidationApi'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -95,6 +97,12 @@ export default function ContactDetailPage() {
   // Editable contact fields
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editFields, setEditFields] = useState<Record<string, any>>({})
+
+  // Email & Phone Validation
+  const [emailValidation, setEmailValidation] = useState<EmailValidationResult | null>(null)
+  const [phoneValidation, setPhoneValidation] = useState<PhoneValidationResult | null>(null)
+  const [validatingEmail, setValidatingEmail] = useState(false)
+  const [validatingPhone, setValidatingPhone] = useState(false)
 
   const loadContact = useCallback(async () => {
     if (!contactId) return
@@ -349,6 +357,81 @@ export default function ContactDetailPage() {
                 { label: 'Phone', value: contact?.phone ? formatPhone(contact.phone) : '' },
               ]}
             />
+
+            {/* Email & Phone Validation */}
+            <div className="flex flex-wrap gap-3 -mt-2">
+              {contact?.email && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      setValidatingEmail(true)
+                      try {
+                        const result = await validateEmail(contact.email!)
+                        setEmailValidation(result)
+                      } catch { setEmailValidation(null) }
+                      finally { setValidatingEmail(false) }
+                    }}
+                    disabled={validatingEmail}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  >
+                    {validatingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                    Verify Email
+                  </button>
+                  {emailValidation && (
+                    <span className={cn(
+                      'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                      emailValidation.is_deliverable === true ? 'bg-green-100 text-green-700' :
+                      emailValidation.is_deliverable === false ? 'bg-red-100 text-red-700' :
+                      emailValidation.is_valid ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    )}>
+                      {emailValidation.is_deliverable === true ? '✓ Deliverable' :
+                       emailValidation.is_deliverable === false ? '✗ Undeliverable' :
+                       emailValidation.is_valid ? '? Unknown' : '✗ Invalid'}
+                      {emailValidation.quality_score != null && (
+                        <span className="text-[10px] opacity-70">({Math.round(emailValidation.quality_score * 100)}%)</span>
+                      )}
+                    </span>
+                  )}
+                  {emailValidation?.suggestion && (
+                    <span className="text-xs text-amber-600">Did you mean: {emailValidation.suggestion}?</span>
+                  )}
+                </div>
+              )}
+              {contact?.phone && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      setValidatingPhone(true)
+                      try {
+                        const result = await validatePhone(contact.phone!)
+                        setPhoneValidation(result)
+                      } catch { setPhoneValidation(null) }
+                      finally { setValidatingPhone(false) }
+                    }}
+                    disabled={validatingPhone}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    {validatingPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                    Verify Phone
+                  </button>
+                  {phoneValidation && (
+                    <span className={cn(
+                      'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                      phoneValidation.is_valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    )}>
+                      {phoneValidation.is_valid ? '✓ Valid' : '✗ Invalid'}
+                      {phoneValidation.phone_type && (
+                        <span className="text-[10px] opacity-70">({phoneValidation.phone_type})</span>
+                      )}
+                    </span>
+                  )}
+                  {phoneValidation?.carrier && (
+                    <span className="text-xs text-slate-500">{phoneValidation.carrier}</span>
+                  )}
+                </div>
+              )}
+            </div>
 
             <InfoSection
               title="Property"

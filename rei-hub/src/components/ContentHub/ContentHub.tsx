@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
-import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2 } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2, ChevronDown, Share2 } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { toast } from 'sonner'
 import { aiGenerateWaterfall, aiGenerateImagePrompts, aiScrapeUrl, aiSaveContentToCloud, AiServiceError, ContentWaterfallOutput } from '@/services/aiService'
 import PublishHistory, { PublishEntry } from './PublishHistory'
+import { getAllSocialStatuses, publishToSocial, type SocialPlatform, type AllSocialStatuses } from '@/services/socialMediaApi'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -41,6 +42,13 @@ export default function ContentHub() {
   )
   const [publishHistory, setPublishHistory] = useState<PublishEntry[]>([])
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [socialStatuses, setSocialStatuses] = useState<AllSocialStatuses | null>(null)
+  const [publishMenuOpen, setPublishMenuOpen] = useState(false)
+  const [socialPublishing, setSocialPublishing] = useState<SocialPlatform | null>(null)
+
+  useEffect(() => {
+    getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
+  }, [])
 
   const handleScrapeUrl = useCallback(async () => {
     setIsScraping(true)
@@ -196,6 +204,45 @@ export default function ContentHub() {
       setIsPublishing(false)
     }
   }, [waterfall, topic])
+
+  const handlePublishToSocial = useCallback(async (platform: SocialPlatform) => {
+    if (!waterfall) return
+    setPublishMenuOpen(false)
+    setSocialPublishing(platform)
+
+    // Map the active ContentHub tab to the matching social content
+    const platformContentMap: Record<PlatformKey, string> = {
+      facebook: waterfall.facebook,
+      instagram: waterfall.instagram,
+      linkedin: waterfall.linkedin,
+      youtube_script: waterfall.youtube_script,
+      youtube_short: waterfall.youtube_short,
+      blog_post: waterfall.blog_post,
+    }
+
+    // Pick the best content for the target social platform
+    let content = ''
+    if (platform === 'facebook') content = platformContentMap.facebook
+    else if (platform === 'linkedin') content = platformContentMap.linkedin
+    else if (platform === 'x') {
+      // X has a 280-char limit — use the active tab but truncate
+      content = platformContentMap[activeTab].slice(0, 280)
+    } else if (platform === 'instagram') content = platformContentMap.instagram
+
+    try {
+      const result = await publishToSocial(platform, content)
+      if (result.success) {
+        const name = platform === 'x' ? 'X' : platform.charAt(0).toUpperCase() + platform.slice(1)
+        toast.success(`Published to ${name}!`)
+      } else {
+        toast.error(result.error || `Failed to publish to ${platform}`)
+      }
+    } catch {
+      toast.error(`Failed to publish to ${platform}. Make sure your account is connected in Settings.`)
+    } finally {
+      setSocialPublishing(null)
+    }
+  }, [waterfall, activeTab])
 
   return (
     <div className="space-y-6">
@@ -391,14 +438,109 @@ export default function ContentHub() {
               <BookOpen className="w-4 h-4" />
               Save to Library
             </button>
-            <button
-              onClick={handlePublishToWordPress}
-              disabled={isPublishing}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
-            >
-              {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-              Publish to WordPress
-            </button>
+            {/* Publish Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setPublishMenuOpen(!publishMenuOpen)}
+                disabled={isPublishing || socialPublishing !== null}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                {(isPublishing || socialPublishing) ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Share2 className="w-4 h-4" />
+                )}
+                Publish
+                <ChevronDown className="w-3 h-3 ml-1" />
+              </button>
+
+              {publishMenuOpen && (
+                <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                  {/* WordPress */}
+                  <button
+                    onClick={() => { setPublishMenuOpen(false); handlePublishToWordPress() }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4 text-slate-500" />
+                    <span>WordPress (Draft)</span>
+                  </button>
+
+                  <div className="border-t border-slate-100 my-1" />
+
+                  {/* Facebook */}
+                  <button
+                    onClick={() => handlePublishToSocial('facebook')}
+                    disabled={!socialStatuses?.facebook.connected}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center text-blue-600 font-bold text-xs">f</span>
+                    <span>Facebook</span>
+                    {socialStatuses?.facebook.connected ? (
+                      <span className="ml-auto text-xs text-green-600">Connected</span>
+                    ) : (
+                      <span className="ml-auto text-xs text-slate-400">Not connected</span>
+                    )}
+                  </button>
+
+                  {/* LinkedIn */}
+                  <button
+                    onClick={() => handlePublishToSocial('linkedin')}
+                    disabled={!socialStatuses?.linkedin.connected}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center text-blue-700 font-bold text-xs">in</span>
+                    <span>LinkedIn</span>
+                    {socialStatuses?.linkedin.connected ? (
+                      <span className="ml-auto text-xs text-green-600">Connected</span>
+                    ) : (
+                      <span className="ml-auto text-xs text-slate-400">Not connected</span>
+                    )}
+                  </button>
+
+                  {/* X (Twitter) */}
+                  <button
+                    onClick={() => handlePublishToSocial('x')}
+                    disabled={!socialStatuses?.x.connected}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center text-slate-900 font-bold text-xs">X</span>
+                    <span>X (Twitter)</span>
+                    {socialStatuses?.x.connected ? (
+                      <span className="ml-auto text-xs text-green-600">Connected</span>
+                    ) : (
+                      <span className="ml-auto text-xs text-slate-400">Not connected</span>
+                    )}
+                  </button>
+
+                  {/* Instagram */}
+                  <button
+                    onClick={() => handlePublishToSocial('instagram')}
+                    disabled={!socialStatuses?.instagram.connected}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center text-pink-600 font-bold text-xs">IG</span>
+                    <span>Instagram</span>
+                    {socialStatuses?.instagram.connected ? (
+                      <span className="ml-auto text-xs text-green-600">Connected</span>
+                    ) : (
+                      <span className="ml-auto text-xs text-slate-400">Not connected</span>
+                    )}
+                  </button>
+
+                  {(!socialStatuses?.facebook.connected && !socialStatuses?.linkedin.connected && !socialStatuses?.x.connected && !socialStatuses?.instagram.connected) && (
+                    <>
+                      <div className="border-t border-slate-100 my-1" />
+                      <a
+                        href="/settings"
+                        className="block px-4 py-2 text-xs text-primary-600 hover:underline"
+                      >
+                        Connect accounts in Settings
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

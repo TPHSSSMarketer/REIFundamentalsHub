@@ -12,10 +12,12 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Plus, Map, LayoutGrid } from 'lucide-react'
 import PipelineColumn from './PipelineColumn'
 import DealCard from './DealCard'
 import NewDealModal from './NewDealModal'
+import PropertyMap from '@/components/Map/PropertyMap'
+import type { MapPin } from '@/components/Map/PropertyMap'
 import { usePipelines, useDeals, useUpdateDealStage, useContacts } from '@/hooks/useApi'
 import { useStore } from '@/hooks/useStore'
 import { formatCurrency, getStageColor, cn } from '@/utils/helpers'
@@ -40,6 +42,7 @@ export default function Pipeline() {
   const [activeDragDeal, setActiveDragDeal] = useState<Deal | null>(null)
   const [showNewDealModal, setShowNewDealModal] = useState(false)
   const [mobileStageFilter, setMobileStageFilter] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'kanban' | 'map'>('kanban')
   const { data: contacts } = useContacts()
 
   // DnD sensors
@@ -85,6 +88,22 @@ export default function Pipeline() {
     // Update the deal's stage
     updateDealStage.mutate({ dealId, stageId: newStageId })
   }
+
+  // Convert deals to map pins
+  const mapPins: MapPin[] = (deals || [])
+    .filter((deal) => deal.latitude != null && deal.longitude != null)
+    .map((deal) => {
+      const stageName = activePipeline?.stages.find((s) => s.id === deal.stage)?.name || deal.stage
+      return {
+        id: deal.id,
+        latitude: deal.latitude!,
+        longitude: deal.longitude!,
+        label: deal.address || deal.title,
+        sublabel: `${stageName} • ${formatCurrency(deal.purchasePrice || 0)}`,
+        type: 'deal',
+        onClick: () => navigate(`/deals/${deal.id}`),
+      }
+    })
 
   if (pipelinesLoading) {
     return (
@@ -134,6 +153,34 @@ export default function Pipeline() {
               ))}
             </select>
           )}
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={cn(
+                'flex items-center justify-center w-9 h-9 rounded transition-colors',
+                viewMode === 'kanban'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              )}
+              title="Kanban View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={cn(
+                'flex items-center justify-center w-9 h-9 rounded transition-colors',
+                viewMode === 'map'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              )}
+              title="Map View"
+            >
+              <Map className="w-4 h-4" />
+            </button>
+          </div>
 
           <button
             onClick={() => setShowNewDealModal(true)}
@@ -193,62 +240,73 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* Mobile Deal List */}
-      <div className="md:hidden space-y-2">
-        {(mobileStageFilter
-          ? dealsByStage[mobileStageFilter] || []
-          : deals || []
-        ).map((deal) => (
-          <div
-            key={deal.id}
-            onClick={() => navigate(`/deals/${deal.id}`)}
-            className="bg-white border border-slate-200 rounded-lg p-3 cursor-pointer hover:bg-slate-50 transition-colors"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <p className="font-medium text-slate-800 text-sm truncate mr-2">{deal.address || deal.title}</p>
-              <span className="text-xs font-semibold text-primary-600 whitespace-nowrap">{formatCurrency(deal.purchasePrice || 0)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded', getStageColor(activePipeline?.stages.findIndex((s) => s.id === deal.stage) || 0))}>
-                {activePipeline?.stages.find((s) => s.id === deal.stage)?.name || deal.stage}
-              </span>
-            </div>
-          </div>
-        ))}
-        {(mobileStageFilter ? (dealsByStage[mobileStageFilter]?.length || 0) : (deals?.length || 0)) === 0 && (
-          <p className="text-center text-sm text-slate-500 py-8">No deals in this stage</p>
-        )}
-      </div>
-
-      {/* Kanban Board (Desktop) */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
-          {activePipeline?.stages
-            .sort((a, b) => a.order - b.order)
-            .map((stage, index) => (
-              <PipelineColumn
-                key={stage.id}
-                stage={stage}
-                deals={dealsByStage[stage.id] || []}
-                color={getStageColor(index)}
-                loading={dealsLoading}
-                onDealClick={(deal) => navigate(`/deals/${deal.id}`)}
-                pipelineId={activePipeline?.id || ''}
-              />
-            ))}
+      {/* Map View (all screen sizes when in map mode) */}
+      {viewMode === 'map' && (
+        <div>
+          <PropertyMap pins={mapPins} height="600px" />
         </div>
+      )}
 
-        <DragOverlay>
-          {activeDragDeal && (
-            <DealCard deal={activeDragDeal} isDragging pipelineId={activePipeline?.id || ''} />
+      {/* Mobile Deal List (only in kanban mode) */}
+      {viewMode === 'kanban' && (
+        <div className="md:hidden space-y-2">
+          {(mobileStageFilter
+            ? dealsByStage[mobileStageFilter] || []
+            : deals || []
+          ).map((deal) => (
+            <div
+              key={deal.id}
+              onClick={() => navigate(`/deals/${deal.id}`)}
+              className="bg-white border border-slate-200 rounded-lg p-3 cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="font-medium text-slate-800 text-sm truncate mr-2">{deal.address || deal.title}</p>
+                <span className="text-xs font-semibold text-primary-600 whitespace-nowrap">{formatCurrency(deal.purchasePrice || 0)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded', getStageColor(activePipeline?.stages.findIndex((s) => s.id === deal.stage) || 0))}>
+                  {activePipeline?.stages.find((s) => s.id === deal.stage)?.name || deal.stage}
+                </span>
+              </div>
+            </div>
+          ))}
+          {(mobileStageFilter ? (dealsByStage[mobileStageFilter]?.length || 0) : (deals?.length || 0)) === 0 && (
+            <p className="text-center text-sm text-slate-500 py-8">No deals in this stage</p>
           )}
-        </DragOverlay>
-      </DndContext>
+        </div>
+      )}
+
+      {/* Kanban Board (Desktop, only in kanban mode) */}
+      {viewMode === 'kanban' && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
+            {activePipeline?.stages
+              .sort((a, b) => a.order - b.order)
+              .map((stage, index) => (
+                <PipelineColumn
+                  key={stage.id}
+                  stage={stage}
+                  deals={dealsByStage[stage.id] || []}
+                  color={getStageColor(index)}
+                  loading={dealsLoading}
+                  onDealClick={(deal) => navigate(`/deals/${deal.id}`)}
+                  pipelineId={activePipeline?.id || ''}
+                />
+              ))}
+          </div>
+
+          <DragOverlay>
+            {activeDragDeal && (
+              <DealCard deal={activeDragDeal} isDragging pipelineId={activePipeline?.id || ''} />
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       {/* New Deal Modal */}
       <NewDealModal

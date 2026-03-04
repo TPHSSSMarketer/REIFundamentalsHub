@@ -258,6 +258,10 @@ class CrmDeal(Base):
     # ── Multi-Unit Details (JSON) ──
     unit_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # ── Geocoding ──
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     # ── Pipeline ──
     pipeline_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="pipeline-deals")
 
@@ -306,6 +310,10 @@ class CrmPortfolioProperty(Base):
     monthly_rent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source_deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+
+    # ── Geocoding ──
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

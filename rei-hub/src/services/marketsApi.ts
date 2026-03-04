@@ -24,6 +24,8 @@ export interface MarketRecord {
   rent_to_price_ratio: number
   created_at: string
   updated_at?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 /** @deprecated Use MarketRecord instead */
@@ -140,6 +142,16 @@ export async function attomLookup(city: string, state: string): Promise<AttomLoo
 /** Refresh ATTOM data for a single saved market. */
 export async function refreshMarket(marketId: string): Promise<MarketRecord> {
   const res = await fetch(`${BASE_URL}/api/markets/${marketId}/refresh`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+/** Batch geocode all markets that don't have coordinates. */
+export async function batchGeocodeMarkets() {
+  const res = await fetch(`${BASE_URL}/api/geocoding/batch/markets`, {
     method: 'POST',
     headers: getAuthHeader(),
     credentials: 'include',

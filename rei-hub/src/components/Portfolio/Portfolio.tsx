@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Building2, MoreVertical, Search } from 'lucide-react'
+import { Building2, MoreVertical, Search, Map, LayoutGrid } from 'lucide-react'
 import { toast } from 'sonner'
 import type { PortfolioProperty } from '@/types'
+import PropertyMap from '@/components/Map/PropertyMap'
 import {
   getPortfolioProperties,
   createPortfolioProperty,
@@ -60,6 +61,8 @@ const BLANK_FORM: Omit<PortfolioProperty, 'id' | 'createdAt' | 'updatedAt'> = {
   monthlyMortgage: undefined,
   monthlyRent: undefined,
   notes: '',
+  latitude: null,
+  longitude: null,
 }
 
 // ============ COMPONENT ============
@@ -71,6 +74,7 @@ export default function Portfolio() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
 
   const loadProperties = async () => {
     const result = await getPortfolioProperties()
@@ -133,13 +137,39 @@ export default function Portfolio() {
             Track your owned properties, equity, and cash flow
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
-        >
-          <Building2 className="w-4 h-4" />
-          Add Property
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center justify-center w-8 h-8 rounded transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center justify-center w-8 h-8 rounded transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Map view"
+            >
+              <Map className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
+          >
+            <Building2 className="w-4 h-4" />
+            Add Property
+          </button>
+        </div>
       </div>
 
       {/* 2. METRICS STRIP */}
@@ -184,7 +214,7 @@ export default function Portfolio() {
         />
       </div>
 
-      {/* 4. PROPERTIES GRID */}
+      {/* 4. PROPERTIES VIEW (GRID OR MAP) */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -204,7 +234,23 @@ export default function Portfolio() {
             Add Your First Property
           </button>
         </div>
+      ) : viewMode === 'map' ? (
+        // MAP VIEW
+        <PropertyMap
+          pins={filteredProperties
+            .filter((p) => p.latitude != null && p.longitude != null)
+            .map((prop) => ({
+              id: prop.id,
+              latitude: prop.latitude!,
+              longitude: prop.longitude!,
+              label: prop.address,
+              sublabel: `${getPropertyTypeLabel(prop.propertyType)} • ${formatCurrency(prop.monthlyRent || 0)}/mo`,
+              type: 'property' as const,
+            }))}
+          height="600px"
+        />
       ) : (
+        // GRID VIEW
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredProperties.map((prop) => {
             const cashFlow = (prop.monthlyRent || 0) - (prop.monthlyMortgage || 0)
