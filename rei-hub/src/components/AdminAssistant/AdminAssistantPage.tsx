@@ -17,6 +17,12 @@ import {
   Toggle2,
   RotateCcw,
   MessageCircle,
+  UserCheck,
+  Activity,
+  Target,
+  BarChart3,
+  Megaphone,
+  Handshake,
 } from 'lucide-react';
 import { cn } from '@/utils/helpers';
 import {
@@ -53,12 +59,12 @@ import { toast } from 'sonner';
 
 // Lucide icon map for skills
 const SKILL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  UserCheck: require('lucide-react').UserCheck,
-  Activity: require('lucide-react').Activity,
-  Target: require('lucide-react').Target,
-  BarChart3: require('lucide-react').BarChart3,
-  Megaphone: require('lucide-react').Megaphone,
-  Handshake: require('lucide-react').Handshake,
+  UserCheck,
+  Activity,
+  Target,
+  BarChart3,
+  Megaphone,
+  Handshake,
 };
 
 // Convert cron expression to human-readable format
