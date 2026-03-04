@@ -114,6 +114,7 @@ const ChatTab: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [pendingActions, setPendingActions] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load sessions on mount
@@ -198,10 +199,35 @@ const ChatTab: React.FC = () => {
       };
 
       setMessages([...messages, newUserMsg, newAssistantMsg]);
+
+      // Capture pending actions if any
+      if (result.pending_actions?.length) {
+        setPendingActions((prev) => [...prev, ...result.pending_actions]);
+      }
     } catch (error) {
       toast.error('Failed to send message');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveAction = async (actionId: string) => {
+    try {
+      await approveAction(actionId);
+      setPendingActions((prev) => prev.filter((a) => a.action_id !== actionId));
+      toast.success('Action approved and executed');
+    } catch (error) {
+      toast.error('Failed to approve action');
+    }
+  };
+
+  const handleRejectAction = async (actionId: string) => {
+    try {
+      await rejectAction(actionId);
+      setPendingActions((prev) => prev.filter((a) => a.action_id !== actionId));
+      toast.success('Action rejected');
+    } catch (error) {
+      toast.error('Failed to reject action');
     }
   };
 
@@ -282,6 +308,48 @@ const ChatTab: React.FC = () => {
                   )}
                 </div>
               ))}
+
+              {/* Pending Actions UI */}
+              {pendingActions.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-amber-900">Actions awaiting your approval:</p>
+                  {pendingActions.map((action) => (
+                    <div key={action.action_id} className="bg-white border border-amber-200 rounded-lg p-3">
+                      <p className="text-sm font-medium text-slate-900">{action.description}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded font-medium',
+                            action.risk_level === 'HIGH'
+                              ? 'bg-red-100 text-red-700'
+                              : action.risk_level === 'MEDIUM'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-green-100 text-green-700'
+                          )}
+                        >
+                          {action.risk_level}
+                        </span>
+                        <span className="text-xs text-slate-500">{action.tool}</span>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handleApproveAction(action.action_id)}
+                          className="flex-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <Check className="w-4 h-4" /> Approve
+                        </button>
+                        <button
+                          onClick={() => handleRejectAction(action.action_id)}
+                          className="flex-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <X className="w-4 h-4" /> Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </>
           )}
@@ -332,6 +400,14 @@ const ChatTab: React.FC = () => {
 const SkillsTab: React.FC = () => {
   const [skills, setSkills] = useState<AdminSkill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateSkill, setShowCreateSkill] = useState(false);
+  const [skillForm, setSkillForm] = useState({
+    name: '',
+    description: '',
+    category: 'general' as 'crm' | 'phone' | 'analytics' | 'calendar' | 'email' | 'general',
+    steps: [{ tool_name: '', params: '{}' }],
+  });
+  const [creatingSkill, setCreatingSkill] = useState(false);
 
   useEffect(() => {
     const loadSkills = async () => {
@@ -368,6 +444,57 @@ const SkillsTab: React.FC = () => {
     }
   };
 
+  const handleCreateSkill = async () => {
+    if (!skillForm.name.trim()) {
+      toast.error('Skill name is required');
+      return;
+    }
+
+    setCreatingSkill(true);
+    try {
+      await createSkill({
+        name: skillForm.name,
+        description: skillForm.description,
+        category: skillForm.category,
+        action_steps: skillForm.steps.filter(s => s.tool_name.trim()),
+      });
+      toast.success('Skill created successfully');
+      setShowCreateSkill(false);
+      setSkillForm({
+        name: '',
+        description: '',
+        category: 'general',
+        steps: [{ tool_name: '', params: '{}' }],
+      });
+      const data = await getSkillLibrary();
+      setSkills(data);
+    } catch (error) {
+      toast.error('Failed to create skill');
+    } finally {
+      setCreatingSkill(false);
+    }
+  };
+
+  const handleAddStep = () => {
+    setSkillForm({
+      ...skillForm,
+      steps: [...skillForm.steps, { tool_name: '', params: '{}' }],
+    });
+  };
+
+  const handleRemoveStep = (index: number) => {
+    setSkillForm({
+      ...skillForm,
+      steps: skillForm.steps.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleStepChange = (index: number, field: 'tool_name' | 'params', value: string) => {
+    const newSteps = [...skillForm.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setSkillForm({ ...skillForm, steps: newSteps });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
@@ -378,9 +505,134 @@ const SkillsTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+      <button
+        onClick={() => setShowCreateSkill(true)}
+        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+      >
         + Create Custom Skill
       </button>
+
+      {/* Create Skill Modal */}
+      {showCreateSkill && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Create Custom Skill</h2>
+              <p className="text-sm text-slate-500">Define a new skill with action steps</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Skill Name *
+                </label>
+                <input
+                  type="text"
+                  value={skillForm.name}
+                  onChange={(e) => setSkillForm({ ...skillForm, name: e.target.value })}
+                  placeholder="e.g., Daily Report Generator"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={skillForm.description}
+                  onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })}
+                  placeholder="Brief description of what this skill does"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Category
+                </label>
+                <select
+                  value={skillForm.category}
+                  onChange={(e) => setSkillForm({ ...skillForm, category: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                >
+                  <option value="general">General</option>
+                  <option value="crm">CRM</option>
+                  <option value="phone">Phone</option>
+                  <option value="analytics">Analytics</option>
+                  <option value="calendar">Calendar</option>
+                  <option value="email">Email</option>
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-slate-900">Action Steps</label>
+                  <button
+                    onClick={handleAddStep}
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> Add Step
+                  </button>
+                </div>
+
+                {skillForm.steps.map((step, index) => (
+                  <div key={index} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-slate-500">Step {index + 1}</span>
+                      {skillForm.steps.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveStep(index)}
+                          className="p-1 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={step.tool_name}
+                      onChange={(e) => handleStepChange(index, 'tool_name', e.target.value)}
+                      placeholder="Tool name"
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    />
+                    <textarea
+                      value={step.params}
+                      onChange={(e) => handleStepChange(index, 'params', e.target.value)}
+                      placeholder='JSON parameters e.g., {"key": "value"}'
+                      rows={2}
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 resize-none font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
+              <button
+                onClick={() => setShowCreateSkill(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateSkill}
+                disabled={creatingSkill}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {creatingSkill ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Creating...
+                  </>
+                ) : (
+                  'Create Skill'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {skills.map((skill) => {
@@ -447,12 +699,26 @@ const SkillsTab: React.FC = () => {
 const TasksTab: React.FC = () => {
   const [tasks, setTasks] = useState<AdminScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [skills, setSkillsForTasks] = useState<AdminSkill[]>([]);
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    skillId: '',
+    name: '',
+    cronExpression: '',
+    timezone: 'America/New_York',
+    description: '',
+  });
+  const [creatingTask, setCreatingTask] = useState(false);
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
-        const data = await getScheduledTasks();
-        setTasks(data);
+        const [tasksData, skillsData] = await Promise.all([
+          getScheduledTasks(),
+          getSkillLibrary(),
+        ]);
+        setTasks(tasksData);
+        setSkillsForTasks(skillsData);
       } catch (error) {
         toast.error('Failed to load tasks');
       } finally {
@@ -494,6 +760,47 @@ const TasksTab: React.FC = () => {
     }
   };
 
+  const handleCreateTask = async () => {
+    if (!taskForm.name.trim()) {
+      toast.error('Task name is required');
+      return;
+    }
+    if (!taskForm.cronExpression.trim()) {
+      toast.error('Cron expression is required');
+      return;
+    }
+    if (!taskForm.skillId) {
+      toast.error('Please select a skill');
+      return;
+    }
+
+    setCreatingTask(true);
+    try {
+      await createScheduledTask({
+        skill_id: taskForm.skillId,
+        name: taskForm.name,
+        description: taskForm.description,
+        cron_expression: taskForm.cronExpression,
+        timezone: taskForm.timezone,
+      });
+      toast.success('Task created successfully');
+      setShowCreateTask(false);
+      setTaskForm({
+        skillId: '',
+        name: '',
+        cronExpression: '',
+        timezone: 'America/New_York',
+        description: '',
+      });
+      const data = await getScheduledTasks();
+      setTasks(data);
+    } catch (error) {
+      toast.error('Failed to create task');
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
@@ -504,9 +811,101 @@ const TasksTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+      <button
+        onClick={() => setShowCreateTask(true)}
+        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+      >
         + Create Task
       </button>
+
+      {/* Create Task Modal */}
+      {showCreateTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Create Scheduled Task</h2>
+              <p className="text-sm text-slate-500">Schedule a task to run automatically</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Task Name *
+                </label>
+                <input
+                  type="text"
+                  value={taskForm.name}
+                  onChange={(e) => setTaskForm({ ...taskForm, name: e.target.value })}
+                  placeholder="e.g., Daily Standup Report"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                  placeholder="What does this task do?"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Cron Expression *
+                </label>
+                <input
+                  type="text"
+                  value={taskForm.cronExpression}
+                  onChange={(e) => setTaskForm({ ...taskForm, cronExpression: e.target.value })}
+                  placeholder="0 9 * * * (Daily at 9 AM)"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 font-mono text-sm"
+                />
+                <p className="text-xs text-slate-500 mt-1">Format: minute hour day month weekday</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">
+                  Timezone
+                </label>
+                <input
+                  type="text"
+                  value={taskForm.timezone}
+                  onChange={(e) => setTaskForm({ ...taskForm, timezone: e.target.value })}
+                  placeholder="America/New_York"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
+              <button
+                onClick={() => setShowCreateTask(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTask}
+                disabled={creatingTask}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {creatingTask ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" /> Creating...
+                  </>
+                ) : (
+                  'Create Task'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">

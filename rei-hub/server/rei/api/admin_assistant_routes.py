@@ -44,6 +44,7 @@ from rei.services.admin_orchestrator_service import (
     create_session,
     list_sessions,
     get_session_messages,
+    approve_action as orchestrator_approve,
 )
 from rei.services.admin_trust_service import (
     get_all_trust_settings,
@@ -167,17 +168,7 @@ async def list_sessions_endpoint(
 ):
     """List all chat sessions for current user."""
     sessions = await list_sessions(user.id, db)
-    return [
-        {
-            "id": s.id,
-            "title": s.title,
-            "message_count": s.message_count,
-            "is_active": s.is_active,
-            "last_message_at": s.last_message_at.isoformat() if s.last_message_at else None,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-        }
-        for s in sessions
-    ]
+    return sessions
 
 
 @admin_assistant_router.get("/sessions/{session_id}/messages")
@@ -196,13 +187,20 @@ async def get_messages(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Session not found")
 
-    messages = await get_session_messages(session_id, db)
+    result = await db.execute(
+        select(AdminMessage)
+        .where(AdminMessage.session_id == session_id)
+        .order_by(AdminMessage.created_at.asc())
+    )
+    messages = result.scalars().all()
     return [
         {
             "id": m.id,
+            "session_id": m.session_id,
             "role": m.role,
             "content": m.content,
             "tool_calls": json.loads(m.tool_calls) if m.tool_calls else None,
+            "tokens_used": m.tokens_used,
             "model_used": m.model_used,
             "created_at": m.created_at.isoformat() if m.created_at else None,
         }
@@ -230,17 +228,21 @@ async def send_message(
 
     # Process message through orchestrator
     response = await process_message(
-        user_id=user.id,
         session_id=session_id,
-        content=body.content,
+        user_message=body.content,
+        user=user,
         db=db,
         settings=settings,
     )
 
+    if response.get("error"):
+        raise HTTPException(status_code=400, detail=response["error"])
+
     return {
         "response": response.get("response", ""),
-        "actions_proposed": response.get("actions_proposed", []),
-        "pending_approvals": response.get("pending_approvals", 0),
+        "tool_results": response.get("tool_results", []),
+        "pending_actions": response.get("pending_actions", []),
+        "suggestions": response.get("suggestions", []),
     }
 
 
@@ -311,11 +313,17 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     )
                     continue
 
+                # Need to load user object for orchestrator
+                user_obj = await db.get(User, int(user_id))
+                if not user_obj:
+                    await websocket.send_json({"error": "User not found"})
+                    continue
+
                 # Process through orchestrator
                 response = await process_message(
-                    user_id=int(user_id),
                     session_id=session_id,
-                    content=content,
+                    user_message=content,
+                    user=user_obj,
                     db=db,
                     settings=settings,
                 )
@@ -324,8 +332,9 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 await websocket.send_json(
                     {
                         "response": response.get("response", ""),
-                        "actions_proposed": response.get("actions_proposed", []),
-                        "pending_approvals": response.get("pending_approvals", 0),
+                        "tool_results": response.get("tool_results", []),
+                        "pending_actions": response.get("pending_actions", []),
+                        "suggestions": response.get("suggestions", []),
                     }
                 )
 
@@ -399,8 +408,8 @@ async def approve_action(
 
     # Execute the approved action
     exec_result = await execute_approved_action(
-        action=action,
-        message=body.message,
+        action_id=action.id,
+        user=user,
         db=db,
         settings=settings,
     )
@@ -425,7 +434,7 @@ async def reject_action_endpoint(
     if not action:
         raise HTTPException(status_code=404, detail="Action not found")
 
-    await reject_action(action, body.reason or "", db)
+    await reject_action(action_id=action.id, user=user, db=db, reason=body.reason)
 
     return {"status": "rejected", "action_id": action_id}
 

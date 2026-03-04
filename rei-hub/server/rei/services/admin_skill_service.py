@@ -381,6 +381,7 @@ async def execute_skill(
     completed_count = 0
     failed_count = 0
     pending_count = 0
+    prev_result = None
 
     for i, step in enumerate(action_steps):
         try:
@@ -397,7 +398,27 @@ async def execute_skill(
                     "status": "failed",
                     "result": {"error": "Missing tool name"},
                 })
-                continue
+                break
+
+            # Interpolate {{prev_result}} in params if available
+            if prev_result is not None:
+                try:
+                    params_str = json.dumps(params)
+                    params_str = params_str.replace(
+                        "{{prev_result}}", json.dumps(prev_result)
+                    )
+                    params = json.loads(params_str)
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(
+                        f"Skill {skill_id} step {i}: failed to interpolate {{{{prev_result}}}}: {e}"
+                    )
+                    failed_count += 1
+                    results.append({
+                        "tool": tool_name,
+                        "status": "failed",
+                        "result": {"error": f"Failed to interpolate prev_result: {str(e)}"},
+                    })
+                    break
 
             # Execute the tool
             tool_result = await admin_tools_service.execute_tool(
@@ -411,13 +432,29 @@ async def execute_skill(
             status = tool_result.get("status", "failed")
             if status == "executed":
                 completed_count += 1
+                # Track result for next step's interpolation
+                prev_result = tool_result.get("result") or tool_result.get("message")
             elif status == "pending":
                 pending_count += 1
                 action_id = tool_result.get("action_id")
                 if action_id:
                     pending_actions.append(action_id)
+                # Stop executing remaining steps on pending
+                results.append({
+                    "tool": tool_name,
+                    "status": status,
+                    "result": tool_result.get("result") or tool_result.get("message"),
+                })
+                break
             elif status == "rejected":
                 failed_count += 1
+                # Stop executing remaining steps on rejection
+                results.append({
+                    "tool": tool_name,
+                    "status": status,
+                    "result": tool_result.get("result") or tool_result.get("message"),
+                })
+                break
 
             results.append({
                 "tool": tool_name,
@@ -433,6 +470,7 @@ async def execute_skill(
                 "status": "failed",
                 "result": {"error": str(e)},
             })
+            break
 
     # Determine overall status
     if failed_count > 0 and completed_count == 0 and pending_count == 0:

@@ -138,46 +138,31 @@ def extract_tool_calls(response_text: str) -> list[dict]:
 async def execute_tool(
     tool_name: str,
     params: dict,
-    user_id: int,
+    user: User,
     db: AsyncSession,
+    settings: Settings,
+    session_id: Optional[str] = None,
 ) -> dict:
-    """Execute a tool and return the result.
+    """Execute a tool via the tool service (with trust system)."""
+    from rei.services.admin_tools_service import execute_tool as _execute_tool
 
-    This is a placeholder that would be implemented to actually call
-    the various tool implementations (CRM, phone, analytics, etc.).
+    result = await _execute_tool(
+        tool_name=tool_name,
+        params=params,
+        user=user,
+        db=db,
+        settings=settings,
+        session_id=session_id,
+    )
 
-    Returns: {"success": bool, "data": Any, "error": Optional[str]}
-    """
-    try:
-        # Validate tool exists
-        if tool_name not in TOOLS_BY_NAME:
-            return {
-                "success": False,
-                "error": f"Unknown tool: {tool_name}",
-            }
-
-        # TODO: Route to appropriate service based on tool domain
-        # For now, return a placeholder result
-        # In production, this would call:
-        # - admin_crm_service.py for CRM tools
-        # - admin_phone_service.py for phone/SMS tools
-        # - admin_analytics_service.py for analytics tools
-        # - admin_calendar_service.py for calendar/tasks
-        # - admin_email_service.py for email tools
-
-        logger.info(f"Tool execution not yet implemented: {tool_name} with params {params}")
-
-        return {
-            "success": False,
-            "error": "Tool execution not yet implemented",
-        }
-
-    except Exception as e:
-        logger.exception(f"Tool execution failed: {tool_name}")
-        return {
-            "success": False,
-            "error": str(e),
-        }
+    # Map to simple success/data format for orchestrator
+    return {
+        "success": result.get("status") == "executed",
+        "data": result.get("result"),
+        "error": result.get("message") if result.get("status") != "executed" else None,
+        "status": result.get("status", "unknown"),
+        "action_id": result.get("action_id", ""),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -189,6 +174,7 @@ async def build_system_prompt(
     user_id: int,
     trust_settings: list[dict],
     db: AsyncSession,
+    classified_domains: Optional[list[str]] = None,
 ) -> str:
     """Build the complete system prompt for the orchestrator.
 
@@ -197,8 +183,6 @@ async def build_system_prompt(
     - Available tools with descriptions, grouped by domain
     - Trust level context (which actions are auto-approved vs need approval)
     """
-    from rei.services.admin_tools_definitions import TOOLS_BY_DOMAIN
-
     prompt = ORCHESTRATOR_SYSTEM_PROMPT + "\n\n"
 
     # Build trust context
@@ -240,12 +224,16 @@ async def build_system_prompt(
             prompt += f"  - {action}\n"
         prompt += "\n"
 
-    # Add tool descriptions grouped by domain
+    # Add tool descriptions — only for classified domains
+    from rei.services.admin_tools_definitions import get_tools_for_domains, TOOLS_BY_DOMAIN
+
+    active_domains = classified_domains or ["crm", "phone", "analytics", "calendar", "email"]
+
     prompt += "\n" + "═" * 77 + "\n"
-    prompt += "AVAILABLE TOOLS BY DOMAIN:\n"
+    prompt += f"AVAILABLE TOOLS ({', '.join(d.upper() for d in active_domains)}):\n"
     prompt += "═" * 77 + "\n\n"
 
-    for domain in ["crm", "phone", "analytics", "calendar", "email"]:
+    for domain in active_domains:
         tools = TOOLS_BY_DOMAIN.get(domain, [])
         if not tools:
             continue
@@ -254,8 +242,6 @@ async def build_system_prompt(
         for tool in tools:
             prompt += f"**{tool['name']}** [{tool['risk_level']}]\n"
             prompt += f"  {tool['description']}\n"
-
-            # List parameters
             params = tool.get("parameters", {}).get("properties", {})
             if params:
                 prompt += "  Parameters: " + ", ".join(params.keys()) + "\n"
@@ -399,14 +385,20 @@ async def process_message(
     db.add(user_msg)
     await db.commit()
 
-    # ── Load recent history ──
-    history = await get_session_messages(session_id, db, limit=20)
+    # ── Load optimized context (sliding window + summarization) ──
+    from rei.services.admin_context_manager import get_session_context
+    history, _summary_note = await get_session_context(session_id, db, settings)
 
     # ── Get trust settings ──
     trust_settings = await get_all_trust_settings(user.id, db)
 
+    # ── Classify user intent for selective tool loading ──
+    from rei.services.admin_tools_definitions import classify_user_intent
+    classified_domains = classify_user_intent(user_message)
+    logger.info(f"Intent classified for user {user.id}: domains={classified_domains}")
+
     # ── Build system prompt ──
-    system_prompt = await build_system_prompt(user.id, trust_settings, db)
+    system_prompt = await build_system_prompt(user.id, trust_settings, db, classified_domains)
 
     # ── Prepare messages for AI ──
     messages = [
@@ -458,7 +450,7 @@ async def process_message(
         if should_auto:
             # Auto-approve and execute
             logger.info(f"Auto-executing tool: {tool_name}")
-            result = await execute_tool(tool_name, params, user.id, db)
+            result = await execute_tool(tool_name, params, user, db, settings, session_id)
 
             # Log the action
             action_log = AdminActionLog(
@@ -564,6 +556,7 @@ async def approve_action(
     action_id: str,
     user: User,
     db: AsyncSession,
+    settings: Settings,
 ) -> dict:
     """User explicitly approves a pending action.
 
@@ -586,7 +579,7 @@ async def approve_action(
     # Execute the tool
     try:
         params = json.loads(action_log.proposed_details or "{}")
-        result = await execute_tool(action_log.action_type, params, user.id, db)
+        result = await execute_tool(action_log.action_type, params, user, db, settings)
 
         # Update the log
         action_log.approved = True

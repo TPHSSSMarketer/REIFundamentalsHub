@@ -75,8 +75,8 @@ SYSTEM_SKILLS = [
         "category": "phone",
         "icon": "Megaphone",
         "action_steps": [
-            {"tool": "get_contacts", "params": {"limit": 100}},
-            {"tool": "send_bulk_sms", "params_from": "user_input"},
+            {"tool": "get_contacts", "params": {"tag": "hot_leads", "limit": 50}},
+            {"tool": "send_bulk_sms", "params": {"message": "Your message here", "contact_list": "{{prev_result}}"}},
         ],
     },
     {

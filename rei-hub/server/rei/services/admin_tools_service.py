@@ -357,6 +357,9 @@ async def reject_action(
 # TOOL DISPATCHER — Routes to individual tool handlers
 # ══════════════════════════════════════════════════════════════════
 
+# Forward declarations for handler functions (defined below)
+TOOL_HANDLERS = {}  # Will be populated at bottom of file
+
 
 async def _execute_tool_internal(
     tool_name: str,
@@ -365,7 +368,7 @@ async def _execute_tool_internal(
     db: AsyncSession,
     settings: dict,
 ) -> dict:
-    """Route tool calls to their handlers.
+    """Route tool calls to their handlers using dict-based dispatcher.
 
     This is the main dispatcher that routes each tool to its handler function.
     Each handler returns a dict with the result data.
@@ -373,91 +376,17 @@ async def _execute_tool_internal(
     Raises:
         ValueError: If tool is not implemented or params are invalid
     """
+    # Get the handler for this tool
+    handler = TOOL_HANDLERS.get(tool_name)
 
-    # ── CRM Tools ────────────────────────────────────────────────
+    if not handler:
+        raise ValueError(f"Unknown tool: {tool_name}")
 
-    if tool_name == "get_contacts":
-        return await _get_contacts(params, user, db)
-
-    if tool_name == "get_contact_details":
-        return await _get_contact_details(params, user, db)
-
-    if tool_name == "create_contact":
-        return await _create_contact(params, user, db)
-
-    if tool_name == "update_contact":
-        return await _update_contact(params, user, db)
-
-    if tool_name == "get_pipeline_summary":
-        return await _get_pipeline_summary(params, user, db)
-
-    if tool_name == "get_deals":
-        return await _get_deals(params, user, db)
-
-    if tool_name == "get_stalled_deals":
-        return await _get_stalled_deals(params, user, db)
-
-    if tool_name == "update_deal_stage":
-        return await _update_deal_stage(params, user, db)
-
-    if tool_name == "get_portfolio_summary":
-        return await _get_portfolio_summary(params, user, db)
-
-    # ── Phone Tools ──────────────────────────────────────────────
-
-    if tool_name == "send_sms":
-        return await _send_sms(params, user, db, settings)
-
-    if tool_name == "send_bulk_sms":
-        return {"status": "not_implemented", "message": "send_bulk_sms not yet implemented"}
-
-    if tool_name == "schedule_callback":
-        return await _schedule_callback(params, user, db)
-
-    if tool_name == "get_call_history":
-        return await _get_call_history(params, user, db)
-
-    if tool_name == "get_usage_stats":
-        return await _get_usage_stats(params, user, db)
-
-    # ── Analytics Tools ──────────────────────────────────────────
-
-    if tool_name == "get_dashboard_stats":
-        return await _get_dashboard_stats(params, user, db)
-
-    if tool_name == "get_pipeline_report":
-        return {"status": "not_implemented", "message": "get_pipeline_report not yet implemented"}
-
-    if tool_name == "get_campaign_performance":
-        return {"status": "not_implemented", "message": "get_campaign_performance not yet implemented"}
-
-    if tool_name == "get_lead_conversion_rates":
-        return {"status": "not_implemented", "message": "get_lead_conversion_rates not yet implemented"}
-
-    # ── Calendar Tools ───────────────────────────────────────────
-
-    if tool_name == "create_follow_up_task":
-        return {"status": "not_implemented", "message": "create_follow_up_task not yet implemented"}
-
-    if tool_name == "get_upcoming_events":
-        return {"status": "not_implemented", "message": "get_upcoming_events not yet implemented"}
-
-    if tool_name == "create_reminder":
-        return {"status": "not_implemented", "message": "create_reminder not yet implemented"}
-
-    # ── Email Tools ──────────────────────────────────────────────
-
-    if tool_name == "send_email_campaign":
-        return {"status": "not_implemented", "message": "send_email_campaign not yet implemented"}
-
-    if tool_name == "get_email_stats":
-        return {"status": "not_implemented", "message": "get_email_stats not yet implemented"}
-
-    if tool_name == "get_subscriber_lists":
-        return {"status": "not_implemented", "message": "get_subscriber_lists not yet implemented"}
-
-    # Unknown tool
-    raise ValueError(f"Unknown tool: {tool_name}")
+    # Call the handler with appropriate parameters
+    if handler.get("needs_settings"):
+        return await handler["fn"](params, user, db, settings)
+    else:
+        return await handler["fn"](params, user, db)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -811,6 +740,10 @@ async def _send_sms(
     if not contact_phone or not message:
         raise ValueError("contact_phone and message are required")
 
+    # Humanize the message to remove AI-sounding language
+    from rei.services.admin_humanizer_service import humanize_text
+    message = humanize_text(message)
+
     # Create SmsMessage record (actual Twilio send would be wired later)
     sms = SmsMessage(
         id=str(uuid.uuid4()),
@@ -1033,3 +966,29 @@ def _build_action_name(tool_name: str, params: dict) -> str:
 
     # Generic fallback
     return f"Execute {tool_name}"
+
+
+# ══════════════════════════════════════════════════════════════════
+# TOOL HANDLER REGISTRY
+# ══════════════════════════════════════════════════════════════════
+
+# Populate the tool handlers dict with all available tools
+TOOL_HANDLERS = {
+    # ── CRM Tools ────────────────────────────────────────────────
+    "get_contacts": {"fn": _get_contacts, "needs_settings": False},
+    "get_contact_details": {"fn": _get_contact_details, "needs_settings": False},
+    "create_contact": {"fn": _create_contact, "needs_settings": False},
+    "update_contact": {"fn": _update_contact, "needs_settings": False},
+    "get_pipeline_summary": {"fn": _get_pipeline_summary, "needs_settings": False},
+    "get_deals": {"fn": _get_deals, "needs_settings": False},
+    "get_stalled_deals": {"fn": _get_stalled_deals, "needs_settings": False},
+    "update_deal_stage": {"fn": _update_deal_stage, "needs_settings": False},
+    "get_portfolio_summary": {"fn": _get_portfolio_summary, "needs_settings": False},
+    # ── Phone Tools ──────────────────────────────────────────────
+    "send_sms": {"fn": _send_sms, "needs_settings": True},
+    "schedule_callback": {"fn": _schedule_callback, "needs_settings": False},
+    "get_call_history": {"fn": _get_call_history, "needs_settings": False},
+    "get_usage_stats": {"fn": _get_usage_stats, "needs_settings": False},
+    # ── Analytics Tools ──────────────────────────────────────────
+    "get_dashboard_stats": {"fn": _get_dashboard_stats, "needs_settings": False},
+}

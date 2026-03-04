@@ -392,3 +392,58 @@ def get_risk_level(tool_name: str) -> str:
     """Get the risk level for a tool by name."""
     tool = TOOLS_BY_NAME.get(tool_name)
     return tool["risk_level"] if tool else "HIGH"  # Default to HIGH if unknown
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INTENT CLASSIFICATION & DOMAIN ROUTING
+# ══════════════════════════════════════════════════════════════════════════
+
+DOMAIN_KEYWORDS: dict[str, list[str]] = {
+    "crm": [
+        "contact", "contacts", "lead", "leads", "deal", "deals", "pipeline",
+        "portfolio", "property", "properties", "stage", "stalled", "buyer",
+        "seller", "investor", "agent", "broker", "crm", "relationship",
+    ],
+    "phone": [
+        "sms", "text", "message", "call", "callback", "phone", "voicemail",
+        "bulk", "twilio", "number", "dial",
+    ],
+    "analytics": [
+        "stats", "statistics", "dashboard", "report", "conversion", "campaign",
+        "performance", "metric", "metrics", "growth", "revenue", "summary",
+        "overview", "how many", "how much", "total", "count",
+    ],
+    "calendar": [
+        "task", "tasks", "follow-up", "follow up", "reminder", "due", "upcoming",
+        "schedule", "calendar", "event", "appointment", "meeting",
+    ],
+    "email": [
+        "email", "emails", "campaign", "subscriber", "newsletter", "open rate",
+        "click rate", "list", "unsubscribe", "drip",
+    ],
+}
+
+
+def classify_user_intent(message: str) -> list[str]:
+    """Classify which tool domains are relevant to the user's message.
+
+    Returns a list of domain names (e.g., ["crm", "phone"]).
+    Always returns at least one domain.
+    """
+    message_lower = message.lower()
+    matched = []
+
+    for domain, keywords in DOMAIN_KEYWORDS.items():
+        if any(kw in message_lower for kw in keywords):
+            matched.append(domain)
+
+    # Fallback: general queries get analytics + crm
+    if not matched:
+        matched = ["crm", "analytics"]
+
+    return matched
+
+
+def get_tools_for_domains(domains: list[str]) -> list[dict]:
+    """Return only tools whose domain is in the given list."""
+    return [tool for tool in ALL_TOOLS if tool["domain"] in domains]
