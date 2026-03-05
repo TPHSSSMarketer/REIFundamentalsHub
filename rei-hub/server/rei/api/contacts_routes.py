@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, or_, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.user import (
     CallLog,
     DealContractChecklist,
@@ -121,7 +121,7 @@ async def get_contact_detail(
     # Call logs (last 20, newest first)
     call_result = await db.execute(
         select(CallLog)
-        .where(CallLog.user_id == user.id, CallLog.contact_id == contact_id)
+        .where(CallLog.user_id == workspace_user_id(user), CallLog.contact_id == contact_id)
         .order_by(desc(CallLog.created_at))
         .limit(20)
     )
@@ -148,7 +148,7 @@ async def get_contact_detail(
     # SMS messages (last 50, oldest first for chat display)
     sms_result = await db.execute(
         select(SmsMessage)
-        .where(SmsMessage.user_id == user.id, SmsMessage.contact_id == contact_id)
+        .where(SmsMessage.user_id == workspace_user_id(user), SmsMessage.contact_id == contact_id)
         .order_by(asc(SmsMessage.sent_at))
         .limit(50)
     )
@@ -169,7 +169,7 @@ async def get_contact_detail(
     # POF requests
     pof_req_result = await db.execute(
         select(PofRequest)
-        .where(PofRequest.requestor_id == user.id, PofRequest.buyer_email != None)
+        .where(PofRequest.requestor_id == workspace_user_id(user), PofRequest.buyer_email != None)
         .order_by(desc(PofRequest.created_at))
     )
     all_pof_requests = pof_req_result.scalars().all()
@@ -192,7 +192,7 @@ async def get_contact_detail(
     # POF certificates
     pof_cert_result = await db.execute(
         select(ProofOfFundsCertificate)
-        .where(ProofOfFundsCertificate.user_id == user.id)
+        .where(ProofOfFundsCertificate.user_id == workspace_user_id(user))
         .order_by(desc(ProofOfFundsCertificate.created_at))
     )
     pof_certificates = [
@@ -214,7 +214,7 @@ async def get_contact_detail(
     # Generated contracts
     contracts_result = await db.execute(
         select(GeneratedContract)
-        .where(GeneratedContract.user_id == user.id)
+        .where(GeneratedContract.user_id == workspace_user_id(user))
         .order_by(desc(GeneratedContract.created_at))
     )
     generated_contracts = [
@@ -234,7 +234,7 @@ async def get_contact_detail(
     ]
 
     # Notes (in-memory)
-    notes = _get_notes(user.id, contact_id)
+    notes = _get_notes(workspace_user_id(user), contact_id)
 
     # Build activity feed — merge all activities chronologically
     activity_feed = []
@@ -334,7 +334,7 @@ async def add_contact_note(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Note content cannot be empty",
         )
-    note = _add_note(user.id, contact_id, body.content.strip())
+    note = _add_note(workspace_user_id(user), contact_id, body.content.strip())
     return {
         "note_id": note["id"],
         "content": note["content"],
@@ -351,7 +351,7 @@ async def delete_contact_note(
     note_id: str,
     user: User = Depends(get_current_user),
 ):
-    if not _delete_note(user.id, note_id):
+    if not _delete_note(workspace_user_id(user), note_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note not found",

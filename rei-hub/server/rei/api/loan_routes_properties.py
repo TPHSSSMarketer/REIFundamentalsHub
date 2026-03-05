@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings, Settings
 from rei.database import async_session_factory
 from rei.models.user import (
@@ -195,7 +195,7 @@ async def list_properties(
         if user_id is not None:
             stmt = stmt.where(LandTrust.user_id == user_id)
     else:
-        stmt = stmt.where(LandTrust.user_id == user.id)
+        stmt = stmt.where(LandTrust.user_id == workspace_user_id(user))
 
     if status_filter:
         stmt = stmt.where(LandTrust.status == status_filter)
@@ -276,7 +276,7 @@ async def create_property(
         raise HTTPException(status_code=422, detail=str(e))
 
     land_trust = LandTrust(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         name=name,
         trust_number=trust_number,
         trustee=trustee,
@@ -600,7 +600,7 @@ async def list_cfds(
     stmt = select(ContractForDeed)
 
     if not user.is_superadmin:
-        stmt = stmt.where(ContractForDeed.user_id == user.id)
+        stmt = stmt.where(ContractForDeed.user_id == workspace_user_id(user))
 
     if land_trust_id:
         stmt = stmt.where(ContractForDeed.land_trust_id == land_trust_id)
@@ -679,7 +679,7 @@ async def create_cfd(
 
     cfd = ContractForDeed(
         land_trust_id=body.land_trust_id,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         account_number=account_number,
         buyer_name=body.buyer_name,
         buyer_email=body.buyer_email,

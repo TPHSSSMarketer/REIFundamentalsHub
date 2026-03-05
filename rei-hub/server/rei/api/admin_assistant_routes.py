@@ -28,7 +28,7 @@ from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.auth import decode_token
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.user import User
 from rei.models.admin_assistant import (
     AdminSession,
@@ -153,7 +153,7 @@ async def create_session_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new chat session."""
-    session = await create_session(user.id, body.title or "New Conversation", db)
+    session = await create_session(workspace_user_id(user), body.title or "New Conversation", db)
     return {
         "id": session.id,
         "title": session.title,
@@ -167,7 +167,7 @@ async def list_sessions_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """List all chat sessions for current user."""
-    sessions = await list_sessions(user.id, db)
+    sessions = await list_sessions(workspace_user_id(user), db)
     return sessions
 
 
@@ -181,7 +181,7 @@ async def get_messages(
     # Verify ownership
     result = await db.execute(
         select(AdminSession).where(
-            and_(AdminSession.id == session_id, AdminSession.user_id == user.id)
+            and_(AdminSession.id == session_id, AdminSession.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -219,7 +219,7 @@ async def send_message(
     # Verify session ownership
     result = await db.execute(
         select(AdminSession).where(
-            and_(AdminSession.id == session_id, AdminSession.user_id == user.id)
+            and_(AdminSession.id == session_id, AdminSession.user_id == workspace_user_id(user))
         )
     )
     session = result.scalar_one_or_none()
@@ -359,7 +359,7 @@ async def list_actions(
     db: AsyncSession = Depends(get_db),
 ):
     """List action log with optional status filter."""
-    query = select(AdminActionLog).where(AdminActionLog.user_id == user.id)
+    query = select(AdminActionLog).where(AdminActionLog.user_id == workspace_user_id(user))
 
     if status:
         query = query.where(AdminActionLog.execution_status == status)
@@ -399,7 +399,7 @@ async def approve_action(
     """Approve a pending action."""
     result = await db.execute(
         select(AdminActionLog).where(
-            and_(AdminActionLog.id == action_id, AdminActionLog.user_id == user.id)
+            and_(AdminActionLog.id == action_id, AdminActionLog.user_id == workspace_user_id(user))
         )
     )
     action = result.scalar_one_or_none()
@@ -427,7 +427,7 @@ async def reject_action_endpoint(
     """Reject a pending action."""
     result = await db.execute(
         select(AdminActionLog).where(
-            and_(AdminActionLog.id == action_id, AdminActionLog.user_id == user.id)
+            and_(AdminActionLog.id == action_id, AdminActionLog.user_id == workspace_user_id(user))
         )
     )
     action = result.scalar_one_or_none()
@@ -450,7 +450,7 @@ async def get_trust_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all trust settings for current user."""
-    settings_list = await get_all_trust_settings(user.id, db)
+    settings_list = await get_all_trust_settings(workspace_user_id(user), db)
     return [
         {
             "action_type": s.action_type,
@@ -478,7 +478,7 @@ async def update_trust_setting(
         )
 
     setting = await update_trust_level(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         action_type=body.action_type,
         trust_level=body.trust_level,
         db=db,
@@ -499,7 +499,7 @@ async def set_all_automatic_endpoint(
 ):
     """Set all trust settings to automatic (enabled=True) or ask (enabled=False)."""
     trust_level = "auto" if body.enabled else "ask"
-    result = await set_all_automatic(user.id, trust_level, db)
+    result = await set_all_automatic(workspace_user_id(user), trust_level, db)
 
     return {
         "status": "updated",
@@ -514,7 +514,7 @@ async def reset_trust_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Reset all trust settings to defaults."""
-    result = await reset_to_defaults(user.id, db)
+    result = await reset_to_defaults(workspace_user_id(user), db)
 
     return {"status": "reset", "count": result}
 
@@ -530,7 +530,7 @@ async def list_skills(
     db: AsyncSession = Depends(get_db),
 ):
     """List skill library (system + user-created skills)."""
-    skills = await get_skill_library(user.id, db)
+    skills = await get_skill_library(workspace_user_id(user), db)
 
     return [
         {
@@ -557,7 +557,7 @@ async def create_skill_endpoint(
 ):
     """Create a new custom skill."""
     skill = await create_skill(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         name=body.name,
         description=body.description,
         category=body.category,
@@ -584,7 +584,7 @@ async def update_skill_endpoint(
     # Verify ownership
     result = await db.execute(
         select(AdminSkill).where(
-            and_(AdminSkill.id == skill_id, AdminSkill.user_id == user.id)
+            and_(AdminSkill.id == skill_id, AdminSkill.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -609,7 +609,7 @@ async def delete_skill_endpoint(
     """Delete a custom skill."""
     result = await db.execute(
         select(AdminSkill).where(
-            and_(AdminSkill.id == skill_id, AdminSkill.user_id == user.id)
+            and_(AdminSkill.id == skill_id, AdminSkill.user_id == workspace_user_id(user))
         )
     )
     skill = result.scalar_one_or_none()
@@ -646,7 +646,7 @@ async def run_skill(
 
     exec_result = await execute_skill(
         skill_id=skill_id,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         db=db,
         settings=settings,
     )
@@ -669,7 +669,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     """List all scheduled tasks for current user."""
-    tasks = await list_scheduled_tasks(user.id, db)
+    tasks = await list_scheduled_tasks(workspace_user_id(user), db)
     return tasks
 
 
@@ -681,7 +681,7 @@ async def create_task(
 ):
     """Create a new scheduled task."""
     task = await create_scheduled_task(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         skill_id=body.skill_id,
         name=body.name,
         cron_expression=body.cron_expression,
@@ -708,7 +708,7 @@ async def update_task(
 ):
     """Update a scheduled task."""
     updates = body.model_dump(exclude_none=True)
-    task = await update_scheduled_task(task_id, user.id, updates, db)
+    task = await update_scheduled_task(task_id, workspace_user_id(user), updates, db)
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -728,7 +728,7 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a scheduled task."""
-    deleted = await delete_scheduled_task(task_id, user.id, db)
+    deleted = await delete_scheduled_task(task_id, workspace_user_id(user), db)
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -743,7 +743,7 @@ async def run_task_now_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Execute a scheduled task immediately."""
-    result = await run_task_now(task_id, user.id, db, settings)
+    result = await run_task_now(task_id, workspace_user_id(user), db, settings)
 
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Task not found")

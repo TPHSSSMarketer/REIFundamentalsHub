@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings, Settings
 from rei.database import async_session_factory
 from rei.models.user import (
@@ -272,7 +272,7 @@ async def _get_negotiation_or_404(
     negotiation = result.scalar_one_or_none()
     if not negotiation:
         raise HTTPException(status_code=404, detail="Negotiation not found")
-    if not user.is_superadmin and negotiation.user_id != user.id:
+    if not user.is_superadmin and negotiation.user_id != workspace_user_id(user):
         raise HTTPException(status_code=403, detail="Not authorized")
     return negotiation
 
@@ -293,7 +293,7 @@ async def list_negotiations(
     stmt = select(BankNegotiation)
 
     if not user.is_superadmin:
-        stmt = stmt.where(BankNegotiation.user_id == user.id)
+        stmt = stmt.where(BankNegotiation.user_id == workspace_user_id(user))
 
     if status_filter:
         stmt = stmt.where(BankNegotiation.status == status_filter)
@@ -423,7 +423,7 @@ async def list_negotiations_by_property(
     """Group all user's negotiations by property address."""
     stmt = (
         select(BankNegotiation)
-        .where(BankNegotiation.user_id == user.id)
+        .where(BankNegotiation.user_id == workspace_user_id(user))
         .order_by(
             BankNegotiation.property_address.asc(),
             BankNegotiation.created_at.desc(),
@@ -506,7 +506,7 @@ async def get_negotiations_for_deal(
     stmt = (
         select(BankNegotiation)
         .where(
-            BankNegotiation.user_id == user.id,
+            BankNegotiation.user_id == workspace_user_id(user),
             BankNegotiation.property_address == property_address,
         )
         .order_by(BankNegotiation.created_at.desc())
@@ -575,7 +575,7 @@ async def create_negotiation(
         raise HTTPException(status_code=422, detail=str(e))
 
     negotiation = BankNegotiation(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         property_address=property_address,
         property_city=property_city,
         property_state=property_state,
@@ -602,7 +602,7 @@ async def create_negotiation(
         bank_name,
         property_state,
         negotiation.id,
-        user.id,
+        workspace_user_id(user),
     )
 
     # Create Google Drive folder structure (log only; actual creation deferred)
@@ -625,7 +625,7 @@ async def create_negotiation(
 
     # Create initial follow-up task
     followup_task = Task(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         title=(
             f"Follow up on {bank_name} negotiation "
             f"- {property_address}"
@@ -882,7 +882,7 @@ async def refresh_recipient(
         negotiation.property_state,
         rec_id,
         recipient.recipient_type,
-        user.id,
+        workspace_user_id(user),
     )
 
     return {"message": "Research triggered"}
@@ -924,7 +924,7 @@ async def create_document(
 
     document = NegotiationDocument(
         negotiation_id=neg_id,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         document_type=body.document_type,
         document_name=body.document_name,
         gdrive_url=body.gdrive_url,
@@ -1054,7 +1054,7 @@ async def send_correspondence(
                     negotiation_id=neg_id,
                     document_id=body.document_id,
                     recipient_id=recipient.id,
-                    user_id=user.id,
+                    user_id=workspace_user_id(user),
                     send_method="certified_mail",
                     sent_date=now,
                     usps_tracking_number=tracking,
@@ -1074,7 +1074,7 @@ async def send_correspondence(
                         negotiation_id=neg_id,
                         document_id=body.document_id,
                         recipient_id=recipient.id,
-                        user_id=user.id,
+                        user_id=workspace_user_id(user),
                         send_method="fax",
                         sent_date=now,
                         fax_status="failed",
@@ -1094,7 +1094,7 @@ async def send_correspondence(
                         negotiation_id=neg_id,
                         document_id=body.document_id,
                         recipient_id=recipient.id,
-                        user_id=user.id,
+                        user_id=workspace_user_id(user),
                         send_method="fax",
                         sent_date=now,
                         fax_status="failed",
@@ -1118,7 +1118,7 @@ async def send_correspondence(
                         negotiation_id=neg_id,
                         document_id=body.document_id,
                         recipient_id=recipient.id,
-                        user_id=user.id,
+                        user_id=workspace_user_id(user),
                         send_method="fax",
                         sent_date=now,
                         twilio_fax_sid=fax_result.get("fax_sid"),
@@ -1136,7 +1136,7 @@ async def send_correspondence(
                         negotiation_id=neg_id,
                         document_id=body.document_id,
                         recipient_id=recipient.id,
-                        user_id=user.id,
+                        user_id=workspace_user_id(user),
                         send_method="fax",
                         sent_date=now,
                         fax_status="failed",
@@ -1156,7 +1156,7 @@ async def send_correspondence(
 
     # Create follow-up Task record
     followup_task = Task(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         title=(
             f"Follow up: {negotiation.bank_name} "
             f"- {negotiation.property_address}"
@@ -1172,7 +1172,7 @@ async def send_correspondence(
     if body.letter_number == 1:
         # Auto-create Letter 2 and Letter 3 reminder tasks
         letter2_task = Task(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             title=(
                 f"\u26a0\ufe0f Letter 2 ready to send: "
                 f"{negotiation.bank_name} - {negotiation.property_address}"
@@ -1187,7 +1187,7 @@ async def send_correspondence(
             status="pending",
         )
         letter3_task = Task(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             title=(
                 f"\u26a0\ufe0f Letter 3 ready to send: "
                 f"{negotiation.bank_name} - {negotiation.property_address}"
@@ -1208,7 +1208,7 @@ async def send_correspondence(
         # Cancel/complete the Letter 2 Task
         l2_result = await db.execute(
             select(Task).where(
-                Task.user_id == user.id,
+                Task.user_id == workspace_user_id(user),
                 Task.title.contains("Letter 2 ready to send"),
                 Task.title.contains(negotiation.bank_name),
                 Task.status != "completed",
@@ -1222,7 +1222,7 @@ async def send_correspondence(
         # Update Letter 3 task due_date = letter_2_sent_date + 30 days
         l3_result = await db.execute(
             select(Task).where(
-                Task.user_id == user.id,
+                Task.user_id == workspace_user_id(user),
                 Task.title.contains("Letter 3 ready to send"),
                 Task.title.contains(negotiation.bank_name),
                 Task.status != "completed",
@@ -1236,7 +1236,7 @@ async def send_correspondence(
         # Complete the Letter 3 Task
         l3_result = await db.execute(
             select(Task).where(
-                Task.user_id == user.id,
+                Task.user_id == workspace_user_id(user),
                 Task.title.contains("Letter 3 ready to send"),
                 Task.title.contains(negotiation.bank_name),
                 Task.status != "completed",
@@ -1332,7 +1332,7 @@ async def refresh_all_tracking(
     )
 
     if not user.is_superadmin:
-        stmt = stmt.where(NegotiationCorrespondence.user_id == user.id)
+        stmt = stmt.where(NegotiationCorrespondence.user_id == workspace_user_id(user))
 
     result = await db.execute(stmt)
     all_corr = result.scalars().all()
@@ -1458,7 +1458,7 @@ async def list_pending_followups(
     stmt = (
         select(NegotiationFollowUp)
         .where(
-            NegotiationFollowUp.user_id == user.id,
+            NegotiationFollowUp.user_id == workspace_user_id(user),
             NegotiationFollowUp.due_date <= cutoff,
             NegotiationFollowUp.completed.is_(False),
         )
@@ -1488,7 +1488,7 @@ async def complete_followup(
     if not followup:
         raise HTTPException(status_code=404, detail="Follow-up not found")
 
-    if not user.is_superadmin and followup.user_id != user.id:
+    if not user.is_superadmin and followup.user_id != workspace_user_id(user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     now = datetime.utcnow()
@@ -1499,7 +1499,7 @@ async def complete_followup(
     # Auto-create next follow-up 30 days from now
     next_followup = NegotiationFollowUp(
         negotiation_id=followup.negotiation_id,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         due_date=now + timedelta(days=30),
         follow_up_type="general",
     )

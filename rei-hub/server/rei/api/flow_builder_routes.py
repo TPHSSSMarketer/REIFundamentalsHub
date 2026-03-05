@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.conversation_flow import (
     ConversationFlow,
     FlowEdge,
@@ -176,7 +176,7 @@ async def list_flows(
     """List all conversation flows for the current user."""
     result = await db.execute(
         select(ConversationFlow).where(
-            ConversationFlow.user_id == user.id
+            ConversationFlow.user_id == workspace_user_id(user)
         ).order_by(ConversationFlow.updated_at.desc())
     )
     flows = result.scalars().all()
@@ -209,7 +209,7 @@ async def create_flow(
 ):
     """Create a new conversation flow."""
     flow = ConversationFlow(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         name=body.name,
         description=body.description,
         channel=body.channel,
@@ -234,7 +234,7 @@ async def get_flow(
         select(ConversationFlow).where(
             and_(
                 ConversationFlow.id == flow_id,
-                ConversationFlow.user_id == user.id,
+                ConversationFlow.user_id == workspace_user_id(user),
             )
         )
     )
@@ -317,7 +317,7 @@ async def update_flow(
     """Update a conversation flow."""
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     flow = result.scalar_one_or_none()
@@ -356,7 +356,7 @@ async def delete_flow(
     """Delete a conversation flow and all its nodes/edges."""
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     flow = result.scalar_one_or_none()
@@ -385,7 +385,7 @@ async def create_node(
     # Verify flow ownership
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -448,7 +448,7 @@ async def update_node(
     # Verify flow ownership
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -484,7 +484,7 @@ async def delete_node(
     """Delete a node from a flow (also removes connected edges)."""
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -533,7 +533,7 @@ async def create_edge(
     """Connect two nodes with an edge."""
     result = await db.execute(
         select(ConversationFlow).where(
-            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == user.id)
+            and_(ConversationFlow.id == flow_id, ConversationFlow.user_id == workspace_user_id(user))
         )
     )
     if not result.scalar_one_or_none():
@@ -592,7 +592,7 @@ async def list_personas(
     result = await db.execute(
         select(Persona).where(
             or_(
-                Persona.user_id == user.id,
+                Persona.user_id == workspace_user_id(user),
                 and_(Persona.user_id.is_(None), Persona.is_system.is_(True)),
             )
         ).order_by(Persona.is_system.desc(), Persona.created_at.desc())
@@ -629,7 +629,7 @@ async def create_persona(
 ):
     """Create a new persona."""
     persona = Persona(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         name=body.name,
         description=body.description,
         personality_prompt=body.personality_prompt,
@@ -661,7 +661,7 @@ async def update_persona(
     """Update a persona. System personas cannot be edited."""
     result = await db.execute(
         select(Persona).where(
-            and_(Persona.id == persona_id, Persona.user_id == user.id)
+            and_(Persona.id == persona_id, Persona.user_id == workspace_user_id(user))
         )
     )
     persona = result.scalar_one_or_none()
@@ -692,7 +692,7 @@ async def delete_persona(
     """Delete a persona. System personas cannot be deleted."""
     result = await db.execute(
         select(Persona).where(
-            and_(Persona.id == persona_id, Persona.user_id == user.id)
+            and_(Persona.id == persona_id, Persona.user_id == workspace_user_id(user))
         )
     )
     persona = result.scalar_one_or_none()
@@ -725,7 +725,7 @@ async def clone_persona(
             and_(
                 Persona.id == persona_id,
                 or_(
-                    Persona.user_id == user.id,
+                    Persona.user_id == workspace_user_id(user),
                     Persona.user_id.is_(None),
                 ),
             )
@@ -736,7 +736,7 @@ async def clone_persona(
         raise HTTPException(status_code=404, detail="Persona not found")
 
     clone = Persona(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         name=f"{source.name} (Copy)",
         description=source.description,
         personality_prompt=source.personality_prompt,
@@ -775,7 +775,7 @@ async def list_executions(
     db: AsyncSession = Depends(get_db),
 ):
     """List flow execution history (conversations that ran through flows)."""
-    query = select(FlowExecution).where(FlowExecution.user_id == user.id)
+    query = select(FlowExecution).where(FlowExecution.user_id == workspace_user_id(user))
 
     if flow_id:
         query = query.where(FlowExecution.flow_id == flow_id)
@@ -817,7 +817,7 @@ async def get_execution(
         select(FlowExecution).where(
             and_(
                 FlowExecution.id == execution_id,
-                FlowExecution.user_id == user.id,
+                FlowExecution.user_id == workspace_user_id(user),
             )
         )
     )

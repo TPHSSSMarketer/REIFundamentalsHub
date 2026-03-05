@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.user import (
     DealAnalyzerResult,
     DealContractChecklist,
@@ -138,7 +138,7 @@ async def patch_deal(
     if body.analyzer_data is not None:
         result = await db.execute(
             select(DealAnalyzerResult).where(
-                DealAnalyzerResult.user_id == user.id,
+                DealAnalyzerResult.user_id == workspace_user_id(user),
                 DealAnalyzerResult.deal_id == deal_id,
             )
         )
@@ -147,7 +147,7 @@ async def patch_deal(
             existing.analyzer_data = body.analyzer_data
         else:
             row = DealAnalyzerResult(
-                user_id=user.id,
+                user_id=workspace_user_id(user),
                 deal_id=deal_id,
                 analyzer_data=body.analyzer_data,
             )
@@ -184,7 +184,7 @@ async def get_deal_detail(
     # Generated contracts for this deal
     contracts_result = await db.execute(
         select(GeneratedContract)
-        .where(GeneratedContract.user_id == user.id, GeneratedContract.deal_id == deal_id)
+        .where(GeneratedContract.user_id == workspace_user_id(user), GeneratedContract.deal_id == deal_id)
         .order_by(desc(GeneratedContract.created_at))
     )
     generated_contracts = [
@@ -206,7 +206,7 @@ async def get_deal_detail(
     # POF requests (match on property address heuristic — all user's requests)
     pof_req_result = await db.execute(
         select(PofRequest)
-        .where(PofRequest.requestor_id == user.id)
+        .where(PofRequest.requestor_id == workspace_user_id(user))
         .order_by(desc(PofRequest.created_at))
     )
     pof_requests = [
@@ -227,7 +227,7 @@ async def get_deal_detail(
     # POF certificates
     pof_cert_result = await db.execute(
         select(ProofOfFundsCertificate)
-        .where(ProofOfFundsCertificate.user_id == user.id)
+        .where(ProofOfFundsCertificate.user_id == workspace_user_id(user))
         .order_by(desc(ProofOfFundsCertificate.created_at))
     )
     pof_certificates = [
@@ -249,7 +249,7 @@ async def get_deal_detail(
     # Deal notes (persisted in DB)
     notes_result = await db.execute(
         select(DealNote)
-        .where(DealNote.user_id == user.id, DealNote.deal_id == deal_id)
+        .where(DealNote.user_id == workspace_user_id(user), DealNote.deal_id == deal_id)
         .order_by(desc(DealNote.created_at))
     )
     notes = [
@@ -321,7 +321,7 @@ async def add_deal_note(
             detail="Note content cannot be empty",
         )
     note = DealNote(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         deal_id=deal_id,
         content=body.content.strip(),
     )
@@ -348,7 +348,7 @@ async def delete_deal_note(
     result = await db.execute(
         select(DealNote).where(
             DealNote.id == note_id,
-            DealNote.user_id == user.id,
+            DealNote.user_id == workspace_user_id(user),
             DealNote.deal_id == deal_id,
         )
     )

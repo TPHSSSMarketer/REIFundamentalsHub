@@ -13,7 +13,7 @@ from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.crm import DealFile
 from rei.models.user import User
 
@@ -118,7 +118,7 @@ async def list_deal_files(
 ):
     """List all files for a deal (metadata only, no content)."""
     query = select(DealFile).where(
-        DealFile.user_id == user.id,
+        DealFile.user_id == workspace_user_id(user),
         DealFile.deal_id == deal_id,
     )
 
@@ -144,7 +144,7 @@ async def get_deal_file(
     """Get a single file with content."""
     result = await db.execute(
         select(DealFile).where(
-            DealFile.user_id == user.id,
+            DealFile.user_id == workspace_user_id(user),
             DealFile.deal_id == deal_id,
             DealFile.id == file_id,
         )
@@ -165,7 +165,7 @@ async def get_deal_file_thumbnail(
     """Get just the thumbnail base64 for a file."""
     result = await db.execute(
         select(DealFile).where(
-            DealFile.user_id == user.id,
+            DealFile.user_id == workspace_user_id(user),
             DealFile.deal_id == deal_id,
             DealFile.id == file_id,
         )
@@ -217,7 +217,7 @@ async def upload_deal_file(
         if replace_file_id:
             result = await db.execute(
                 select(DealFile).where(
-                    DealFile.user_id == user.id,
+                    DealFile.user_id == workspace_user_id(user),
                     DealFile.deal_id == deal_id,
                     DealFile.id == replace_file_id,
                 )
@@ -242,7 +242,7 @@ async def upload_deal_file(
 
         # ── Normal: create new file ──
         deal_file = DealFile(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             deal_id=deal_id,
             file_type=file_type,
             category=category,
@@ -278,7 +278,7 @@ async def delete_deal_file(
     """Delete a file (hard delete)."""
     result = await db.execute(
         select(DealFile).where(
-            DealFile.user_id == user.id,
+            DealFile.user_id == workspace_user_id(user),
             DealFile.deal_id == deal_id,
             DealFile.id == file_id,
         )

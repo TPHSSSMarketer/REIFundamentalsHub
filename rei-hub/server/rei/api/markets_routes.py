@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.user import SavedMarket, User
 from rei.services.attom_service import lookup_market_data, refresh_all_markets
 
@@ -106,7 +106,7 @@ async def list_markets(
     db: AsyncSession = Depends(get_db),
 ):
     """List all saved markets for the current user."""
-    query = select(SavedMarket).where(SavedMarket.user_id == user.id)
+    query = select(SavedMarket).where(SavedMarket.user_id == workspace_user_id(user))
     query = query.order_by(SavedMarket.created_at.desc())
 
     result = await db.execute(query)
@@ -131,7 +131,7 @@ async def create_market(
 
     # Create the market
     market = SavedMarket(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         city=body.city,
         state=body.state,
         median_home_price=body.median_home_price,
@@ -161,7 +161,7 @@ async def get_market(
         select(SavedMarket).where(
             and_(
                 SavedMarket.id == market_id,
-                SavedMarket.user_id == user.id,
+                SavedMarket.user_id == workspace_user_id(user),
             )
         )
     )
@@ -184,7 +184,7 @@ async def update_market(
         select(SavedMarket).where(
             and_(
                 SavedMarket.id == market_id,
-                SavedMarket.user_id == user.id,
+                SavedMarket.user_id == workspace_user_id(user),
             )
         )
     )
@@ -230,7 +230,7 @@ async def delete_market(
         select(SavedMarket).where(
             and_(
                 SavedMarket.id == market_id,
-                SavedMarket.user_id == user.id,
+                SavedMarket.user_id == workspace_user_id(user),
             )
         )
     )
@@ -288,7 +288,7 @@ async def refresh_single_market(
         select(SavedMarket).where(
             and_(
                 SavedMarket.id == market_id,
-                SavedMarket.user_id == user.id,
+                SavedMarket.user_id == workspace_user_id(user),
             )
         )
     )

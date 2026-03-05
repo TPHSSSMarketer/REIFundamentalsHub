@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import EMAIL_PLAN_LIMITS, OVERAGE_RATE_PER_THOUSAND, get_settings
 from rei.models.user import (
     EmailCampaign,
@@ -270,7 +270,7 @@ async def list_domains(
 ):
     result = await db.execute(
         select(EmailDomain)
-        .where(EmailDomain.user_id == current_user.id)
+        .where(EmailDomain.user_id == workspace_user_id(current_user))
         .order_by(EmailDomain.created_at.desc())
     )
     domains = result.scalars().all()
@@ -302,7 +302,7 @@ async def add_domain(
     domain_result = await email_provider.add_domain(body.domain, settings)
 
     domain = EmailDomain(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         domain=body.domain,
         from_name=body.from_name,
         from_email=body.from_email,
@@ -333,7 +333,7 @@ async def verify_domain(
     result = await db.execute(
         select(EmailDomain).where(
             EmailDomain.id == domain_id,
-            EmailDomain.user_id == current_user.id,
+            EmailDomain.user_id == workspace_user_id(current_user),
         )
     )
     domain = result.scalar_one_or_none()
@@ -365,7 +365,7 @@ async def delete_domain(
     result = await db.execute(
         select(EmailDomain).where(
             EmailDomain.id == domain_id,
-            EmailDomain.user_id == current_user.id,
+            EmailDomain.user_id == workspace_user_id(current_user),
         )
     )
     domain = result.scalar_one_or_none()
@@ -389,7 +389,7 @@ async def list_lists(
 ):
     result = await db.execute(
         select(EmailList)
-        .where(EmailList.user_id == current_user.id)
+        .where(EmailList.user_id == workspace_user_id(current_user))
         .order_by(EmailList.created_at.desc())
     )
     lists = result.scalars().all()
@@ -414,7 +414,7 @@ async def create_list(
     db: AsyncSession = Depends(get_db),
 ):
     email_list = EmailList(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         name=body.name,
         description=body.description,
     )
@@ -438,7 +438,7 @@ async def delete_list(
     result = await db.execute(
         select(EmailList).where(
             EmailList.id == list_id,
-            EmailList.user_id == current_user.id,
+            EmailList.user_id == workspace_user_id(current_user),
         )
     )
     email_list = result.scalar_one_or_none()
@@ -462,7 +462,7 @@ async def list_subscribers(
     list_result = await db.execute(
         select(EmailList).where(
             EmailList.id == list_id,
-            EmailList.user_id == current_user.id,
+            EmailList.user_id == workspace_user_id(current_user),
         )
     )
     if not list_result.scalar_one_or_none():
@@ -515,7 +515,7 @@ async def add_subscriber(
     list_result = await db.execute(
         select(EmailList).where(
             EmailList.id == list_id,
-            EmailList.user_id == current_user.id,
+            EmailList.user_id == workspace_user_id(current_user),
         )
     )
     email_list = list_result.scalar_one_or_none()
@@ -533,7 +533,7 @@ async def add_subscriber(
         raise HTTPException(status_code=409, detail="Subscriber already exists in this list")
 
     sub = EmailSubscriber(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         list_id=list_id,
         email=body.email,
         first_name=body.first_name,
@@ -559,7 +559,7 @@ async def import_subscribers(
     list_result = await db.execute(
         select(EmailList).where(
             EmailList.id == list_id,
-            EmailList.user_id == current_user.id,
+            EmailList.user_id == workspace_user_id(current_user),
         )
     )
     email_list = list_result.scalar_one_or_none()
@@ -614,7 +614,7 @@ async def delete_subscriber(
         select(EmailSubscriber).where(
             EmailSubscriber.id == sub_id,
             EmailSubscriber.list_id == list_id,
-            EmailSubscriber.user_id == current_user.id,
+            EmailSubscriber.user_id == workspace_user_id(current_user),
         )
     )
     sub = result.scalar_one_or_none()
@@ -644,11 +644,11 @@ async def list_templates(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _ensure_default_templates(current_user.id, db)
+    await _ensure_default_templates(workspace_user_id(current_user), db)
 
     result = await db.execute(
         select(EmailTemplate)
-        .where(EmailTemplate.user_id == current_user.id)
+        .where(EmailTemplate.user_id == workspace_user_id(current_user))
         .order_by(EmailTemplate.created_at.desc())
     )
     templates = result.scalars().all()
@@ -678,7 +678,7 @@ async def create_template(
     db: AsyncSession = Depends(get_db),
 ):
     tpl = EmailTemplate(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         name=body.name,
         subject=body.subject,
         preview_text=body.preview_text,
@@ -702,7 +702,7 @@ async def update_template(
     result = await db.execute(
         select(EmailTemplate).where(
             EmailTemplate.id == template_id,
-            EmailTemplate.user_id == current_user.id,
+            EmailTemplate.user_id == workspace_user_id(current_user),
         )
     )
     tpl = result.scalar_one_or_none()
@@ -727,7 +727,7 @@ async def delete_template(
     result = await db.execute(
         select(EmailTemplate).where(
             EmailTemplate.id == template_id,
-            EmailTemplate.user_id == current_user.id,
+            EmailTemplate.user_id == workspace_user_id(current_user),
         )
     )
     tpl = result.scalar_one_or_none()
@@ -750,7 +750,7 @@ async def list_campaigns(
 ):
     result = await db.execute(
         select(EmailCampaign)
-        .where(EmailCampaign.user_id == current_user.id)
+        .where(EmailCampaign.user_id == workspace_user_id(current_user))
         .order_by(EmailCampaign.created_at.desc())
     )
     campaigns = result.scalars().all()
@@ -786,7 +786,7 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     campaign = EmailCampaign(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         name=body.name,
         subject=body.subject,
         preview_text=body.preview_text,
@@ -881,7 +881,7 @@ async def send_campaign(
     result = await db.execute(
         select(EmailCampaign).where(
             EmailCampaign.id == campaign_id,
-            EmailCampaign.user_id == current_user.id,
+            EmailCampaign.user_id == workspace_user_id(current_user),
         )
     )
     campaign = result.scalar_one_or_none()
@@ -926,7 +926,7 @@ async def send_campaign(
     campaign.provider_used = settings.email_provider
     await db.commit()
 
-    background_tasks.add_task(_send_campaign_emails, campaign_id, current_user.id)
+    background_tasks.add_task(_send_campaign_emails, campaign_id, workspace_user_id(current_user))
     return {"queued": count}
 
 
@@ -940,7 +940,7 @@ async def schedule_campaign(
     result = await db.execute(
         select(EmailCampaign).where(
             EmailCampaign.id == campaign_id,
-            EmailCampaign.user_id == current_user.id,
+            EmailCampaign.user_id == workspace_user_id(current_user),
         )
     )
     campaign = result.scalar_one_or_none()
@@ -962,7 +962,7 @@ async def campaign_stats(
     result = await db.execute(
         select(EmailCampaign).where(
             EmailCampaign.id == campaign_id,
-            EmailCampaign.user_id == current_user.id,
+            EmailCampaign.user_id == workspace_user_id(current_user),
         )
     )
     campaign = result.scalar_one_or_none()
@@ -992,7 +992,7 @@ async def delete_campaign(
     result = await db.execute(
         select(EmailCampaign).where(
             EmailCampaign.id == campaign_id,
-            EmailCampaign.user_id == current_user.id,
+            EmailCampaign.user_id == workspace_user_id(current_user),
         )
     )
     campaign = result.scalar_one_or_none()
@@ -1015,7 +1015,7 @@ async def list_sequences(
 ):
     result = await db.execute(
         select(EmailSequence)
-        .where(EmailSequence.user_id == current_user.id)
+        .where(EmailSequence.user_id == workspace_user_id(current_user))
         .order_by(EmailSequence.created_at.desc())
     )
     sequences = result.scalars().all()
@@ -1054,7 +1054,7 @@ async def create_sequence(
     db: AsyncSession = Depends(get_db),
 ):
     seq = EmailSequence(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         name=body.name,
         list_id=body.list_id,
         from_domain_id=body.from_domain_id,
@@ -1076,7 +1076,7 @@ async def add_sequence_step(
     seq_result = await db.execute(
         select(EmailSequence).where(
             EmailSequence.id == sequence_id,
-            EmailSequence.user_id == current_user.id,
+            EmailSequence.user_id == workspace_user_id(current_user),
         )
     )
     if not seq_result.scalar_one_or_none():
@@ -1105,7 +1105,7 @@ async def activate_sequence(
     result = await db.execute(
         select(EmailSequence).where(
             EmailSequence.id == sequence_id,
-            EmailSequence.user_id == current_user.id,
+            EmailSequence.user_id == workspace_user_id(current_user),
         )
     )
     seq = result.scalar_one_or_none()
@@ -1128,7 +1128,7 @@ async def enroll_subscriber(
     seq_result = await db.execute(
         select(EmailSequence).where(
             EmailSequence.id == sequence_id,
-            EmailSequence.user_id == current_user.id,
+            EmailSequence.user_id == workspace_user_id(current_user),
         )
     )
     seq = seq_result.scalar_one_or_none()

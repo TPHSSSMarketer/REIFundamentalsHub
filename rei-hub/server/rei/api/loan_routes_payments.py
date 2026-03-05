@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.api.loan_routes_properties import get_current_user_with_loans
 from rei.config import get_settings, Settings
 from rei.database import async_session_factory
@@ -244,7 +244,7 @@ async def list_payments(
     stmt = select(LoanPayment)
 
     if not user.is_superadmin:
-        stmt = stmt.where(LoanPayment.user_id == user.id)
+        stmt = stmt.where(LoanPayment.user_id == workspace_user_id(user))
 
     if cfd_id:
         stmt = stmt.where(LoanPayment.cfd_id == cfd_id)
@@ -607,7 +607,7 @@ async def list_defaults(
     stmt = select(LoanDefault)
 
     if not user.is_superadmin:
-        stmt = stmt.where(LoanDefault.user_id == user.id)
+        stmt = stmt.where(LoanDefault.user_id == workspace_user_id(user))
 
     if cfd_id:
         stmt = stmt.where(LoanDefault.cfd_id == cfd_id)

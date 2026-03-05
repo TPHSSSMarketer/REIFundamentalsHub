@@ -20,7 +20,7 @@ from rei.config import (
     get_plan_price_id,
     get_settings,
 )
-from rei.models.user import User
+from rei.models.user import Invitation, User
 from rei.services.security import (
     sanitize_text,
     sanitize_email,
@@ -103,10 +103,24 @@ def _days_remaining_in_trial(user: User) -> int | None:
     return max(0, delta.days)
 
 
-def _can_access(user: User) -> dict[str, bool]:
-    features = _user_features(user)
-    sub_status = getattr(user, "subscription_status", "trialing")
-    trial_ok = _is_trial_active(user)
+def _can_access(user: User, owner: User | None = None) -> dict[str, bool]:
+    """Determine feature access for a user.
+
+    If the user is a team member (owner_id is set), access is determined by the
+    owner's plan and subscription status instead of the team member's own fields.
+    The caller can pass the pre-fetched owner; otherwise the function falls back
+    to checking the user's own fields.
+    """
+    # Team members inherit their owner's plan — use the owner for all checks
+    check_user = owner if owner is not None else user
+    features = _user_features(check_user)
+
+    # SuperAdmin and complimentary accounts always have full access
+    if getattr(check_user, "is_superadmin", False) or getattr(check_user, "is_complimentary", False):
+        return {f: True for f in features}
+
+    sub_status = getattr(check_user, "subscription_status", "trialing")
+    trial_ok = _is_trial_active(check_user)
 
     # If subscription is canceled/past_due AND trial is expired → no access
     if sub_status in ("canceled", "past_due") and not trial_ok:
@@ -148,14 +162,32 @@ async def list_plans():
 
 
 @billing_router.get("/status")
-async def billing_status(current_user: User = Depends(get_current_user)):
-    """Return the current user's subscription status."""
-    plan_key = getattr(current_user, "plan", "starter") or "starter"
-    sub_status = getattr(current_user, "subscription_status", "trialing")
-    billing_interval = getattr(current_user, "billing_interval", "monthly")
-    trial_ends = getattr(current_user, "trial_ends_at", None)
-    sub_ends = getattr(current_user, "subscription_ends_at", None)
-    seats_used = getattr(current_user, "seats_used", 1)
+async def billing_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's subscription status.
+
+    Team members inherit their owner's plan, features, and access.
+    """
+    owner: User | None = None
+    owner_id = getattr(current_user, "owner_id", None)
+
+    # If this user is a team member, fetch the owner's record
+    if owner_id is not None:
+        result = await db.execute(select(User).where(User.id == owner_id))
+        owner = result.scalar_one_or_none()
+
+    # Use owner's fields when the user is a team member
+    effective_user = owner if owner is not None else current_user
+
+    plan_key = getattr(effective_user, "plan", "starter") or "starter"
+    sub_status = getattr(effective_user, "subscription_status", "trialing")
+    billing_interval = getattr(effective_user, "billing_interval", "monthly")
+    trial_ends = getattr(effective_user, "trial_ends_at", None)
+    sub_ends = getattr(effective_user, "subscription_ends_at", None)
+    seats_used = getattr(effective_user, "seats_used", 1)
+    max_seats = PLANS.get(plan_key, {}).get("max_seats", 1)
 
     return {
         "plan": plan_key,
@@ -164,10 +196,13 @@ async def billing_status(current_user: User = Depends(get_current_user)):
         "trial_ends_at": trial_ends.isoformat() if trial_ends else None,
         "subscription_ends_at": sub_ends.isoformat() if sub_ends else None,
         "seats_used": seats_used,
-        "is_trial_active": _is_trial_active(current_user),
-        "days_remaining_in_trial": _days_remaining_in_trial(current_user),
-        "features": _user_features(current_user),
-        "can_access": _can_access(current_user),
+        "max_seats": max_seats,
+        "owner_id": owner_id,
+        "is_team_member": owner_id is not None,
+        "is_trial_active": _is_trial_active(effective_user),
+        "days_remaining_in_trial": _days_remaining_in_trial(effective_user),
+        "features": _user_features(effective_user),
+        "can_access": _can_access(current_user, owner=owner),
     }
 
 

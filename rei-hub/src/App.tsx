@@ -19,6 +19,7 @@ import Settings from './components/Settings/Settings'
 import LandingPage from './components/LandingPage/LandingPage'
 import LoginPage from './components/Auth/LoginPage'
 import RegisterPage from './components/Auth/RegisterPage'
+import AcceptInvitePage from './components/Auth/AcceptInvitePage'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import PricingPage from './components/Billing/PricingPage'
 import BillingPage from './components/Billing/BillingPage'
@@ -117,6 +118,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
         <Route path="/pay" element={<PaymentPortalPage />} />
         <Route

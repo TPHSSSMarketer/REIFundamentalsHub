@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, and_, case, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import PLANS
 from rei.models.user import (
     BankNegotiation,
@@ -95,7 +95,7 @@ def _user_filter(model_cls, user: User):
     the user is a superadmin (who sees all users' data)."""
     if user.is_superadmin:
         return True  # no restriction
-    return model_cls.user_id == user.id
+    return model_cls.user_id == workspace_user_id(user)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -201,7 +201,7 @@ async def portfolio_overview(
         .where(ContractForDeed.is_active.is_(True))
     )
     if not user.is_superadmin:
-        value_q = value_q.where(ContractForDeed.user_id == user.id)
+        value_q = value_q.where(ContractForDeed.user_id == workspace_user_id(user))
     total_portfolio_value = float((await db.execute(value_q)).scalar() or 0)
 
     # Total debt = sum of current_balance on active CFDs
@@ -211,7 +211,7 @@ async def portfolio_overview(
         .where(ContractForDeed.is_active.is_(True))
     )
     if not user.is_superadmin:
-        debt_q = debt_q.where(ContractForDeed.user_id == user.id)
+        debt_q = debt_q.where(ContractForDeed.user_id == workspace_user_id(user))
     total_debt = float((await db.execute(debt_q)).scalar() or 0)
     total_equity = total_portfolio_value - total_debt
 
@@ -252,7 +252,7 @@ async def portfolio_overview(
             )
         )
         if not user.is_superadmin:
-            sv_q = sv_q.where(ContractForDeed.user_id == user.id)
+            sv_q = sv_q.where(ContractForDeed.user_id == workspace_user_id(user))
         state_val = float((await db.execute(sv_q)).scalar() or 0)
         properties_by_state.append({"state": st, "count": cnt, "value": state_val})
 
@@ -285,7 +285,7 @@ async def portfolio_overview(
             .where(func.strftime("%Y-%m", LandTrust.created_at) == mo)
         )
         if not user.is_superadmin:
-            mv_q = mv_q.where(ContractForDeed.user_id == user.id)
+            mv_q = mv_q.where(ContractForDeed.user_id == workspace_user_id(user))
         mo_val = float((await db.execute(mv_q)).scalar() or 0)
         acquisition_trend.append({"month": mo, "count": cnt, "value": mo_val})
 
@@ -512,7 +512,7 @@ async def loans_overview(
         )
     )
     if not user.is_superadmin:
-        dist_q = dist_q.where(DistributionStatement.admin_user_id == user.id)
+        dist_q = dist_q.where(DistributionStatement.admin_user_id == workspace_user_id(user))
     investor_distributions_period = float((await db.execute(dist_q)).scalar() or 0)
 
     return {

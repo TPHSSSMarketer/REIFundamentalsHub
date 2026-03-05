@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import (
@@ -112,7 +112,7 @@ async def list_templates(
     """Return all templates for the current user (including system defaults)."""
     result = await db.execute(
         select(DocumentTemplate).where(
-            (DocumentTemplate.user_id == current_user.id)
+            (DocumentTemplate.user_id == workspace_user_id(current_user))
             | (DocumentTemplate.is_default == True)  # noqa: E712
         ).order_by(DocumentTemplate.created_at.desc())
     )
@@ -163,7 +163,7 @@ async def upload_template(
         ) from e
 
     template = DocumentTemplate(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         name=name,
         category=category,
         file_name=file.filename,
@@ -197,7 +197,7 @@ async def get_template(
     result = await db.execute(
         select(DocumentTemplate).where(
             DocumentTemplate.id == template_id,
-            (DocumentTemplate.user_id == current_user.id)
+            (DocumentTemplate.user_id == workspace_user_id(current_user))
             | (DocumentTemplate.is_default == True),  # noqa: E712
         )
     )
@@ -227,7 +227,7 @@ async def download_template(
     result = await db.execute(
         select(DocumentTemplate).where(
             DocumentTemplate.id == template_id,
-            (DocumentTemplate.user_id == current_user.id)
+            (DocumentTemplate.user_id == workspace_user_id(current_user))
             | (DocumentTemplate.is_default == True),  # noqa: E712
         )
     )
@@ -251,7 +251,7 @@ async def delete_template(
     result = await db.execute(
         select(DocumentTemplate).where(
             DocumentTemplate.id == template_id,
-            DocumentTemplate.user_id == current_user.id,
+            DocumentTemplate.user_id == workspace_user_id(current_user),
         )
     )
     t = result.scalar_one_or_none()
@@ -287,7 +287,7 @@ async def generate_contract(
     result = await db.execute(
         select(DocumentTemplate).where(
             DocumentTemplate.id == body.template_id,
-            (DocumentTemplate.user_id == current_user.id)
+            (DocumentTemplate.user_id == workspace_user_id(current_user))
             | (DocumentTemplate.is_default == True),  # noqa: E712
         )
     )
@@ -367,7 +367,7 @@ async def generate_contract(
 
     # Persist contract record
     contract = GeneratedContract(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         template_id=template.id,
         deal_id=body.deal_id,
         file_name=file_name,
@@ -402,7 +402,7 @@ async def list_contracts(
     """Return all generated contracts for the current user, most recent first."""
     result = await db.execute(
         select(GeneratedContract)
-        .where(GeneratedContract.user_id == current_user.id)
+        .where(GeneratedContract.user_id == workspace_user_id(current_user))
         .order_by(GeneratedContract.created_at.desc())
     )
     contracts = result.scalars().all()
@@ -439,7 +439,7 @@ async def get_contract(
     result = await db.execute(
         select(GeneratedContract).where(
             GeneratedContract.id == contract_id,
-            GeneratedContract.user_id == current_user.id,
+            GeneratedContract.user_id == workspace_user_id(current_user),
         )
     )
     c = result.scalar_one_or_none()
@@ -476,7 +476,7 @@ async def delete_contract(
     result = await db.execute(
         select(GeneratedContract).where(
             GeneratedContract.id == contract_id,
-            GeneratedContract.user_id == current_user.id,
+            GeneratedContract.user_id == workspace_user_id(current_user),
         )
     )
     c = result.scalar_one_or_none()
@@ -584,13 +584,13 @@ async def list_checklist_templates(
 ):
     """Return checklist templates grouped by deal type. Seeds defaults if empty."""
     query = select(ContractChecklistTemplate).where(
-        ContractChecklistTemplate.user_id == current_user.id
+        ContractChecklistTemplate.user_id == workspace_user_id(current_user)
     )
     result = await db.execute(query)
     templates = result.scalars().all()
 
     if not templates:
-        await seed_default_checklists(current_user.id, db)
+        await seed_default_checklists(workspace_user_id(current_user), db)
         result = await db.execute(query)
         templates = result.scalars().all()
 
@@ -621,7 +621,7 @@ async def create_checklist_template(
 ):
     """Create a new checklist template item."""
     tpl = ContractChecklistTemplate(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         deal_type=body.deal_type,
         name=body.name,
         is_required=body.is_required,
@@ -656,7 +656,7 @@ async def update_checklist_template(
     result = await db.execute(
         select(ContractChecklistTemplate).where(
             ContractChecklistTemplate.id == template_id,
-            ContractChecklistTemplate.user_id == current_user.id,
+            ContractChecklistTemplate.user_id == workspace_user_id(current_user),
         )
     )
     tpl = result.scalar_one_or_none()
@@ -692,7 +692,7 @@ async def delete_checklist_template(
     result = await db.execute(
         select(ContractChecklistTemplate).where(
             ContractChecklistTemplate.id == template_id,
-            ContractChecklistTemplate.user_id == current_user.id,
+            ContractChecklistTemplate.user_id == workspace_user_id(current_user),
         )
     )
     tpl = result.scalar_one_or_none()
@@ -720,7 +720,7 @@ async def get_deal_checklist(
     result = await db.execute(
         select(DealContractChecklist).where(
             DealContractChecklist.deal_id == deal_id,
-            DealContractChecklist.user_id == current_user.id,
+            DealContractChecklist.user_id == workspace_user_id(current_user),
         ).order_by(DealContractChecklist.sort_order)
     )
     items = list(result.scalars().all())
@@ -729,17 +729,17 @@ async def get_deal_checklist(
         # Auto-create from templates
         tpl_result = await db.execute(
             select(ContractChecklistTemplate).where(
-                ContractChecklistTemplate.user_id == current_user.id,
+                ContractChecklistTemplate.user_id == workspace_user_id(current_user),
                 ContractChecklistTemplate.deal_type == deal_type,
             ).order_by(ContractChecklistTemplate.sort_order)
         )
         templates = tpl_result.scalars().all()
 
         if not templates:
-            await seed_default_checklists(current_user.id, db)
+            await seed_default_checklists(workspace_user_id(current_user), db)
             tpl_result = await db.execute(
                 select(ContractChecklistTemplate).where(
-                    ContractChecklistTemplate.user_id == current_user.id,
+                    ContractChecklistTemplate.user_id == workspace_user_id(current_user),
                     ContractChecklistTemplate.deal_type == deal_type,
                 ).order_by(ContractChecklistTemplate.sort_order)
             )
@@ -747,7 +747,7 @@ async def get_deal_checklist(
 
         for tpl in templates:
             item = DealContractChecklist(
-                user_id=current_user.id,
+                user_id=workspace_user_id(current_user),
                 deal_id=deal_id,
                 checklist_template_id=tpl.id,
                 name=tpl.name,
@@ -790,7 +790,7 @@ async def add_checklist_item(
     """Add a custom item to a deal's checklist."""
     # Create a placeholder template entry for custom items
     tpl = ContractChecklistTemplate(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         deal_type="custom",
         name=body.name,
         is_required=False,
@@ -801,7 +801,7 @@ async def add_checklist_item(
     await db.flush()
 
     item = DealContractChecklist(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         deal_id=deal_id,
         checklist_template_id=tpl.id,
         name=body.name,
@@ -833,7 +833,7 @@ async def update_checklist_item(
     result = await db.execute(
         select(DealContractChecklist).where(
             DealContractChecklist.id == item_id,
-            DealContractChecklist.user_id == current_user.id,
+            DealContractChecklist.user_id == workspace_user_id(current_user),
         )
     )
     item = result.scalar_one_or_none()
@@ -871,7 +871,7 @@ async def upload_signed_copy(
     result = await db.execute(
         select(DealContractChecklist).where(
             DealContractChecklist.id == item_id,
-            DealContractChecklist.user_id == current_user.id,
+            DealContractChecklist.user_id == workspace_user_id(current_user),
         )
     )
     item = result.scalar_one_or_none()
@@ -904,7 +904,7 @@ async def delete_checklist_item(
     result = await db.execute(
         select(DealContractChecklist).where(
             DealContractChecklist.id == item_id,
-            DealContractChecklist.user_id == current_user.id,
+            DealContractChecklist.user_id == workspace_user_id(current_user),
         )
     )
     item = result.scalar_one_or_none()
@@ -927,7 +927,7 @@ async def generate_from_checklist(
     result = await db.execute(
         select(DealContractChecklist).where(
             DealContractChecklist.id == item_id,
-            DealContractChecklist.user_id == current_user.id,
+            DealContractChecklist.user_id == workspace_user_id(current_user),
         )
     )
     item = result.scalar_one_or_none()
@@ -973,7 +973,7 @@ async def match_template(
     # 1. User's own template matching state + name pattern
     result = await db.execute(
         select(DocumentTemplate).where(
-            DocumentTemplate.user_id == current_user.id,
+            DocumentTemplate.user_id == workspace_user_id(current_user),
         )
     )
     user_templates = result.scalars().all()
@@ -1079,7 +1079,7 @@ async def generate_loi(
         )
 
     loi = LetterOfIntent(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         deal_id=body.deal_id,
         included_options=json.dumps(body.included_options),
         homeowner_name=body.homeowner_name,
@@ -1103,7 +1103,7 @@ async def generate_loi(
     # Find or create a checklist template for LOI
     tpl_result = await db.execute(
         select(ContractChecklistTemplate).where(
-            ContractChecklistTemplate.user_id == current_user.id,
+            ContractChecklistTemplate.user_id == workspace_user_id(current_user),
             ContractChecklistTemplate.name == "Letter of Intent",
         ).limit(1)
     )
@@ -1114,7 +1114,7 @@ async def generate_loi(
         existing_result = await db.execute(
             select(DealContractChecklist).where(
                 DealContractChecklist.deal_id == body.deal_id,
-                DealContractChecklist.user_id == current_user.id,
+                DealContractChecklist.user_id == workspace_user_id(current_user),
                 DealContractChecklist.name == "Letter of Intent",
             ).limit(1)
         )
@@ -1125,7 +1125,7 @@ async def generate_loi(
             existing_item.updated_at = datetime.utcnow()
         else:
             cl_item = DealContractChecklist(
-                user_id=current_user.id,
+                user_id=workspace_user_id(current_user),
                 deal_id=body.deal_id,
                 checklist_template_id=checklist_tpl.id,
                 name="Letter of Intent",
@@ -1154,7 +1154,7 @@ async def list_deal_lois(
     result = await db.execute(
         select(LetterOfIntent).where(
             LetterOfIntent.deal_id == deal_id,
-            LetterOfIntent.user_id == current_user.id,
+            LetterOfIntent.user_id == workspace_user_id(current_user),
         ).order_by(LetterOfIntent.created_at.desc())
     )
     lois = result.scalars().all()
@@ -1203,7 +1203,7 @@ async def generate_contract_from_deal(
     result = await db.execute(
         select(DocumentTemplate).where(
             DocumentTemplate.id == body.template_id,
-            DocumentTemplate.user_id == current_user.id,
+            DocumentTemplate.user_id == workspace_user_id(current_user),
         )
     )
     template = result.scalar_one_or_none()
@@ -1214,7 +1214,7 @@ async def generate_contract_from_deal(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == current_user.id,
+            CrmDeal.user_id == workspace_user_id(current_user),
             CrmDeal.is_deleted == False,
         )
     )
@@ -1267,7 +1267,7 @@ async def generate_contract_from_deal(
 
     # Save as DealFile
     deal_file = DealFile(
-        user_id=current_user.id,
+        user_id=workspace_user_id(current_user),
         deal_id=deal_id,
         file_type="document",
         category="contract",

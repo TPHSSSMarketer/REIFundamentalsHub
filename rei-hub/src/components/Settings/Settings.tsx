@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2 } from 'lucide-react'
+import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2, Users, Sliders, Link2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import AiProviderUserSettings from './AiProviderUserSettings'
+import TeamManagementSection from './TeamManagementSection'
 import { useTheme } from '@/hooks/useTheme'
 import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
 import {
@@ -28,8 +29,22 @@ import {
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 export default function Settings() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { theme, setTheme } = useTheme()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile')
+
+  const TABS = [
+    { id: 'profile', label: 'Profile', icon: Building2 },
+    { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
+    { id: 'integrations', label: 'Integrations', icon: Link2 },
+    { id: 'team', label: 'Team', icon: Users },
+    { id: 'preferences', label: 'Preferences', icon: Sliders },
+  ]
+
+  function switchTab(tabId: string) {
+    setActiveTab(tabId)
+    setSearchParams({ tab: tabId })
+  }
 
   const [settings, setSettings] = useState({
     wpUrl: localStorage.getItem('wp_url') || '',
@@ -430,40 +445,29 @@ export default function Settings() {
         <p className="text-sm md:text-base text-slate-600">Configure your preferences and integrations</p>
       </div>
 
-      {/* Appearance */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <div className="flex items-center gap-2 mb-1">
-          <Monitor className="w-5 h-5 text-primary-500" />
-          <h2 className="text-lg font-semibold text-slate-800">Appearance</h2>
-        </div>
-        <p className="text-sm text-slate-600 mb-4">
-          Choose how the app looks. Pick Light or Dark mode.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setTheme('light')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-              theme === 'light'
-                ? 'bg-primary-50 border-primary-500 text-primary-700'
-                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
-            }`}
-          >
-            <Sun className="w-4 h-4" />
-            Light Mode
-          </button>
-          <button
-            onClick={() => setTheme('dark')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-              theme === 'dark'
-                ? 'bg-primary-50 border-primary-500 text-primary-700'
-                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
-            }`}
-          >
-            <Moon className="w-4 h-4" />
-            Dark Mode
-          </button>
-        </div>
+      {/* Tab Bar */}
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 pb-px -mb-px">
+        {TABS.map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.id}
+              onClick={() => switchTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
+                activeTab === tab.id
+                  ? 'border-primary-600 text-primary-700 bg-primary-50'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
+
+      {/* ══ Profile Tab ══ */}
+      {activeTab === 'profile' && <>
 
       {/* Profile & Company */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
@@ -615,6 +619,11 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      </>}
+
+      {/* ══ Deal Analyzer Tab ══ */}
+      {activeTab === 'analyzer' && <>
 
       {/* Deal Analyzer Defaults */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
@@ -782,6 +791,11 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      </>}
+
+      {/* ══ Integrations Tab ══ */}
+      {activeTab === 'integrations' && <>
 
       {/* WordPress Publishing */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
@@ -1212,6 +1226,51 @@ export default function Settings() {
         )}
       </div>
 
+      </>}
+
+      {/* ══ Team Tab ══ */}
+      {activeTab === 'team' && <>
+      <TeamManagementSection />
+      </>}
+
+      {/* ══ Preferences Tab ══ */}
+      {activeTab === 'preferences' && <>
+
+      {/* Appearance */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Monitor className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Appearance</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Choose how the app looks. Pick Light or Dark mode.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setTheme('light')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              theme === 'light'
+                ? 'bg-primary-50 border-primary-500 text-primary-700'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
+            }`}
+          >
+            <Sun className="w-4 h-4" />
+            Light Mode
+          </button>
+          <button
+            onClick={() => setTheme('dark')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              theme === 'dark'
+                ? 'bg-primary-50 border-primary-500 text-primary-700'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-primary-400'
+            }`}
+          >
+            <Moon className="w-4 h-4" />
+            Dark Mode
+          </button>
+        </div>
+      </div>
+
       {/* Currency Converter */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <div className="flex items-center gap-2 mb-1">
@@ -1269,6 +1328,8 @@ export default function Settings() {
 
       {/* AI Provider Settings (only shown if admin allows override) */}
       <AiProviderUserSettings />
+
+      </>}
 
     </div>
   )

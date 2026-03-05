@@ -9,6 +9,9 @@ export interface BillingStatus {
   trial_ends_at: string | null
   subscription_ends_at: string | null
   seats_used: number
+  max_seats?: number
+  owner_id?: number | null
+  is_team_member?: boolean
   is_trial_active: boolean
   days_remaining_in_trial: number | null
   features: string[]

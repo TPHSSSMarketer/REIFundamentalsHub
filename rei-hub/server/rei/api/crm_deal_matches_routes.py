@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.models.crm import DealBuyerMatch, CrmDeal
 from rei.models.user import User
@@ -69,7 +69,7 @@ async def list_deal_matches(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = deal_result.scalar_one_or_none()
@@ -98,7 +98,7 @@ async def send_match_email(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = deal_result.scalar_one_or_none()
@@ -151,7 +151,7 @@ async def send_all_match_emails(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = deal_result.scalar_one_or_none()
@@ -203,7 +203,7 @@ async def skip_match(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = deal_result.scalar_one_or_none()
@@ -239,7 +239,7 @@ async def delete_match(
     deal_result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = deal_result.scalar_one_or_none()

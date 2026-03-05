@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.models.lead_capture import LeadCaptureDailyStats, LeadCaptureSite, LeadSubmission
@@ -232,7 +232,7 @@ async def create_site(
     company_slug = _generate_company_slug(company_name)
 
     site = LeadCaptureSite(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         slug=slug,
         company_slug=company_slug,
         name=body.name,
@@ -255,7 +255,7 @@ async def list_sites(
     result = await db.execute(
         select(LeadCaptureSite)
         .where(
-            LeadCaptureSite.user_id == user.id,
+            LeadCaptureSite.user_id == workspace_user_id(user),
             LeadCaptureSite.is_deleted == False,
         )
         .order_by(LeadCaptureSite.created_at.desc())

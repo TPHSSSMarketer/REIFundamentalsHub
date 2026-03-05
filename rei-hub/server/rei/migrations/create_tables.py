@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 from sqlalchemy import text
+from sqlalchemy.exc import CircularDependencyError
+from sqlalchemy.sql.ddl import sort_tables_and_constraints
 from rei.database import Base, engine
 
 # Import models so Base.metadata knows about them
@@ -11,12 +13,42 @@ import rei.models  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+
+def _fix_circular_fk_deps() -> None:
+    """Detect circular FK dependencies and mark cycle-causing FKs as use_alter.
+
+    SQLAlchemy's create_all() fails with CircularDependencyError when tables
+    have circular foreign key references (e.g. A→B→C→A). This function uses
+    sort_tables_and_constraints() to identify the specific FK constraints that
+    cause cycles and marks them with use_alter=True, so create_all() will
+    defer those constraints to ALTER TABLE statements after all tables exist.
+    """
+    try:
+        # This will raise CircularDependencyError if cycles exist
+        list(Base.metadata.sorted_tables)
+        logger.info("No circular FK dependencies detected")
+    except CircularDependencyError:
+        logger.info("Circular FK dependencies detected — auto-fixing with use_alter")
+        for table_or_none, fkcs in sort_tables_and_constraints(
+            Base.metadata.tables.values()
+        ):
+            if table_or_none is None:
+                # These FK constraints caused cycles — defer them
+                for fkc in fkcs:
+                    fkc.use_alter = True
+                    logger.info(
+                        "  Deferred FK: %s.%s → %s",
+                        fkc.parent.name if fkc.parent is not None else "?",
+                        [c.name for c in fkc.columns],
+                        fkc.referred_table.name if fkc.referred_table is not None else "?",
+                    )
+
 # Inline migrations — add new columns to existing tables.
 # Each entry: (table, column, sql_type)
 _COLUMN_MIGRATIONS = [
     ("lead_capture_sites", "company_slug", "VARCHAR(100)"),
     ("lead_capture_sites", "total_views", "INTEGER DEFAULT 0"),
-    ("users", "lead_email_notifications", "BOOLEAN DEFAULT 1"),
+    ("users", "lead_email_notifications", "BOOLEAN DEFAULT TRUE"),
         # Google OAuth columns for Sign-in with Google
         ("users", "google_id", "VARCHAR UNIQUE"),
         ("users", "google_avatar_url", "VARCHAR"),
@@ -75,7 +107,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "other_lien_amount", "FLOAT"),
     # ── Foreclosure Details ──
     ("crm_deals", "foreclosure_status", "VARCHAR"),
-    ("crm_deals", "auction_date", "DATETIME"),
+    ("crm_deals", "auction_date", "TIMESTAMP"),
     ("crm_deals", "reinstatement_amount", "FLOAT"),
     ("crm_deals", "attorney_involved", "VARCHAR"),
     ("crm_deals", "attorney_name", "VARCHAR"),
@@ -114,14 +146,14 @@ _COLUMN_MIGRATIONS = [
     # ── Per-user AI usage tracking ──
     ("users", "ai_total_requests", "INTEGER DEFAULT 0"),
     ("users", "ai_total_tokens", "INTEGER DEFAULT 0"),
-    ("users", "ai_last_request_at", "DATETIME"),
+    ("users", "ai_last_request_at", "TIMESTAMP"),
     # ── AI dollar-cost tracking ──
     ("users", "ai_cost_cents", "INTEGER DEFAULT 0"),
-    ("users", "ai_cost_reset_at", "DATETIME"),
+    ("users", "ai_cost_reset_at", "TIMESTAMP"),
     # ── AI usage reminder flags ──
-    ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT 0"),
-    ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT 0"),
-    ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT 0"),
+    ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT FALSE"),
+    ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT FALSE"),
+    ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT FALSE"),
     # ── Agent→Persona Unification ──
     ("personas", "elevenlabs_agent_id", "VARCHAR"),
     ("personas", "role", "VARCHAR"),
@@ -129,6 +161,11 @@ _COLUMN_MIGRATIONS = [
     ("conversation_logs", "persona_id", "VARCHAR"),
     ("scheduled_callbacks", "persona_id", "VARCHAR"),
     ("call_campaigns", "persona_id", "VARCHAR"),
+    # Complimentary (free) account flag
+    ("users", "is_complimentary", "BOOLEAN DEFAULT FALSE"),
+    # Team / seat management
+    ("users", "seats_used", "INTEGER DEFAULT 1"),
+    ("users", "owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
 ]
 
 
@@ -139,12 +176,18 @@ async def create_tables() -> None:
     that race on table creation. SQLite throws 'table already exists' when
     two workers call CREATE TABLE simultaneously.
     """
+    # Pre-process: detect and auto-fix any circular FK dependencies
+    # so that create_all() can sort tables without errors.
+    _fix_circular_fk_deps()
+
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except Exception as exc:
-        # Tolerate 'table already exists' from concurrent workers
-        if "already exists" in str(exc):
+        # Tolerate 'table already exists' from concurrent workers (SQLite)
+        # and 'relation ... already exists' (Postgres)
+        msg = str(exc).lower()
+        if "already exists" in msg:
             logger.info("Tables already exist (concurrent worker) — skipping create_all")
         else:
             raise
@@ -154,7 +197,7 @@ async def create_tables() -> None:
         for table, column, sql_type in _COLUMN_MIGRATIONS:
             try:
                 await conn.execute(
-                    text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
+                    text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}")
                 )
                 logger.info("Migration: added %s.%s", table, column)
             except Exception:

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.models.crm import CrmDeal, DealBuyerMatch, DealFile
 from rei.models.user import User
@@ -534,7 +534,7 @@ async def list_deals(
     """List all deals for the current subscriber."""
     result = await db.execute(
         select(CrmDeal)
-        .where(CrmDeal.user_id == user.id, CrmDeal.is_deleted == False)
+        .where(CrmDeal.user_id == workspace_user_id(user), CrmDeal.is_deleted == False)
         .order_by(CrmDeal.created_at.desc())
     )
     deals = result.scalars().all()
@@ -546,7 +546,7 @@ async def list_deals(
         thumb_result = await db.execute(
             select(DealFile.deal_id, DealFile.thumbnail)
             .where(
-                DealFile.user_id == user.id,
+                DealFile.user_id == workspace_user_id(user),
                 DealFile.deal_id.in_(deal_ids),
                 DealFile.file_type == "photo",
                 DealFile.category == "front",
@@ -576,7 +576,7 @@ async def get_deal(
     result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
             CrmDeal.is_deleted == False,
         )
     )
@@ -594,7 +594,7 @@ async def create_deal(
 ):
     """Create a new deal."""
     now = datetime.utcnow()
-    deal = CrmDeal(user_id=user.id, created_at=now, updated_at=now)
+    deal = CrmDeal(user_id=workspace_user_id(user), created_at=now, updated_at=now)
 
     updates = body.model_dump(exclude_none=True)
     _apply_updates(deal, updates)
@@ -620,7 +620,7 @@ async def update_deal(
     result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
             CrmDeal.is_deleted == False,
         )
     )
@@ -665,7 +665,7 @@ async def update_deal_stage(
     result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
             CrmDeal.is_deleted == False,
         )
     )
@@ -682,7 +682,7 @@ async def update_deal_stage(
     # (user reviews and manually sends emails from the deal detail page)
     if body.stage == "under_contract" and old_stage != "under_contract":
         asyncio.create_task(
-            _store_matched_buyers(deal.id, user.id)
+            _store_matched_buyers(deal.id, workspace_user_id(user))
         )
 
     return {"detail": "Stage updated", "stage": deal.stage}
@@ -725,6 +725,7 @@ async def _store_matched_buyers(deal_id: str, user_id: int) -> None:
                     buying_entity=buyer.buying_entity,
                     status="pending",
                 )
+
                 db.add(match_record)
 
             await db.commit()
@@ -746,7 +747,7 @@ async def delete_deal(
     result = await db.execute(
         select(CrmDeal).where(
             CrmDeal.id == deal_id,
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == workspace_user_id(user),
         )
     )
     deal = result.scalar_one_or_none()

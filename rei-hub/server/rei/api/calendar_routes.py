@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.models.user import CalendarEvent, Task, User
 from rei.services.calendar_sync import (
@@ -173,7 +173,7 @@ async def get_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     """Get tasks grouped by timeline."""
-    stmt = select(Task).where(Task.user_id == user.id)
+    stmt = select(Task).where(Task.user_id == workspace_user_id(user))
     if task_status:
         stmt = stmt.where(Task.status == task_status)
     if priority:
@@ -229,7 +229,7 @@ async def create_task(
 ):
     """Create a task and optionally a linked calendar event."""
     task = Task(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         title=body.title,
         description=body.description,
         priority=body.priority,
@@ -255,7 +255,7 @@ async def create_task(
             )
         end = start + timedelta(hours=1)
         event = CalendarEvent(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             title=task.title,
             description=task.description,
             event_type="task",
@@ -290,7 +290,7 @@ async def update_task(
 ):
     """Update a task and its linked event."""
     result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.user_id == user.id)
+        select(Task).where(Task.id == task_id, Task.user_id == workspace_user_id(user))
     )
     task = result.scalar_one_or_none()
     if not task:
@@ -307,7 +307,7 @@ async def update_task(
     # Update linked event
     ev_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.task_id == task_id, CalendarEvent.user_id == user.id
+            CalendarEvent.task_id == task_id, CalendarEvent.user_id == workspace_user_id(user)
         )
     )
     event = ev_result.scalar_one_or_none()
@@ -346,7 +346,7 @@ async def complete_task(
 ):
     """Complete a task. If recurring, create next occurrence."""
     result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.user_id == user.id)
+        select(Task).where(Task.id == task_id, Task.user_id == workspace_user_id(user))
     )
     task = result.scalar_one_or_none()
     if not task:
@@ -370,7 +370,7 @@ async def complete_task(
             next_due = task.due_date + timedelta(weeks=1)
 
         next_task = Task(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             title=task.title,
             description=task.description,
             priority=task.priority,
@@ -400,7 +400,7 @@ async def delete_task(
 ):
     """Delete a task, its linked event, and provider events."""
     result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.user_id == user.id)
+        select(Task).where(Task.id == task_id, Task.user_id == workspace_user_id(user))
     )
     task = result.scalar_one_or_none()
     if not task:
@@ -409,7 +409,7 @@ async def delete_task(
     # Delete linked event
     ev_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.task_id == task_id, CalendarEvent.user_id == user.id
+            CalendarEvent.task_id == task_id, CalendarEvent.user_id == workspace_user_id(user)
         )
     )
     event = ev_result.scalar_one_or_none()
@@ -438,7 +438,7 @@ async def get_events(
     db: AsyncSession = Depends(get_db),
 ):
     """Get events within a date range, merged with tasks that have due dates."""
-    stmt = select(CalendarEvent).where(CalendarEvent.user_id == user.id)
+    stmt = select(CalendarEvent).where(CalendarEvent.user_id == workspace_user_id(user))
     if start:
         stmt = stmt.where(CalendarEvent.start_datetime >= datetime.fromisoformat(start))
     if end:
@@ -450,7 +450,7 @@ async def get_events(
 
     # Also include tasks with due dates that don't have linked events
     task_stmt = select(Task).where(
-        Task.user_id == user.id,
+        Task.user_id == workspace_user_id(user),
         Task.due_date.isnot(None),
         Task.status.notin_(["completed", "cancelled"]),
     )
@@ -496,7 +496,7 @@ async def create_event(
 ):
     """Create a calendar event and sync to providers."""
     event = CalendarEvent(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         title=body.title,
         description=body.description,
         event_type=body.event_type,
@@ -532,7 +532,7 @@ async def update_event(
     """Update event and re-sync to providers."""
     result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.id == event_id, CalendarEvent.user_id == user.id
+            CalendarEvent.id == event_id, CalendarEvent.user_id == workspace_user_id(user)
         )
     )
     event = result.scalar_one_or_none()
@@ -565,7 +565,7 @@ async def delete_event(
     """Delete event from REI Hub and all providers."""
     result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.id == event_id, CalendarEvent.user_id == user.id
+            CalendarEvent.id == event_id, CalendarEvent.user_id == workspace_user_id(user)
         )
     )
     event = result.scalar_one_or_none()
@@ -638,7 +638,7 @@ async def sync_google(
     # Push local events to Google
     local_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.start_datetime >= now - timedelta(days=30),
         )
     )
@@ -669,7 +669,7 @@ async def sync_google(
                     end.get("dateTime", end.get("date", now.isoformat())).replace("Z", "+00:00")
                 ).replace(tzinfo=None)
                 new_event = CalendarEvent(
-                    user_id=user.id,
+                    user_id=workspace_user_id(user),
                     title=gev.get("summary", "Google Event"),
                     description=gev.get("description", ""),
                     event_type="appointment",
@@ -758,7 +758,7 @@ async def sync_outlook(
     # Push local events
     local_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.start_datetime >= now - timedelta(days=30),
         )
     )
@@ -785,7 +785,7 @@ async def sync_outlook(
                 start_dt = datetime.fromisoformat(ostart.get("dateTime", now.isoformat()))
                 end_dt = datetime.fromisoformat(oend.get("dateTime", now.isoformat()))
                 new_event = CalendarEvent(
-                    user_id=user.id,
+                    user_id=workspace_user_id(user),
                     title=oev.get("subject", "Outlook Event"),
                     description=oev.get("body", {}).get("content", ""),
                     event_type="appointment",
@@ -862,7 +862,7 @@ async def sync_caldav(
     now = datetime.utcnow()
     result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.start_datetime >= now,
         )
     )
@@ -915,7 +915,7 @@ async def get_ical_feed(
     now = datetime.utcnow()
     events_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.start_datetime >= now - timedelta(days=30),
         )
     )
@@ -923,7 +923,7 @@ async def get_ical_feed(
 
     tasks_result = await db.execute(
         select(Task).where(
-            Task.user_id == user.id,
+            Task.user_id == workspace_user_id(user),
             Task.status.notin_(["completed", "cancelled"]),
         )
     )
@@ -958,7 +958,7 @@ async def get_today_summary(
     # Tasks due today
     today_tasks_result = await db.execute(
         select(Task).where(
-            Task.user_id == user.id,
+            Task.user_id == workspace_user_id(user),
             Task.status.notin_(["completed", "cancelled"]),
             Task.due_date >= today_start,
             Task.due_date < today_end,
@@ -969,7 +969,7 @@ async def get_today_summary(
     # Overdue tasks
     overdue_result = await db.execute(
         select(Task).where(
-            Task.user_id == user.id,
+            Task.user_id == workspace_user_id(user),
             Task.status.notin_(["completed", "cancelled"]),
             Task.due_date < today_start,
             Task.due_date.isnot(None),
@@ -980,7 +980,7 @@ async def get_today_summary(
     # Events today
     today_events_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.start_datetime >= today_start,
             CalendarEvent.start_datetime < today_end,
         )
@@ -990,7 +990,7 @@ async def get_today_summary(
     # Upcoming closings (7 days)
     closing_result = await db.execute(
         select(CalendarEvent).where(
-            CalendarEvent.user_id == user.id,
+            CalendarEvent.user_id == workspace_user_id(user),
             CalendarEvent.event_type == "closing",
             CalendarEvent.start_datetime >= today_start,
             CalendarEvent.start_datetime < week_end,
@@ -1001,7 +1001,7 @@ async def get_today_summary(
     # Expiring POF (tasks with pof_expiry type in next 24 hours)
     pof_result = await db.execute(
         select(Task).where(
-            Task.user_id == user.id,
+            Task.user_id == workspace_user_id(user),
             Task.task_type == "pof_expiry",
             Task.status.notin_(["completed", "cancelled"]),
             Task.due_date >= today_start,
@@ -1013,7 +1013,7 @@ async def get_today_summary(
     # Callbacks scheduled
     callback_result = await db.execute(
         select(Task).where(
-            Task.user_id == user.id,
+            Task.user_id == workspace_user_id(user),
             Task.task_type == "callback",
             Task.status.notin_(["completed", "cancelled"]),
             Task.due_date >= today_start,

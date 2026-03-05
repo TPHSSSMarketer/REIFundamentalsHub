@@ -31,6 +31,8 @@ _CSRF_EXEMPT_PREFIXES = (
     "/api/auth/logout",
     "/api/webhooks/",
     "/api/lead/",          # Public lead capture forms
+    "/api/team/accept",    # Public invite acceptance (no auth)
+    "/api/team/invite/",   # Public invite validation (no auth)
     "/health",
     "/docs",
     "/openapi.json",

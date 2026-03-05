@@ -229,6 +229,14 @@ class User(Base):
         Boolean, default=False)
     is_superadmin: Mapped[bool] = mapped_column(
         Boolean, default=False)
+    is_complimentary: Mapped[bool] = mapped_column(
+        Boolean, default=False)
+
+    # ── Team / Seat Management ─────────────────────────────────
+    owner_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # NULL = account owner, non-NULL = team member under that owner
 
     # ── Bank Negotiation ────────────────────────────────────────
     bank_negotiation_enabled: Mapped[bool] = mapped_column(
@@ -328,6 +336,27 @@ class Subscription(Base):
     )
 
     user: Mapped[User] = relationship("User", back_populates="subscription")
+
+
+class Invitation(Base):
+    """Pending team-member invitations."""
+
+    __tablename__ = "invitations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    # "pending", "accepted", "expired", "canceled"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    joined_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
 
 
 class ProofOfFundsCertificate(Base):
@@ -1718,7 +1747,7 @@ class ConversationLog(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     call_log_id: Mapped[Optional[str]] = mapped_column(
-        ForeignKey("call_logs.id"), nullable=True
+        ForeignKey("call_logs.id", use_alter=True), nullable=True
     )
     agent_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("ai_agents.id"), nullable=True
@@ -1800,8 +1829,8 @@ class ScheduledCallback(Base):
     persona_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )  # FK to personas — unified agent/persona reference
-    phone_number_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("phone_numbers.id"), nullable=True
+    phone_number_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("phone_numbers.id"), nullable=True
     )
 
     # Context from original conversation
@@ -1809,7 +1838,7 @@ class ScheduledCallback(Base):
         Text, nullable=True
     )  # AI's notes about what to discuss
     original_conversation_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("conversation_logs.id"), nullable=True
+        String, ForeignKey("conversation_logs.id", use_alter=True), nullable=True
     )
 
     # Status tracking
@@ -1858,8 +1887,8 @@ class CallCampaign(Base):
     persona_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )  # FK to personas — unified agent/persona reference
-    phone_number_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("phone_numbers.id"), nullable=False
+    phone_number_id: Mapped[str] = mapped_column(
+        String, ForeignKey("phone_numbers.id"), nullable=False
     )
 
     # Schedule
@@ -1933,7 +1962,7 @@ class CampaignContact(Base):
 
     # Outcome from the AI call
     conversation_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("conversation_logs.id"), nullable=True
+        String, ForeignKey("conversation_logs.id", use_alter=True), nullable=True
     )
     outcome: Mapped[Optional[str]] = mapped_column(
         String, nullable=True

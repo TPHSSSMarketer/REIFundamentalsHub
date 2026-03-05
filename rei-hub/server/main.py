@@ -48,6 +48,7 @@ from rei.api.phone_routes import phone_router
 from rei.api.voice_ai_routes import voice_ai_router
 from rei.api.plaid_routes import plaid_router
 from rei.api.superadmin_routes import superadmin_router
+from rei.api.team_routes import team_router
 from rei.api.ticket_routes import ticket_router
 from rei.api.cloud_storage_routes import cloud_storage_router
 from rei.api.flow_builder_routes import flow_builder_router
@@ -391,6 +392,7 @@ app.include_router(flow_builder_router, prefix="/api")
 app.include_router(webchat_router, prefix="/api")
 app.include_router(webchat_public_router)
 app.include_router(admin_assistant_router, prefix="/api")
+app.include_router(team_router, prefix="/api")
 
 
 @app.get("/health")

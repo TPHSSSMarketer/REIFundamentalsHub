@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import AI_PLAN_ALLOWANCES, Settings, get_settings
 from rei.models.crm import CrmContact
 from rei.models.user import AIProviderConfig, User
@@ -428,7 +428,7 @@ async def test_ai_provider(
 
     result = await ai_complete(
         messages=[{"role": "user", "content": body.message}],
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         db=db,
         settings=settings,
         task_type="general",
@@ -472,7 +472,7 @@ async def chat(
     knowledge = []
     if not task_cfg.get("skip_rag"):
         knowledge = await retrieve_relevant_knowledge(
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             query=latest_user_msg,
             db=db,
             top_k=task_cfg.get("rag_top_k", 7),
@@ -509,7 +509,7 @@ async def chat(
         result_q = await db.execute(
             select(CrmContact).where(
                 CrmContact.id == body.contact_id,
-                CrmContact.user_id == user.id,
+                CrmContact.user_id == workspace_user_id(user),
                 CrmContact.is_deleted == False,
             )
         )
@@ -558,7 +558,7 @@ async def chat(
 
     result = await ai_complete(
         messages=messages,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         db=db,
         settings=settings,
         task_type=task,
@@ -628,7 +628,7 @@ async def extract_contact_data(
     result = await db.execute(
         select(CrmContact).where(
             CrmContact.id == body.contact_id,
-            CrmContact.user_id == user.id,
+            CrmContact.user_id == workspace_user_id(user),
             CrmContact.is_deleted == False,
         )
     )
@@ -680,7 +680,7 @@ async def run_research(
 
     result = await ai_research(
         query=body.query,
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         db=db,
         settings=settings,
         context=body.context or "",
@@ -704,7 +704,7 @@ async def rebuild_embeddings(
     This creates or updates the embedding fingerprint for every active
     knowledge entry (both platform-level and user-level).
     """
-    count = await rebuild_all_embeddings(user.id, db)
+    count = await rebuild_all_embeddings(workspace_user_id(user), db)
     return {
         "status": "completed",
         "entries_embedded": count,
@@ -727,7 +727,7 @@ async def seed_knowledge(
 
     entries_created = await seed_platform_knowledge(db)
     personas_created = await seed_platform_personas(db)
-    entries_embedded = await rebuild_all_embeddings(user.id, db)
+    entries_embedded = await rebuild_all_embeddings(workspace_user_id(user), db)
     return {
         "status": "completed",
         "entries_created": entries_created,

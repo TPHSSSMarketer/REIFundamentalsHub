@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.models.conversation_flow import (
@@ -105,13 +105,13 @@ async def get_webchat_config(
     embed code and pastes it into their website's HTML.
     """
     # For now, return a default config with the user's ID as widget_id
-    widget_id = f"rei-{user.id}"
+    widget_id = f"rei-{workspace_user_id(user)}"
 
     # Find their active flow for webchat
     result = await db.execute(
         select(ConversationFlow).where(
             and_(
-                ConversationFlow.user_id == user.id,
+                ConversationFlow.user_id == workspace_user_id(user),
                 ConversationFlow.is_active == True,
                 ConversationFlow.channel.in_(["webchat", "all"]),
             )
@@ -141,7 +141,7 @@ async def list_chat_sessions(
     db: AsyncSession = Depends(get_db),
 ):
     """List all chat sessions (for the dashboard inbox view)."""
-    query = select(ChatSession).where(ChatSession.user_id == user.id)
+    query = select(ChatSession).where(ChatSession.user_id == workspace_user_id(user))
 
     if status:
         query = query.where(ChatSession.status == status)
@@ -178,7 +178,7 @@ async def get_chat_session(
     """Get full chat session details including messages."""
     result = await db.execute(
         select(ChatSession).where(
-            and_(ChatSession.id == session_id, ChatSession.user_id == user.id)
+            and_(ChatSession.id == session_id, ChatSession.user_id == workspace_user_id(user))
         )
     )
     session = result.scalar_one_or_none()
@@ -219,7 +219,7 @@ async def human_takeover(
     """Take over a chat session from the AI (human agent steps in)."""
     result = await db.execute(
         select(ChatSession).where(
-            and_(ChatSession.id == session_id, ChatSession.user_id == user.id)
+            and_(ChatSession.id == session_id, ChatSession.user_id == workspace_user_id(user))
         )
     )
     session = result.scalar_one_or_none()
@@ -253,7 +253,7 @@ async def release_takeover(
     """Release human takeover — AI resumes responding."""
     result = await db.execute(
         select(ChatSession).where(
-            and_(ChatSession.id == session_id, ChatSession.user_id == user.id)
+            and_(ChatSession.id == session_id, ChatSession.user_id == workspace_user_id(user))
         )
     )
     session = result.scalar_one_or_none()
@@ -277,7 +277,7 @@ async def send_human_message(
     """Send a message as the human agent during takeover."""
     result = await db.execute(
         select(ChatSession).where(
-            and_(ChatSession.id == session_id, ChatSession.user_id == user.id)
+            and_(ChatSession.id == session_id, ChatSession.user_id == workspace_user_id(user))
         )
     )
     session = result.scalar_one_or_none()

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.crm import CrmPortfolioProperty, DealFile
 from rei.models.user import User
 
@@ -116,7 +116,7 @@ async def list_properties(
     """List all portfolio properties for the current subscriber."""
     result = await db.execute(
         select(CrmPortfolioProperty)
-        .where(CrmPortfolioProperty.user_id == user.id, CrmPortfolioProperty.is_deleted == False)
+        .where(CrmPortfolioProperty.user_id == workspace_user_id(user), CrmPortfolioProperty.is_deleted == False)
         .order_by(CrmPortfolioProperty.created_at.desc())
     )
     props = result.scalars().all()
@@ -128,7 +128,7 @@ async def list_properties(
         thumb_result = await db.execute(
             select(DealFile.deal_id, DealFile.thumbnail)
             .where(
-                DealFile.user_id == user.id,
+                DealFile.user_id == workspace_user_id(user),
                 DealFile.deal_id.in_(deal_ids),
                 DealFile.file_type == "photo",
                 DealFile.category == "front",
@@ -156,7 +156,7 @@ async def get_property(
     result = await db.execute(
         select(CrmPortfolioProperty).where(
             CrmPortfolioProperty.id == property_id,
-            CrmPortfolioProperty.user_id == user.id,
+            CrmPortfolioProperty.user_id == workspace_user_id(user),
             CrmPortfolioProperty.is_deleted == False,
         )
     )
@@ -176,7 +176,7 @@ async def create_property(
     now = datetime.utcnow()
 
     prop = CrmPortfolioProperty(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         address=body.address,
         city=body.city,
         state=body.state,
@@ -219,7 +219,7 @@ async def update_property(
     result = await db.execute(
         select(CrmPortfolioProperty).where(
             CrmPortfolioProperty.id == property_id,
-            CrmPortfolioProperty.user_id == user.id,
+            CrmPortfolioProperty.user_id == workspace_user_id(user),
             CrmPortfolioProperty.is_deleted == False,
         )
     )
@@ -254,7 +254,7 @@ async def delete_property(
     result = await db.execute(
         select(CrmPortfolioProperty).where(
             CrmPortfolioProperty.id == property_id,
-            CrmPortfolioProperty.user_id == user.id,
+            CrmPortfolioProperty.user_id == workspace_user_id(user),
         )
     )
     prop = result.scalar_one_or_none()

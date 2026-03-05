@@ -85,3 +85,12 @@ async def get_current_user(
             detail="User account is inactive",
         )
     return user
+
+
+def workspace_user_id(user: User) -> int:
+    """Return the user ID that owns the shared workspace.
+
+    Team members (owner_id is set) share their owner's data.
+    Account owners and standalone users use their own ID.
+    """
+    return user.owner_id if user.owner_id is not None else user.id

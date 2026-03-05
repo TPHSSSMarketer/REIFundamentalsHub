@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.crm import BuyerCriteria, CrmContact
 from rei.models.user import User
 
@@ -65,7 +65,7 @@ async def get_criteria(
     result = await db.execute(
         select(BuyerCriteria).where(
             BuyerCriteria.buyer_contact_id == buyer_contact_id,
-            BuyerCriteria.user_id == user.id,
+            BuyerCriteria.user_id == workspace_user_id(user),
         )
     )
     criteria = result.scalar_one_or_none()
@@ -86,7 +86,7 @@ async def create_criteria(
     result = await db.execute(
         select(CrmContact).where(
             CrmContact.id == buyerContactId,
-            CrmContact.user_id == user.id,
+            CrmContact.user_id == workspace_user_id(user),
             CrmContact.is_deleted == False,
         )
     )
@@ -95,7 +95,7 @@ async def create_criteria(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     criteria = BuyerCriteria(
-        user_id=user.id,
+        user_id=workspace_user_id(user),
         buyer_contact_id=buyerContactId,
         property_types_json=json.dumps(body.propertyTypes or []),
         markets_json=json.dumps(body.markets or []),
@@ -123,7 +123,7 @@ async def update_criteria(
     result = await db.execute(
         select(BuyerCriteria).where(
             BuyerCriteria.buyer_contact_id == buyer_contact_id,
-            BuyerCriteria.user_id == user.id,
+            BuyerCriteria.user_id == workspace_user_id(user),
         )
     )
     criteria = result.scalar_one_or_none()
@@ -165,7 +165,7 @@ async def delete_criteria(
     result = await db.execute(
         select(BuyerCriteria).where(
             BuyerCriteria.buyer_contact_id == buyer_contact_id,
-            BuyerCriteria.user_id == user.id,
+            BuyerCriteria.user_id == workspace_user_id(user),
         )
     )
     criteria = result.scalar_one_or_none()
