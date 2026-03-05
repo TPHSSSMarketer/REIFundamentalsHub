@@ -63,9 +63,14 @@ async def bootstrap_superadmin(
         return {"message": f"{body.email} is already a SuperAdmin.", "promoted": False}
 
     user.is_superadmin = True
+    # SuperAdmin gets top tier, active status, no billing
+    user.plan = "team"
+    user.subscription_status = "active"
+    user.trial_ends_at = None
+    user.subscription_ends_at = None
     await db.commit()
 
-    logger.info("User %s promoted to SuperAdmin via bootstrap", body.email)
+    logger.info("User %s promoted to SuperAdmin via bootstrap (Team tier, active, no billing)", body.email)
     return {"message": f"{body.email} has been promoted to SuperAdmin!", "promoted": True}
 
 
@@ -398,3 +403,4 @@ async def lookup_zip_code(
         raise HTTPException(status_code=404, detail=f"Could not resolve zip code {zip_code}")
 
     return {"zipCode": zip_code, "marketName": market}
+
