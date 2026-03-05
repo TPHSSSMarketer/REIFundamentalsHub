@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _COLUMN_MIGRATIONS = [
     ("lead_capture_sites", "company_slug", "VARCHAR(100)"),
     ("lead_capture_sites", "total_views", "INTEGER DEFAULT 0"),
-    ("users", "lead_email_notifications", "BOOLEAN DEFAULT 1"),
+    ("users", "lead_email_notifications", "BOOLEAN DEFAULT TRUE"),
         # Google OAuth columns for Sign-in with Google
         ("users", "google_id", "VARCHAR UNIQUE"),
         ("users", "google_avatar_url", "VARCHAR"),
@@ -24,7 +24,7 @@ _COLUMN_MIGRATIONS = [
         ("users", "google_drive_connected", "BOOLEAN DEFAULT FALSE"),
         ("users", "dropbox_token", "TEXT"),
         ("users", "dropbox_connected", "BOOLEAN DEFAULT FALSE"),
-    # ── Property Details ──
+    # —— Property Details ——
     ("crm_deals", "property_type", "VARCHAR"),
     ("crm_deals", "bedrooms", "INTEGER"),
     ("crm_deals", "bathrooms", "FLOAT"),
@@ -36,7 +36,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "occupancy_status", "VARCHAR"),
     ("crm_deals", "repairs_needed", "TEXT"),
     ("crm_deals", "special_features", "TEXT"),
-    # ── Seller Motivation ──
+    # —— Seller Motivation ——
     ("crm_deals", "reason_for_selling", "TEXT"),
     ("crm_deals", "motivation_level", "VARCHAR"),
     ("crm_deals", "timeline_to_sell", "VARCHAR"),
@@ -46,7 +46,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "best_cash_offer", "FLOAT"),
     ("crm_deals", "what_if_doesnt_sell", "TEXT"),
     ("crm_deals", "open_to_terms", "VARCHAR"),
-    # ── Listing Information ──
+    # —— Listing Information ——
     ("crm_deals", "is_listed", "VARCHAR"),
     ("crm_deals", "realtor_name", "VARCHAR"),
     ("crm_deals", "realtor_phone", "VARCHAR"),
@@ -54,7 +54,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "how_long_listed", "VARCHAR"),
     ("crm_deals", "any_offers", "VARCHAR"),
     ("crm_deals", "previous_offer_amount", "FLOAT"),
-    # ── Homeowner Financials ──
+    # —— Homeowner Financials ——
     ("crm_deals", "mortgage_balance", "FLOAT"),
     ("crm_deals", "mortgage_balance_2nd", "FLOAT"),
     ("crm_deals", "monthly_mortgage_payment", "FLOAT"),
@@ -73,14 +73,14 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "back_taxes", "FLOAT"),
     ("crm_deals", "other_liens", "VARCHAR"),
     ("crm_deals", "other_lien_amount", "FLOAT"),
-    # ── Foreclosure Details ──
+    # —— Foreclosure Details ——
     ("crm_deals", "foreclosure_status", "VARCHAR"),
-    ("crm_deals", "auction_date", "DATETIME"),
+    ("crm_deals", "auction_date", "TIMESTAMP"),
     ("crm_deals", "reinstatement_amount", "FLOAT"),
     ("crm_deals", "attorney_involved", "VARCHAR"),
     ("crm_deals", "attorney_name", "VARCHAR"),
     ("crm_deals", "attorney_phone", "VARCHAR"),
-    # ── Additional ──
+    # —— Additional ——
     ("crm_deals", "as_is_value", "FLOAT"),
     ("crm_deals", "exit_strategy", "VARCHAR"),
     ("crm_deals", "unit_details", "TEXT"),
@@ -109,20 +109,20 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "payments_current_3rd", "TEXT DEFAULT NULL"),
     ("crm_deals", "months_behind_3rd", "INTEGER DEFAULT NULL"),
     ("crm_deals", "amount_behind_3rd", "REAL DEFAULT NULL"),
-    # ── Contact: buying entity ──
+    # —— Contact: buying entity ——
     ("crm_contacts", "buying_entity", "VARCHAR"),
-    # ── Per-user AI usage tracking ──
+    # —— Per-user AI usage tracking ——
     ("users", "ai_total_requests", "INTEGER DEFAULT 0"),
     ("users", "ai_total_tokens", "INTEGER DEFAULT 0"),
-    ("users", "ai_last_request_at", "DATETIME"),
-    # ── AI dollar-cost tracking ──
+    ("users", "ai_last_request_at", "TIMESTAMP"),
+    # —— AI dollar-cost tracking ——
     ("users", "ai_cost_cents", "INTEGER DEFAULT 0"),
-    ("users", "ai_cost_reset_at", "DATETIME"),
-    # ── AI usage reminder flags ──
-    ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT 0"),
-    ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT 0"),
-    ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT 0"),
-    # ── Agent→Persona Unification ──
+    ("users", "ai_cost_reset_at", "TIMESTAMP"),
+    # —— AI usage reminder flags ——
+    ("users", "ai_reminder_75_sent", "BOOLEAN DEFAULT FALSE"),
+    ("users", "ai_reminder_90_sent", "BOOLEAN DEFAULT FALSE"),
+    ("users", "ai_reminder_95_sent", "BOOLEAN DEFAULT FALSE"),
+    # —— Agent->Persona Unification ——
     ("personas", "elevenlabs_agent_id", "VARCHAR"),
     ("personas", "role", "VARCHAR"),
     ("phone_numbers", "persona_id", "VARCHAR"),
@@ -143,8 +143,10 @@ async def create_tables() -> None:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except Exception as exc:
-        # Tolerate 'table already exists' from concurrent workers
-        if "already exists" in str(exc):
+        # Tolerate 'table already exists' from concurrent workers (SQLite)
+        # and 'relation ... already exists' (Postgres)
+        msg = str(exc).lower()
+        if "already exists" in msg:
             logger.info("Tables already exist (concurrent worker) — skipping create_all")
         else:
             raise
