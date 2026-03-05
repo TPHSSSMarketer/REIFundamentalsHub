@@ -1,4 +1,4 @@
-"""Admin routes — subscriber management dashboard endpoints."""
+h"""Admin routes — subscriber management dashboard endpoints."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _mask(value: str | None) -> str | None:
 def _user_to_dict(user: User) -> dict:
     """Serialize a User to the subscriber list representation."""
     return {
-        "id": user.id,
+        "user_id": user.id,
         "email": user.email,
         "name": user.full_name,
         "plan": user.plan,
@@ -108,7 +108,7 @@ async def list_subscribers(
     users = result.scalars().all()
 
     return {
-        "users": [_user_to_dict(u) for u in users],
+        "subscribers": [_user_to_dict(u) for u in users],
         "total": total,
         "page": page,
         "per_page": per_page,
