@@ -1718,7 +1718,7 @@ class ConversationLog(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     call_log_id: Mapped[Optional[str]] = mapped_column(
-        ForeignKey("call_logs.id"), nullable=True
+        ForeignKey("call_logs.id", use_alter=True), nullable=True
     )
     agent_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("ai_agents.id"), nullable=True
@@ -1809,7 +1809,7 @@ class ScheduledCallback(Base):
         Text, nullable=True
     )  # AI's notes about what to discuss
     original_conversation_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("conversation_logs.id"), nullable=True
+        String, ForeignKey("conversation_logs.id", use_alter=True), nullable=True
     )
 
     # Status tracking
@@ -1933,7 +1933,7 @@ class CampaignContact(Base):
 
     # Outcome from the AI call
     conversation_id: Mapped[Optional[str]] = mapped_column(
-        String, ForeignKey("conversation_logs.id"), nullable=True
+        String, ForeignKey("conversation_logs.id", use_alter=True), nullable=True
     )
     outcome: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
