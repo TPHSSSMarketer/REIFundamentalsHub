@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -22,18 +21,14 @@ db_url = settings.database_url
 if db_url.startswith("sqlite") and os.environ.get("DATABASE_URL"):
     db_url = os.environ["DATABASE_URL"]
 
-# Convert sync PostgreSQL URL to async (asyncpg driver)
+# Convert sync PostgreSQL URL to async (psycopg v3 driver).
+# psycopg v3 natively supports sslmode and Railway's connection format.
 if db_url.startswith("postgresql://"):
-    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 elif db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    db_url = db_url.replace("postgres://", "postgresql+psycopg://", 1)
 
-# asyncpg doesn't support sslmode in the URL query string.
-# Strip it to avoid "unknown config parameter" errors.
-if "asyncpg" in db_url:
-    db_url = re.sub(r"[?&]sslmode=[^&]*", "", db_url)
-
-logger.info("Database engine: %s", db_url.split("@")[0].split("://")[0] if "@" in db_url else db_url.split("://")[0])
+logger.info("Database backend: %s", db_url.split("://")[0])
 
 engine = create_async_engine(db_url, echo=False)
 
