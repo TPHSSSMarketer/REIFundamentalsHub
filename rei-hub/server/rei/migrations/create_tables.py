@@ -56,7 +56,7 @@ _COLUMN_MIGRATIONS = [
         ("users", "google_drive_connected", "BOOLEAN DEFAULT FALSE"),
         ("users", "dropbox_token", "TEXT"),
         ("users", "dropbox_connected", "BOOLEAN DEFAULT FALSE"),
-    # ── Property Details ──
+    # —— Property Details ——
     ("crm_deals", "property_type", "VARCHAR"),
     ("crm_deals", "bedrooms", "INTEGER"),
     ("crm_deals", "bathrooms", "FLOAT"),
@@ -68,7 +68,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "occupancy_status", "VARCHAR"),
     ("crm_deals", "repairs_needed", "TEXT"),
     ("crm_deals", "special_features", "TEXT"),
-    # ── Seller Motivation ──
+    # —— Seller Motivation ——
     ("crm_deals", "reason_for_selling", "TEXT"),
     ("crm_deals", "motivation_level", "VARCHAR"),
     ("crm_deals", "timeline_to_sell", "VARCHAR"),
@@ -78,7 +78,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "best_cash_offer", "FLOAT"),
     ("crm_deals", "what_if_doesnt_sell", "TEXT"),
     ("crm_deals", "open_to_terms", "VARCHAR"),
-    # ── Listing Information ──
+    # —— Listing Information ——
     ("crm_deals", "is_listed", "VARCHAR"),
     ("crm_deals", "realtor_name", "VARCHAR"),
     ("crm_deals", "realtor_phone", "VARCHAR"),
@@ -86,7 +86,7 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "how_long_listed", "VARCHAR"),
     ("crm_deals", "any_offers", "VARCHAR"),
     ("crm_deals", "previous_offer_amount", "FLOAT"),
-    # ── Homeowner Financials ──
+    # —— Homeowner Financials ——
     ("crm_deals", "mortgage_balance", "FLOAT"),
     ("crm_deals", "mortgage_balance_2nd", "FLOAT"),
     ("crm_deals", "monthly_mortgage_payment", "FLOAT"),
@@ -105,14 +105,14 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "back_taxes", "FLOAT"),
     ("crm_deals", "other_liens", "VARCHAR"),
     ("crm_deals", "other_lien_amount", "FLOAT"),
-    # ── Foreclosure Details ──
+    # —— Foreclosure Details ——
     ("crm_deals", "foreclosure_status", "VARCHAR"),
     ("crm_deals", "auction_date", "TIMESTAMP"),
     ("crm_deals", "reinstatement_amount", "FLOAT"),
     ("crm_deals", "attorney_involved", "VARCHAR"),
     ("crm_deals", "attorney_name", "VARCHAR"),
     ("crm_deals", "attorney_phone", "VARCHAR"),
-    # ── Additional ──
+    # —— Additional ——
     ("crm_deals", "as_is_value", "FLOAT"),
     ("crm_deals", "exit_strategy", "VARCHAR"),
     ("crm_deals", "unit_details", "TEXT"),
@@ -141,9 +141,9 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "payments_current_3rd", "TEXT DEFAULT NULL"),
     ("crm_deals", "months_behind_3rd", "INTEGER DEFAULT NULL"),
     ("crm_deals", "amount_behind_3rd", "REAL DEFAULT NULL"),
-    # ── Contact: buying entity ──
+    # —— Contact: buying entity ——
     ("crm_contacts", "buying_entity", "VARCHAR"),
-    # ── Per-user AI usage tracking ──
+    # —— Per-user AI usage tracking ——
     ("users", "ai_total_requests", "INTEGER DEFAULT 0"),
     ("users", "ai_total_tokens", "INTEGER DEFAULT 0"),
     ("users", "ai_last_request_at", "TIMESTAMP"),
@@ -203,3 +203,5 @@ async def create_tables() -> None:
             except Exception:
                 # Column already exists — nothing to do
                 pass
+
+

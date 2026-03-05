@@ -31,6 +31,11 @@ class UserResponse(BaseModel):
     is_active: bool
     is_verified: bool
     plan: str | None = None
+    is_superadmin: bool = False
+    loan_servicing_enabled: bool = False
+    loan_servicing_onboarding_complete: bool = False
+    bank_negotiation_enabled: bool = False
+    company_name: str | None = None
 
 
 class RefreshRequest(BaseModel):

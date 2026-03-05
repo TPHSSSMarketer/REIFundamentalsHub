@@ -50,7 +50,6 @@ from rei.schemas.auth import (
 settings = get_settings()
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
-
 # ── Helper to build token triplet and set cookies ─────────────────
 
 
@@ -128,7 +127,6 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     asyncio.create_task(send_welcome_email(user, get_settings()))
 
     return response
-
 
 # ── Login ─────────────────────────────────────────────────────────
 
@@ -211,7 +209,6 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
     return response
 
-
 # ── Me ────────────────────────────────────────────────────────────
 
 
@@ -233,7 +230,6 @@ async def me(current_user: User = Depends(get_current_user)):
         bank_negotiation_enabled=getattr(current_user, "bank_negotiation_enabled", False),
         company_name=getattr(current_user, "company_name", None),
     )
-
 
 # ── Refresh ───────────────────────────────────────────────────────
 
@@ -312,7 +308,6 @@ async def logout():
     clear_auth_cookies(response)
     return response
 
-
 # ── Google OAuth ──────────────────────────────────────────────────
 
 
@@ -381,7 +376,6 @@ async def google_oauth_redirect(request: Request):
         domain=settings.cookie_domain or None,
     )
     return response
-
 
 @auth_router.get("/google/callback")
 async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
