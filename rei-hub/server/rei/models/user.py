@@ -13,7 +13,7 @@ from rei.database import Base
 
 _TRIAL_DAYS = 7
 
-
+h
 class User(Base):
     __tablename__ = "users"
 
@@ -1800,8 +1800,8 @@ class ScheduledCallback(Base):
     persona_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )  # FK to personas — unified agent/persona reference
-    phone_number_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("phone_numbers.id"), nullable=True
+    phone_number_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("phone_numbers.id"), nullable=True
     )
 
     # Context from original conversation
@@ -1858,8 +1858,8 @@ class CallCampaign(Base):
     persona_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )  # FK to personas — unified agent/persona reference
-    phone_number_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("phone_numbers.id"), nullable=False
+    phone_number_id: Mapped[str] = mapped_column(
+        String, ForeignKey("phone_numbers.id"), nullable=False
     )
 
     # Schedule
