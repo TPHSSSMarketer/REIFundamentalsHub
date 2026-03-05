@@ -229,6 +229,8 @@ class User(Base):
         Boolean, default=False)
     is_superadmin: Mapped[bool] = mapped_column(
         Boolean, default=False)
+    is_complimentary: Mapped[bool] = mapped_column(
+        Boolean, default=False)
 
     # ── Bank Negotiation ────────────────────────────────────────
     bank_negotiation_enabled: Mapped[bool] = mapped_column(
