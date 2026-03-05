@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_db
+from rei.config import get_settings
 from rei.middleware.superadmin_gate import require_superadmin
 from rei.models.credentials import KNOWN_PROVIDERS
 from rei.models.crm import MarketZipCode
@@ -22,6 +23,50 @@ from rei.services import credentials_service
 logger = logging.getLogger(__name__)
 
 superadmin_router = APIRouter(prefix="/superadmin", tags=["superadmin"])
+
+
+# ── Bootstrap — one-time SuperAdmin promotion ────────────────────────────
+
+
+class BootstrapRequest(BaseModel):
+    email: str
+    bootstrap_key: str
+
+
+@superadmin_router.post("/bootstrap")
+async def bootstrap_superadmin(
+    body: BootstrapRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Promote a user to SuperAdmin using a one-time bootstrap key.
+
+    Set REI_SUPERADMIN_BOOTSTRAP_KEY in Railway env vars, call this
+    endpoint once, then remove the env var.
+    """
+    settings = get_settings()
+
+    if not settings.superadmin_bootstrap_key:
+        raise HTTPException(
+            status_code=404,
+            detail="Bootstrap is not enabled. Set REI_SUPERADMIN_BOOTSTRAP_KEY in your environment.",
+        )
+
+    if body.bootstrap_key != settings.superadmin_bootstrap_key:
+        raise HTTPException(status_code=403, detail="Invalid bootstrap key.")
+
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No user found with email: {body.email}")
+
+    if user.is_superadmin:
+        return {"message": f"{body.email} is already a SuperAdmin.", "promoted": False}
+
+    user.is_superadmin = True
+    await db.commit()
+
+    logger.info("User %s promoted to SuperAdmin via bootstrap", body.email)
+    return {"message": f"{body.email} has been promoted to SuperAdmin!", "promoted": True}
 
 
 # ── Pydantic schemas ────────────────────────────────────────────────────

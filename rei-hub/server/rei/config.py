@@ -139,6 +139,13 @@ class Settings(BaseSettings):
     x_twitter_client_secret: str = ""
     x_twitter_redirect_uri: str = ""
 
+    # ── SuperAdmin Bootstrap ────────────────────────────────────────
+    superadmin_bootstrap_key: str = ""
+    superadmin_bootstrap_email: str = ""
+    # One-time promotion: set both env vars, deploy, and the user
+    # is auto-promoted to SuperAdmin on app startup. Also available
+    # via POST /api/superadmin/bootstrap. Remove both vars after use.
+
     # ── USPS Web Tools API ──────────────────────────────────────────
     usps_user_id: str = ""
     # Register at: reg.usps.com/entrancePostal.do

@@ -1,12 +1,14 @@
 /**
- * SuperAdmin Credentials API — localStorage implementation.
+ * SuperAdmin Credentials API — connected to the FastAPI backend.
  *
- * Mirrors the backend superadmin_routes.py endpoints. Uses localStorage
- * so the UI works in demo mode without a running backend.
- * Swap to real fetch() calls when the backend is deployed.
+ * Calls /api/superadmin/* endpoints for encrypted credential management.
+ * Provider metadata (display names, icons, categories, instructions) is
+ * maintained here on the frontend since the backend only stores raw config.
  */
 
-const STORAGE_KEY = 'rei-superadmin-credentials'
+import { getAuthHeader } from './auth'
+
+const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 // ── Provider definitions (matches backend KNOWN_PROVIDERS) ──────────────
 
@@ -376,62 +378,54 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   instagram_oauth: [],
 }
 
-// ── localStorage helpers ────────────────────────────────────────────────
-
-function getStoredCredentials(): Record<
-  string,
-  { config: Record<string, string>; last_updated: string }
-> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveStoredCredentials(
-  data: Record<
-    string,
-    { config: Record<string, string>; last_updated: string }
-  >
-): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-}
-
-// ── API functions ───────────────────────────────────────────────────────
+// ── API functions — real backend calls ───────────────────────────────────
 
 /** Get status of all providers — never returns actual credential values. */
 export async function getCredentialStatuses(): Promise<CredentialStatus[]> {
-  const stored = getStoredCredentials()
+  const res = await fetch(`${BASE_URL}/api/superadmin/credentials`, {
+    headers: getAuthHeader(),
+    credentials: 'include',
+  })
 
+  if (res.status === 403) {
+    throw new Error('SuperAdmin access required. You do not have permission to view credentials.')
+  }
+  if (!res.ok) {
+    throw new Error('Failed to load credential statuses')
+  }
+
+  const data = await res.json()
+  const backendStatuses: Array<{
+    provider_name: string
+    configured: boolean
+    last_updated: string | null
+    fields: CredentialField[]
+    configured_fields: Record<string, boolean>
+  }> = data.credentials
+
+  // Build a lookup from backend data
+  const backendMap = new Map(
+    backendStatuses.map((s) => [s.provider_name, s])
+  )
+
+  // Merge backend status with frontend metadata (display names, icons, categories, instructions)
   return Object.entries(PROVIDER_FIELDS).map(([providerName, fields]) => {
     const meta = PROVIDER_META[providerName] || {
       display_name: providerName,
       category: 'Other',
       icon: '⚙️',
     }
-    const storedProvider = stored[providerName]
-
-    const configured_fields: Record<string, boolean> = {}
-    fields.forEach((f) => {
-      configured_fields[f.name] = !!(
-        storedProvider?.config?.[f.name] &&
-        storedProvider.config[f.name].length > 0
-      )
-    })
-
-    const configured = Object.values(configured_fields).some(Boolean)
+    const backend = backendMap.get(providerName)
 
     return {
       provider_name: providerName,
       display_name: meta.display_name,
       category: meta.category,
       icon: meta.icon,
-      configured,
-      last_updated: storedProvider?.last_updated || null,
+      configured: backend?.configured ?? false,
+      last_updated: backend?.last_updated ?? null,
       fields,
-      configured_fields,
+      configured_fields: backend?.configured_fields ?? {},
       instructions: PROVIDER_INSTRUCTIONS[providerName],
     }
   })
@@ -442,65 +436,61 @@ export async function updateCredential(
   providerName: string,
   config: Record<string, string>
 ): Promise<{ configured: boolean; message: string }> {
-  const stored = getStoredCredentials()
+  const res = await fetch(`${BASE_URL}/api/superadmin/credentials/${providerName}`, {
+    method: 'PUT',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config }),
+    credentials: 'include',
+  })
 
-  // Merge with existing — only overwrite provided fields
-  const existing = stored[providerName]?.config || {}
-  const merged = { ...existing, ...config }
-
-  stored[providerName] = {
-    config: merged,
-    last_updated: new Date().toISOString(),
+  if (res.status === 403) {
+    throw new Error('SuperAdmin access required.')
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? 'Failed to save credentials')
   }
 
-  saveStoredCredentials(stored)
-
-  return {
-    configured: true,
-    message: `Credentials for ${providerName} saved successfully.`,
-  }
+  return res.json()
 }
 
 /** Delete all credentials for a provider. */
 export async function deleteCredential(providerName: string): Promise<void> {
-  const stored = getStoredCredentials()
-  delete stored[providerName]
-  saveStoredCredentials(stored)
+  const res = await fetch(`${BASE_URL}/api/superadmin/credentials/${providerName}`, {
+    method: 'DELETE',
+    headers: getAuthHeader(),
+    credentials: 'include',
+  })
+
+  if (res.status === 403) {
+    throw new Error('SuperAdmin access required.')
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? 'Failed to delete credentials')
+  }
 }
 
-/** Test a provider connection (placeholder). */
+/** Test a provider connection using the backend. */
 export async function testCredential(
   providerName: string
 ): Promise<TestResult> {
-  const stored = getStoredCredentials()
-  const provider = stored[providerName]
+  const res = await fetch(`${BASE_URL}/api/superadmin/credentials/${providerName}/test`, {
+    headers: getAuthHeader(),
+    credentials: 'include',
+  })
 
-  if (!provider || !provider.config) {
+  if (res.status === 403) {
+    throw new Error('SuperAdmin access required.')
+  }
+  if (!res.ok) {
     return {
       status: 'error',
-      message: `No credentials configured for ${providerName}.`,
+      message: 'Connection test failed — server error.',
     }
   }
 
-  // Check if at least one field has a value
-  const hasValues = Object.values(provider.config).some(
-    (v) => v && v.length > 0
-  )
-
-  if (!hasValues) {
-    return {
-      status: 'error',
-      message: 'No credential values found.',
-    }
-  }
-
-  // Placeholder — real test would call backend
-  return {
-    status: 'connected',
-    message: `Credentials saved for ${
-      PROVIDER_META[providerName]?.display_name || providerName
-    }. Live connection test available when backend is deployed.`,
-  }
+  return res.json()
 }
 
 /** Get the list of provider categories for grouping in the UI. */

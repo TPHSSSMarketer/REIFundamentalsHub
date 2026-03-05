@@ -35,6 +35,10 @@ const CATEGORY_ORDER = [
   'Shipping',
   'AI',
   'Property Data',
+  'Market Data',
+  'Data Validation',
+  'Currency',
+  'Social Media',
 ]
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -48,6 +52,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   Shipping: 'border-amber-200 bg-amber-50',
   AI: 'border-green-200 bg-green-50',
   'Property Data': 'border-cyan-200 bg-cyan-50',
+  'Market Data': 'border-teal-200 bg-teal-50',
+  'Data Validation': 'border-violet-200 bg-violet-50',
+  Currency: 'border-yellow-200 bg-yellow-50',
+  'Social Media': 'border-rose-200 bg-rose-50',
 }
 
 const CATEGORY_HEADER_COLORS: Record<string, string> = {
@@ -61,6 +69,10 @@ const CATEGORY_HEADER_COLORS: Record<string, string> = {
   Shipping: 'text-amber-800',
   AI: 'text-green-800',
   'Property Data': 'text-cyan-800',
+  'Market Data': 'text-teal-800',
+  'Data Validation': 'text-violet-800',
+  Currency: 'text-yellow-800',
+  'Social Media': 'text-rose-800',
 }
 
 // ── Main component ──────────────────────────────────────────────────────

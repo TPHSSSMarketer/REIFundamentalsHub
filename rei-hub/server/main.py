@@ -194,6 +194,35 @@ async def lifespan(app: FastAPI):
             await seed_system_skills(db)
     except Exception:
         logger.exception("Failed to seed system skills on startup")
+
+    # ── Auto-promote SuperAdmin on startup (one-time bootstrap) ──────
+    if settings.superadmin_bootstrap_key and settings.superadmin_bootstrap_email:
+        try:
+            async with async_session_factory() as db:
+                result = await db.execute(
+                    select(User).where(User.email == settings.superadmin_bootstrap_email)
+                )
+                user = result.scalar_one_or_none()
+                if user and not user.is_superadmin:
+                    user.is_superadmin = True
+                    await db.commit()
+                    logger.info(
+                        "AUTO-BOOTSTRAP: %s promoted to SuperAdmin on startup",
+                        settings.superadmin_bootstrap_email,
+                    )
+                elif user and user.is_superadmin:
+                    logger.info(
+                        "AUTO-BOOTSTRAP: %s is already SuperAdmin — remove bootstrap env vars",
+                        settings.superadmin_bootstrap_email,
+                    )
+                else:
+                    logger.warning(
+                        "AUTO-BOOTSTRAP: No user found with email %s — register first",
+                        settings.superadmin_bootstrap_email,
+                    )
+        except Exception:
+            logger.exception("SuperAdmin bootstrap failed on startup")
+
     task_trial = asyncio.create_task(_trial_reminder_loop())
     task_seq = asyncio.create_task(_sequence_processor_loop())
     task_credits = asyncio.create_task(_credit_reset_loop())
