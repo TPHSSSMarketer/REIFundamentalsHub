@@ -59,9 +59,9 @@ export default function Softphone() {
       setStatus('connecting')
       const { token, identity } = await phoneApi.getSoftphoneToken()
 
-      // Demo mode check
-      if (token === 'demo-token') {
-        setStatus('ready')
+      // Demo mode or Twilio not configured — stay offline quietly
+      if (token === 'demo-token' || token === 'not-configured') {
+        setStatus(token === 'demo-token' ? 'ready' : 'offline')
         return
       }
 
