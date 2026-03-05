@@ -81,6 +81,10 @@ export interface Subscriber {
   billing_interval: string | null
   subscription_status: string | null
   trial_ends_at: string | null
+  is_complimentary?: boolean
+  is_superadmin?: boolean
+  loan_servicing_enabled?: boolean
+  bank_negotiation_enabled?: boolean
 }
 
 export interface SubscribersResponse {
@@ -167,6 +171,9 @@ export async function adjustPlan(
     plan?: string
     billing_interval?: string
     subscription_status?: string
+    is_complimentary?: boolean
+    loan_servicing_enabled?: boolean
+    bank_negotiation_enabled?: boolean
   }
 ): Promise<{ ok: boolean }> {
   return withDemoFallback(
