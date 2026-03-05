@@ -161,6 +161,8 @@ _COLUMN_MIGRATIONS = [
     ("conversation_logs", "persona_id", "VARCHAR"),
     ("scheduled_callbacks", "persona_id", "VARCHAR"),
     ("call_campaigns", "persona_id", "VARCHAR"),
+    # Complimentary (free) account flag
+    ("users", "is_complimentary", "BOOLEAN DEFAULT FALSE"),
 ]
 
 
@@ -198,3 +200,4 @@ async def create_tables() -> None:
             except Exception:
                 # Column already exists -- nothing to do
                 pass
+
