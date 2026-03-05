@@ -179,7 +179,11 @@ async def _admin_task_scheduler_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create database tables on startup and launch background tasks."""
-    await create_tables()
+    try:
+        await create_tables()
+    except Exception:
+        logger.exception("FATAL: Failed to create database tables — check DATABASE_URL")
+        raise
     # Seed platform personas on startup (safe to call multiple times)
     try:
         async with async_session_factory() as db:
