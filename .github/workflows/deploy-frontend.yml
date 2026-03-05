@@ -8,6 +8,7 @@ on:
       - 'rei-hub/public/**'
       - 'rei-hub/package.json'
       - 'rei-hub/vite.config.ts'
+      - '.github/workflows/deploy-frontend.yml'
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -23,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd rei-hub
-          npm ci
+          npm ci --legacy-peer-deps
       - name: Build
         run: |
           cd rei-hub
@@ -31,6 +32,7 @@ jobs:
         env:
           VITE_REI_SERVER_URL: ${{ secrets.VITE_REI_SERVER_URL }}
           VITE_APP_URL: https://hub.reifundamentalsHub.com
+          VITE_SITES_URL: https://sites.reifundamentalshub.com
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@f0a1cd58cd66095dee69bfa18fa5efd1dde93bca  # v1.5.0
