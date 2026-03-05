@@ -1,50 +1,67 @@
-# Deal Files, Manual Buyer Emails, Zip Code Markets
+# Multi-User Seat Management — Implementation Plan
 
-## What We're Building
+## Overview
+Account owners on Pro (3 seats) and Team (unlimited seats) plans can invite users to their account via email. Invited users get their own login but share the owner's workspace (same contacts, deals, pipeline, etc.) and inherit the owner's plan features without being billed separately.
 
-### 1. Change Auto-Email to Manual Review & Send
-- Remove the automatic email when a deal moves to "Under Contract"
-- Instead: run the matching, store matched buyers on the deal
-- On the Deal Detail page: show a "Matched Buyers" section
-- User reviews matched buyers, previews the email, and clicks "Send" when ready
+## Architecture
+- **Parent-child model**: Add `owner_id` (nullable FK → users.id) on User table
+  - `owner_id IS NULL` → account owner
+  - `owner_id IS NOT NULL` → team member under that owner
+- **Invitations table**: Tracks pending email invites with expiring tokens
+- **Shared workspace**: Team members use the owner's ID as the data partition key for Supabase queries
+- **Feature gating**: `_can_access()` checks the owner's plan for team members
 
-### 2. Deal File Manager (Photos + Documents)
-- New `deal_files` table for ALL deal files (photos, contracts, inspections, etc.)
-- Each file has a `category` for organization
-- **Photo categories:** front, back, kitchen, living_room, bedroom_1, bedroom_2, bedroom_3, bathroom_1, bathroom_2, garage, yard, miscellaneous
-- **Document categories:** contract, inspection, title, appraisal, insurance, disclosure, other
-- Images compressed on upload using Pillow (resize to max 1920px, JPEG quality 85)
-- Base64 storage in database (with compression, sizes stay reasonable)
-- Cloud storage can be added later as an upgrade path
+---
 
-### 3. Deal Detail Page — Photos Tab
-- New "Photos" tab on the Deal Detail page
-- Grid layout organized by room/area category
-- Upload button per category (drag & drop or click)
-- Thumbnail gallery with lightbox preview
-- Delete capability per photo
+## Phase 1: Database Layer
+- [ ] Add `owner_id` column to User model (nullable Integer FK to users.id)
+- [ ] Create `Invitation` model (id, owner_id, email, token, status, created_at, expires_at, accepted_at, joined_user_id)
+- [ ] Add migration entries in `create_tables.py` (IF NOT EXISTS)
+- [ ] Add `team_members` relationship on User model
 
-### 4. Zip Code → Market Mapping (SuperAdmin)
-- New `market_zip_codes` table: zip_code, market_name, state
-- SuperAdmin CSV upload endpoint to bulk import/update zip codes
-- New tab on Admin page: "Markets / Zip Codes"
-- Buyer matching service updated to use zip code → market lookup
-- When matching: convert deal's zip code to market name, compare against buyer's target markets
+## Phase 2: Backend API
+- [ ] Create `server/rei/api/team_routes.py` with endpoints:
+  - `GET /team/members` — list team members (owner only)
+  - `GET /team/seats` — seat capacity info
+  - `POST /team/invite` — send invite email
+  - `GET /team/invite/{token}` — validate invite token (public)
+  - `POST /team/accept` — register as team member via invite token (public)
+  - `DELETE /team/members/{member_id}` — remove team member
+  - `GET /team/pending` — list pending invitations
+  - `DELETE /team/invite/{invitation_id}` — cancel pending invite
+- [ ] Register team_router in `server/main.py`
+- [ ] Modify `_can_access()` in `billing_routes.py` — team members inherit owner's plan
+- [ ] Modify `billing_status` endpoint — include `owner_id`, `max_seats`, `seats_used`
+- [ ] Add invite email template in `services/email.py`
 
-## Files to Create/Modify
+## Phase 3: Frontend — Invite Accept Page
+- [ ] Create `src/components/Auth/AcceptInvitePage.tsx` — public page at `/accept-invite?token=xyz`
+- [ ] Add route in App router
+- [ ] Create `src/services/teamApi.ts` — API service for all team endpoints
 
-### Backend:
-- [ ] `server/rei/models/crm.py` — DealFile model + DealBuyerMatch model
-- [ ] `server/rei/models/user.py` — MarketZipCode model
-- [ ] `server/rei/migrations/create_tables.py` — New table migrations
-- [ ] `server/rei/api/crm_deals_routes.py` — Remove auto-email, store matches instead
-- [ ] `server/rei/api/crm_deal_files_routes.py` — NEW: File upload/list/delete CRUD
-- [ ] `server/rei/api/crm_deal_matches_routes.py` — NEW: View matches + send emails
-- [ ] `server/rei/api/superadmin_routes.py` — Add zip code CSV upload endpoint
-- [ ] `server/rei/services/buyer_matching.py` — Update to use zip-to-market lookup
-- [ ] `server/main.py` — Register new routers
+## Phase 4: Frontend — Team Management UI
+- [ ] Create `src/components/Settings/TeamManagementTab.tsx`
+  - Current members table (email, name, joined date, remove button)
+  - Invite form (email input + send button)
+  - Pending invitations list (email, expires, cancel button)
+  - Seat capacity display ("2 of 3 seats used")
+- [ ] Add "Team" tab to Settings page (only show for Pro/Team plans)
 
-### Frontend:
-- [ ] `src/types/index.ts` — DealFile + DealBuyerMatch types
-- [ ] `src/components/Pipeline/DealDetailPage.tsx` — Photos tab + Matched Buyers section
-- [ ] `src/components/Admin/AdminPage.tsx` — Markets/Zip Codes tab
+## Phase 5: Shared Workspace — Supabase Query Changes
+- [ ] Add `workspace_user_id()` helper — returns `owner_id || user.id`
+- [ ] Update Supabase queries to use workspace_user_id for data partitioning
+- [ ] Ensure team members see owner's contacts, deals, pipeline, documents
+
+## Phase 6: Edge Cases & Polish
+- [ ] Prevent downgrade if team members exceed new plan's seat limit
+- [ ] Handle owner account deletion (cascade team members)
+- [ ] Invitation expiration (14 days)
+- [ ] Prevent duplicate invites to same email
+- [ ] Prevent inviting existing account owners
+
+## Phase 7: Verification
+- [ ] Test invite → accept → login flow end-to-end
+- [ ] Verify team member sees owner's data
+- [ ] Verify seat limits enforced
+- [ ] Test removal of team member
+- [ ] Deploy to Railway and verify in production

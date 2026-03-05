@@ -488,6 +488,9 @@ async def get_softphone_token(
     user: User = Depends(get_current_user),
 ):
     identity = f"user-{user.id}"
+    # If Twilio credentials are not configured, return gracefully
+    if not settings.twilio_account_sid or not settings.twilio_api_key_sid:
+        return {"token": "not-configured", "identity": identity}
     token = twilio_service.generate_access_token(identity, settings)
     return {"token": token, "identity": identity}
 

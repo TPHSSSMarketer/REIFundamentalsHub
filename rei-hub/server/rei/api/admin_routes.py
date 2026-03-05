@@ -26,6 +26,9 @@ class AdjustPlanRequest(BaseModel):
     plan: str
     billing_interval: str
     subscription_status: str
+    is_complimentary: bool | None = None
+    loan_servicing_enabled: bool | None = None
+    bank_negotiation_enabled: bool | None = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -43,7 +46,7 @@ def _mask(value: str | None) -> str | None:
 def _user_to_dict(user: User) -> dict:
     """Serialize a User to the subscriber list representation."""
     return {
-        "id": user.id,
+        "user_id": user.id,
         "email": user.email,
         "name": user.full_name,
         "plan": user.plan,
@@ -55,6 +58,10 @@ def _user_to_dict(user: User) -> dict:
         ),
         "seats_used": user.seats_used,
         "created_at": user.created_at.isoformat() if user.created_at else None,
+        "is_complimentary": getattr(user, "is_complimentary", False),
+        "is_superadmin": getattr(user, "is_superadmin", False),
+        "loan_servicing_enabled": getattr(user, "loan_servicing_enabled", False),
+        "bank_negotiation_enabled": getattr(user, "bank_negotiation_enabled", False),
     }
 
 
@@ -101,7 +108,7 @@ async def list_subscribers(
     users = result.scalars().all()
 
     return {
-        "users": [_user_to_dict(u) for u in users],
+        "subscribers": [_user_to_dict(u) for u in users],
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -154,6 +161,12 @@ async def adjust_plan(
     user.plan = body.plan
     user.billing_interval = body.billing_interval
     user.subscription_status = body.subscription_status
+    if body.is_complimentary is not None:
+        user.is_complimentary = body.is_complimentary
+    if body.loan_servicing_enabled is not None:
+        user.loan_servicing_enabled = body.loan_servicing_enabled
+    if body.bank_negotiation_enabled is not None:
+        user.bank_negotiation_enabled = body.bank_negotiation_enabled
     await db.commit()
     await db.refresh(user)
 

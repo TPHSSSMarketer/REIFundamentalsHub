@@ -227,6 +227,11 @@ async def me(current_user: User = Depends(get_current_user)):
         is_active=current_user.is_active,
         is_verified=current_user.is_verified,
         plan=plan,
+        is_superadmin=getattr(current_user, "is_superadmin", False),
+        loan_servicing_enabled=getattr(current_user, "loan_servicing_enabled", False),
+        loan_servicing_onboarding_complete=getattr(current_user, "loan_servicing_onboarding_complete", False),
+        bank_negotiation_enabled=getattr(current_user, "bank_negotiation_enabled", False),
+        company_name=getattr(current_user, "company_name", None),
     )
 
 
