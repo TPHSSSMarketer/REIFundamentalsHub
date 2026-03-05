@@ -122,6 +122,9 @@ function EditModal({
   const [interval, setInterval] = useState(subscriber.billing_interval ?? 'monthly')
   const [status, setStatus] = useState(subscriber.subscription_status ?? 'active')
   const [saving, setSaving] = useState(false)
+  const [complimentary, setComplimentary] = useState(subscriber.is_complimentary ?? false)
+  const [loanServicing, setLoanServicing] = useState(subscriber.loan_servicing_enabled ?? false)
+  const [bankNegotiation, setBankNegotiation] = useState(subscriber.bank_negotiation_enabled ?? false)
 
   async function handleSave() {
     setSaving(true)
@@ -130,6 +133,9 @@ function EditModal({
         plan,
         billing_interval: interval,
         subscription_status: status,
+        is_complimentary: complimentary,
+        loan_servicing_enabled: loanServicing,
+        bank_negotiation_enabled: bankNegotiation,
       })
       onSaved('Subscriber updated')
     } catch (err) {
@@ -207,6 +213,23 @@ function EditModal({
             </select>
           </div>
 
+        </div>
+
+        {/* Account Features */}
+        <div className="mt-4 space-y-3">
+          <p className="text-sm font-medium text-slate-700">Account Features</p>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={complimentary} onChange={e => setComplimentary(e.target.checked)} className="rounded border-slate-300" />
+            <span className="text-sm text-slate-600">Complimentary Account (free access)</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={loanServicing} onChange={e => setLoanServicing(e.target.checked)} className="rounded border-slate-300" />
+            <span className="text-sm text-slate-600">Loan Servicing</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={bankNegotiation} onChange={e => setBankNegotiation(e.target.checked)} className="rounded border-slate-300" />
+            <span className="text-sm text-slate-600">Bank Negotiation</span>
+          </label>
         </div>
 
         <div className="mt-6 flex items-center justify-between">
@@ -732,13 +755,14 @@ export default function AdminPage() {
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Interval</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Trial Ends</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-500">Features</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subscribers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                         No subscribers found
                       </td>
                     </tr>
@@ -750,6 +774,14 @@ export default function AdminPage() {
                         <td className="px-4 py-3"><StatusBadge status={sub.subscription_status} /></td>
                         <td className="px-4 py-3 capitalize text-slate-600">{sub.billing_interval ?? '\u2014'}</td>
                         <td className="px-4 py-3 text-slate-600">{formatDate(sub.trial_ends_at)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {sub.is_complimentary && <span className="px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700">Free</span>}
+                            {sub.is_superadmin && <span className="px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-700">Admin</span>}
+                            {sub.loan_servicing_enabled && <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700">Loans</span>}
+                            {sub.bank_negotiation_enabled && <span className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700">Bank Neg</span>}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setEditing(sub)}
