@@ -38,9 +38,9 @@ def create_access_token(
     """
     to_encode = data.copy()
 
-        # JWT spec requires "sub" to be a string — python-jose enforces this on decode
-        if "sub" in to_encode and not isinstance(to_encode["sub"], str):
-                    to_encode["sub"] = str(to_encode["sub"])
+    # JWT spec requires "sub" to be a string — python-jose enforces this on decode
+    if "sub" in to_encode and not isinstance(to_encode["sub"], str):
+        to_encode["sub"] = str(to_encode["sub"])
 
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -65,7 +65,7 @@ def decode_token(token: str) -> dict:
         )
 
 
-# ── CSRF ──────────────────────────────────────────────────────────
+# ── CSRF ──────────────────────────────────────────────────────────────────
 
 
 def generate_csrf_token() -> str:
@@ -73,7 +73,7 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-# ── Cookie helpers ────────────────────────────────────────────────
+# ── Cookie helpers ────────────────────────────────────────────────────────────
 
 
 def set_auth_cookies(
