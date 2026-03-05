@@ -13,7 +13,7 @@ from rei.database import Base
 
 _TRIAL_DAYS = 7
 
-h
+
 class User(Base):
     __tablename__ = "users"
 
