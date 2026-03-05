@@ -1,4 +1,4 @@
-h"""Admin routes — subscriber management dashboard endpoints."""
+"""Admin routes — subscriber management dashboard endpoints."""
 
 from __future__ import annotations
 
