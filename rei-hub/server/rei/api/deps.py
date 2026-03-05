@@ -62,15 +62,15 @@ async def get_current_user(
             detail="Invalid token type",
         )
 
-    user_id: int | None = payload.get("sub")
-    if user_id is None:
+    raw_sub = payload.get("sub")
+    if raw_sub is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
 
     result = await db.execute(
-        select(User).options(selectinload(User.subscription)).where(User.id == int(user_id))
+        select(User).options(selectinload(User.subscription)).where(User.id == int(raw_sub))
     )
     user = result.scalar_one_or_none()
 

@@ -38,6 +38,10 @@ def create_access_token(
     """
     to_encode = data.copy()
 
+    # JWT spec requires "sub" to be a string — python-jose enforces this on decode
+    if "sub" in to_encode and not isinstance(to_encode["sub"], str):
+        to_encode["sub"] = str(to_encode["sub"])
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     elif token_type == "refresh":
