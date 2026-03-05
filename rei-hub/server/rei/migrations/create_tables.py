@@ -133,9 +133,21 @@ _COLUMN_MIGRATIONS = [
 
 
 async def create_tables() -> None:
-    """Run Base.metadata.create_all, then apply column migrations."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Run Base.metadata.create_all, then apply column migrations.
+
+    Wrapped in try/except because Railway may run multiple Uvicorn workers
+    that race on table creation. SQLite throws 'table already exists' when
+    two workers call CREATE TABLE simultaneously.
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:
+        # Tolerate 'table already exists' from concurrent workers
+        if "already exists" in str(exc):
+            logger.info("Tables already exist (concurrent worker) — skipping create_all")
+        else:
+            raise
 
     # Apply column migrations for columns added after initial deployment
     async with engine.begin() as conn:
