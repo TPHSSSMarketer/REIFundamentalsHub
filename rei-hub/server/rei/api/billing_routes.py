@@ -105,6 +105,11 @@ def _days_remaining_in_trial(user: User) -> int | None:
 
 def _can_access(user: User) -> dict[str, bool]:
     features = _user_features(user)
+
+    # SuperAdmin and complimentary accounts always have full access
+    if getattr(user, "is_superadmin", False) or getattr(user, "is_complimentary", False):
+        return {f: True for f in features}
+
     sub_status = getattr(user, "subscription_status", "trialing")
     trial_ok = _is_trial_active(user)
 
