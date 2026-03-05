@@ -121,7 +121,9 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     # Also include access_token in JSON body for backward compat (mobile / API)
     body_data = response_data.model_dump()
     body_data["access_token"] = access_token
-    response.body = JSONResponse(content=body_data, status_code=201).body
+    final = JSONResponse(content=body_data, status_code=201)
+    response.body = final.body
+    response.headers["content-length"] = str(len(final.body))
 
     asyncio.create_task(send_welcome_email(user, get_settings()))
 
@@ -194,7 +196,9 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
     # Include access_token in JSON body for backward compat
     response_data["access_token"] = access_token
-    response.body = JSONResponse(content=response_data).body
+    final = JSONResponse(content=response_data)
+    response.body = final.body
+    response.headers["content-length"] = str(len(final.body))
 
     # Audit log successful login
     try:
@@ -286,7 +290,9 @@ async def refresh(
     access_token, _, _ = _issue_tokens_and_cookies(response, user.id)
 
     response_data["access_token"] = access_token
-    response.body = JSONResponse(content=response_data).body
+    final = JSONResponse(content=response_data)
+    response.body = final.body
+    response.headers["content-length"] = str(len(final.body))
 
     return response
 
