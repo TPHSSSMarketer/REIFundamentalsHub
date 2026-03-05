@@ -4,12 +4,44 @@ from __future__ import annotations
 
 import logging
 from sqlalchemy import text
+from sqlalchemy.exc import CircularDependencyError
+from sqlalchemy.sql.ddl import sort_tables_and_constraints
 from rei.database import Base, engine
 
 # Import models so Base.metadata knows about them
 import rei.models  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+
+def _fix_circular_fk_deps() -> None:
+    """Detect circular FK dependencies and mark cycle-causing FKs as use_alter.
+
+    SQLAlchemy's create_all() fails with CircularDependencyError when tables
+    have circular foreign key references (e.g. A->B->C->A). This function uses
+    sort_tables_and_constraints() to identify the specific FK constraints that
+    cause cycles and marks them with use_alter=True, so create_all() will
+    defer those constraints to ALTER TABLE statements after all tables exist.
+    """
+    try:
+        # This will raise CircularDependencyError if cycles exist
+        list(Base.metadata.sorted_tables)
+        logger.info("No circular FK dependencies detected")
+    except CircularDependencyError:
+        logger.info("Circular FK dependencies detected -- auto-fixing with use_alter")
+        for table_or_none, fkcs in sort_tables_and_constraints(
+            Base.metadata.tables.values()
+        ):
+            if table_or_none is None:
+                # These FK constraints caused cycles -- defer them
+                for fkc in fkcs:
+                    fkc.use_alter = True
+                    logger.info(
+                        "  Deferred FK: %s.%s -> %s",
+                        fkc.parent.name if fkc.parent is not None else "?",
+                        [c.name for c in fkc.columns],
+                        fkc.referred_table.name if fkc.referred_table is not None else "?",
+                    )
 
 # Inline migrations — add new columns to existing tables.
 # Each entry: (table, column, sql_type)
@@ -139,6 +171,10 @@ async def create_tables() -> None:
     that race on table creation. SQLite throws 'table already exists' when
     two workers call CREATE TABLE simultaneously.
     """
+    # Pre-process: detect and auto-fix any circular FK dependencies
+    # so that create_all() can sort tables without errors.
+    _fix_circular_fk_deps()
+
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -147,7 +183,7 @@ async def create_tables() -> None:
         # and 'relation ... already exists' (Postgres)
         msg = str(exc).lower()
         if "already exists" in msg:
-            logger.info("Tables already exist (concurrent worker) — skipping create_all")
+            logger.info("Tables already exist (concurrent worker) -- skipping create_all")
         else:
             raise
 
@@ -160,5 +196,5 @@ async def create_tables() -> None:
                 )
                 logger.info("Migration: added %s.%s", table, column)
             except Exception:
-                # Column already exists — nothing to do
+                # Column already exists -- nothing to do
                 pass
