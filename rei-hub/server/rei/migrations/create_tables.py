@@ -194,10 +194,11 @@ async def create_tables() -> None:
         for table, column, sql_type in _COLUMN_MIGRATIONS:
             try:
                 await conn.execute(
-                    text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
+                    text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}")
                 )
                 logger.info("Migration: added %s.%s", table, column)
             except Exception:
                 # Column already exists -- nothing to do
                 pass
+
 
