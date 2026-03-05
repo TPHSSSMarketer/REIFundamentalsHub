@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hub.reifundamentalshub.com/sitemap.xml
