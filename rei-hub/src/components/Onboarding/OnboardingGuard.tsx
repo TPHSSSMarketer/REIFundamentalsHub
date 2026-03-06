@@ -2,6 +2,16 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { getOnboardingStatus } from '@/services/onboardingApi'
 
+function isDemoMode(): boolean {
+  try {
+    const stored = localStorage.getItem('rei-hub-demo-mode')
+    if (!stored) return false
+    return JSON.parse(stored)?.state?.isDemoMode === true
+  } catch {
+    return false
+  }
+}
+
 export default function OnboardingGuard({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [status, setStatus] = useState<'loading' | 'onboarding' | 'ready'>('loading')
@@ -9,6 +19,12 @@ export default function OnboardingGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Don't redirect if already on /onboarding
     if (location.pathname === '/onboarding') {
+      setStatus('ready')
+      return
+    }
+
+    // Demo mode users skip onboarding — no real data to save
+    if (isDemoMode()) {
       setStatus('ready')
       return
     }

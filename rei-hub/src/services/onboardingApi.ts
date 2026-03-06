@@ -29,8 +29,8 @@ async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promis
 // ── Demo Data ──────────────────────────────────────────────
 
 const DEMO_ONBOARDING_STATUS = {
-  completed: false,
-  current_step: 3,
+  completed: true,
+  current_step: 6,
   user: {
     company_name: 'REI Fundamentals LLC',
     company_address: '123 Main Street',
