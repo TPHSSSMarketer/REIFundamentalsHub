@@ -12,14 +12,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from rei.database import Base
 
 
-class EmailTemplate(Base):
+class AdminEmailTemplate(Base):
     """Custom email template that overrides the hardcoded default.
 
     Each row represents one email type (e.g. "welcome", "payment_failed").
     If no row exists for a type, the hardcoded default in email.py is used.
     """
 
-    __tablename__ = "email_templates"
+    __tablename__ = "admin_email_templates"
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())

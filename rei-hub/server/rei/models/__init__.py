@@ -44,7 +44,7 @@ from rei.models.admin_assistant import (
     AdminSkill,
     AdminScheduledTask,
 )
-from rei.models.email_template import EmailTemplate
+from rei.models.email_template import AdminEmailTemplate
 
 __all__ = [
     "User",
@@ -89,5 +89,5 @@ __all__ = [
     "AdminTrustSetting",
     "AdminSkill",
     "AdminScheduledTask",
-    "EmailTemplate",
+    "AdminEmailTemplate",
 ]

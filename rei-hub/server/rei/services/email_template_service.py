@@ -10,7 +10,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rei.models.email_template import EmailTemplate
+from rei.models.email_template import AdminEmailTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -230,8 +230,8 @@ async def get_all_template_statuses(db: AsyncSession) -> list[dict]:
     types that don't have a custom version yet.
     """
     # Fetch all custom templates
-    result = await db.execute(select(EmailTemplate))
-    custom_map: dict[str, EmailTemplate] = {}
+    result = await db.execute(select(AdminEmailTemplate))
+    custom_map: dict[str, AdminEmailTemplate] = {}
     for row in result.scalars().all():
         custom_map[row.template_type] = row
 
@@ -254,10 +254,10 @@ async def get_all_template_statuses(db: AsyncSession) -> list[dict]:
     return statuses
 
 
-async def get_template(db: AsyncSession, template_type: str) -> Optional[EmailTemplate]:
+async def get_template(db: AsyncSession, template_type: str) -> Optional[AdminEmailTemplate]:
     """Fetch a custom template by type, or None if not customized."""
     result = await db.execute(
-        select(EmailTemplate).where(EmailTemplate.template_type == template_type)
+        select(AdminEmailTemplate).where(AdminEmailTemplate.template_type == template_type)
     )
     return result.scalar_one_or_none()
 
@@ -268,7 +268,7 @@ async def save_template(
     subject: str,
     body_html: str,
     user_id: int,
-) -> EmailTemplate:
+) -> AdminEmailTemplate:
     """Create or update a custom template."""
     if template_type not in DEFAULT_TEMPLATES:
         raise ValueError(f"Unknown template type: {template_type}")
@@ -283,7 +283,7 @@ async def save_template(
         await db.commit()
         return existing
     else:
-        template = EmailTemplate(
+        template = AdminEmailTemplate(
             template_type=template_type,
             subject=subject,
             body_html=body_html,
