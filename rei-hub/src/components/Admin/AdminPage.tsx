@@ -125,9 +125,6 @@ function EditModal({
   const [loanServicing, setLoanServicing] = useState(subscriber.loan_servicing_enabled ?? false)
   const [bankNegotiation, setBankNegotiation] = useState(subscriber.bank_negotiation_enabled ?? false)
   const [saving, setSaving] = useState(false)
-  const [complimentary, setComplimentary] = useState(subscriber.is_complimentary ?? false)
-  const [loanServicing, setLoanServicing] = useState(subscriber.loan_servicing_enabled ?? false)
-  const [bankNegotiation, setBankNegotiation] = useState(subscriber.bank_negotiation_enabled ?? false)
 
   async function handleSave() {
     setSaving(true)

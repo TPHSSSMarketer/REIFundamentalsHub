@@ -9,7 +9,7 @@ import {
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
-// ââ Types ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Types ────────────────────────────────────────────────────────────
 
 interface OnboardingData {
   company_name: string
@@ -42,7 +42,7 @@ const STEP_LABELS = [
   'Review & Launch',
 ]
 
-// ââ Main Component ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Main Component ────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const navigate = useNavigate()
@@ -251,7 +251,7 @@ export default function OnboardingPage() {
           ))}
         </div>
         <p className="text-xs text-gray-500">
-          Step {step} of {STEP_LABELS.length} â {STEP_LABELS[step - 1]}
+          Step {step} of {STEP_LABELS.length} — {STEP_LABELS[step - 1]}
         </p>
       </div>
 
@@ -384,7 +384,7 @@ export default function OnboardingPage() {
   )
 }
 
-// ââ Step 1: Company Info ââââââââââââââââââââââââââââââââââââââââ
+// ── Step 1: Company Info ────────────────────────────────────────
 
 function Step1Company({
   data,
@@ -497,19 +497,19 @@ function Step1Company({
 const EXPERIENCE_OPTIONS = [
   {
     value: 'beginner',
-    emoji: 'ð±',
+    emoji: '🌱',
     label: 'Just Getting Started',
     desc: 'Learning the ropes',
   },
   {
     value: 'intermediate',
-    emoji: 'ð',
+    emoji: '📈',
     label: 'Some Experience',
     desc: 'Completed a few deals',
   },
   {
     value: 'experienced',
-    emoji: 'ð',
+    emoji: '🏆',
     label: 'Experienced Investor',
     desc: 'Active portfolio, multiple deals',
   },
@@ -546,7 +546,7 @@ function Step2InvestingProfile({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">ð</div>
+        <div className="text-5xl mb-4">📊</div>
         <h1 className="text-2xl font-bold text-slate-900">Tell us about your investing</h1>
         <p className="text-slate-500 mt-2">
           This helps us customize your experience and pre-load the right contract templates.
@@ -620,7 +620,7 @@ function Step2InvestingProfile({
         disabled={saving}
         className="mt-8 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Saving...' : 'Continue â'}
+        {saving ? 'Saving...' : 'Continue →'}
       </button>
     </div>
   )
@@ -651,7 +651,7 @@ function Step3Storage({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">ð</div>
+        <div className="text-5xl mb-4">📁</div>
         <h1 className="text-2xl font-bold text-slate-900">Where should we save your contracts?</h1>
         <p className="text-slate-500 mt-2">
           Generated contracts will be automatically organized in your chosen cloud storage.
@@ -679,13 +679,13 @@ function Step3Storage({
             </div>
           </div>
           <div className="ml-13 mb-4 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 font-mono">
-            <div>ð {data.company_name || 'Your Company Name'}/</div>
-            <div className="ml-4">ð John Smith/</div>
-            <div className="ml-8">ð Contracts/</div>
+            <div>📁 {data.company_name || 'Your Company Name'}/</div>
+            <div className="ml-4">📁 John Smith/</div>
+            <div className="ml-8">📁 Contracts/</div>
           </div>
           {data.storage_provider === 'google_drive' && storageConnected ? (
             <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-              <span>â</span> Connected
+              <span>✓</span> Connected
             </div>
           ) : (
             <button
@@ -718,7 +718,7 @@ function Step3Storage({
           </div>
           {data.storage_provider === 'dropbox' && storageConnected ? (
             <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
-              <span>â</span> Connected
+              <span>✓</span> Connected
             </div>
           ) : (
             <button
@@ -745,7 +745,7 @@ function Step3Storage({
         disabled={saving || !data.storage_provider}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Saving...' : 'Continue â'}
+        {saving ? 'Saving...' : 'Continue →'}
       </button>
     </div>
   )
@@ -797,7 +797,7 @@ function Step4Phone({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">ð</div>
+        <div className="text-5xl mb-4">📞</div>
         <h1 className="text-2xl font-bold text-slate-900">Set up your business phone number</h1>
         <p className="text-slate-500 mt-2">
           Your first number is included with your plan. Choose an area code that matches your market.
@@ -892,7 +892,7 @@ function Step4Phone({
       ) : (
         <div className="space-y-6">
           <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <span className="text-green-600 text-2xl">â</span>
+            <span className="text-green-600 text-2xl">✓</span>
             <div>
               <div className="font-semibold text-green-800">
                 Your number: {data.friendly_number || formatNumber(data.phone_number)}
@@ -963,7 +963,7 @@ function Step4Phone({
         disabled={saving || (!numberPurchased && !selectedNumber && availableNumbers.length > 0)}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {saving ? 'Setting up...' : 'Continue â'}
+        {saving ? 'Setting up...' : 'Continue →'}
       </button>
     </div>
   )
@@ -997,7 +997,7 @@ function Step5EmailDomain({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">ð§</div>
+        <div className="text-5xl mb-4">📧</div>
         <h1 className="text-2xl font-bold text-slate-900">Send emails from your own domain</h1>
         <p className="text-slate-500 mt-2">
           Emails sent from your domain look more professional and get better deliverability than
@@ -1125,7 +1125,7 @@ function Step5EmailDomain({
         disabled={saving}
         className="mt-4 w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        Continue â
+        Continue →
       </button>
     </div>
   )
@@ -1143,7 +1143,7 @@ function Step6Review({
   return (
     <div>
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">ð</div>
+        <div className="text-5xl mb-4">🚀</div>
         <h1 className="text-2xl font-bold text-slate-900">You're all set!</h1>
         <p className="text-slate-500 mt-2">Here's a summary of your setup.</p>
       </div>
@@ -1199,7 +1199,7 @@ function Step6Review({
             'AI-powered legal research',
           ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-green-500">â</span>
+              <span className="text-green-500">✅</span>
               {item}
             </div>
           ))}
@@ -1217,7 +1217,7 @@ function Step6Review({
             Setting up your workspace...
           </span>
         ) : (
-          'Launch REI Hub â'
+          'Launch REI Hub →'
         )}
       </button>
 
