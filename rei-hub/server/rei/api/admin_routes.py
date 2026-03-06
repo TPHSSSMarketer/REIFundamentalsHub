@@ -235,8 +235,8 @@ async def admin_stats(
         if u.plan in by_plan:
             by_plan[u.plan] += 1
 
-        # MRR: only count active or trialing users
-        if st in ("active", "trialing") and u.plan in PLANS:
+        # MRR: only count active, paid users (exclude trials & complimentary)
+        if st == "active" and not getattr(u, "is_complimentary", False) and u.plan in PLANS:
             plan_data = PLANS[u.plan]
             if u.billing_interval == "annual":
                 base = plan_data["annual_price_cents"] // 12
