@@ -88,13 +88,8 @@ PROVIDER_CONFIGS = {
         "display_name": "MiniMax 2.5",
         "role": "Fast Summaries",
     },
-    "nvidia_nemotron": {
-        "base_url": "https://integrate.api.nvidia.com",
-        "models": ["nvidia/llama-3.3-nemotron-super-49b-v1"],
-        "default_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-        "display_name": "Nemotron 49B",
-        "role": "AI Underwriting Analysis",
-    },
+    # NOTE: nvidia_nemotron removed — the 49B model consistently times out
+    # on NVIDIA's NIM API. Underwriting tasks now route to Kimi 2.5 instead.
 }
 
 # ── Task-based routing map ─────────────────────────────────────────────────
@@ -114,8 +109,8 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "legal":         ("nvidia_kimi", None),
     # NVIDIA MiniMax — fast summaries
     "summary":       ("nvidia_minimax", None),
-    # NVIDIA Nemotron — underwriting
-    "underwriting":  ("nvidia_nemotron", None),
+    # Underwriting — uses Kimi (Nemotron 49B was too slow/unreliable)
+    "underwriting":  ("nvidia_kimi", None),
 }
 
 
@@ -395,7 +390,6 @@ async def _resolve_provider(
             ("anthropic", anthropic_key),
             ("nvidia_kimi", nvidia_key),
             ("nvidia_minimax", nvidia_key),
-            ("nvidia_nemotron", nvidia_key),
         ]
         for fb_provider, fb_key in fallback_chain:
             if fb_key and fb_provider != provider:

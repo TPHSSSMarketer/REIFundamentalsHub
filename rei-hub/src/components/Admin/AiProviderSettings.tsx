@@ -35,8 +35,8 @@ const PROVIDERS = [
     iconColor: 'text-green-700',
     models: ['moonshotai/kimi-k2.5'],
     keyField: 'nvidia' as const,
-    role: 'Research & Legal',
-    description: 'State law research, bank negotiation, deep research',
+    role: 'Research · Legal · Underwriting',
+    description: 'State law research, bank negotiation, deep research, deal analysis',
   },
   {
     id: 'nvidia_minimax',
@@ -49,17 +49,6 @@ const PROVIDERS = [
     role: 'Fast Summaries',
     description: 'Quick text generation and content summaries',
   },
-  {
-    id: 'nvidia_nemotron',
-    name: 'Nemotron 49B',
-    icon: 'N',
-    iconBg: 'bg-purple-100',
-    iconColor: 'text-purple-700',
-    models: ['nvidia/llama-3.3-nemotron-super-49b-v1'],
-    keyField: 'nvidia' as const,
-    role: 'AI Underwriting',
-    description: 'Deep deal analysis with ATTOM property data',
-  },
 ]
 
 // Friendly display name mapping for provider IDs shown in usage stats
@@ -67,7 +56,6 @@ const PROVIDER_FRIENDLY_NAME: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   nvidia_kimi: 'Kimi 2.5',
   nvidia_minimax: 'MiniMax 2.5',
-  nvidia_nemotron: 'Nemotron 49B',
 }
 
 // ── Main Component ─────────────────────────────────────────────────────
@@ -271,7 +259,7 @@ export default function AiProviderSettings() {
             { label: 'Anthropic Haiku', task: 'chat', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
             { label: 'Kimi 2.5', task: 'research', color: 'bg-green-100 text-green-700 hover:bg-green-200' },
             { label: 'MiniMax 2.5', task: 'summary', color: 'bg-green-50 text-green-600 hover:bg-green-100' },
-            { label: 'Nemotron 49B', task: 'underwriting', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
+            { label: 'Kimi Underwriting', task: 'underwriting', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
           ] as const).map((t) => (
             <button
               key={t.task}
