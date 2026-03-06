@@ -179,6 +179,23 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "cta_text": "View Details",
         "cta_url_template": "{{hub_url}}/pipeline",
     },
+    "phone_credits_low": {
+        "display_name": "Phone & SMS Credits Low",
+        "category": "Billing",
+        "description": "Sent when phone/SMS credits drop below a warning threshold.",
+        "subject": "Your phone & SMS credits are running low — {{credits_remaining}} remaining",
+        "body_html": (
+            "<p>Hi {{name}},</p>"
+            "<p>Your phone &amp; SMS credit balance is down to "
+            "<strong>{{credits_remaining}}</strong>.</p>"
+            "<p>These credits are used for phone calls, SMS messages, fax, "
+            "and AI usage when your plan allowance is exhausted.</p>"
+            "<p>Top up now to avoid any interruption in service.</p>"
+        ),
+        "variables": ["name", "credits_remaining", "hub_url"],
+        "cta_text": "Buy Credits",
+        "cta_url_template": "{{hub_url}}/billing",
+    },
 }
 
 # Sample data for previews and test emails
@@ -204,6 +221,7 @@ SAMPLE_VARIABLES: dict[str, str] = {
     "site_name": "DFW Cash Home Buyers",
     "price": "$185,000",
     "property_type": "Single Family",
+    "credits_remaining": "$4.50",
 }
 
 

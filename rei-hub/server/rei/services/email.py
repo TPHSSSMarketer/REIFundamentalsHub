@@ -549,3 +549,39 @@ async def send_buyer_match_notification(
         settings=settings,
         db=db,
     )
+
+
+async def send_phone_credits_low_email(
+    to_email: str,
+    full_name: str,
+    credits_remaining: str,
+    settings: Settings,
+    db=None,
+) -> bool:
+    """Send a warning when phone/SMS credits drop below a threshold."""
+    name = full_name or to_email
+    hub_url = settings.hub_url
+
+    return await _send_with_template(
+        template_type="phone_credits_low",
+        to_email=to_email,
+        to_name=name,
+        variables={
+            "name": name,
+            "credits_remaining": credits_remaining,
+            "hub_url": hub_url,
+        },
+        default_subject=f"Your phone & SMS credits are running low — {credits_remaining} remaining",
+        default_body=(
+            f"<p>Hi {name},</p>"
+            f"<p>Your phone &amp; SMS credit balance is down to "
+            f"<strong>{credits_remaining}</strong>.</p>"
+            f"<p>These credits are used for phone calls, SMS messages, fax, "
+            f"and AI usage when your plan allowance is exhausted.</p>"
+            f"<p>Top up now to avoid any interruption in service.</p>"
+        ),
+        cta_text="Buy Credits",
+        cta_url=f"{hub_url}/billing",
+        settings=settings,
+        db=db,
+    )

@@ -197,7 +197,7 @@ async def _call_anthropic(
 
     headers = {
         "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": "2025-01-01",
         "content-type": "application/json",
     }
 
@@ -501,7 +501,12 @@ async def ai_complete(
         elif exc.response.status_code == 429:
             hint = "Rate limit exceeded. Please wait a moment and try again."
         else:
-            hint = "Please check your API key configuration."
+            # Include the actual error body for debugging
+            try:
+                err_detail = exc.response.json().get("error", {}).get("message", err_body[:200])
+            except Exception:
+                err_detail = err_body[:200]
+            hint = f"{err_detail}"
         return {
             "content": f"AI provider error ({exc.response.status_code}) from {resolved['provider']}: {hint}",
             "provider": resolved["provider"],
