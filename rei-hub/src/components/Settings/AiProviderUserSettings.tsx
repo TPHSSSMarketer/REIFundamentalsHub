@@ -215,8 +215,11 @@ export default function AiProviderUserSettings() {
               onChange={(e) => setUseOwnKeys(e.target.checked)}
               className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-slate-700">Use my own API keys</span>
+            <span className="text-sm font-medium text-slate-700">Link my own API keys</span>
           </label>
+          <p className="text-xs text-slate-500 ml-6 -mt-2 mb-3">
+            Your plan credits are used first. Your own keys kick in automatically when credits are exhausted, so you're never blocked from AI features.
+          </p>
 
           {useOwnKeys && (
             <div className="space-y-3 ml-6">
@@ -270,7 +273,7 @@ export default function AiProviderUserSettings() {
                 </div>
               </div>
 
-              <p className="text-xs text-slate-400">Your keys are encrypted and never shared.</p>
+              <p className="text-xs text-slate-400">Your keys are encrypted and never shared. They are only used when your plan credits and purchased credits are fully used up.</p>
 
               <button
                 onClick={handleSaveKeys}

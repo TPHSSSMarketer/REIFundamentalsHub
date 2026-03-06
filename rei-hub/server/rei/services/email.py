@@ -233,9 +233,11 @@ async def send_ai_usage_reminder_email(
         f"<p>Hi {name},</p>"
         f"<p>You've used <strong>{pct_used}%</strong> of your monthly AI allowance "
         f"on the <strong>{plan}</strong> plan — only {pct_remaining}% remaining.</p>"
-        f"<p>To keep using AI features once your allowance runs out, you can:</p>"
-        f"<p><strong>Option 1:</strong> Add your own API key in AI Settings<br>"
-        f"<strong>Option 2:</strong> Buy credits (works for AI, phone, SMS, and fax)</p>"
+        f"<p>When your allowance runs out, AI requests will draw from your universal "
+        f"credits (with a small markup). To avoid running out entirely:</p>"
+        f"<p><strong>Option 1:</strong> Buy credits — works for AI, phone, SMS, and fax<br>"
+        f"<strong>Option 2:</strong> Link your own API keys in Settings &gt; AI Provider "
+        f"— they'll kick in automatically as a free fallback when credits are exhausted</p>"
         f"{_cta_button('Buy Credits', f'{hub_url}/billing')}"
     )
 

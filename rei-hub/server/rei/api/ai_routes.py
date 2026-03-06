@@ -516,7 +516,7 @@ async def chat(
         messages.append({"role": msg.role, "content": msg.content})
 
     # ── Check AI usage limit before calling the model ──
-    # If over allowance: allow if user has own key OR has universal credits.
+    # Priority: plan credits → universal credits (30% markup) → own API keys → block
     allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
     allowance_cents = allowance["monthly_allowance_cents"]
     has_own_key = user.ai_override_enabled and bool(
@@ -524,14 +524,22 @@ async def chat(
         or getattr(user, "ai_own_nvidia_key", None)
     )
     over_allowance = (user.ai_cost_cents or 0) >= allowance_cents
-    if over_allowance and not has_own_key:
-        # No own key — check if they have universal credits
-        if (user.phone_credits_cents or 0) <= 0:
+    use_own_keys = False
+
+    if over_allowance:
+        if (user.phone_credits_cents or 0) > 0:
+            pass  # Has universal credits → proceed with admin keys + markup
+        elif has_own_key:
+            use_own_keys = True  # No credits left → fall back to subscriber's own keys
+        else:
             raise HTTPException(
                 status_code=429,
-                detail="ai_limit_reached",
+                detail=(
+                    "You've used all your AI credits this month. "
+                    "Buy more credits or add your own API keys in Settings > AI Provider "
+                    "to keep using AI features."
+                ),
             )
-        # Has credits → let through, credits will be deducted in ai_complete()
 
     result = await ai_complete(
         messages=messages,
@@ -541,6 +549,7 @@ async def chat(
         task_type=task,
         max_tokens=task_cfg["max_tokens"],
         temperature=task_cfg["temperature"],
+        use_own_keys=use_own_keys,
     )
 
     response: dict = {

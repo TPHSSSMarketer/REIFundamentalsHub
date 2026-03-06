@@ -294,13 +294,15 @@ async def _resolve_provider(
     db: AsyncSession,
     settings: Settings,
     task_type: str = "general",
+    use_own_keys: bool = False,
 ) -> dict:
     """Resolve which provider, model, and API key to use for a request.
 
     All providers are always active — routing is determined by task_type.
     Admin keys live in ProviderCredentials (Admin > Credentials page).
-    Per-user overrides live on the User model.
-    Returns dict with: provider, model, api_key, base_url
+    Per-user keys are used ONLY as a fallback when plan credits and
+    universal credits are both exhausted (use_own_keys=True).
+    Returns dict with: provider, model, api_key, base_url, using_own_keys
     """
     global_config = await _get_global_config(db)
 
@@ -321,8 +323,11 @@ async def _resolve_provider(
     except Exception as exc:
         logger.warning("Failed to read ProviderCredentials: %s", exc)
 
-    # ── 2. Check per-user key overrides ──
-    if user_id and global_config and global_config.allow_user_override:
+    # ── 2. Per-user key overrides — ONLY when credits are exhausted ──
+    # Subscribers use plan credits first. Their own keys are a fallback so
+    # they're never blocked from AI features once credits run out.
+    using_own_keys = False
+    if use_own_keys and user_id and global_config and global_config.allow_user_override:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if user and user.ai_override_enabled:
@@ -330,10 +335,12 @@ async def _resolve_provider(
                 anthropic_key = decrypt_api_key(
                     user.ai_own_anthropic_key, settings.ai_encryption_key
                 )
+                using_own_keys = True
             if user.ai_own_nvidia_key:
                 nvidia_key = decrypt_api_key(
                     user.ai_own_nvidia_key, settings.ai_encryption_key
                 )
+                using_own_keys = True
 
     # ── Task-based routing: pick provider + model by task type ──
     route = TASK_ROUTING.get(task_type, TASK_ROUTING["general"])
@@ -369,6 +376,7 @@ async def _resolve_provider(
         "model": model,
         "api_key": api_key,
         "base_url": base_url,
+        "using_own_keys": using_own_keys,
     }
 
 
@@ -405,12 +413,13 @@ async def ai_complete(
     task_type: str = "general",
     max_tokens: int = 2000,
     temperature: float = 0.3,
+    use_own_keys: bool = False,
 ) -> dict:
     """Main AI completion function — resolves provider and calls the API.
 
     Returns: { content, provider, model, tokens_used }
     """
-    resolved = await _resolve_provider(user_id, db, settings, task_type)
+    resolved = await _resolve_provider(user_id, db, settings, task_type, use_own_keys=use_own_keys)
 
     if not resolved["api_key"]:
         return {
@@ -524,9 +533,13 @@ async def ai_complete(
             )
             allowance_cents = plan_allowance["monthly_allowance_cents"]
 
-            # Accumulate cost — or deduct from universal credits if over allowance
-            if allowance_cents > 0 and (user_obj.ai_cost_cents or 0) >= allowance_cents:
-                # Over monthly allowance → deduct from universal credits with 15% markup
+            # Accumulate cost — skip entirely when subscriber is using their own keys
+            if resolved.get("using_own_keys"):
+                # Subscriber's own API keys in use — they pay their provider directly,
+                # no cost to our system. Still track requests/tokens for analytics.
+                pass
+            elif allowance_cents > 0 and (user_obj.ai_cost_cents or 0) >= allowance_cents:
+                # Over monthly allowance → deduct from universal credits with 30% markup
                 marked_up_cents = int(cost_cents * CREDIT_MARKUP)
                 user_obj.phone_credits_cents = max(
                     0, (user_obj.phone_credits_cents or 0) - marked_up_cents

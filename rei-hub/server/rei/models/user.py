@@ -967,12 +967,12 @@ class AIProviderConfig(Base):
     active_model: Mapped[str] = mapped_column(
         String, default="claude-sonnet-4-6")
 
-    # Admin API keys (encrypted)
+    # DEPRECATED — API keys now stored in ProviderCredentials table (Admin > Credentials).
+    # These columns are kept for DB compatibility but are no longer read by the app.
     anthropic_api_key: Mapped[Optional[str]] = mapped_column(
         String, nullable=True)
     nvidia_api_key: Mapped[Optional[str]] = mapped_column(
         String, nullable=True)
-    # One NVIDIA key works for all NVIDIA models
 
     # Per-user override settings
     allow_user_override: Mapped[bool] = mapped_column(
