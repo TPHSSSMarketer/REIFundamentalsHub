@@ -50,6 +50,7 @@ import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
 import DealExpenditures from './DealExpenditures'
+import PropertyMap from '@/components/Map/PropertyMap'
 import type { Deal, DealFile, DealBuyerMatch } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -688,6 +689,25 @@ export default function DealDetailPage() {
               <p className="mt-3 text-center text-sm text-green-600 font-medium">Added to Portfolio</p>
             )}
           </div>
+
+          {/* Property Map */}
+          {deal.latitude != null && deal.longitude != null && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Location</h3>
+              <PropertyMap
+                pins={[{
+                  id: deal.id,
+                  latitude: deal.latitude,
+                  longitude: deal.longitude,
+                  label: deal.address || deal.title || 'Property',
+                  sublabel: [deal.city, deal.state, deal.zip].filter(Boolean).join(', '),
+                  type: 'deal',
+                }]}
+                height="220px"
+                zoom={15}
+              />
+            </div>
+          )}
 
           {/* Financial Summary */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
