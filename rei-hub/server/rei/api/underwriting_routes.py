@@ -10,13 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings, Settings
-from rei.database import get_db
 from rei.models.crm import CrmDeal
 from rei.models.user import User
 from rei.services.ai_service import ai_complete
 from rei.services.attom_property_service import lookup_property_data
-from rei.api.auth_routes import get_current_user
 
 logger = logging.getLogger(__name__)
 

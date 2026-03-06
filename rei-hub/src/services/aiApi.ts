@@ -77,10 +77,7 @@ export interface AiAdminConfig {
   id: string
   active_provider: string
   active_model: string
-  anthropic_api_key: string
-  anthropic_configured: boolean
-  nvidia_api_key: string
-  nvidia_configured: boolean
+  // API keys are now managed exclusively via Admin > Credentials (ProviderCredentials)
   allow_user_override: boolean
   user_can_bring_own_key: boolean
   total_requests: number
@@ -274,10 +271,6 @@ export async function getAdminAiConfig(): Promise<AiAdminConfig> {
       id: 'admin-ai-config-001',
       active_provider: 'anthropic',
       active_model: 'claude-3-5-sonnet',
-      anthropic_api_key: '',
-      anthropic_configured: false,
-      nvidia_api_key: '',
-      nvidia_configured: false,
       allow_user_override: true,
       user_can_bring_own_key: true,
       total_requests: 342,
@@ -291,8 +284,6 @@ export async function getAdminAiConfig(): Promise<AiAdminConfig> {
 export async function updateAdminAiConfig(data: {
   active_provider?: string
   active_model?: string
-  anthropic_api_key?: string
-  nvidia_api_key?: string
   allow_user_override?: boolean
   user_can_bring_own_key?: boolean
 }): Promise<AiAdminConfig> {
@@ -308,10 +299,6 @@ export async function updateAdminAiConfig(data: {
       id: 'admin-ai-config-001',
       active_provider: data.active_provider || 'anthropic',
       active_model: data.active_model || 'claude-3-5-sonnet',
-      anthropic_api_key: '',
-      anthropic_configured: false,
-      nvidia_api_key: '',
-      nvidia_configured: false,
       allow_user_override: data.allow_user_override ?? true,
       user_can_bring_own_key: data.user_can_bring_own_key ?? true,
       total_requests: 342,

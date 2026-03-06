@@ -38,8 +38,7 @@ ai_router = APIRouter(prefix="/ai", tags=["ai"])
 class AdminConfigUpdate(BaseModel):
     active_provider: Optional[str] = None
     active_model: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    nvidia_api_key: Optional[str] = None
+    # API keys are now managed exclusively via Admin > Credentials (ProviderCredentials)
     allow_user_override: Optional[bool] = None
     user_can_bring_own_key: Optional[bool] = None
 
@@ -116,26 +115,11 @@ async def _get_or_create_global_config(db: AsyncSession) -> AIProviderConfig:
 
 
 def _config_to_dict(config: AIProviderConfig) -> dict:
-    """Serialize config with masked keys."""
-    anthropic_masked = ""
-    nvidia_masked = ""
-    if config.anthropic_api_key:
-        anthropic_masked = mask_api_key(
-            decrypt_api_key(config.anthropic_api_key, _settings().ai_encryption_key)
-        )
-    if config.nvidia_api_key:
-        nvidia_masked = mask_api_key(
-            decrypt_api_key(config.nvidia_api_key, _settings().ai_encryption_key)
-        )
-
+    """Serialize config (keys managed via Admin > Credentials, not here)."""
     return {
         "id": config.id,
         "active_provider": config.active_provider,
         "active_model": config.active_model,
-        "anthropic_api_key": anthropic_masked,
-        "anthropic_configured": bool(config.anthropic_api_key),
-        "nvidia_api_key": nvidia_masked,
-        "nvidia_configured": bool(config.nvidia_api_key),
         "allow_user_override": config.allow_user_override,
         "user_can_bring_own_key": config.user_can_bring_own_key,
         "total_requests": config.total_requests,
@@ -187,15 +171,7 @@ async def update_admin_config(
     if body.active_model is not None:
         config.active_model = body.active_model
 
-    if body.anthropic_api_key is not None:
-        config.anthropic_api_key = encrypt_api_key(
-            body.anthropic_api_key, settings.ai_encryption_key
-        )
-
-    if body.nvidia_api_key is not None:
-        config.nvidia_api_key = encrypt_api_key(
-            body.nvidia_api_key, settings.ai_encryption_key
-        )
+    # API keys are managed via Admin > Credentials (ProviderCredentials table)
 
     if body.allow_user_override is not None:
         config.allow_user_override = body.allow_user_override

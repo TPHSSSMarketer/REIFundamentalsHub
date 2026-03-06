@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, Send, Eye, EyeOff } from 'lucide-react'
+import { Loader2, RefreshCw, Send, KeyRound } from 'lucide-react'
 import {
   getAdminAiConfig,
   updateAdminAiConfig,
@@ -70,12 +70,6 @@ export default function AiProviderSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  // Key inputs (not stored in config — only sent on save)
-  const [anthropicKey, setAnthropicKey] = useState('')
-  const [nvidiaKey, setNvidiaKey] = useState('')
-  const [showAnthropicKey, setShowAnthropicKey] = useState(false)
-  const [showNvidiaKey, setShowNvidiaKey] = useState(false)
-
   // Test section
   const [testMessage, setTestMessage] = useState(
     'Summarize the key points of a contract for deed in plain English'
@@ -109,62 +103,6 @@ export default function AiProviderSettings() {
   useEffect(() => {
     loadAll()
   }, [loadAll])
-
-  const handleSetActive = async (providerId: string) => {
-    if (!config) return
-    const provider = PROVIDERS.find((p) => p.id === providerId)
-    if (!provider) return
-    setSaving(true)
-    try {
-      const updated = await updateAdminAiConfig({
-        active_provider: providerId,
-        active_model: provider.models[0],
-      })
-      setConfig(updated)
-      toast.success(`Active provider set to ${provider.name}`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSaveModel = async (providerId: string, model: string) => {
-    setSaving(true)
-    try {
-      const updated = await updateAdminAiConfig({
-        active_provider: providerId,
-        active_model: model,
-      })
-      setConfig(updated)
-      toast.success('Model updated')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSaveKey = async (keyType: 'anthropic' | 'nvidia') => {
-    const key = keyType === 'anthropic' ? anthropicKey : nvidiaKey
-    if (!key.trim()) return
-    setSaving(true)
-    try {
-      const payload =
-        keyType === 'anthropic'
-          ? { anthropic_api_key: key }
-          : { nvidia_api_key: key }
-      const updated = await updateAdminAiConfig(payload)
-      setConfig(updated)
-      if (keyType === 'anthropic') setAnthropicKey('')
-      else setNvidiaKey('')
-      toast.success(`${keyType === 'anthropic' ? 'Anthropic' : 'NVIDIA'} API key saved`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save key')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const handleToggle = async (field: 'allow_user_override' | 'user_can_bring_own_key') => {
     if (!config) return
@@ -221,138 +159,67 @@ export default function AiProviderSettings() {
         </p>
       </div>
 
+      {/* API Keys info banner */}
+      <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+        <KeyRound className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-blue-800">
+            API keys are managed in Admin &gt; Credentials
+          </p>
+          <p className="text-xs text-blue-600 mt-1">
+            Navigate to <span className="font-semibold">Admin &gt; Credentials</span> to add or update your Anthropic and NVIDIA API keys. All providers below will use the keys configured there.
+          </p>
+        </div>
+      </div>
+
       {/* Provider Cards — all models are always active, each serves a specific role */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {PROVIDERS.map((provider) => {
-          const isConfigured =
-            provider.keyField === 'anthropic'
-              ? config.anthropic_configured
-              : config.nvidia_configured
-
-          return (
-            <div
-              key={provider.id}
-              className="bg-white rounded-xl border-2 border-slate-200 p-5 transition-all"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${provider.iconBg} ${provider.iconColor}`}
-                  >
-                    {provider.icon}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-900">{provider.name}</span>
-                    <p className="text-xs text-slate-500">{provider.description}</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-full whitespace-nowrap">
-                  {provider.role}
-                </span>
-              </div>
-
-              {/* Model list */}
-              {provider.models.length > 1 ? (
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Models</label>
-                  <div className="flex flex-wrap gap-1">
-                    {provider.models.map((m) => (
-                      <span key={m} className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded font-mono">
-                        {m}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 mb-3 font-mono">
-                  Model: {provider.models[0]}
-                </p>
-              )}
-
-              {/* API Key input */}
-              {provider.keyField === 'anthropic' && (
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">API Key</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={showAnthropicKey ? 'text' : 'password'}
-                        value={anthropicKey}
-                        onChange={(e) => setAnthropicKey(e.target.value)}
-                        placeholder={config.anthropic_configured ? config.anthropic_api_key : 'sk-ant-...'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showAnthropicKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => handleSaveKey('anthropic')}
-                      disabled={saving || !anthropicKey.trim()}
-                      className="px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg hover:bg-slate-900 disabled:opacity-50"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {provider.keyField === 'nvidia' && provider.id === 'nvidia_kimi' && (
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    NVIDIA API Key <span className="text-slate-400">(shared across all NVIDIA models)</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={showNvidiaKey ? 'text' : 'password'}
-                        value={nvidiaKey}
-                        onChange={(e) => setNvidiaKey(e.target.value)}
-                        placeholder={config.nvidia_configured ? config.nvidia_api_key : 'nvapi-...'}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNvidiaKey(!showNvidiaKey)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showNvidiaKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => handleSaveKey('nvidia')}
-                      disabled={saving || !nvidiaKey.trim()}
-                      className="px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg hover:bg-slate-900 disabled:opacity-50"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {provider.keyField === 'nvidia' && provider.id !== 'nvidia_kimi' && (
-                <p className="text-xs text-slate-500 mb-3">Uses shared NVIDIA API key</p>
-              )}
-
-              {/* Status badge */}
-              <div className="flex items-center">
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    isConfigured
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
+        {PROVIDERS.map((provider) => (
+          <div
+            key={provider.id}
+            className="bg-white rounded-xl border-2 border-slate-200 p-5 transition-all"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${provider.iconBg} ${provider.iconColor}`}
                 >
-                  {isConfigured ? 'Configured' : 'Not Set'}
-                </span>
+                  {provider.icon}
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-900">{provider.name}</span>
+                  <p className="text-xs text-slate-500">{provider.description}</p>
+                </div>
               </div>
+              <span className="text-[10px] font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-full whitespace-nowrap">
+                {provider.role}
+              </span>
             </div>
-          )
-        })}
+
+            {/* Model list */}
+            {provider.models.length > 1 ? (
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Models</label>
+                <div className="flex flex-wrap gap-1">
+                  {provider.models.map((m) => (
+                    <span key={m} className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded font-mono">
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 mb-3 font-mono">
+                Model: {provider.models[0]}
+              </p>
+            )}
+
+            {/* Key source note */}
+            {provider.keyField === 'nvidia' && provider.id !== 'nvidia_kimi' && (
+              <p className="text-xs text-slate-500 mb-3">Uses shared NVIDIA API key</p>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* User Permissions */}

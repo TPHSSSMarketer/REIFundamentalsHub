@@ -298,7 +298,8 @@ async def _resolve_provider(
     """Resolve which provider, model, and API key to use for a request.
 
     All providers are always active — routing is determined by task_type.
-    Checks both legacy AIProviderConfig and newer ProviderCredentials tables.
+    Admin keys live in ProviderCredentials (Admin > Credentials page).
+    Per-user overrides live on the User model.
     Returns dict with: provider, model, api_key, base_url
     """
     global_config = await _get_global_config(db)
@@ -306,35 +307,21 @@ async def _resolve_provider(
     anthropic_key = ""
     nvidia_key = ""
 
-    # ── 1. Try legacy AIProviderConfig keys first ──
-    if global_config:
-        if global_config.anthropic_api_key:
-            anthropic_key = decrypt_api_key(
-                global_config.anthropic_api_key, settings.ai_encryption_key
-            )
-        if global_config.nvidia_api_key:
-            nvidia_key = decrypt_api_key(
-                global_config.nvidia_api_key, settings.ai_encryption_key
-            )
+    # ── 1. Read admin keys from ProviderCredentials (single source of truth) ──
+    try:
+        from rei.services.credentials_service import get_provider_credentials
 
-    # ── 2. Fallback to ProviderCredentials (Admin > Credentials page) ──
-    if not anthropic_key or not nvidia_key:
-        try:
-            from rei.services.credentials_service import get_provider_credentials
+        anth_creds = await get_provider_credentials(db, "anthropic")
+        if anth_creds and anth_creds.get("anthropic_api_key"):
+            anthropic_key = anth_creds["anthropic_api_key"]
 
-            if not anthropic_key:
-                anth_creds = await get_provider_credentials(db, "anthropic")
-                if anth_creds and anth_creds.get("anthropic_api_key"):
-                    anthropic_key = anth_creds["anthropic_api_key"]
+        nv_creds = await get_provider_credentials(db, "nvidia")
+        if nv_creds and nv_creds.get("nvidia_api_key"):
+            nvidia_key = nv_creds["nvidia_api_key"]
+    except Exception as exc:
+        logger.warning("Failed to read ProviderCredentials: %s", exc)
 
-            if not nvidia_key:
-                nv_creds = await get_provider_credentials(db, "nvidia")
-                if nv_creds and nv_creds.get("nvidia_api_key"):
-                    nvidia_key = nv_creds["nvidia_api_key"]
-        except Exception as exc:
-            logger.warning("Failed to check ProviderCredentials: %s", exc)
-
-    # ── 3. Check per-user key overrides ──
+    # ── 2. Check per-user key overrides ──
     if user_id and global_config and global_config.allow_user_override:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
@@ -682,25 +669,18 @@ async def extract_conversation_data_with_db(
     db: AsyncSession,
     settings: Settings,
 ) -> dict:
-    """Wrapper that resolves the NVIDIA key from global config + settings."""
-    # Try to get NVIDIA key from global config
-    global_config = await _get_global_config(db)
+    """Wrapper that resolves the NVIDIA key from ProviderCredentials."""
     nvidia_key = ""
-    if global_config and global_config.nvidia_api_key:
-        nvidia_key = decrypt_api_key(
-            global_config.nvidia_api_key, settings.ai_encryption_key
-        )
 
-    # Fallback to ProviderCredentials (Admin > Credentials page)
-    if not nvidia_key:
-        try:
-            from rei.services.credentials_service import get_provider_credentials
+    # Read from ProviderCredentials (single source of truth)
+    try:
+        from rei.services.credentials_service import get_provider_credentials
 
-            nv_creds = await get_provider_credentials(db, "nvidia")
-            if nv_creds and nv_creds.get("nvidia_api_key"):
-                nvidia_key = nv_creds["nvidia_api_key"]
-        except Exception:
-            pass
+        nv_creds = await get_provider_credentials(db, "nvidia")
+        if nv_creds and nv_creds.get("nvidia_api_key"):
+            nvidia_key = nv_creds["nvidia_api_key"]
+    except Exception:
+        pass
 
     if not nvidia_key:
         nvidia_key = getattr(settings, "nvidia_api_key", "") or ""
