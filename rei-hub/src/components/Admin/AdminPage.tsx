@@ -18,6 +18,7 @@ import {
 } from '@/services/adminApi'
 import AiProviderSettings from './AiProviderSettings'
 import SuperAdminCredentials from './SuperAdminCredentials'
+import EmailTemplateEditor from './EmailTemplateEditor'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { enableBankNegotiation } from '@/services/bankNegotiationApi'
@@ -52,7 +53,7 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
-const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'HUD Markets', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
+const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'Email Templates', 'HUD Markets', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
 /* ── Sub-components ──────────────────────────────────────────── */
@@ -876,6 +877,9 @@ export default function AdminPage() {
 
       {/* ── Credentials Tab ──────────────────────────────────── */}
       {tab === 'Credentials' && <SuperAdminCredentials />}
+
+      {/* ── Email Templates Tab ────────────────────────────────── */}
+      {tab === 'Email Templates' && <EmailTemplateEditor />}
 
       {/* ── HUD Markets Tab ──────────────────────────────────── */}
       {tab === 'HUD Markets' && (

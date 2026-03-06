@@ -373,17 +373,17 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   facebook_oauth: [
     { name: 'facebook_app_id', label: 'App ID', type: 'text', help: 'From developers.facebook.com > Your App > Settings > Basic' },
     { name: 'facebook_app_secret', label: 'App Secret', type: 'secret', help: 'From Settings > Basic — click "Show" to reveal' },
-    { name: 'facebook_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://sites.reifundamentalshub.com/settings?facebook_code=CALLBACK' },
+    { name: 'facebook_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://hub.reifundamentalshub.com/settings?facebook_code=CALLBACK' },
   ],
   linkedin_oauth: [
     { name: 'linkedin_client_id', label: 'Client ID', type: 'text', help: 'From linkedin.com/developers > Your App > Auth tab' },
     { name: 'linkedin_client_secret', label: 'Client Secret', type: 'secret', help: 'From Auth tab — regenerate if needed' },
-    { name: 'linkedin_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://sites.reifundamentalshub.com/settings?linkedin_code=CALLBACK' },
+    { name: 'linkedin_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://hub.reifundamentalshub.com/settings?linkedin_code=CALLBACK' },
   ],
   x_twitter_oauth: [
     { name: 'x_twitter_client_id', label: 'Client ID', type: 'text', help: 'From developer.x.com > Your App > Keys and Tokens > OAuth 2.0' },
     { name: 'x_twitter_client_secret', label: 'Client Secret', type: 'secret', help: 'From Keys and Tokens > OAuth 2.0 Client ID and Secret' },
-    { name: 'x_twitter_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://sites.reifundamentalshub.com/settings?x_code=CALLBACK' },
+    { name: 'x_twitter_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://hub.reifundamentalshub.com/settings?x_code=CALLBACK' },
   ],
   instagram_oauth: [],
 }
