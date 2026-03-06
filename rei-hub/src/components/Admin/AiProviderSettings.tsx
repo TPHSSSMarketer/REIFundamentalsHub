@@ -35,8 +35,19 @@ const PROVIDERS = [
     iconColor: 'text-green-700',
     models: ['moonshotai/kimi-k2.5'],
     keyField: 'nvidia' as const,
-    role: 'Research · Legal · Underwriting',
-    description: 'State law research, bank negotiation, deep research, deal analysis',
+    role: 'Research · Legal',
+    description: 'State law research, bank negotiation, deep research',
+  },
+  {
+    id: 'nvidia_kimi_thinking',
+    name: 'Kimi K2 Thinking',
+    icon: 'T',
+    iconBg: 'bg-indigo-100',
+    iconColor: 'text-indigo-700',
+    models: ['moonshotai/kimi-k2-thinking'],
+    keyField: 'nvidia' as const,
+    role: 'Underwriting · Deal Analysis',
+    description: 'Step-by-step reasoning for deal underwriting and financial analysis',
   },
   {
     id: 'nvidia_minimax',
@@ -55,6 +66,7 @@ const PROVIDERS = [
 const PROVIDER_FRIENDLY_NAME: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   nvidia_kimi: 'Kimi 2.5',
+  nvidia_kimi_thinking: 'Kimi K2 Thinking',
   nvidia_minimax: 'MiniMax 2.5',
 }
 
@@ -259,7 +271,7 @@ export default function AiProviderSettings() {
             { label: 'Anthropic Haiku', task: 'chat', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
             { label: 'Kimi 2.5', task: 'research', color: 'bg-green-100 text-green-700 hover:bg-green-200' },
             { label: 'MiniMax 2.5', task: 'summary', color: 'bg-green-50 text-green-600 hover:bg-green-100' },
-            { label: 'Kimi Underwriting', task: 'underwriting', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
+            { label: 'K2 Thinking (Underwriting)', task: 'underwriting', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
           ] as const).map((t) => (
             <button
               key={t.task}

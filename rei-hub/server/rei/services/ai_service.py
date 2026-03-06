@@ -81,6 +81,13 @@ PROVIDER_CONFIGS = {
         "display_name": "Kimi 2.5",
         "role": "Research & Legal",
     },
+    "nvidia_kimi_thinking": {
+        "base_url": "https://integrate.api.nvidia.com",
+        "models": ["moonshotai/kimi-k2-thinking"],
+        "default_model": "moonshotai/kimi-k2-thinking",
+        "display_name": "Kimi K2 Thinking",
+        "role": "Underwriting & Deal Analysis",
+    },
     "nvidia_minimax": {
         "base_url": "https://integrate.api.nvidia.com",
         "models": ["minimaxai/minimax-m2.5"],
@@ -109,8 +116,8 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "legal":         ("nvidia_kimi", None),
     # NVIDIA MiniMax — fast summaries
     "summary":       ("nvidia_minimax", None),
-    # Underwriting — uses Kimi (Nemotron 49B was too slow/unreliable)
-    "underwriting":  ("nvidia_kimi", None),
+    # Underwriting — Kimi K2 Thinking (step-by-step reasoning for deal analysis)
+    "underwriting":  ("nvidia_kimi_thinking", None),
 }
 
 
@@ -256,21 +263,28 @@ async def _call_nvidia(
         data = resp.json()
 
     content = ""
+    reasoning_content = ""
     choices = data.get("choices", [])
     if choices:
-        content = choices[0].get("message", {}).get("content", "")
+        msg = choices[0].get("message", {})
+        content = msg.get("content", "")
+        # Kimi K2 Thinking returns step-by-step reasoning in reasoning_content
+        reasoning_content = msg.get("reasoning_content", "")
 
     usage = data.get("usage", {})
     prompt_tokens = usage.get("prompt_tokens", 0)
     completion_tokens = usage.get("completion_tokens", 0)
     total_tokens = usage.get("total_tokens", 0) or (prompt_tokens + completion_tokens)
 
-    return {
+    result = {
         "content": content,
         "tokens_used": total_tokens,
         "input_tokens": prompt_tokens or total_tokens,
         "output_tokens": completion_tokens or 0,
     }
+    if reasoning_content:
+        result["reasoning_content"] = reasoning_content
+    return result
 
 
 # ── Billing-cycle helpers ─────────────────────────────────────────────────
@@ -389,6 +403,7 @@ async def _resolve_provider(
         fallback_chain = [
             ("anthropic", anthropic_key),
             ("nvidia_kimi", nvidia_key),
+            ("nvidia_kimi_thinking", nvidia_key),
             ("nvidia_minimax", nvidia_key),
         ]
         for fb_provider, fb_key in fallback_chain:

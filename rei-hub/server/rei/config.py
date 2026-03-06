@@ -293,9 +293,11 @@ AI_TOKEN_PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-4-5-20251001":  {"input_per_1m": 0.80,  "output_per_1m": 4.00},
     "claude-opus-4-6":            {"input_per_1m": 15.00, "output_per_1m": 75.00},
     # NVIDIA NIM models — free tier
-    "moonshotai/kimi-k2.5-instruct":           {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "moonshotai/kimi-k2.5":                     {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "moonshotai/kimi-k2.5-instruct":            {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "moonshotai/kimi-k2-thinking":              {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "minimaxai/minimax-m2.5":                   {"input_per_1m": 0.00, "output_per_1m": 0.00},
     "minimax/minimax-text-01":                  {"input_per_1m": 0.00, "output_per_1m": 0.00},
-    "nvidia/llama-3.3-nemotron-super-49b-v1":   {"input_per_1m": 0.00, "output_per_1m": 0.00},
 }
 
 # ── AI Plan Allowances (monthly free AI usage in cents) ─────────────────
