@@ -15,8 +15,9 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
-from rei.config import get_settings
+from rei.config import Settings, get_settings
 from rei.models.user import CalendarEvent, Task, User
+from rei.services.credentials_service import get_provider_credentials
 from rei.services.calendar_sync import (
     _aes_decrypt,
     _aes_encrypt,
@@ -39,6 +40,29 @@ logger = logging.getLogger(__name__)
 calendar_router = APIRouter(prefix="/calendar", tags=["calendar"])
 
 settings = get_settings()
+
+
+async def _resolve_google_calendar_settings(db: AsyncSession) -> Settings:
+    """Return settings with Google Calendar creds merged from Admin Credentials DB.
+
+    Priority: DB credentials > environment variables.
+    If the admin saved Google Calendar credentials in the Credentials tab,
+    those override the env-var defaults.
+    """
+    creds = await get_provider_credentials(db, "google_calendar")
+    if not creds:
+        return settings
+
+    # Build a copy with DB values overlaid
+    from copy import copy
+    resolved = copy(settings)
+    if creds.get("google_client_id"):
+        resolved.google_client_id = creds["google_client_id"]
+    if creds.get("google_client_secret"):
+        resolved.google_client_secret = creds["google_client_secret"]
+    if creds.get("google_redirect_uri"):
+        resolved.google_redirect_uri = creds["google_redirect_uri"]
+    return resolved
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────
@@ -588,11 +612,15 @@ async def delete_event(
 
 
 @calendar_router.get("/google/auth-url")
-async def get_google_auth_url(user: User = Depends(get_current_user)):
+async def get_google_auth_url(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Return Google OAuth consent URL."""
-    if not settings.google_client_id:
-        raise HTTPException(status_code=503, detail="Google Calendar not configured")
-    return {"auth_url": google_get_auth_url(settings)}
+    resolved = await _resolve_google_calendar_settings(db)
+    if not resolved.google_client_id:
+        raise HTTPException(status_code=503, detail="Google Calendar not configured. Add credentials in Admin > Credentials.")
+    return {"auth_url": google_get_auth_url(resolved)}
 
 
 @calendar_router.post("/google/callback")
@@ -602,8 +630,9 @@ async def google_callback(
     db: AsyncSession = Depends(get_db),
 ):
     """Exchange Google auth code and save tokens."""
+    resolved = await _resolve_google_calendar_settings(db)
     try:
-        tokens = await google_exchange_code(body.code, settings)
+        tokens = await google_exchange_code(body.code, resolved)
     except Exception as e:
         logger.exception("Google token exchange failed")
         raise HTTPException(status_code=400, detail="Failed to connect Google Calendar") from e
@@ -623,10 +652,11 @@ async def sync_google(
     if not user.google_calendar_sync or not user.google_calendar_token:
         raise HTTPException(status_code=400, detail="Google Calendar not connected")
 
+    resolved = await _resolve_google_calendar_settings(db)
     token_data = json.loads(user.google_calendar_token)
     try:
         access_token = await google_refresh_token(
-            token_data.get("refresh_token", ""), settings
+            token_data.get("refresh_token", ""), resolved
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail="Failed to refresh Google token") from e
@@ -646,7 +676,7 @@ async def sync_google(
     pushed = 0
     for ev in local_events:
         try:
-            await sync_event_to_all_providers(ev, user, settings)
+            await sync_event_to_all_providers(ev, user, resolved)
             pushed += 1
         except Exception:
             logger.exception("Failed to push event %s to Google", ev.id)

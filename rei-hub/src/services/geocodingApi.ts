@@ -96,3 +96,16 @@ export async function batchGeocodeMarkets(): Promise<BatchGeocodeResult> {
   })
   return handleResponse(res)
 }
+
+/** Fetch the Google Maps API key (if configured). */
+export async function getMapsConfig(): Promise<{ google_maps_api_key: string; enabled: boolean }> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/geocoding/maps-config`, {
+      headers: getAuthHeader(),
+      credentials: 'include',
+    })
+    return handleResponse(res)
+  } catch {
+    return { google_maps_api_key: '', enabled: false }
+  }
+}

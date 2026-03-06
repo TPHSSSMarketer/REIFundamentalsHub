@@ -162,6 +162,9 @@ class Settings(BaseSettings):
     google_login_client_secret: str = ""
     google_login_redirect_uri: str = ""
 
+    # ── Google Maps ──────────────────────────────────────────────
+    google_maps_api_key: str = ""
+
     # ── Google Drive (per-user OAuth) ───────────────────────────
     google_drive_client_id: str = ""
     google_drive_client_secret: str = ""

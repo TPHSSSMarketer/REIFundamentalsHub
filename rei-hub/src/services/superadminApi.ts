@@ -67,6 +67,11 @@ const PROVIDER_META: Record<
     category: 'Authentication',
     icon: '🔐',
   },
+  google_maps: {
+    display_name: 'Google Maps',
+    category: 'Maps',
+    icon: '🗺️',
+  },
   google_drive_oauth: {
     display_name: 'Google Drive',
     category: 'Cloud Storage',
@@ -183,9 +188,11 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
   resend:
     'Go to resend.com/api-keys and create a new API key. Resend is the default email provider for transactional emails (welcome, billing, notifications).',
   google_calendar:
-    'Go to console.cloud.google.com > APIs & Services > Credentials > Create OAuth 2.0 Client ID. Enable the Google Calendar API. Set the Redirect URI to your backend callback URL (e.g., https://sites.reifundamentalshub.com/api/calendar/google/callback).',
+    'Go to console.cloud.google.com > APIs & Services > Credentials > Create OAuth 2.0 Client ID. Enable the Google Calendar API. Set the Redirect URI to your backend callback URL (e.g., https://api.reifundamentalshub.com/api/calendar/google/callback).',
   google_login:
-    'Go to console.cloud.google.com > APIs & Services > Credentials > Create OAuth 2.0 Client ID (Web Application). Set the Redirect URI to your backend callback (e.g., https://sites.reifundamentalshub.com/api/auth/google/callback). This is separate from Google Calendar.',
+    'Go to console.cloud.google.com > APIs & Services > Credentials > Create OAuth 2.0 Client ID (Web Application). Set the Redirect URI to your backend callback (e.g., https://api.reifundamentalshub.com/api/auth/google/callback). This is separate from Google Calendar.',
+  google_maps:
+    'Go to console.cloud.google.com > APIs & Services > Credentials > Create API Key. Restrict it to Maps JavaScript API, Places API, and Geocoding API. Under Website restrictions, add hub.reifundamentalshub.com/*. Free tier: ~28,000 map loads/month, ~40,000 geocode requests/month.',
   google_drive_oauth:
     'Go to console.cloud.google.com > APIs & Services > Credentials > Create OAuth 2.0 Client ID. Enable the Google Drive API. Set the Redirect URI to your backend callback URL for Drive.',
   dropbox_oauth:
@@ -289,12 +296,15 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   google_calendar: [
     { name: 'google_client_id', label: 'Client ID', type: 'text', help: 'Ends in ".apps.googleusercontent.com"' },
     { name: 'google_client_secret', label: 'Client Secret', type: 'secret' },
-    { name: 'google_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g., https://sites.reifundamentalshub.com/api/calendar/google/callback' },
+    { name: 'google_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g., https://api.reifundamentalshub.com/api/calendar/google/callback' },
   ],
   google_login: [
     { name: 'google_login_client_id', label: 'Client ID', type: 'text', help: 'Separate OAuth app from Calendar — ends in ".apps.googleusercontent.com"' },
     { name: 'google_login_client_secret', label: 'Client Secret', type: 'secret' },
-    { name: 'google_login_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g., https://sites.reifundamentalshub.com/api/auth/google/callback' },
+    { name: 'google_login_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g., https://api.reifundamentalshub.com/api/auth/google/callback' },
+  ],
+  google_maps: [
+    { name: 'google_maps_api_key', label: 'API Key', type: 'secret', help: 'From console.cloud.google.com > Credentials > API Key. Restrict to Maps JS, Places, and Geocoding APIs.' },
   ],
   google_drive_oauth: [
     { name: 'google_drive_client_id', label: 'Client ID', type: 'text', help: 'Separate OAuth app — enable Google Drive API' },

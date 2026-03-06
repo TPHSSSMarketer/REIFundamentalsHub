@@ -15,8 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db
+from rei.config import get_settings
 from rei.models.crm import CrmDeal, CrmPortfolioProperty
 from rei.models.user import SavedMarket, User
+from rei.services.credentials_service import get_provider_credentials
 from rei.services.geocoding_service import geocode_address, geocode_city_state
 
 logger = logging.getLogger(__name__)
@@ -195,3 +197,27 @@ async def batch_geocode_markets(
         await db.commit()
 
     return {"total": len(markets), "geocoded": geocoded}
+
+
+@geocoding_router.get("/maps-config")
+async def get_maps_config(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the Google Maps API key for the frontend.
+
+    Checks Admin Credentials DB first, then falls back to env var.
+    Returns an empty key if Google Maps is not configured (frontend
+    will fall back to OpenStreetMap/Leaflet).
+    """
+    # Check DB credentials first
+    creds = await get_provider_credentials(db, "google_maps")
+    api_key = ""
+    if creds and creds.get("google_maps_api_key"):
+        api_key = creds["google_maps_api_key"]
+    else:
+        # Fall back to env var
+        settings = get_settings()
+        api_key = settings.google_maps_api_key or ""
+
+    return {"google_maps_api_key": api_key, "enabled": bool(api_key)}

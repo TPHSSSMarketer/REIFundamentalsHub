@@ -112,6 +112,9 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "google_login_client_secret", "label": "Client Secret", "type": "secret"},
         {"name": "google_login_redirect_uri", "label": "Redirect URI", "type": "text"},
     ],
+    "google_maps": [
+        {"name": "google_maps_api_key", "label": "API Key", "type": "secret"},
+    ],
     "google_drive_oauth": [
         {"name": "google_drive_client_id", "label": "Client ID", "type": "text"},
         {"name": "google_drive_client_secret", "label": "Client Secret", "type": "secret"},
