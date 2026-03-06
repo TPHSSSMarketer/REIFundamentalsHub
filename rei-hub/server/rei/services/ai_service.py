@@ -298,6 +298,7 @@ async def _resolve_provider(
     """Resolve which provider, model, and API key to use for a request.
 
     All providers are always active — routing is determined by task_type.
+    Checks both legacy AIProviderConfig and newer ProviderCredentials tables.
     Returns dict with: provider, model, api_key, base_url
     """
     global_config = await _get_global_config(db)
@@ -305,6 +306,7 @@ async def _resolve_provider(
     anthropic_key = ""
     nvidia_key = ""
 
+    # ── 1. Try legacy AIProviderConfig keys first ──
     if global_config:
         if global_config.anthropic_api_key:
             anthropic_key = decrypt_api_key(
@@ -315,7 +317,24 @@ async def _resolve_provider(
                 global_config.nvidia_api_key, settings.ai_encryption_key
             )
 
-    # Check per-user key overrides
+    # ── 2. Fallback to ProviderCredentials (Admin > Credentials page) ──
+    if not anthropic_key or not nvidia_key:
+        try:
+            from rei.services.credentials_service import get_provider_credentials
+
+            if not anthropic_key:
+                anth_creds = await get_provider_credentials(db, "anthropic")
+                if anth_creds and anth_creds.get("anthropic_api_key"):
+                    anthropic_key = anth_creds["anthropic_api_key"]
+
+            if not nvidia_key:
+                nv_creds = await get_provider_credentials(db, "nvidia")
+                if nv_creds and nv_creds.get("nvidia_api_key"):
+                    nvidia_key = nv_creds["nvidia_api_key"]
+        except Exception as exc:
+            logger.warning("Failed to check ProviderCredentials: %s", exc)
+
+    # ── 3. Check per-user key overrides ──
     if user_id and global_config and global_config.allow_user_override:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
@@ -435,14 +454,26 @@ async def ai_complete(
                 temperature,
             )
     except httpx.HTTPStatusError as exc:
+        err_body = exc.response.text[:500]
         logger.error(
-            "AI provider %s returned %s: %s",
+            "AI provider %s (model=%s, url=%s) returned %s: %s",
             resolved["provider"],
+            resolved["model"],
+            resolved["base_url"],
             exc.response.status_code,
-            exc.response.text[:500],
+            err_body,
         )
+        # Build user-friendly error with detail
+        if exc.response.status_code == 401:
+            hint = "Invalid API key. Please re-enter your key in Admin > Credentials."
+        elif exc.response.status_code == 404:
+            hint = f"Model '{resolved['model']}' not found on {resolved['provider']}. The model may be unavailable or renamed."
+        elif exc.response.status_code == 429:
+            hint = "Rate limit exceeded. Please wait a moment and try again."
+        else:
+            hint = "Please check your API key configuration."
         return {
-            "content": f"AI provider error ({exc.response.status_code}). Please check your API key configuration.",
+            "content": f"AI provider error ({exc.response.status_code}) from {resolved['provider']}: {hint}",
             "provider": resolved["provider"],
             "model": resolved["model"],
             "tokens_used": 0,
@@ -659,6 +690,17 @@ async def extract_conversation_data_with_db(
         nvidia_key = decrypt_api_key(
             global_config.nvidia_api_key, settings.ai_encryption_key
         )
+
+    # Fallback to ProviderCredentials (Admin > Credentials page)
+    if not nvidia_key:
+        try:
+            from rei.services.credentials_service import get_provider_credentials
+
+            nv_creds = await get_provider_credentials(db, "nvidia")
+            if nv_creds and nv_creds.get("nvidia_api_key"):
+                nvidia_key = nv_creds["nvidia_api_key"]
+        except Exception:
+            pass
 
     if not nvidia_key:
         nvidia_key = getattr(settings, "nvidia_api_key", "") or ""
