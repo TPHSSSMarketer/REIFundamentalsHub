@@ -261,15 +261,29 @@ async def test_provider_connection(
                 return {"status": "error", "message": f"SendGrid test failed: {resp.status_code}"}
 
         elif provider_name == "anthropic":
-            from anthropic import Anthropic
-            client = Anthropic(api_key=config["anthropic_api_key"])
-            # Test with the cheapest model to minimize cost
-            client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=10,
-                messages=[{"role": "user", "content": "Hi"}],
-            )
-            return {"status": "connected", "message": "Anthropic API key verified"}
+            import httpx
+            # Lightweight validation: count message tokens (free, no generation)
+            api_key = config["anthropic_api_key"]
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages/count_tokens",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "messages": [{"role": "user", "content": "Hi"}],
+                    },
+                )
+                if resp.status_code == 200:
+                    return {"status": "connected", "message": "Anthropic API key verified"}
+                elif resp.status_code == 401:
+                    return {"status": "error", "message": "Invalid API key. Please check your key at console.anthropic.com > API Keys."}
+                else:
+                    body = resp.text[:200]
+                    return {"status": "error", "message": f"Anthropic returned {resp.status_code}: {body}"}
 
         else:
             # For other providers, just verify fields are non-empty
@@ -282,5 +296,5 @@ async def test_provider_connection(
         logger.error(f"Provider {provider_name} connectivity test failed: {e}")
         return {
             "status": "error",
-            "message": f"Connection test failed: {str(e)[:100]}",
+            "message": f"Connection test failed: {str(e)[:300]}",
         }
