@@ -168,6 +168,10 @@ _COLUMN_MIGRATIONS = [
     ("users", "owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
     # AI Underwriting
     ("crm_deals", "underwriting_data", "TEXT"),
+    # ── User-owned API keys ──
+    ("users", "ai_own_anthropic_key", "VARCHAR"),
+    ("users", "ai_own_nvidia_key", "VARCHAR"),
+    ("users", "ai_own_openai_key", "VARCHAR"),
 ]
 
 
