@@ -288,3 +288,20 @@ export async function deletePortfolioProperty(id: string): Promise<void> {
     undefined,
   )
 }
+
+// ── Property Lookup (ATTOM) ─────────────────────────────────
+export async function lookupProperty(
+  address: string,
+  city: string,
+  state: string,
+  zip: string,
+): Promise<Record<string, string>> {
+  try {
+    return await apiFetch<Record<string, string>>('/api/property/lookup', {
+      method: 'POST',
+      body: JSON.stringify({ address, city, state, zip }),
+    })
+  } catch {
+    return {}
+  }
+}

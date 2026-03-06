@@ -118,6 +118,7 @@ const PHOTO_CATEGORIES = [
 ] as const
 
 const DOC_CATEGORIES = [
+  { id: 'underwriting_report', label: 'Property Underwriting' },
   { id: 'contract', label: 'Contract' },
   { id: 'inspection', label: 'Inspection' },
   { id: 'title', label: 'Title' },

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import base64
 import uuid
 
-from rei.api.deps import get_current_user, get_db
+from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings, Settings
 from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import User
@@ -320,11 +320,14 @@ async def analyze_deal(
         )
 
         validation_text = validation_result.get("content", "")
+        # Thinking models (DeepSeek R1) may put JSON in reasoning_content
+        if not validation_text or not validation_text.strip():
+            validation_text = validation_result.get("reasoning_content", "")
 
         # Clean up markdown formatting if present
-        if "```json" in validation_text:
+        if validation_text and "```json" in validation_text:
             validation_text = validation_text.split("```json")[1].split("```")[0]
-        elif "```" in validation_text:
+        elif validation_text and "```" in validation_text:
             validation_text = validation_text.split("```")[1].split("```")[0]
 
         validation = json.loads(validation_text.strip())
@@ -404,7 +407,7 @@ async def analyze_deal(
         existing_pdfs = await db.execute(
             select(DealFile).where(
                 DealFile.deal_id == deal_id,
-                DealFile.user_id == user.id,
+                DealFile.user_id == workspace_user_id(user),
                 DealFile.category == "underwriting_report",
             )
         )
@@ -413,7 +416,7 @@ async def analyze_deal(
 
         new_file = DealFile(
             id=str(uuid.uuid4()),
-            user_id=user.id,
+            user_id=workspace_user_id(user),
             deal_id=deal_id,
             file_type="document",
             category="underwriting_report",

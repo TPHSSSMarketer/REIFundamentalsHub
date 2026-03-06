@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { X, DollarSign, ChevronDown, ChevronUp, Percent, Send, UserPlus, User } from 'lucide-react'
 import { useCreateDeal, useCreateContact } from '@/hooks/useApi'
+import { lookupProperty } from '@/services/crmApi'
 import { mockPipelines } from '@/data/mockData'
 import { requestPof } from '@/services/plaidApi'
 import type { Deal, Contact } from '@/types'
@@ -218,6 +219,55 @@ export default function NewDealModal({
   const [buyerSearch, setBuyerSearch] = useState('')
   const buyerInputRef = useRef<HTMLInputElement>(null)
   const [pofStatus, setPofStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+
+  // ATTOM property lookup state
+  const [lookupInProgress, setLookupInProgress] = useState(false)
+  const [lookupComplete, setLookupComplete] = useState(false)
+
+  // Debounced ATTOM auto-lookup when address fields are all filled
+  useEffect(() => {
+    const addr = formData.address?.trim()
+    const city = formData.city?.trim()
+    const state = formData.state?.trim()
+    const zip = formData.zip?.trim()
+
+    if (!addr || !city || !state || !zip || zip.length < 5) return
+    if (lookupComplete) return // Only lookup once per address
+
+    const timer = setTimeout(async () => {
+      setLookupInProgress(true)
+      try {
+        const data = await lookupProperty(addr, city, state, zip)
+        if (data && Object.keys(data).length > 0) {
+          // Only fill empty fields — never overwrite user entries
+          setFormData((prev) => {
+            const updated = { ...prev }
+            for (const [key, value] of Object.entries(data)) {
+              if (key === '_attom_raw') continue // Skip raw data
+              if (!updated[key] && value) {
+                updated[key] = value
+              }
+            }
+            return updated
+          })
+          setLookupComplete(true)
+          // Auto-open Property Details section so user sees the data
+          setOpenSections((prev) => ({ ...prev, property_details: true }))
+        }
+      } catch {
+        // Silently fail — user can still enter data manually
+      } finally {
+        setLookupInProgress(false)
+      }
+    }, 750)
+
+    return () => clearTimeout(timer)
+  }, [formData.address, formData.city, formData.state, formData.zip, lookupComplete])
+
+  // Reset lookup state when address changes significantly
+  useEffect(() => {
+    setLookupComplete(false)
+  }, [formData.address])
 
   // Get dynamic stage options based on active pipeline
   const stageOptions = useMemo(() => {
@@ -1082,7 +1132,7 @@ export default function NewDealModal({
           {/* Section 1: Property Details */}
           {showSection('property_details') && (
           <CollapsibleSection
-            title="Property Details"
+            title={lookupInProgress ? 'Property Details — Loading ATTOM data...' : lookupComplete ? 'Property Details ✓' : 'Property Details'}
             isOpen={openSections['property_details'] || false}
             onToggle={() => toggleSection('property_details')}
           >

@@ -8,6 +8,13 @@
   box-sizing: border-box;
 }
 
+/* Bump base font size so all rem-based text (Tailwind classes) scales up.
+   Default browser is 16px → 17px gives ~6% larger text everywhere.
+   text-xs: 12px → 12.75px  |  text-sm: 14px → 14.875px  |  text-base: 16px → 17px */
+html {
+  font-size: 17px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
