@@ -278,6 +278,40 @@ async def _call_nvidia(
     }
 
 
+# ── Billing-cycle helpers ─────────────────────────────────────────────────
+
+import calendar
+
+
+def _current_billing_cycle_start(user_obj: User, now: datetime) -> datetime:
+    """Return the start of the current billing cycle for a user.
+
+    Uses the user's signup day-of-month as the anniversary date.
+    Example: signed up Jan 15 → cycles are 15th-to-15th each month.
+    If the signup day doesn't exist in a short month (e.g. day=31 in Feb),
+    it falls back to the last day of that month.
+    """
+    signup_day = user_obj.created_at.day if user_obj.created_at else 1
+
+    # Clamp to last day of current month if needed (e.g. signup day 31, current month has 28)
+    max_day = calendar.monthrange(now.year, now.month)[1]
+    cycle_day = min(signup_day, max_day)
+    cycle_start_this_month = now.replace(day=cycle_day, hour=0, minute=0, second=0, microsecond=0)
+
+    if now >= cycle_start_this_month:
+        # We're past the anniversary day this month → current cycle started this month
+        return cycle_start_this_month
+    else:
+        # We haven't reached the anniversary day yet → cycle started last month
+        if now.month == 1:
+            prev_year, prev_month = now.year - 1, 12
+        else:
+            prev_year, prev_month = now.year, now.month - 1
+        max_day_prev = calendar.monthrange(prev_year, prev_month)[1]
+        cycle_day_prev = min(signup_day, max_day_prev)
+        return datetime(prev_year, prev_month, cycle_day_prev, 0, 0, 0)
+
+
 # ── Core completion function ──────────────────────────────────────────────
 
 
@@ -516,12 +550,13 @@ async def ai_complete(
             user_obj.ai_total_tokens = (user_obj.ai_total_tokens or 0) + tokens_used
             user_obj.ai_last_request_at = datetime.utcnow()
 
-            # Monthly reset: if we're in a new month, zero out cost + reminder flags
+            # Monthly reset on signup anniversary (not calendar 1st).
+            # E.g. if they signed up Jan 15, credits reset on the 15th each month.
             now = datetime.utcnow()
-            start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            if user_obj.ai_cost_reset_at is None or user_obj.ai_cost_reset_at < start_of_month:
+            billing_cycle_start = _current_billing_cycle_start(user_obj, now)
+            if user_obj.ai_cost_reset_at is None or user_obj.ai_cost_reset_at < billing_cycle_start:
                 user_obj.ai_cost_cents = 0
-                user_obj.ai_cost_reset_at = start_of_month
+                user_obj.ai_cost_reset_at = billing_cycle_start
                 user_obj.ai_reminder_75_sent = False
                 user_obj.ai_reminder_90_sent = False
                 user_obj.ai_reminder_95_sent = False
