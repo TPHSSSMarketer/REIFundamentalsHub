@@ -476,6 +476,7 @@ export default function Dashboard() {
           value={pendingTasks}
           icon={Clock}
           color="danger"
+          linkTo="/calendar"
         />
       </div>
 

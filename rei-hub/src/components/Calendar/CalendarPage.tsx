@@ -18,7 +18,7 @@ import { cn } from '@/utils/helpers'
 
 // ── Types ─────────────────────────────────────────────────────
 
-type ViewMode = 'month' | 'week' | 'tasks'
+type ViewMode = 'month' | 'week'
 
 interface TaskItem {
   id: string
@@ -488,10 +488,58 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* ── Pending Tasks (always visible above calendar) ───── */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">Pending Tasks</h3>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-slate-500">{allTasks.length} task{allTasks.length !== 1 ? 's' : ''}</p>
+            <button onClick={() => setShowTaskModal(true)}
+              className="px-3 py-1.5 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+              <Plus className="w-3.5 h-3.5 inline mr-1" />Add Task
+            </button>
+          </div>
+        </div>
+
+        {/* Overdue */}
+        {(tasks.overdue || []).length > 0 && (
+          <TaskSection title="OVERDUE" color="text-red-600 bg-red-50" tasks={tasks.overdue || []}
+            onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
+        )}
+
+        {/* Today */}
+        {(tasks.today || []).length > 0 && (
+          <TaskSection title="TODAY" color="text-blue-600 bg-blue-50" tasks={tasks.today || []}
+            onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
+        )}
+
+        {/* This Week */}
+        {(tasks.this_week || []).length > 0 && (
+          <TaskSection title="THIS WEEK" color="text-yellow-600 bg-yellow-50" tasks={tasks.this_week || []}
+            onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
+        )}
+
+        {/* Upcoming */}
+        {(tasks.upcoming || []).length > 0 && (
+          <TaskSection title="UPCOMING" color="text-slate-600 bg-slate-50" tasks={tasks.upcoming || []}
+            onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
+        )}
+
+        {/* No date */}
+        {(tasks.no_date || []).length > 0 && (
+          <TaskSection title="NO DATE" color="text-slate-500 bg-slate-50" tasks={tasks.no_date || []}
+            onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
+        )}
+
+        {allTasks.length === 0 && (
+          <p className="text-sm text-slate-400 text-center py-4">No pending tasks</p>
+        )}
+      </div>
+
       {/* ── View Toggles + Navigation ────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="flex bg-slate-100 rounded-lg p-0.5">
-          {(['month', 'week', 'tasks'] as ViewMode[]).map((v) => (
+          {(['month', 'week'] as ViewMode[]).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -500,13 +548,12 @@ export default function CalendarPage() {
                 view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               )}
             >
-              {v === 'month' ? 'Month' : v === 'week' ? 'Week' : 'Tasks'}
+              {v === 'month' ? 'Month' : 'Week'}
             </button>
           ))}
         </div>
 
-        {view !== 'tasks' && (
-          <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
             <button onClick={() => view === 'month' ? navigate_month(-1) : navigate_week(-1)}
               className="p-1.5 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center">
               <ChevronLeft className="w-4 h-4" />
@@ -524,7 +571,6 @@ export default function CalendarPage() {
               <span className="hidden md:inline">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
             </h2>
           </div>
-        )}
       </div>
 
       {/* ── Month View ───────────────────────────────────────── */}
@@ -703,60 +749,6 @@ export default function CalendarPage() {
             </div>
           ))}
           </div>
-        </div>
-      )}
-
-      {/* ── Tasks View ───────────────────────────────────────── */}
-      {view === 'tasks' && (
-        <div className="space-y-4">
-          {/* Filter bar */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">{allTasks.length} tasks</p>
-            <button onClick={() => setShowTaskModal(true)}
-              className="px-3 py-1.5 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-              <Plus className="w-3.5 h-3.5 inline mr-1" />Add Task
-            </button>
-          </div>
-
-          {/* Overdue */}
-          {(tasks.overdue || []).length > 0 && (
-            <TaskSection title="OVERDUE" color="text-red-600 bg-red-50" tasks={tasks.overdue || []}
-              onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
-          )}
-
-          {/* Today */}
-          {(tasks.today || []).length > 0 && (
-            <TaskSection title="TODAY" color="text-blue-600 bg-blue-50" tasks={tasks.today || []}
-              onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
-          )}
-
-          {/* This Week */}
-          {(tasks.this_week || []).length > 0 && (
-            <TaskSection title="THIS WEEK" color="text-yellow-600 bg-yellow-50" tasks={tasks.this_week || []}
-              onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
-          )}
-
-          {/* Upcoming */}
-          {(tasks.upcoming || []).length > 0 && (
-            <TaskSection title="UPCOMING" color="text-slate-600 bg-slate-50" tasks={tasks.upcoming || []}
-              onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
-          )}
-
-          {/* No date */}
-          {(tasks.no_date || []).length > 0 && (
-            <TaskSection title="NO DATE" color="text-slate-500 bg-slate-50" tasks={tasks.no_date || []}
-              onComplete={handleCompleteTask} onDelete={handleDeleteTask} navigate={navigate} />
-          )}
-
-          {allTasks.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-lg text-slate-400 mb-2">No tasks yet</p>
-              <button onClick={() => setShowTaskModal(true)}
-                className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">
-                Create Your First Task
-              </button>
-            </div>
-          )}
         </div>
       )}
 
