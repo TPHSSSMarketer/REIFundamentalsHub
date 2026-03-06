@@ -95,9 +95,9 @@ class ExtractContactRequest(BaseModel):
 
 
 def _require_superadmin(user: User) -> None:
-    """Raise 403 if the user is not an admin."""
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Super admin access required")
+    """Raise 403 if the user is not an admin or superadmin."""
+    if not (getattr(user, "is_admin", False) or getattr(user, "is_superadmin", False)):
+        raise HTTPException(status_code=403, detail="Admin access required")
 
 
 async def _get_or_create_global_config(db: AsyncSession) -> AIProviderConfig:

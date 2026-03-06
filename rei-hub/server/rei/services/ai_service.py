@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import base64
 import json
 import logging
 import time
+from collections import deque
 from datetime import datetime
 from typing import Optional
 
@@ -19,6 +21,44 @@ from rei.config import AI_PLAN_ALLOWANCES, AI_TOKEN_PRICING, CREDIT_MARKUP, Sett
 from rei.models.user import AIProviderConfig, KnowledgeEntry, User
 
 logger = logging.getLogger(__name__)
+
+
+# ── NVIDIA Rate Limiter (40 RPM) ─────────────────────────────────────────
+
+NVIDIA_RPM_LIMIT = 40  # Max requests per minute for NVIDIA endpoints
+
+class _NvidiaRateLimiter:
+    """Simple sliding-window rate limiter for NVIDIA API calls."""
+
+    def __init__(self, rpm: int = NVIDIA_RPM_LIMIT):
+        self._rpm = rpm
+        self._timestamps: deque[float] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        """Wait until a request slot is available within the RPM window."""
+        async with self._lock:
+            now = time.monotonic()
+            window = 60.0  # 1 minute
+
+            # Purge timestamps older than the window
+            while self._timestamps and (now - self._timestamps[0]) >= window:
+                self._timestamps.popleft()
+
+            if len(self._timestamps) >= self._rpm:
+                # Wait until the oldest request falls outside the window
+                sleep_for = window - (now - self._timestamps[0]) + 0.1
+                logger.info("NVIDIA rate limit reached (%d RPM). Waiting %.1fs", self._rpm, sleep_for)
+                await asyncio.sleep(sleep_for)
+                # Purge again after sleeping
+                now = time.monotonic()
+                while self._timestamps and (now - self._timestamps[0]) >= window:
+                    self._timestamps.popleft()
+
+            self._timestamps.append(time.monotonic())
+
+
+_nvidia_limiter = _NvidiaRateLimiter()
 
 # ── Provider configuration ────────────────────────────────────────────────
 
@@ -171,6 +211,9 @@ async def _call_nvidia(
     temperature: float,
 ) -> dict:
     """Call an NVIDIA NIM endpoint (OpenAI-compatible chat completions)."""
+    # Enforce 40 RPM rate limit across all NVIDIA calls
+    await _nvidia_limiter.acquire()
+
     body = {
         "model": model,
         "messages": messages,
