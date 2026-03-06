@@ -78,21 +78,21 @@ PROVIDER_CONFIGS = {
         "base_url": "https://integrate.api.nvidia.com",
         "models": ["moonshotai/kimi-k2.5"],
         "default_model": "moonshotai/kimi-k2.5",
-        "display_name": "NVIDIA Kimi 2.5",
+        "display_name": "Kimi 2.5",
         "role": "Research & Legal",
     },
     "nvidia_minimax": {
         "base_url": "https://integrate.api.nvidia.com",
         "models": ["minimaxai/minimax-m2.5"],
         "default_model": "minimaxai/minimax-m2.5",
-        "display_name": "NVIDIA MiniMax 2.5",
+        "display_name": "MiniMax 2.5",
         "role": "Fast Summaries",
     },
     "nvidia_nemotron": {
         "base_url": "https://integrate.api.nvidia.com",
         "models": ["nvidia/llama-3.3-nemotron-super-49b-v1"],
         "default_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-        "display_name": "NVIDIA Nemotron (Underwriting)",
+        "display_name": "Nemotron 49B",
         "role": "AI Underwriting Analysis",
     },
 }
@@ -251,7 +251,7 @@ async def _call_nvidia(
         "content-type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await client.post(
             f"{base_url}/v1/chat/completions",
             headers=headers,

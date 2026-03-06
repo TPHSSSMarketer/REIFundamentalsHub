@@ -192,6 +192,9 @@ class User(Base):
     ai_own_nvidia_key: Mapped[Optional[str]] = mapped_column(
         String, nullable=True)
     # Encrypted — user's own NVIDIA key
+    ai_own_openai_key: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True)
+    # Encrypted — user's own OpenAI key
     ai_override_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False)
 

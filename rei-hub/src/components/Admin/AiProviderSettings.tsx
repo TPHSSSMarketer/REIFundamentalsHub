@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner'
 
 // ── Provider metadata ──────────────────────────────────────────────────
+// Admin sees all providers for testing, but uses clean display names
 
 const PROVIDERS = [
   {
@@ -28,8 +29,8 @@ const PROVIDERS = [
   },
   {
     id: 'nvidia_kimi',
-    name: 'NVIDIA Kimi 2.5',
-    icon: 'N',
+    name: 'Kimi 2.5',
+    icon: 'K',
     iconBg: 'bg-green-100',
     iconColor: 'text-green-700',
     models: ['moonshotai/kimi-k2.5'],
@@ -39,8 +40,8 @@ const PROVIDERS = [
   },
   {
     id: 'nvidia_minimax',
-    name: 'NVIDIA MiniMax 2.5',
-    icon: 'N',
+    name: 'MiniMax 2.5',
+    icon: 'M',
     iconBg: 'bg-green-100',
     iconColor: 'text-green-700',
     models: ['minimaxai/minimax-m2.5'],
@@ -50,7 +51,7 @@ const PROVIDERS = [
   },
   {
     id: 'nvidia_nemotron',
-    name: 'NVIDIA Nemotron',
+    name: 'Nemotron 49B',
     icon: 'N',
     iconBg: 'bg-purple-100',
     iconColor: 'text-purple-700',
@@ -60,6 +61,14 @@ const PROVIDERS = [
     description: 'Deep deal analysis with ATTOM property data',
   },
 ]
+
+// Friendly display name mapping for provider IDs shown in usage stats
+const PROVIDER_FRIENDLY_NAME: Record<string, string> = {
+  anthropic: 'Anthropic Claude',
+  nvidia_kimi: 'Kimi 2.5',
+  nvidia_minimax: 'MiniMax 2.5',
+  nvidia_nemotron: 'Nemotron 49B',
+}
 
 // ── Main Component ─────────────────────────────────────────────────────
 
@@ -167,7 +176,7 @@ export default function AiProviderSettings() {
             API keys are managed in Admin &gt; Credentials
           </p>
           <p className="text-xs text-blue-600 mt-1">
-            Navigate to <span className="font-semibold">Admin &gt; Credentials</span> to add or update your Anthropic and NVIDIA API keys. All providers below will use the keys configured there.
+            Navigate to <span className="font-semibold">Admin &gt; Credentials</span> to add or update your API keys. All providers below will use the keys configured there.
           </p>
         </div>
       </div>
@@ -213,11 +222,6 @@ export default function AiProviderSettings() {
                 Model: {provider.models[0]}
               </p>
             )}
-
-            {/* Key source note */}
-            {provider.keyField === 'nvidia' && provider.id !== 'nvidia_kimi' && (
-              <p className="text-xs text-slate-500 mb-3">Uses shared NVIDIA API key</p>
-            )}
           </div>
         ))}
       </div>
@@ -229,33 +233,10 @@ export default function AiProviderSettings() {
           <label className="flex items-center justify-between cursor-pointer">
             <div>
               <span className="text-sm font-medium text-slate-700">
-                Allow users to select their own AI provider
-              </span>
-              <p className="text-xs text-slate-500">
-                When disabled, all users use the global provider above
-              </p>
-            </div>
-            <button
-              onClick={() => handleToggle('allow_user_override')}
-              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
-                config.allow_user_override ? 'bg-blue-600' : 'bg-slate-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${
-                  config.allow_user_override ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-          </label>
-
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <span className="text-sm font-medium text-slate-700">
                 Allow users to bring their own API keys
               </span>
               <p className="text-xs text-slate-500">
-                Users can enter personal API keys for their account
+                Users can enter personal Anthropic or OpenAI API keys for their account
               </p>
             </div>
             <button
@@ -288,9 +269,9 @@ export default function AiProviderSettings() {
           {([
             { label: 'Anthropic Sonnet', task: 'general', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
             { label: 'Anthropic Haiku', task: 'chat', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
-            { label: 'NVIDIA Kimi', task: 'research', color: 'bg-green-100 text-green-700 hover:bg-green-200' },
-            { label: 'NVIDIA MiniMax', task: 'summary', color: 'bg-green-50 text-green-600 hover:bg-green-100' },
-            { label: 'NVIDIA Nemotron', task: 'underwriting', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
+            { label: 'Kimi 2.5', task: 'research', color: 'bg-green-100 text-green-700 hover:bg-green-200' },
+            { label: 'MiniMax 2.5', task: 'summary', color: 'bg-green-50 text-green-600 hover:bg-green-100' },
+            { label: 'Nemotron 49B', task: 'underwriting', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
           ] as const).map((t) => (
             <button
               key={t.task}
@@ -315,7 +296,7 @@ export default function AiProviderSettings() {
           <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
             <div className="flex flex-wrap gap-3 mb-3">
               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                Provider: {testResult.provider}
+                Provider: {PROVIDER_FRIENDLY_NAME[testResult.provider] || testResult.provider}
               </span>
               <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
                 Model: {testResult.model}
@@ -379,7 +360,9 @@ export default function AiProviderSettings() {
                     {users.map((u) => (
                       <tr key={u.user_id} className="border-b border-slate-100">
                         <td className="px-3 py-2 text-slate-700">{u.email}</td>
-                        <td className="px-3 py-2 text-slate-600">{u.effective_provider}</td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {PROVIDER_FRIENDLY_NAME[u.effective_provider] || u.effective_provider}
+                        </td>
                         <td className="px-3 py-2">
                           {u.ai_override_enabled ? (
                             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">

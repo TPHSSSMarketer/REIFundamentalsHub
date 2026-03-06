@@ -71,6 +71,7 @@ export interface AiUserConfig {
   override_enabled: boolean
   own_anthropic_configured: boolean
   own_nvidia_configured: boolean
+  own_openai_configured?: boolean
 }
 
 export interface AiAdminConfig {
@@ -146,6 +147,7 @@ export async function updateAiConfig(data: {
   ai_model_override?: string
   ai_own_anthropic_key?: string
   ai_own_nvidia_key?: string
+  ai_own_openai_key?: string
 }): Promise<{ active_provider: string; active_model: string; override_enabled: boolean }> {
   return withDemoFallback(
     () =>

@@ -54,6 +54,7 @@ class UserConfigUpdate(BaseModel):
     ai_model_override: Optional[str] = None
     ai_own_anthropic_key: Optional[str] = None
     ai_own_nvidia_key: Optional[str] = None
+    ai_own_openai_key: Optional[str] = None
 
 
 class TestRequest(BaseModel):
@@ -307,7 +308,9 @@ async def get_user_config(
 
     has_own_anthropic = bool(user.ai_own_anthropic_key)
     has_own_nvidia = bool(user.ai_own_nvidia_key)
+    has_own_openai = bool(getattr(user, "ai_own_openai_key", None))
 
+    # Users only see Anthropic — NVIDIA is used behind the scenes
     available_providers = [
         {
             "id": pid,
@@ -316,6 +319,7 @@ async def get_user_config(
             "default_model": pc["default_model"],
         }
         for pid, pc in PROVIDER_CONFIGS.items()
+        if not pid.startswith("nvidia_")  # Hide NVIDIA from regular users
     ]
 
     return {
@@ -324,10 +328,11 @@ async def get_user_config(
         "available_providers": available_providers,
         "can_override": config.allow_user_override,
         "can_bring_own_key": config.user_can_bring_own_key,
-        "has_own_keys": has_own_anthropic or has_own_nvidia,
+        "has_own_keys": has_own_anthropic or has_own_nvidia or has_own_openai,
         "override_enabled": user.ai_override_enabled,
         "own_anthropic_configured": has_own_anthropic,
         "own_nvidia_configured": has_own_nvidia,
+        "own_openai_configured": has_own_openai,
     }
 
 
@@ -377,6 +382,16 @@ async def update_user_config(
             )
         user.ai_own_nvidia_key = encrypt_api_key(
             body.ai_own_nvidia_key, settings.ai_encryption_key
+        )
+
+    if body.ai_own_openai_key is not None:
+        if not config.user_can_bring_own_key:
+            raise HTTPException(
+                status_code=403,
+                detail="Bringing your own API keys is not enabled by the administrator",
+            )
+        user.ai_own_openai_key = encrypt_api_key(
+            body.ai_own_openai_key, settings.ai_encryption_key
         )
 
     await db.commit()
