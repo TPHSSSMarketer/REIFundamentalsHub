@@ -37,7 +37,8 @@ export interface EmailTemplatePreview {
 /** Fetch all template types with their current content and status. */
 export async function getEmailTemplates(): Promise<EmailTemplateStatus[]> {
   const res = await fetch(`${BASE_URL}/api/superadmin/email-templates`, {
-    headers: { ...getAuthHeader() },
+    headers: getAuthHeader(),
+    credentials: 'include',
   })
   if (!res.ok) throw new Error(`Failed to fetch templates: ${res.status}`)
   return res.json()
@@ -49,7 +50,10 @@ export async function getEmailTemplate(
 ): Promise<EmailTemplateDetail> {
   const res = await fetch(
     `${BASE_URL}/api/superadmin/email-templates/${templateType}`,
-    { headers: { ...getAuthHeader() } }
+    {
+      headers: getAuthHeader(),
+      credentials: 'include',
+    }
   )
   if (!res.ok) throw new Error(`Failed to fetch template: ${res.status}`)
   return res.json()
@@ -65,6 +69,7 @@ export async function saveEmailTemplate(
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      credentials: 'include',
       body: JSON.stringify(data),
     }
   )
@@ -83,7 +88,8 @@ export async function resetEmailTemplate(
     `${BASE_URL}/api/superadmin/email-templates/${templateType}`,
     {
       method: 'DELETE',
-      headers: { ...getAuthHeader() },
+      headers: getAuthHeader(),
+      credentials: 'include',
     }
   )
   if (!res.ok) throw new Error(`Failed to reset template: ${res.status}`)
@@ -100,6 +106,7 @@ export async function previewEmailTemplate(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      credentials: 'include',
       body: JSON.stringify(data),
     }
   )
@@ -115,7 +122,8 @@ export async function testEmailTemplate(
     `${BASE_URL}/api/superadmin/email-templates/${templateType}/test`,
     {
       method: 'POST',
-      headers: { ...getAuthHeader() },
+      headers: getAuthHeader(),
+      credentials: 'include',
     }
   )
   if (!res.ok) {

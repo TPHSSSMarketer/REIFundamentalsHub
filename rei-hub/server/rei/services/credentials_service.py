@@ -263,9 +263,9 @@ async def test_provider_connection(
         elif provider_name == "anthropic":
             from anthropic import Anthropic
             client = Anthropic(api_key=config["anthropic_api_key"])
-            # Test with a simple, cheap call
+            # Test with the cheapest model to minimize cost
             client.messages.create(
-                model="claude-opus-4-6",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=10,
                 messages=[{"role": "user", "content": "Hi"}],
             )
