@@ -17,7 +17,7 @@ const GoogleIcon = () => (
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { enableDemoMode } = useDemoMode()
+  const { enableDemoMode, disableDemoMode } = useDemoMode()
   const [searchParams] = useSearchParams()
 
   const [email, setEmail] = useState('')
@@ -33,6 +33,7 @@ export default function LoginPage() {
     if (authSuccess === 'true') {
       // Backend set HttpOnly cookies on the Google OAuth redirect.
       // No need to store anything in localStorage — just navigate.
+      disableDemoMode() // Clear demo mode on real login
       navigate('/pipeline', { replace: true })
       return
     }
@@ -59,6 +60,7 @@ export default function LoginPage() {
     const result = await login(email, password)
 
     if (result.success) {
+      disableDemoMode() // Clear demo mode on real login
       navigate('/pipeline')
     } else {
       setError(result.error ?? 'Login failed')

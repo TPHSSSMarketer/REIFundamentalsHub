@@ -47,6 +47,8 @@ export async function logout(): Promise<void> {
     localStorage.removeItem('rei_user_id')
     localStorage.removeItem('rei_user_email')
     localStorage.removeItem('rei_plan')
+    // Clear demo mode so login page starts fresh
+    localStorage.removeItem('rei-hub-demo-mode')
     window.location.href = '/login'
   }
 }
