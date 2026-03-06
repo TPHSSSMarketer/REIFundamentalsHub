@@ -54,6 +54,7 @@ from rei.api.cloud_storage_routes import cloud_storage_router
 from rei.api.flow_builder_routes import flow_builder_router
 from rei.api.webchat_routes import webchat_router, webchat_public_router
 from rei.api.admin_assistant_routes import admin_assistant_router
+from rei.api.underwriting_routes import underwriting_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -392,6 +393,7 @@ app.include_router(flow_builder_router, prefix="/api")
 app.include_router(webchat_router, prefix="/api")
 app.include_router(webchat_public_router)
 app.include_router(admin_assistant_router, prefix="/api")
+app.include_router(underwriting_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 
 

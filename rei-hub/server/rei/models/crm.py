@@ -258,6 +258,9 @@ class CrmDeal(Base):
     # ── Multi-Unit Details (JSON) ──
     unit_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # ── AI Underwriting ──
+    underwriting_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)
+
     # ── Geocoding ──
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

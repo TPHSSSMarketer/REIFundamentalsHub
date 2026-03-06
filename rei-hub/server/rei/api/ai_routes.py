@@ -59,6 +59,7 @@ class UserConfigUpdate(BaseModel):
 
 class TestRequest(BaseModel):
     message: str
+    task_type: Optional[str] = "general"  # Allows testing specific providers via task routing
 
 
 class ChatMessage(BaseModel):
@@ -431,7 +432,7 @@ async def test_ai_provider(
         user_id=workspace_user_id(user),
         db=db,
         settings=settings,
-        task_type="general",
+        task_type=body.task_type or "general",
         max_tokens=1000,
         temperature=0.3,
     )

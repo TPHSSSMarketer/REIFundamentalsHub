@@ -72,25 +72,50 @@ PROVIDER_CONFIGS = {
         ],
         "default_model": "claude-sonnet-4-6",
         "display_name": "Anthropic Claude",
+        "role": "General AI, Voice, Chat & SMS",
     },
     "nvidia_kimi": {
         "base_url": "https://integrate.api.nvidia.com",
-        "models": ["moonshotai/kimi-k2.5-instruct"],
-        "default_model": "moonshotai/kimi-k2.5-instruct",
+        "models": ["moonshotai/kimi-k2.5"],
+        "default_model": "moonshotai/kimi-k2.5",
         "display_name": "NVIDIA Kimi 2.5",
+        "role": "Research & Legal",
     },
     "nvidia_minimax": {
         "base_url": "https://integrate.api.nvidia.com",
-        "models": ["minimax/minimax-text-01"],
-        "default_model": "minimax/minimax-text-01",
-        "display_name": "NVIDIA MiniMax 2.1",
+        "models": ["minimaxai/minimax-m2.5"],
+        "default_model": "minimaxai/minimax-m2.5",
+        "display_name": "NVIDIA MiniMax 2.5",
+        "role": "Fast Summaries",
     },
-    "nvidia_aiq": {
+    "nvidia_nemotron": {
         "base_url": "https://integrate.api.nvidia.com",
         "models": ["nvidia/llama-3.3-nemotron-super-49b-v1"],
         "default_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-        "display_name": "NVIDIA AI-Q",
+        "display_name": "NVIDIA Nemotron (Underwriting)",
+        "role": "AI Underwriting Analysis",
     },
+}
+
+# ── Task-based routing map ─────────────────────────────────────────────────
+# Maps task_type → (provider, model_override)
+# All providers are always active; each is used for its designated purpose.
+
+TASK_ROUTING: dict[str, tuple[str, str | None]] = {
+    # Anthropic Claude — Sonnet for voice, Haiku for chat/sms/webchat
+    "voice":         ("anthropic", "claude-sonnet-4-6"),
+    "sms_draft":     ("anthropic", "claude-haiku-4-5-20251001"),
+    "opener":        ("anthropic", "claude-haiku-4-5-20251001"),
+    "chat":          ("anthropic", "claude-haiku-4-5-20251001"),
+    "webchat":       ("anthropic", "claude-haiku-4-5-20251001"),
+    "general":       ("anthropic", None),  # uses default_model (Sonnet)
+    # NVIDIA Kimi — research & legal
+    "research":      ("nvidia_kimi", None),
+    "legal":         ("nvidia_kimi", None),
+    # NVIDIA MiniMax — fast summaries
+    "summary":       ("nvidia_minimax", None),
+    # NVIDIA Nemotron — underwriting
+    "underwriting":  ("nvidia_nemotron", None),
 }
 
 
@@ -272,18 +297,15 @@ async def _resolve_provider(
 ) -> dict:
     """Resolve which provider, model, and API key to use for a request.
 
+    All providers are always active — routing is determined by task_type.
     Returns dict with: provider, model, api_key, base_url
     """
     global_config = await _get_global_config(db)
 
-    provider = settings.default_ai_provider
-    model = settings.default_ai_model
     anthropic_key = ""
     nvidia_key = ""
 
     if global_config:
-        provider = global_config.active_provider
-        model = global_config.active_model
         if global_config.anthropic_api_key:
             anthropic_key = decrypt_api_key(
                 global_config.anthropic_api_key, settings.ai_encryption_key
@@ -293,16 +315,11 @@ async def _resolve_provider(
                 global_config.nvidia_api_key, settings.ai_encryption_key
             )
 
-    # Check per-user override
+    # Check per-user key overrides
     if user_id and global_config and global_config.allow_user_override:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if user and user.ai_override_enabled:
-            if user.ai_provider_override:
-                provider = user.ai_provider_override
-            if user.ai_model_override:
-                model = user.ai_model_override
-            # User's own keys take priority if set
             if user.ai_own_anthropic_key:
                 anthropic_key = decrypt_api_key(
                     user.ai_own_anthropic_key, settings.ai_encryption_key
@@ -312,32 +329,26 @@ async def _resolve_provider(
                     user.ai_own_nvidia_key, settings.ai_encryption_key
                 )
 
-    # Smart model routing: simple tasks use cheaper/faster models
-    # Only applies when using Anthropic — NVIDIA models don't have a Haiku equivalent
-    _HAIKU_TASKS = {"sms_draft", "opener", "chat"}
-    if task_type in _HAIKU_TASKS and provider == "anthropic":
-        model = "claude-haiku-4-5-20251001"
-
-    # For legal/research tasks, prefer nvidia_aiq if configured
-    if task_type in ("legal", "research") and nvidia_key:
-        provider = "nvidia_aiq"
-        model = PROVIDER_CONFIGS["nvidia_aiq"]["default_model"]
-
-    # Determine the API key and base_url for the resolved provider
-    pconfig = PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["nvidia_kimi"])
+    # ── Task-based routing: pick provider + model by task type ──
+    route = TASK_ROUTING.get(task_type, TASK_ROUTING["general"])
+    provider = route[0]
+    pconfig = PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["anthropic"])
+    model = route[1] or pconfig["default_model"]
     base_url = pconfig["base_url"]
 
+    # Determine API key for the routed provider
     if provider == "anthropic":
         api_key = anthropic_key
     else:
         api_key = nvidia_key
 
-    # Fallback chain: nvidia_kimi → nvidia_minimax → anthropic (last resort)
+    # Fallback chain if the designated provider has no key configured
     if not api_key:
         fallback_chain = [
+            ("anthropic", anthropic_key),
             ("nvidia_kimi", nvidia_key),
             ("nvidia_minimax", nvidia_key),
-            ("anthropic", anthropic_key),
+            ("nvidia_nemotron", nvidia_key),
         ]
         for fb_provider, fb_key in fallback_chain:
             if fb_key and fb_provider != provider:
@@ -610,7 +621,7 @@ Return ONLY the JSON object, nothing else."""
     try:
         result = await _call_nvidia(
             messages=[{"role": "user", "content": extraction_prompt}],
-            model="moonshotai/kimi-k2.5-instruct",
+            model="moonshotai/kimi-k2.5",
             api_key=nvidia_key,
             base_url="https://integrate.api.nvidia.com",
             max_tokens=500,
@@ -686,7 +697,7 @@ Return ONLY the JSON object, nothing else."""
     try:
         result = await _call_nvidia(
             messages=[{"role": "user", "content": extraction_prompt}],
-            model="moonshotai/kimi-k2.5-instruct",
+            model="moonshotai/kimi-k2.5",
             api_key=nvidia_key,
             base_url="https://integrate.api.nvidia.com",
             max_tokens=500,

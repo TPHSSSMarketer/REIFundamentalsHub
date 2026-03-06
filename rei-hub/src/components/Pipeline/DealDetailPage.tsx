@@ -38,6 +38,7 @@ import {
   ChevronRight,
   RefreshCw,
   Building2,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
@@ -50,6 +51,7 @@ import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
 import DealExpenditures from './DealExpenditures'
+import AIUnderwriting from './AIUnderwriting'
 import PropertyMap from '@/components/Map/PropertyMap'
 import type { Deal, DealFile, DealBuyerMatch } from '@/types'
 
@@ -134,6 +136,7 @@ const TABS = [
   { id: 'matches', label: 'Matched Buyers', icon: Users },
   { id: 'checklist', label: 'Contracts & Checklist', icon: ClipboardList },
   { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
+  { id: 'underwriting', label: 'AI Underwriting', icon: Sparkles },
   { id: 'pof', label: 'Proof of Funds', icon: Shield },
   { id: 'notes', label: 'Notes', icon: StickyNote },
 ] as const
@@ -1978,7 +1981,19 @@ export default function DealDetailPage() {
                 />
               )}
 
-              {/* (Old Documents tab removed — replaced by Files tab above) */}
+              {/* ── AI Underwriting Tab ────────────────── */}
+              {activeTab === 'underwriting' && dealId && (
+                <AIUnderwriting
+                  dealId={dealId}
+                  dealData={{
+                    address: deal.address,
+                    city: deal.city,
+                    state: deal.state,
+                    purchase_price: deal.purchasePrice,
+                    arv: deal.arv,
+                  }}
+                />
+              )}
 
               {/* ── Proof of Funds Tab ────────────────── */}
               {activeTab === 'pof' && (

@@ -166,6 +166,8 @@ _COLUMN_MIGRATIONS = [
     # Team / seat management
     ("users", "seats_used", "INTEGER DEFAULT 1"),
     ("users", "owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+    # AI Underwriting
+    ("crm_deals", "underwriting_data", "TEXT"),
 ]
 
 

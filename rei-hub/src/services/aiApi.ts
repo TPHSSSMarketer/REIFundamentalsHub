@@ -162,13 +162,13 @@ export async function updateAiConfig(data: {
   )
 }
 
-export async function testAiProvider(message: string): Promise<AiTestResponse> {
+export async function testAiProvider(message: string, taskType: string = 'general'): Promise<AiTestResponse> {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/ai/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, task_type: taskType }),
         credentials: 'include',
       }).then((res) => handleResponse<AiTestResponse>(res)),
     DEMO_AI_TEST_RESPONSE
