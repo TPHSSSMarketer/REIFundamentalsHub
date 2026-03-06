@@ -95,8 +95,13 @@ PROVIDER_CONFIGS = {
         "display_name": "MiniMax 2.5",
         "role": "Fast Summaries",
     },
-    # NOTE: nvidia_nemotron removed — the 49B model consistently times out
-    # on NVIDIA's NIM API. Underwriting tasks now route to Kimi 2.5 instead.
+    "nvidia_deepseek_r1": {
+        "base_url": "https://integrate.api.nvidia.com",
+        "models": ["deepseek-ai/deepseek-r1"],
+        "default_model": "deepseek-ai/deepseek-r1",
+        "display_name": "DeepSeek R1",
+        "role": "Math Validation",
+    },
 }
 
 # ── Task-based routing map ─────────────────────────────────────────────────
@@ -118,6 +123,8 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "summary":       ("nvidia_minimax", None),
     # Underwriting — Kimi K2 Thinking (step-by-step reasoning for deal analysis)
     "underwriting":  ("nvidia_kimi_thinking", None),
+    # Math validation — DeepSeek R1 (independent recalculation of deal numbers)
+    "math_validation": ("nvidia_deepseek_r1", None),
 }
 
 
@@ -404,6 +411,7 @@ async def _resolve_provider(
             ("anthropic", anthropic_key),
             ("nvidia_kimi", nvidia_key),
             ("nvidia_kimi_thinking", nvidia_key),
+            ("nvidia_deepseek_r1", nvidia_key),
             ("nvidia_minimax", nvidia_key),
         ]
         for fb_provider, fb_key in fallback_chain:

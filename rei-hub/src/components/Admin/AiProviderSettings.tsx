@@ -50,6 +50,17 @@ const PROVIDERS = [
     description: 'Step-by-step reasoning for deal underwriting and financial analysis',
   },
   {
+    id: 'nvidia_deepseek_r1',
+    name: 'DeepSeek R1',
+    icon: 'D',
+    iconBg: 'bg-red-100',
+    iconColor: 'text-red-700',
+    models: ['deepseek-ai/deepseek-r1'],
+    keyField: 'nvidia' as const,
+    role: 'Math Validation',
+    description: 'Independent math verification for underwriting calculations',
+  },
+  {
     id: 'nvidia_minimax',
     name: 'MiniMax 2.5',
     icon: 'M',
@@ -67,6 +78,7 @@ const PROVIDER_FRIENDLY_NAME: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   nvidia_kimi: 'Kimi 2.5',
   nvidia_kimi_thinking: 'Kimi K2 Thinking',
+  nvidia_deepseek_r1: 'DeepSeek R1',
   nvidia_minimax: 'MiniMax 2.5',
 }
 
@@ -272,6 +284,7 @@ export default function AiProviderSettings() {
             { label: 'Kimi 2.5', task: 'research', color: 'bg-green-100 text-green-700 hover:bg-green-200' },
             { label: 'MiniMax 2.5', task: 'summary', color: 'bg-green-50 text-green-600 hover:bg-green-100' },
             { label: 'K2 Thinking (Underwriting)', task: 'underwriting', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+            { label: 'DeepSeek R1 (Math)', task: 'math_validation', color: 'bg-red-100 text-red-700 hover:bg-red-200' },
           ] as const).map((t) => (
             <button
               key={t.task}

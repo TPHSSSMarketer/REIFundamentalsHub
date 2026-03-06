@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Loader2, Sparkles, AlertTriangle, CheckCircle2, XCircle, RefreshCw, TrendingUp, Shield, FileText } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle, CheckCircle2, XCircle, RefreshCw, TrendingUp, Shield, FileText, Calculator, Info, Download } from 'lucide-react'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/helpers'
@@ -30,6 +30,25 @@ interface CompAnalysis {
   relevance: string
 }
 
+interface MathCheck {
+  metric: string
+  calculated_value: number | null
+  reported_value: number | null
+  status: 'pass' | 'fail' | 'warning' | 'skipped'
+  note: string
+}
+
+interface MathValidation {
+  validated: boolean | null
+  confidence?: string
+  checks: MathCheck[]
+  discrepancies: string[]
+  summary: string
+  validator_provider?: string
+  validator_model?: string
+  validator_tokens?: number
+}
+
 interface UnderwritingResult {
   has_analysis?: boolean
   score: number
@@ -46,6 +65,9 @@ interface UnderwritingResult {
   model: string
   tokens_used: number
   attom_available: boolean
+  math_validation?: MathValidation
+  pdf_file_id?: string
+  pdf_file_name?: string
 }
 
 // ── Score ring ─────────────────────────────────────────────────
@@ -103,6 +125,135 @@ function SeverityIcon({ severity }: { severity: string }) {
   if (severity === 'high') return <XCircle className="w-4 h-4 text-red-500 shrink-0" />
   if (severity === 'medium') return <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
   return <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+}
+
+// ── Check status icon ──────────────────────────────────────────
+
+function CheckStatusIcon({ status }: { status: string }) {
+  if (status === 'pass') return <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+  if (status === 'fail') return <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+  if (status === 'warning') return <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+  return <div className="w-4 h-4 rounded-full bg-slate-200 shrink-0" /> // skipped
+}
+
+// ── Math Validation Section ────────────────────────────────────
+
+function MathValidationCard({ validation }: { validation: MathValidation }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const isValidated = validation.validated === true
+  const hasFails = validation.checks.some(c => c.status === 'fail')
+  const hasWarnings = validation.checks.some(c => c.status === 'warning')
+  const passCount = validation.checks.filter(c => c.status === 'pass').length
+  const totalChecks = validation.checks.filter(c => c.status !== 'skipped').length
+
+  // Determine banner style
+  let bannerBg = 'bg-slate-50 border-slate-200'
+  let bannerIcon = <Calculator className="w-5 h-5 text-slate-400" />
+  let bannerText = 'Math Validation Unavailable'
+  let bannerSubtext = validation.summary || ''
+
+  if (validation.validated === null) {
+    // Validation didn't run or errored
+    bannerBg = 'bg-slate-50 border-slate-200'
+    bannerIcon = <Calculator className="w-5 h-5 text-slate-400" />
+    bannerText = 'Math Validation Unavailable'
+  } else if (isValidated && !hasFails) {
+    bannerBg = 'bg-green-50 border-green-200'
+    bannerIcon = <CheckCircle2 className="w-5 h-5 text-green-600" />
+    bannerText = 'Math Verified'
+    bannerSubtext = `${passCount}/${totalChecks} calculations verified independently`
+  } else if (hasFails) {
+    bannerBg = 'bg-red-50 border-red-200'
+    bannerIcon = <XCircle className="w-5 h-5 text-red-500" />
+    bannerText = 'Math Discrepancies Found'
+    bannerSubtext = `${validation.discrepancies.length} issue${validation.discrepancies.length !== 1 ? 's' : ''} found — review below`
+  } else if (hasWarnings) {
+    bannerBg = 'bg-amber-50 border-amber-200'
+    bannerIcon = <AlertTriangle className="w-5 h-5 text-amber-500" />
+    bannerText = 'Minor Discrepancies'
+    bannerSubtext = validation.summary || 'Some values differ slightly'
+  }
+
+  return (
+    <div className={`rounded-xl border ${bannerBg} overflow-hidden`}>
+      {/* Banner */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-4 text-left hover:opacity-90 transition-opacity"
+      >
+        {bannerIcon}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-800">{bannerText}</p>
+          <p className="text-xs text-slate-600 mt-0.5 truncate">{bannerSubtext}</p>
+        </div>
+        <span className="text-xs text-slate-400">{expanded ? 'Hide' : 'Details'}</span>
+      </button>
+
+      {/* Expandable detail */}
+      {expanded && (
+        <div className="border-t border-slate-200 p-4 space-y-3">
+          {/* Individual checks */}
+          {validation.checks.length > 0 && (
+            <div className="space-y-2">
+              {validation.checks.map((check, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 bg-white rounded-lg">
+                  <CheckStatusIcon status={check.status} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-800">{check.metric}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{check.note}</p>
+                    {check.calculated_value != null && check.reported_value != null && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Calculated: {typeof check.calculated_value === 'number' ? check.calculated_value.toLocaleString() : check.calculated_value}
+                        {' · '}Reported: {typeof check.reported_value === 'number' ? check.reported_value.toLocaleString() : check.reported_value}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Discrepancies */}
+          {validation.discrepancies.length > 0 && (
+            <div className="bg-red-50 rounded-lg p-3">
+              <p className="text-xs font-semibold text-red-700 mb-1">Discrepancies:</p>
+              {validation.discrepancies.map((d, i) => (
+                <p key={i} className="text-xs text-red-600 mt-1">• {d}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Validator info */}
+          {validation.validator_model && (
+            <p className="text-[10px] text-slate-400 text-right">
+              Validated by {validation.validator_model}
+              {validation.validator_tokens ? ` · ${validation.validator_tokens} tokens` : ''}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── AI Disclaimer ──────────────────────────────────────────────
+
+function AiDisclaimer() {
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
+      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+      <div>
+        <p className="text-xs font-semibold text-amber-800">AI-Generated Analysis — Not Financial Advice</p>
+        <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+          This underwriting report is generated by artificial intelligence and is provided for informational purposes only.
+          It does not constitute financial, legal, or investment advice. All data, calculations, and recommendations should
+          be independently verified by the investor before making any investment decisions. The investor assumes full
+          responsibility for due diligence and any actions taken based on this report.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 // ── Main Component ─────────────────────────────────────────────
@@ -174,7 +325,7 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
           <Sparkles className="w-12 h-12 text-purple-500 mx-auto mb-4" />
           <h3 className="text-lg font-bold text-slate-800 mb-2">AI Underwriting Analysis</h3>
           <p className="text-sm text-slate-600 mb-1 max-w-md mx-auto">
-            Get a comprehensive deal score, risk assessment, comp analysis, and investment memo — powered by NVIDIA Nemotron AI.
+            Get a comprehensive deal score, risk assessment, comp analysis, and investment memo — with independent math verification.
           </p>
           {dealData?.address && (
             <p className="text-xs text-slate-500 mb-4">
@@ -189,7 +340,7 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
             {running ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Analyzing Deal (10-15 sec)...
+                Analyzing Deal (20-30 sec)...
               </>
             ) : (
               <>
@@ -199,6 +350,7 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
             )}
           </button>
         </div>
+        <AiDisclaimer />
       </div>
     )
   }
@@ -216,19 +368,45 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
           {analysis.analyzed_at && (
             <p className="text-xs text-slate-500 mt-0.5">
               Last analyzed: {new Date(analysis.analyzed_at).toLocaleString()}
-              {' · '}{analysis.provider}/{analysis.model}
               {analysis.attom_available && ' · ATTOM data included'}
             </p>
           )}
         </div>
-        <button
-          onClick={runAnalysis}
-          disabled={running}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 disabled:opacity-50 transition-colors"
-        >
-          {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Re-analyze
-        </button>
+        <div className="flex items-center gap-2">
+          {analysis.pdf_file_id && (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(
+                    `${BASE_URL}/api/crm/deals/${dealId}/files/${analysis.pdf_file_id}`,
+                    { headers: getAuthHeader(), credentials: 'include' }
+                  )
+                  if (!res.ok) throw new Error('Failed to fetch PDF')
+                  const data = await res.json()
+                  const link = document.createElement('a')
+                  link.href = `data:application/pdf;base64,${data.file_content}`
+                  link.download = analysis.pdf_file_name || 'Underwriting_Report.pdf'
+                  link.click()
+                  toast.success('PDF downloaded')
+                } catch {
+                  toast.error('Failed to download PDF')
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              PDF Report
+            </button>
+          )}
+          <button
+            onClick={runAnalysis}
+            disabled={running}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 disabled:opacity-50 transition-colors"
+          >
+            {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Re-analyze
+          </button>
+        </div>
       </div>
 
       {/* Score + Rating + Recommendation */}
@@ -254,6 +432,11 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
           </div>
         </div>
       </div>
+
+      {/* Math Validation */}
+      {analysis.math_validation && (
+        <MathValidationCard validation={analysis.math_validation} />
+      )}
 
       {/* Risk Flags */}
       {analysis.risk_flags && analysis.risk_flags.length > 0 && (
@@ -344,6 +527,9 @@ export default function AIUnderwriting({ dealId, dealData }: AIUnderwritingProps
             : 'ATTOM data not available — analysis based on CRM data only. Configure ATTOM API key in Admin > Credentials for enhanced analysis.'}
         </p>
       </div>
+
+      {/* AI Disclaimer */}
+      <AiDisclaimer />
     </div>
   )
 }

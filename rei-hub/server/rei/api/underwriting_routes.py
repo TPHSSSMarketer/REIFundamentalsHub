@@ -1,4 +1,4 @@
-"""AI Underwriting Routes — deep deal analysis powered by NVIDIA Nemotron + ATTOM data."""
+"""AI Underwriting Routes — deep deal analysis powered by Kimi K2 Thinking + DeepSeek R1 math validation."""
 
 from __future__ import annotations
 
@@ -10,12 +10,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import base64
+import uuid
+
 from rei.api.deps import get_current_user, get_db
 from rei.config import get_settings, Settings
-from rei.models.crm import CrmDeal
+from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import User
 from rei.services.ai_service import ai_complete
 from rei.services.attom_property_service import lookup_property_data
+from rei.services.underwriting_pdf import generate_underwriting_pdf, underwriting_pdf_filename
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +158,78 @@ Return ONLY the JSON object, no markdown formatting or extra text."""
     return prompt
 
 
+def _build_validation_prompt(deal_data: dict, analysis: dict) -> str:
+    """Build the prompt for DeepSeek R1 to validate the underwriting math."""
+    # Extract the key financial numbers from the deal
+    numbers = {}
+    financial_fields = [
+        "list_price", "offer_price", "purchase_price", "arv", "as_is_value",
+        "rehab_estimate", "rehab_actual", "loan_amount", "interest_rate",
+        "loan_term_months", "monthly_mortgage_pi", "down_payment",
+        "monthly_rent", "other_monthly_income", "property_tax_annual",
+        "insurance_annual", "property_mgmt_percent", "vacancy_percent",
+        "maintenance_percent", "hoa_monthly", "utilities_monthly",
+        "all_in_cost", "monthly_cash_flow", "cap_rate", "cash_on_cash",
+        "roi_percent", "mortgage_balance",
+    ]
+    for field in financial_fields:
+        val = deal_data.get(field)
+        if val is not None and val != "":
+            numbers[field] = val
+
+    prompt = f"""You are a real estate math validation engine. Your ONLY job is to independently verify the financial calculations in an underwriting report.
+
+DEAL FINANCIAL DATA (raw numbers from the CRM):
+{json.dumps(numbers, indent=2)}
+
+UNDERWRITING REPORT TO VALIDATE (produced by another AI model):
+- Score: {analysis.get('score', 'N/A')}
+- Rating: {analysis.get('rating', 'N/A')}
+- Recommended Offer: {analysis.get('recommended_offer', 'N/A')}
+- Max Allowable Offer: {analysis.get('max_allowable_offer', 'N/A')}
+
+INSTRUCTIONS:
+Using the raw deal numbers above, independently recalculate the following metrics. Then compare your calculations to the underwriting report's conclusions.
+
+Calculations to verify:
+1. Monthly Cash Flow = Monthly Rent + Other Income - Mortgage PI - (Property Tax / 12) - (Insurance / 12) - HOA - Utilities - (Rent × Management%) - (Rent × Vacancy%) - (Rent × Maintenance%)
+2. Cap Rate = (Annual Net Operating Income / Purchase Price) × 100
+3. Cash-on-Cash Return = (Annual Cash Flow / Total Cash Invested) × 100
+4. ROI = ((Total Annual Return) / Total Investment) × 100
+5. 70% Rule Max Offer = (ARV × 0.70) - Rehab Estimate
+6. All-In Cost = Purchase Price + Rehab Estimate + Closing Costs (estimate 3%)
+
+For each calculation:
+- Show your work step by step
+- State your calculated result
+- Compare to the CRM value or underwriting report value
+- Flag any discrepancy greater than 5%
+
+Return your response as a JSON object with EXACTLY this structure:
+{{
+    "validated": <true if all major calculations check out, false if significant errors found>,
+    "confidence": "<high|medium|low>",
+    "checks": [
+        {{
+            "metric": "<name of metric>",
+            "calculated_value": <your independently calculated number or null if insufficient data>,
+            "reported_value": <the value from CRM or underwriting report>,
+            "status": "<pass|fail|warning|skipped>",
+            "note": "<brief explanation, show your math>"
+        }}
+    ],
+    "discrepancies": [
+        "<plain English description of any significant math errors found>"
+    ],
+    "summary": "<1-2 sentence overall assessment of the math accuracy>"
+}}
+
+If data is missing for a calculation, mark it as "skipped" with a note explaining what's missing.
+Return ONLY the JSON object, no markdown formatting or extra text."""
+
+    return prompt
+
+
 @underwriting_router.post("/{deal_id}/analyze")
 async def analyze_deal(
     deal_id: str,
@@ -226,8 +302,141 @@ async def analyze_deal(
     analysis["tokens_used"] = ai_result.get("tokens_used", 0)
     analysis["attom_available"] = bool(attom_data)
 
-    # Save to deal
+    # ── Phase 2: DeepSeek R1 Math Validation ──────────────────────────────
+    # Run a second AI call to independently verify the financial calculations.
+    # This is a safety net — if validation fails, we still return the analysis.
+    try:
+        validation_prompt = _build_validation_prompt(deal_data, analysis)
+        validation_messages = [{"role": "user", "content": validation_prompt}]
+
+        validation_result = await ai_complete(
+            messages=validation_messages,
+            user_id=user.id,
+            db=db,
+            settings=settings,
+            task_type="math_validation",
+            max_tokens=3000,
+            temperature=0.1,  # Very low — we want deterministic math
+        )
+
+        validation_text = validation_result.get("content", "")
+
+        # Clean up markdown formatting if present
+        if "```json" in validation_text:
+            validation_text = validation_text.split("```json")[1].split("```")[0]
+        elif "```" in validation_text:
+            validation_text = validation_text.split("```")[1].split("```")[0]
+
+        validation = json.loads(validation_text.strip())
+
+        # Add validation metadata
+        validation["validator_provider"] = validation_result.get("provider", "")
+        validation["validator_model"] = validation_result.get("model", "")
+        validation["validator_tokens"] = validation_result.get("tokens_used", 0)
+
+        analysis["math_validation"] = validation
+        analysis["tokens_used"] = (
+            analysis.get("tokens_used", 0) + validation_result.get("tokens_used", 0)
+        )
+
+        logger.info(
+            "Math validation complete for deal %s: validated=%s, checks=%d",
+            deal_id,
+            validation.get("validated"),
+            len(validation.get("checks", [])),
+        )
+
+    except json.JSONDecodeError:
+        logger.warning("Math validation returned invalid JSON for deal %s", deal_id)
+        analysis["math_validation"] = {
+            "validated": None,
+            "summary": "Validation returned an invalid response. Underwriting analysis is still valid.",
+            "checks": [],
+            "discrepancies": [],
+        }
+    except Exception as exc:
+        logger.warning("Math validation failed for deal %s: %s", deal_id, exc)
+        analysis["math_validation"] = {
+            "validated": None,
+            "summary": f"Validation unavailable: {str(exc)[:100]}",
+            "checks": [],
+            "discrepancies": [],
+        }
+
+    # Save analysis to deal
     deal.underwriting_data = json.dumps(analysis)
+
+    # ── Generate PDF report and save to deal files ────────────────────────
+    try:
+        # Fetch deal photos for the report (front photo first, then up to 5 more)
+        photos_result = await db.execute(
+            select(DealFile).where(
+                DealFile.deal_id == deal_id,
+                DealFile.user_id == user.id,
+                DealFile.file_type == "photo",
+            )
+        )
+        all_photos = photos_result.scalars().all()
+
+        # Sort: "front" category first, then by creation date
+        sorted_photos = sorted(
+            all_photos,
+            key=lambda p: (0 if p.category == "front" else 1, p.created_at or datetime.min),
+        )
+        photo_dicts = [
+            {"file_content": p.file_content, "category": p.category}
+            for p in sorted_photos[:6]
+        ]
+
+        # Generate the PDF
+        pdf_bytes = generate_underwriting_pdf(
+            analysis=analysis,
+            deal_data=deal_data,
+            deal_title=deal.title or "",
+            deal_photos=photo_dicts if photo_dicts else None,
+        )
+
+        # Save PDF as a deal file
+        pdf_filename = underwriting_pdf_filename(deal_data)
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        # Remove any existing underwriting PDF to avoid duplicates
+        existing_pdfs = await db.execute(
+            select(DealFile).where(
+                DealFile.deal_id == deal_id,
+                DealFile.user_id == user.id,
+                DealFile.category == "underwriting_report",
+            )
+        )
+        for old_pdf in existing_pdfs.scalars().all():
+            await db.delete(old_pdf)
+
+        new_file = DealFile(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            deal_id=deal_id,
+            file_type="document",
+            category="underwriting_report",
+            file_name=pdf_filename,
+            mime_type="application/pdf",
+            file_size=len(pdf_bytes),
+            file_content=pdf_b64,
+            notes="AI-generated underwriting report",
+            transaction_phase="buying",
+        )
+        db.add(new_file)
+
+        analysis["pdf_file_id"] = new_file.id
+        analysis["pdf_file_name"] = pdf_filename
+        # Update the stored JSON with PDF reference
+        deal.underwriting_data = json.dumps(analysis)
+
+        logger.info("Generated underwriting PDF for deal %s: %s (%d bytes)", deal_id, pdf_filename, len(pdf_bytes))
+
+    except Exception as exc:
+        logger.warning("Failed to generate underwriting PDF for deal %s: %s", deal_id, exc)
+        # Don't fail the whole request — the analysis is still valid
+
     await db.commit()
 
     return analysis
