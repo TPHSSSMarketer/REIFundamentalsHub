@@ -205,43 +205,9 @@ class CrmDeal(Base):
     previous_offer_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # ── Homeowner Financials ──
-    mortgage_balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    mortgage_balance_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_mortgage_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    taxes_insurance_included: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    monthly_tax_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_insurance_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    interest_rate_1st: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    interest_rate_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    loan_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    prepayment_penalty: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    mortgage_company_1st: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    mortgage_company_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    payments_current: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    months_behind: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    amount_behind: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Liens are now stored in the DealLien model (dynamic, unlimited).
+    # Only keeping back_taxes as a deal-level field since it's not a lien.
     back_taxes: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    other_liens: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    other_lien_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-
-    # ── Lender 2 per-lender fields ──
-    monthly_payment_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
-    loan_type_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    prepayment_penalty_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    payments_current_2nd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    months_behind_2nd: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
-    amount_behind_2nd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
-
-    # ── Lender 3 (3rd Lien) ──
-    mortgage_balance_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
-    monthly_payment_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
-    interest_rate_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
-    loan_type_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    prepayment_penalty_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    mortgage_company_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    payments_current_3rd: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    months_behind_3rd: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
-    amount_behind_3rd: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
 
     # ── Foreclosure Details ──
     foreclosure_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -362,6 +328,9 @@ class DealFile(Base):
     analysis_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # pending/completed/failed
     # AI Photo Analysis — per-photo condition assessment
     photo_analysis_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Admin-only visibility flag — negotiation docs hidden from regular users
+    admin_only: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

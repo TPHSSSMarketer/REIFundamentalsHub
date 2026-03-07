@@ -163,7 +163,7 @@ export default function Sidebar() {
               )}
               {showBankNegotiation && (
                 <NavLink
-                  to="/bank-negotiation"
+                  to="/negotiations"
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-3 px-3 py-3 rounded-lg transition-colors min-h-[44px]',
@@ -174,7 +174,7 @@ export default function Sidebar() {
                   }
                 >
                   <Scale className="w-5 h-5 shrink-0" />
-                  <span className="font-medium">Bank Negotiation</span>
+                  <span className="font-medium">Negotiations</span>
                 </NavLink>
               )}
               {isAdmin && (
@@ -317,7 +317,7 @@ export default function Sidebar() {
 
           {showBankNegotiation && (
             <NavLink
-              to="/bank-negotiation"
+              to="/negotiations"
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
@@ -329,7 +329,7 @@ export default function Sidebar() {
             >
               <Scale className="w-5 h-5 shrink-0" />
               {!isSidebarCollapsed && (
-                <span className="font-medium">Bank Negotiation</span>
+                <span className="font-medium">Negotiations</span>
               )}
             </NavLink>
           )}

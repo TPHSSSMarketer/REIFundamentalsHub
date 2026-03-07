@@ -21,7 +21,6 @@ import SuperAdminCredentials from './SuperAdminCredentials'
 import EmailTemplateEditor from './EmailTemplateEditor'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
-import { enableBankNegotiation } from '@/services/bankNegotiationApi'
 import { getAuthHeader, getCurrentUser } from '@/services/auth'
 import { useDemoMode } from '@/hooks/useDemoMode'
 
@@ -449,7 +448,7 @@ export default function AdminPage() {
 
   async function handleEnableBankNegotiation(userId: number) {
     try {
-      await enableBankNegotiation(String(userId))
+      await adjustPlan(String(userId), { bank_negotiation_enabled: true })
       setToast('Bank negotiation enabled')
       fetchBankNegUsers()
     } catch {

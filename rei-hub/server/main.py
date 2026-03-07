@@ -21,7 +21,11 @@ from rei.api.content_hub_routes import content_hub_router
 from rei.api.analytics_routes import router as analytics_router
 from rei.api.audit_routes import audit_router
 from rei.api.auth_routes import auth_router
-from rei.api.bank_negotiation_routes import router as bank_negotiation_router
+from rei.api.deal_liens_routes import deal_liens_router
+from rei.api.negotiation_requests_routes import negotiation_requests_router
+from rei.api.negotiation_cases_routes import negotiation_cases_router
+from rei.api.negotiation_activity_routes import negotiation_activity_router
+from rei.api.negotiation_messages_routes import negotiation_messages_router
 from rei.api.billing_routes import billing_router
 from rei.api.calendar_routes import calendar_router
 from rei.api.contacts_routes import contacts_router
@@ -373,7 +377,11 @@ app.include_router(voice_ai_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
 app.include_router(loan_properties_router)
 app.include_router(loan_payments_router)
-app.include_router(bank_negotiation_router)
+app.include_router(deal_liens_router)
+app.include_router(negotiation_requests_router)
+app.include_router(negotiation_cases_router)
+app.include_router(negotiation_activity_router)
+app.include_router(negotiation_messages_router)
 app.include_router(analytics_router)
 app.include_router(payment_portal_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")

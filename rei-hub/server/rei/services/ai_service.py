@@ -121,6 +121,7 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "legal":         ("nvidia_kimi", None),
     # NVIDIA MiniMax — fast summaries
     "summary":       ("nvidia_minimax", None),
+    "negotiation_summary": ("nvidia_minimax", None),
     # Underwriting — Kimi K2 Thinking (step-by-step reasoning for deal analysis)
     "underwriting":  ("nvidia_kimi_thinking", None),
     # Math validation — DeepSeek R1 (independent recalculation of deal numbers)

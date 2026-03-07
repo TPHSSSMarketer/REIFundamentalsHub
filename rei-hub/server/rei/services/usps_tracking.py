@@ -453,6 +453,113 @@ def _extract_signed_by(summary: str) -> Optional[str]:
     return None
 
 
+async def update_activity_tracking(
+    async_db,
+    settings,
+) -> None:
+    """Update USPS tracking for all non-final negotiation activity records.
+
+    Similar to update_correspondence_tracking but works with NegotiationActivity
+    records instead of NegotiationCorrespondence.
+
+    Filters:
+    - Only records with usps_tracking_number set
+    - Skip records where tracking_status in final states (delivered, returned)
+    - Calls track_package() for each and updates tracking fields
+    - If delivered, triggers notify_tracking_update (TODO)
+    """
+    from sqlalchemy import select, and_
+    from rei.models.negotiation import NegotiationActivity
+
+    # Find activity records needing tracking update
+    result = await async_db.execute(
+        select(NegotiationActivity).where(
+            and_(
+                NegotiationActivity.usps_tracking_number.isnot(None),
+                NegotiationActivity.tracking_status.notin_(
+                    ["delivered", "returned"]
+                ),
+            )
+        )
+    )
+    pending = result.scalars().all()
+
+    if not pending:
+        logger.debug("No pending activity tracking records to update")
+        return
+
+    logger.info("Processing %d pending activity tracking records", len(pending))
+
+    # Resolve credentials from DB (SuperAdmin) or env vars
+    client_id, client_secret, base_url = await get_usps_credentials(
+        async_db=async_db, settings=settings,
+    )
+
+    if not client_id or not client_secret:
+        logger.error("USPS credentials not configured. Set them in SuperAdmin → Credentials → USPS.")
+        return
+
+    for activity in pending:
+        try:
+            result = await track_package(
+                activity.usps_tracking_number,
+                client_id,
+                client_secret,
+                base_url,
+            )
+
+            old_status = activity.tracking_status
+            activity.tracking_status = result.get("status")
+            activity.usps_last_checked = datetime.utcnow()
+            activity.usps_raw_response = json.dumps(result)
+
+            if result.get("delivered"):
+                activity.usps_delivered_date = result.get("delivered_date")
+                activity.usps_signed_by = result.get("signed_by")
+                activity.tracking_status = "delivered"
+
+                # TODO: Notify user that tracking status changed to delivered
+                # await notify_tracking_update(
+                #     case_id=activity.case_id,
+                #     tracking_status="delivered",
+                #     user_email=...,  # Need to fetch user email
+                #     settings=settings,
+                # )
+
+            if result.get("status") == "returned":
+                activity.tracking_status = "returned"
+
+                # TODO: Notify user that package was returned
+                # await notify_tracking_update(
+                #     case_id=activity.case_id,
+                #     tracking_status="returned",
+                #     user_email=...,
+                #     settings=settings,
+                # )
+
+            await async_db.commit()
+
+            if old_status != activity.tracking_status:
+                logger.info(
+                    "Activity %s tracking updated: %s → %s",
+                    activity.id[:8],
+                    old_status,
+                    activity.tracking_status,
+                )
+
+            # Small delay to avoid rate limits
+            import asyncio
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            logger.error(
+                "Tracking update failed for activity %s: %s",
+                activity.id[:8],
+                e,
+            )
+            continue
+
+
 def _parse_usps_datetime(
     date_str: str, time_str: str = ""
 ) -> Optional[datetime]:

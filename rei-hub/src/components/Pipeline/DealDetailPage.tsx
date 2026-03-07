@@ -44,7 +44,8 @@ import { toast } from 'sonner'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
 import { getAuthHeader } from '@/services/auth'
-import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
+import DealLienManager from './DealLienManager'
+import DealNegotiationsTab from './DealNegotiationsTab'
 import { getTemplates, generateContractFromDeal } from '@/services/documentsApi'
 import { createPortfolioProperty } from '@/services/crmApi'
 import { analyzeDocument, analyzePropertyPhotos, type DocumentAnalysis, type PhotoAnalysisResult } from '@/services/aiApi'
@@ -141,6 +142,7 @@ const TABS = [
   { id: 'underwriting', label: 'AI Underwriting', icon: Sparkles },
   { id: 'pof', label: 'Proof of Funds', icon: Shield },
   { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'negotiations', label: 'Negotiations', icon: HeartHandshake },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -200,10 +202,6 @@ export default function DealDetailPage() {
   const [addingToPortfolio, setAddingToPortfolio] = useState(false)
   const [addedToPortfolio, setAddedToPortfolio] = useState(false)
 
-  // Bank Negotiations
-  const [lenderData, setLenderData] = useState<any>(null)
-  const [lenderLoading, setLenderLoading] = useState(false)
-  const [lendersExpanded, setLendersExpanded] = useState(false)
 
   // Get pipeline stages for stage selector
   const stages = useMemo(() => {
@@ -275,15 +273,6 @@ export default function DealDetailPage() {
     loadMatches()
   }, [loadMatches])
 
-  // Fetch bank negotiation lender data for this deal's property
-  useEffect(() => {
-    if (!deal?.address) return
-    setLenderLoading(true)
-    getNegotiationsForDeal(deal.address)
-      .then((data) => setLenderData(data))
-      .catch(() => setLenderData(null))
-      .finally(() => setLenderLoading(false))
-  }, [deal?.address])
 
   // Load document templates when Documents tab is opened
   useEffect(() => {
@@ -1024,244 +1013,9 @@ export default function DealDetailPage() {
             </div>
           )}
 
-          {/* Homeowner Financials */}
-          {(deal.mortgageCompany1st || deal.mortgageBalance != null || deal.monthlyMortgagePayment != null ||
-            deal.mortgageCompany2nd || deal.mortgageBalance2nd != null ||
-            deal.mortgageCompany3rd || deal.mortgageBalance3rd != null ||
-            deal.taxesInsuranceIncluded || deal.monthlyTaxAmount != null || deal.monthlyInsuranceAmount != null ||
-            deal.backTaxes != null || deal.otherLiens || deal.otherLienAmount != null) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" />
-                Homeowner Financials
-              </h3>
-              <div className="space-y-4">
-                {/* Lender 1 */}
-                {(deal.mortgageCompany1st || deal.mortgageBalance != null || deal.monthlyMortgagePayment != null) && (
-                  <div>
-                    <p className="text-xs font-semibold text-primary-600 uppercase mb-2">1st Mortgage</p>
-                    <div className="space-y-2 pl-3 border-l-2 border-primary-200">
-                      {deal.mortgageCompany1st && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Lender</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany1st}</span>
-                        </div>
-                      )}
-                      {deal.mortgageBalance != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Balance</span>
-                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance)}</span>
-                        </div>
-                      )}
-                      {deal.monthlyMortgagePayment != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Monthly Payment</span>
-                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyMortgagePayment)}</span>
-                        </div>
-                      )}
-                      {deal.interestRate1st != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Interest Rate</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.interestRate1st}%</span>
-                        </div>
-                      )}
-                      {deal.loanType && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Loan Type</span>
-                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.loanType}</span>
-                        </div>
-                      )}
-                      {deal.paymentsCurrent && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Payments Current?</span>
-                          <span className={cn(
-                            'text-sm font-semibold px-2 py-0.5 rounded-full',
-                            deal.paymentsCurrent === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          )}>
-                            {deal.paymentsCurrent.charAt(0).toUpperCase() + deal.paymentsCurrent.slice(1)}
-                          </span>
-                        </div>
-                      )}
-                      {deal.monthsBehind != null && deal.monthsBehind > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Months Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind}</span>
-                        </div>
-                      )}
-                      {deal.amountBehind != null && deal.amountBehind > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Amount Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind)}</span>
-                        </div>
-                      )}
-                      {deal.prepaymentPenalty && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Prepayment Penalty?</span>
-                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.prepaymentPenalty}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Lender 2 */}
-                {(deal.mortgageCompany2nd || deal.mortgageBalance2nd != null) && (
-                  <div>
-                    <p className="text-xs font-semibold text-blue-600 uppercase mb-2">2nd Mortgage / HELOC</p>
-                    <div className="space-y-2 pl-3 border-l-2 border-blue-200">
-                      {deal.mortgageCompany2nd && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Lender</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany2nd}</span>
-                        </div>
-                      )}
-                      {deal.mortgageBalance2nd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Balance</span>
-                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance2nd)}</span>
-                        </div>
-                      )}
-                      {deal.monthlyPayment2nd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Monthly Payment</span>
-                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyPayment2nd)}</span>
-                        </div>
-                      )}
-                      {deal.interestRate2nd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Interest Rate</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.interestRate2nd}%</span>
-                        </div>
-                      )}
-                      {deal.paymentsCurrent2nd && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Payments Current?</span>
-                          <span className={cn(
-                            'text-sm font-semibold px-2 py-0.5 rounded-full',
-                            deal.paymentsCurrent2nd === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          )}>
-                            {deal.paymentsCurrent2nd.charAt(0).toUpperCase() + deal.paymentsCurrent2nd.slice(1)}
-                          </span>
-                        </div>
-                      )}
-                      {deal.monthsBehind2nd != null && deal.monthsBehind2nd > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Months Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind2nd}</span>
-                        </div>
-                      )}
-                      {deal.amountBehind2nd != null && deal.amountBehind2nd > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Amount Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind2nd)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Lender 3 */}
-                {(deal.mortgageCompany3rd || deal.mortgageBalance3rd != null) && (
-                  <div>
-                    <p className="text-xs font-semibold text-amber-600 uppercase mb-2">3rd Lien</p>
-                    <div className="space-y-2 pl-3 border-l-2 border-amber-200">
-                      {deal.mortgageCompany3rd && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Lender</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.mortgageCompany3rd}</span>
-                        </div>
-                      )}
-                      {deal.mortgageBalance3rd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Balance</span>
-                          <span className="text-sm font-semibold text-slate-800">{formatCurrency(deal.mortgageBalance3rd)}</span>
-                        </div>
-                      )}
-                      {deal.monthlyPayment3rd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Monthly Payment</span>
-                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyPayment3rd)}</span>
-                        </div>
-                      )}
-                      {deal.interestRate3rd != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Interest Rate</span>
-                          <span className="text-sm font-medium text-slate-800">{deal.interestRate3rd}%</span>
-                        </div>
-                      )}
-                      {deal.paymentsCurrent3rd && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Payments Current?</span>
-                          <span className={cn(
-                            'text-sm font-semibold px-2 py-0.5 rounded-full',
-                            deal.paymentsCurrent3rd === 'yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          )}>
-                            {deal.paymentsCurrent3rd.charAt(0).toUpperCase() + deal.paymentsCurrent3rd.slice(1)}
-                          </span>
-                        </div>
-                      )}
-                      {deal.monthsBehind3rd != null && deal.monthsBehind3rd > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Months Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{deal.monthsBehind3rd}</span>
-                        </div>
-                      )}
-                      {deal.amountBehind3rd != null && deal.amountBehind3rd > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Amount Behind</span>
-                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.amountBehind3rd)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Taxes, Insurance, Liens */}
-                {(deal.taxesInsuranceIncluded || deal.monthlyTaxAmount != null || deal.monthlyInsuranceAmount != null || deal.backTaxes != null || deal.otherLiens || deal.otherLienAmount != null) && (
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Taxes, Insurance & Liens</p>
-                    <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-                      {deal.taxesInsuranceIncluded && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">T&I Included in Payment?</span>
-                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.taxesInsuranceIncluded}</span>
-                        </div>
-                      )}
-                      {deal.monthlyTaxAmount != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Monthly Tax</span>
-                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyTaxAmount)}</span>
-                        </div>
-                      )}
-                      {deal.monthlyInsuranceAmount != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Monthly Insurance</span>
-                          <span className="text-sm font-medium text-slate-800">{formatCurrency(deal.monthlyInsuranceAmount)}</span>
-                        </div>
-                      )}
-                      {deal.backTaxes != null && deal.backTaxes > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Back Taxes Owed</span>
-                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.backTaxes)}</span>
-                        </div>
-                      )}
-                      {deal.otherLiens && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Other Liens?</span>
-                          <span className="text-sm font-medium text-slate-800 capitalize">{deal.otherLiens}</span>
-                        </div>
-                      )}
-                      {deal.otherLienAmount != null && deal.otherLienAmount > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-500">Lien Amount</span>
-                          <span className="text-sm font-semibold text-red-600">{formatCurrency(deal.otherLienAmount)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* Liens & Encumbrances (dynamic — replaces old mortgage sections) */}
+          {dealId && (
+            <DealLienManager dealId={dealId} initialLiens={deal.liens} />
           )}
 
           {/* Foreclosure Details */}
@@ -1319,122 +1073,6 @@ export default function DealDetailPage() {
             </div>
           )}
 
-          {/* Bank Negotiations */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <Landmark className="w-3.5 h-3.5" />
-              Bank Negotiations
-            </h3>
-            {lenderLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-[#1B3A6B]" />
-              </div>
-            ) : !lenderData || (Array.isArray(lenderData.lenders) && lenderData.lenders.length === 0) || (Array.isArray(lenderData) && lenderData.length === 0) ? (
-              <div className="text-center py-3">
-                <span className="inline-block px-3 py-1.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
-                  No Active Negotiations
-                </span>
-                <div className="mt-2">
-                  <button
-                    onClick={() => navigate('/bank-negotiation')}
-                    className="text-xs text-[#1B3A6B] hover:underline"
-                  >
-                    Set up Bank Negotiation &rarr;
-                  </button>
-                </div>
-              </div>
-            ) : (() => {
-              const lenders = lenderData.lenders || (Array.isArray(lenderData) ? lenderData : [])
-              const active = lenders.filter((l: any) => l.status === 'active' || l.status === 'pending_response').length
-              const approved = lenders.filter((l: any) => l.status === 'approved').length
-              const LOAN_TYPE_BADGE_DEAL: Record<string, string> = {
-                '1st': 'bg-[#1B3A6B] text-white',
-                '2nd': 'bg-blue-500 text-white',
-                'HELOC': 'bg-teal-600 text-white',
-                'HOA': 'bg-orange-500 text-white',
-                'Tax': 'bg-[#CC2229] text-white',
-                'Other': 'bg-gray-500 text-white',
-              }
-              const STATUS_BADGE_DEAL: Record<string, string> = {
-                active: 'bg-blue-100 text-blue-800',
-                pending_response: 'bg-yellow-100 text-yellow-800',
-                approved: 'bg-green-100 text-green-800',
-                denied: 'bg-red-100 text-red-800',
-                completed: 'bg-gray-100 text-gray-600',
-              }
-              function fmtFollowUp(dateStr: string | null | undefined) {
-                if (!dateStr) return { text: '\u2014', color: 'text-slate-400' }
-                const d = new Date(dateStr)
-                const now = new Date(); now.setHours(0, 0, 0, 0)
-                const days = Math.ceil((d.getTime() - now.getTime()) / 86400000)
-                if (days < 0) return { text: 'Overdue', color: 'text-[#CC2229] font-semibold' }
-                if (days <= 1) return { text: d.toLocaleDateString(), color: 'text-orange-600 font-semibold' }
-                return { text: d.toLocaleDateString(), color: 'text-slate-500' }
-              }
-              return (
-                <>
-                  <button
-                    onClick={() => setLendersExpanded(!lendersExpanded)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#1B3A6B]/5 hover:bg-[#1B3A6B]/10 transition-colors"
-                  >
-                    <span className="text-sm font-medium text-[#1B3A6B]">
-                      {lenders.length} Lender{lenders.length !== 1 ? 's' : ''} &mdash; {active} Active, {approved} Approved
-                    </span>
-                    {lendersExpanded
-                      ? <ChevronUp className="w-4 h-4 text-[#1B3A6B]" />
-                      : <ChevronDown className="w-4 h-4 text-[#1B3A6B]" />
-                    }
-                  </button>
-                  {lendersExpanded && (
-                    <div className="mt-3 space-y-3">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead className="bg-slate-50 border-b"><tr>
-                            {['Lender', 'Type', 'Balance', 'Status', 'Last Letter', 'Next Follow-Up'].map(h => (
-                              <th key={h} className="text-left px-2 py-2 text-[10px] font-semibold text-slate-500 uppercase">{h}</th>
-                            ))}
-                          </tr></thead>
-                          <tbody>{lenders.map((l: any) => {
-                            const loanType = l.loan_type || l.negotiation_type || 'Other'
-                            const badge = LOAN_TYPE_BADGE_DEAL[loanType] || LOAN_TYPE_BADGE_DEAL['Other']
-                            const statusBadge = STATUS_BADGE_DEAL[l.status] || 'bg-gray-100 text-gray-600'
-                            const lastLetter = l.last_letter_number
-                              ? `Letter ${l.last_letter_number} \u2014 ${l.last_letter_date ? new Date(l.last_letter_date).toLocaleDateString() : ''}`
-                              : '\u2014'
-                            const fu = fmtFollowUp(l.next_followup)
-                            return (
-                              <tr key={l.id} className="border-b last:border-0">
-                                <td className="px-2 py-2 text-slate-800 font-medium">{l.bank_name}</td>
-                                <td className="px-2 py-2"><span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${badge}`}>{loanType}</span></td>
-                                <td className="px-2 py-2 text-slate-600">{l.current_balance != null ? `$${Number(l.current_balance).toLocaleString()}` : '\u2014'}</td>
-                                <td className="px-2 py-2"><span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${statusBadge}`}>{(l.status || '').replace(/_/g, ' ')}</span></td>
-                                <td className="px-2 py-2 text-slate-600">{lastLetter}</td>
-                                <td className="px-2 py-2"><span className={fu.color}>{fu.text}</span></td>
-                              </tr>
-                            )
-                          })}</tbody>
-                        </table>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => navigate(`/bank-negotiation?property=${encodeURIComponent(deal.address)}`)}
-                          className="px-3 py-1.5 text-xs font-medium text-[#1B3A6B] border border-[#1B3A6B] rounded hover:bg-slate-50"
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => navigate(`/bank-negotiation?property=${encodeURIComponent(deal.address)}&addLender=true`)}
-                          className="px-3 py-1.5 text-xs font-medium bg-[#1B3A6B] text-white rounded hover:opacity-90"
-                        >
-                          + Add Lender
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-          </div>
 
           {/* Inline Notes */}
           {deal.notes && (
@@ -1677,10 +1315,10 @@ export default function DealDetailPage() {
                     {photos.length > 0 && (
                       <button
                         onClick={async () => {
-                          if (!id) return
+                          if (!dealId) return
                           setAnalyzingPhotos(true)
                           try {
-                            const result = await analyzePropertyPhotos(id)
+                            const result = await analyzePropertyPhotos(dealId)
                             setPhotoAnalysis(result)
                             toast.success('Photo analysis complete!')
                           } catch (err: any) {
@@ -1904,10 +1542,10 @@ export default function DealDetailPage() {
                                       <div className="flex items-center gap-1">
                                         <button
                                           onClick={async () => {
-                                            if (!id) return
+                                            if (!dealId) return
                                             setAnalyzingFile(doc.id)
                                             try {
-                                              const result = await analyzeDocument(doc.id, id, cat.id)
+                                              const result = await analyzeDocument(doc.id, dealId, cat.id)
                                               setDocAnalysis(prev => ({ ...prev, [doc.id]: result }))
                                               setExpandedAnalysis(doc.id)
                                               toast.success('Document analysis complete!')
@@ -2314,6 +1952,11 @@ export default function DealDetailPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* ── Negotiations Tab ─────────────────────── */}
+              {activeTab === 'negotiations' && dealId && (
+                <DealNegotiationsTab dealId={dealId} />
               )}
             </div>
           </div>

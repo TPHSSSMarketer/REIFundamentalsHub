@@ -32,7 +32,7 @@ import OnboardingPage from './components/Onboarding/OnboardingPage'
 import OnboardingGuard from './components/Onboarding/OnboardingGuard'
 import CalendarPage from './components/Calendar/CalendarPage'
 import LoanServicingPage from './components/LoanServicing/LoanServicingPage'
-import BankNegotiationPage from './components/BankNegotiation/BankNegotiationPage'
+import AdminNegotiationsDashboard from './components/BankNegotiation/AdminNegotiationsDashboard'
 import PaymentPortalPage from './components/PaymentPortal/PaymentPortalPage'
 import AnalyticsPage from './components/Analytics/AnalyticsPage'
 import HelpTicketsPage from './components/HelpTickets/HelpTicketsPage'
@@ -83,7 +83,7 @@ function AppLayout() {
         <Route path="/phone" element={<PhonePage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/loan-servicing" element={<LoanServicingPage />} />
-        <Route path="/bank-negotiation" element={<BankNegotiationPage />} />
+        <Route path="/negotiations" element={<AdminNegotiationsDashboard />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/assistanthub" element={

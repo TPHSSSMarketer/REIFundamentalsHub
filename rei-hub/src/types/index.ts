@@ -176,46 +176,9 @@ export interface Deal {
   anyOffers?: string
   previousOfferAmount?: number
 
-  // ── Homeowner Financials: Lender 1 (1st Mortgage) ──
-  mortgageCompany1st?: string
-  mortgageBalance?: number
-  monthlyMortgagePayment?: number  // lender 1 monthly payment
-  interestRate1st?: number
-  loanType?: string  // lender 1 loan type
-  prepaymentPenalty?: string  // lender 1
-  paymentsCurrent?: string  // lender 1
-  monthsBehind?: number  // lender 1
-  amountBehind?: number  // lender 1
-
-  // ── Homeowner Financials: Lender 2 (2nd Mortgage/HELOC) ──
-  mortgageCompany2nd?: string
-  mortgageBalance2nd?: number
-  monthlyPayment2nd?: number
-  interestRate2nd?: number
-  loanType2nd?: string
-  prepaymentPenalty2nd?: string
-  paymentsCurrent2nd?: string
-  monthsBehind2nd?: number
-  amountBehind2nd?: number
-
-  // ── Homeowner Financials: Lender 3 (3rd Lien) ──
-  mortgageCompany3rd?: string
-  mortgageBalance3rd?: number
-  monthlyPayment3rd?: number
-  interestRate3rd?: number
-  loanType3rd?: string
-  prepaymentPenalty3rd?: string
-  paymentsCurrent3rd?: string
-  monthsBehind3rd?: number
-  amountBehind3rd?: number
-
-  // ── Homeowner Financials: Shared ──
-  taxesInsuranceIncluded?: string
-  monthlyTaxAmount?: number
-  monthlyInsuranceAmount?: number
+  // ── Homeowner Financials (liens now in DealLien model) ──
   backTaxes?: number
-  otherLiens?: string
-  otherLienAmount?: number
+  liens?: DealLien[]
 
   // ── Foreclosure Details ──
   foreclosureStatus?: string
@@ -540,4 +503,90 @@ export interface AdminScheduledTask {
   last_run_status?: string
   total_runs: number
   created_at: string
+}
+
+// ── Deal Liens (dynamic, replaces hardcoded mortgage fields) ──
+
+export interface DealLien {
+  id: string
+  dealId: string
+  lienType: string
+  lienHolder: string
+  accountNumber?: string
+  balance?: number
+  monthlyPayment?: number
+  interestRate?: number
+  loanDate?: string
+  maturityDate?: string
+  status?: string
+  paymentsCurrent?: string
+  monthsBehind?: number
+  amountBehind?: number
+  loanType?: string
+  prepaymentPenalty?: string
+  taxesInsuranceIncluded?: string
+  notes?: string
+  sortOrder: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+// ── Negotiation Service Types ──
+
+export interface NegotiationRequest {
+  id: string
+  dealId: string
+  userId: number
+  lienIds: string[]
+  serviceTypes: string[]
+  message?: string
+  status: 'pending' | 'accepted' | 'info_requested' | 'declined'
+  propertyAddress?: string
+  propertyCity?: string
+  propertyState?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NegotiationCase {
+  id: string
+  requestId: string
+  dealId: string
+  userId: number
+  serviceType: 'bank' | 'county_tax' | 'other_lien'
+  status: 'intake' | 'researching' | 'in_progress' | 'awaiting_response' | 'resolved' | 'closed'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  propertyAddress?: string
+  assignedAt?: string
+  resolvedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NegotiationActivity {
+  id: string
+  caseId: string
+  activityType: string
+  // Admin sees adminNote; user sees userSummary
+  adminNote?: string
+  userSummary?: string
+  sendMethod?: string
+  uspsTrackingNumber?: string
+  uspsSignatureTrackingNumber?: string
+  trackingStatus?: string
+  uspsDeliveredDate?: string
+  uspsSignedBy?: string
+  attachments?: { fileName: string; fileType: string; dealFileId: string }[]
+  createdBy: string
+  createdAt: string
+}
+
+export interface NegotiationMessage {
+  id: string
+  caseId: string
+  senderId: number
+  senderRole: 'admin' | 'user'
+  content: string
+  readAt?: string
+  createdAt: string
 }

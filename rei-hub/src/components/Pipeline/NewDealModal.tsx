@@ -500,58 +500,8 @@ export default function NewDealModal({
         ? parseFloat(formData.previous_offer_amount)
         : undefined,
 
-      // Homeowner Financials
-      mortgageBalance: formData.mortgage_balance ? parseFloat(formData.mortgage_balance) : undefined,
-      mortgageBalance2nd: formData.mortgage_balance_2nd
-        ? parseFloat(formData.mortgage_balance_2nd)
-        : undefined,
-      monthlyMortgagePayment: formData.monthly_mortgage_payment
-        ? parseFloat(formData.monthly_mortgage_payment)
-        : undefined,
-      taxesInsuranceIncluded: formData.taxes_insurance_included || undefined,
-      monthlyTaxAmount: formData.monthly_tax_amount
-        ? parseFloat(formData.monthly_tax_amount)
-        : undefined,
-      monthlyInsuranceAmount: formData.monthly_insurance_amount
-        ? parseFloat(formData.monthly_insurance_amount)
-        : undefined,
-      interestRate1st: formData.interest_rate_1st
-        ? parseFloat(formData.interest_rate_1st)
-        : undefined,
-      interestRate2nd: formData.interest_rate_2nd
-        ? parseFloat(formData.interest_rate_2nd)
-        : undefined,
-      loanType: formData.loan_type || undefined,
-      prepaymentPenalty: formData.prepayment_penalty || undefined,
-      mortgageCompany1st: formData.mortgage_company_1st || undefined,
-      mortgageCompany2nd: formData.mortgage_company_2nd || undefined,
-      paymentsCurrent: formData.payments_current || undefined,
-      monthsBehind: formData.months_behind ? parseInt(formData.months_behind, 10) : undefined,
-      amountBehind: formData.amount_behind ? parseFloat(formData.amount_behind) : undefined,
+      // Homeowner Financials (liens are now managed dynamically via DealLienManager)
       backTaxes: formData.back_taxes ? parseFloat(formData.back_taxes) : undefined,
-      otherLiens: formData.other_liens || undefined,
-      otherLienAmount: formData.other_lien_amount
-        ? parseFloat(formData.other_lien_amount)
-        : undefined,
-
-      // Lender 2 per-lender fields
-      monthlyPayment2nd: formData.monthly_payment_2nd ? parseFloat(formData.monthly_payment_2nd) : undefined,
-      loanType2nd: formData.loan_type_2nd || undefined,
-      prepaymentPenalty2nd: formData.prepayment_penalty_2nd || undefined,
-      paymentsCurrent2nd: formData.payments_current_2nd || undefined,
-      monthsBehind2nd: formData.months_behind_2nd ? parseInt(formData.months_behind_2nd, 10) : undefined,
-      amountBehind2nd: formData.amount_behind_2nd ? parseFloat(formData.amount_behind_2nd) : undefined,
-
-      // Lender 3 fields
-      mortgageBalance3rd: formData.mortgage_balance_3rd ? parseFloat(formData.mortgage_balance_3rd) : undefined,
-      monthlyPayment3rd: formData.monthly_payment_3rd ? parseFloat(formData.monthly_payment_3rd) : undefined,
-      interestRate3rd: formData.interest_rate_3rd ? parseFloat(formData.interest_rate_3rd) : undefined,
-      loanType3rd: formData.loan_type_3rd || undefined,
-      prepaymentPenalty3rd: formData.prepayment_penalty_3rd || undefined,
-      mortgageCompany3rd: formData.mortgage_company_3rd || undefined,
-      paymentsCurrent3rd: formData.payments_current_3rd || undefined,
-      monthsBehind3rd: formData.months_behind_3rd ? parseInt(formData.months_behind_3rd, 10) : undefined,
-      amountBehind3rd: formData.amount_behind_3rd ? parseFloat(formData.amount_behind_3rd) : undefined,
 
       // Foreclosure Details
       foreclosureStatus: formData.foreclosure_status || undefined,

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import get_settings
 from rei.models.crm import CrmDeal, DealBuyerMatch, DealFile
+from rei.models.negotiation import DealLien
 from rei.models.user import User
 from rei.services.buyer_matching import match_buyers_for_deal
 
@@ -132,25 +133,8 @@ class CreateDealBody(BaseModel):
     howLongListed: str | None = None
     anyOffers: str | None = None
     previousOfferAmount: float | None = None
-    # Homeowner Financials
-    mortgageBalance: float | None = None
-    mortgageBalance2nd: float | None = None
-    monthlyMortgagePayment: float | None = None
-    taxesInsuranceIncluded: str | None = None
-    monthlyTaxAmount: float | None = None
-    monthlyInsuranceAmount: float | None = None
-    interestRate1st: float | None = None
-    interestRate2nd: float | None = None
-    loanType: str | None = None
-    prepaymentPenalty: str | None = None
-    mortgageCompany1st: str | None = None
-    mortgageCompany2nd: str | None = None
-    paymentsCurrent: str | None = None
-    monthsBehind: int | None = None
-    amountBehind: float | None = None
+    # Homeowner Financials (liens now in DealLien model)
     backTaxes: float | None = None
-    otherLiens: str | None = None
-    otherLienAmount: float | None = None
     # Foreclosure Details
     foreclosureStatus: str | None = None
     auctionDate: str | None = None
@@ -174,23 +158,6 @@ class CreateDealBody(BaseModel):
     insuranceAssignable: Optional[str] = None
     buyerDownPayment: Optional[float] = None
     sourceOfFunds: Optional[str] = None
-    # Lender 2 per-lender fields
-    monthlyPayment2nd: Optional[float] = None
-    loanType2nd: Optional[str] = None
-    prepaymentPenalty2nd: Optional[str] = None
-    paymentsCurrent2nd: Optional[str] = None
-    monthsBehind2nd: Optional[int] = None
-    amountBehind2nd: Optional[float] = None
-    # Lender 3 (3rd Lien)
-    mortgageBalance3rd: Optional[float] = None
-    monthlyPayment3rd: Optional[float] = None
-    interestRate3rd: Optional[float] = None
-    loanType3rd: Optional[str] = None
-    prepaymentPenalty3rd: Optional[str] = None
-    mortgageCompany3rd: Optional[str] = None
-    paymentsCurrent3rd: Optional[str] = None
-    monthsBehind3rd: Optional[int] = None
-    amountBehind3rd: Optional[float] = None
 
 
 class UpdateDealBody(CreateDealBody):
@@ -289,24 +256,7 @@ _FIELD_MAP: dict[str, str] = {
     "howLongListed": "how_long_listed",
     "anyOffers": "any_offers",
     "previousOfferAmount": "previous_offer_amount",
-    "mortgageBalance": "mortgage_balance",
-    "mortgageBalance2nd": "mortgage_balance_2nd",
-    "monthlyMortgagePayment": "monthly_mortgage_payment",
-    "taxesInsuranceIncluded": "taxes_insurance_included",
-    "monthlyTaxAmount": "monthly_tax_amount",
-    "monthlyInsuranceAmount": "monthly_insurance_amount",
-    "interestRate1st": "interest_rate_1st",
-    "interestRate2nd": "interest_rate_2nd",
-    "loanType": "loan_type",
-    "prepaymentPenalty": "prepayment_penalty",
-    "mortgageCompany1st": "mortgage_company_1st",
-    "mortgageCompany2nd": "mortgage_company_2nd",
-    "paymentsCurrent": "payments_current",
-    "monthsBehind": "months_behind",
-    "amountBehind": "amount_behind",
     "backTaxes": "back_taxes",
-    "otherLiens": "other_liens",
-    "otherLienAmount": "other_lien_amount",
     "foreclosureStatus": "foreclosure_status",
     "reinstatementAmount": "reinstatement_amount",
     "attorneyInvolved": "attorney_involved",
@@ -325,21 +275,6 @@ _FIELD_MAP: dict[str, str] = {
     "insuranceAssignable": "insurance_assignable",
     "buyerDownPayment": "buyer_down_payment",
     "sourceOfFunds": "source_of_funds",
-    "monthlyPayment2nd": "monthly_payment_2nd",
-    "loanType2nd": "loan_type_2nd",
-    "prepaymentPenalty2nd": "prepayment_penalty_2nd",
-    "paymentsCurrent2nd": "payments_current_2nd",
-    "monthsBehind2nd": "months_behind_2nd",
-    "amountBehind2nd": "amount_behind_2nd",
-    "mortgageBalance3rd": "mortgage_balance_3rd",
-    "monthlyPayment3rd": "monthly_payment_3rd",
-    "interestRate3rd": "interest_rate_3rd",
-    "loanType3rd": "loan_type_3rd",
-    "prepaymentPenalty3rd": "prepayment_penalty_3rd",
-    "mortgageCompany3rd": "mortgage_company_3rd",
-    "paymentsCurrent3rd": "payments_current_3rd",
-    "monthsBehind3rd": "months_behind_3rd",
-    "amountBehind3rd": "amount_behind_3rd",
 }
 
 # Date fields need special parsing
@@ -349,7 +284,33 @@ _DATE_FIELDS = {"offerExpiresAt": "offer_expires_at", "inspectionDeadline": "ins
 # ── Helpers ─────────────────────────────────────────────────
 
 
-def _deal_to_dict(d: CrmDeal) -> dict:
+def _lien_to_dict(l: DealLien) -> dict:
+    return {
+        "id": l.id,
+        "dealId": l.deal_id,
+        "lienType": l.lien_type,
+        "lienHolder": l.lien_holder or "",
+        "accountNumber": l.account_number,
+        "balance": l.balance,
+        "monthlyPayment": l.monthly_payment,
+        "interestRate": l.interest_rate,
+        "loanDate": l.loan_date,
+        "maturityDate": l.maturity_date,
+        "status": l.status,
+        "paymentsCurrent": l.payments_current,
+        "monthsBehind": l.months_behind,
+        "amountBehind": l.amount_behind,
+        "loanType": l.loan_type,
+        "prepaymentPenalty": l.prepayment_penalty,
+        "taxesInsuranceIncluded": l.taxes_insurance_included,
+        "notes": l.notes,
+        "sortOrder": l.sort_order,
+        "createdAt": l.created_at.isoformat() if l.created_at else None,
+        "updatedAt": l.updated_at.isoformat() if l.updated_at else None,
+    }
+
+
+def _deal_to_dict(d: CrmDeal, liens: list[DealLien] | None = None) -> dict:
     return {
         "id": d.id,
         "title": d.title or "",
@@ -448,25 +409,8 @@ def _deal_to_dict(d: CrmDeal) -> dict:
         "howLongListed": d.how_long_listed,
         "anyOffers": d.any_offers,
         "previousOfferAmount": d.previous_offer_amount,
-        # Homeowner Financials
-        "mortgageBalance": d.mortgage_balance,
-        "mortgageBalance2nd": d.mortgage_balance_2nd,
-        "monthlyMortgagePayment": d.monthly_mortgage_payment,
-        "taxesInsuranceIncluded": d.taxes_insurance_included,
-        "monthlyTaxAmount": d.monthly_tax_amount,
-        "monthlyInsuranceAmount": d.monthly_insurance_amount,
-        "interestRate1st": d.interest_rate_1st,
-        "interestRate2nd": d.interest_rate_2nd,
-        "loanType": d.loan_type,
-        "prepaymentPenalty": d.prepayment_penalty,
-        "mortgageCompany1st": d.mortgage_company_1st,
-        "mortgageCompany2nd": d.mortgage_company_2nd,
-        "paymentsCurrent": d.payments_current,
-        "monthsBehind": d.months_behind,
-        "amountBehind": d.amount_behind,
+        # Homeowner Financials (liens loaded separately)
         "backTaxes": d.back_taxes,
-        "otherLiens": d.other_liens,
-        "otherLienAmount": d.other_lien_amount,
         # Foreclosure Details
         "foreclosureStatus": d.foreclosure_status,
         "auctionDate": d.auction_date.isoformat() if d.auction_date else None,
@@ -489,23 +433,10 @@ def _deal_to_dict(d: CrmDeal) -> dict:
         "insuranceAssignable": d.insurance_assignable,
         "buyerDownPayment": d.buyer_down_payment,
         "sourceOfFunds": d.source_of_funds,
-        "monthlyPayment2nd": d.monthly_payment_2nd,
-        "loanType2nd": d.loan_type_2nd,
-        "prepaymentPenalty2nd": d.prepayment_penalty_2nd,
-        "paymentsCurrent2nd": d.payments_current_2nd,
-        "monthsBehind2nd": d.months_behind_2nd,
-        "amountBehind2nd": d.amount_behind_2nd,
-        "mortgageBalance3rd": d.mortgage_balance_3rd,
-        "monthlyPayment3rd": d.monthly_payment_3rd,
-        "interestRate3rd": d.interest_rate_3rd,
-        "loanType3rd": d.loan_type_3rd,
-        "prepaymentPenalty3rd": d.prepayment_penalty_3rd,
-        "mortgageCompany3rd": d.mortgage_company_3rd,
-        "paymentsCurrent3rd": d.payments_current_3rd,
-        "monthsBehind3rd": d.months_behind_3rd,
-        "amountBehind3rd": d.amount_behind_3rd,
         "createdAt": d.created_at.isoformat() if d.created_at else None,
         "updatedAt": d.updated_at.isoformat() if d.updated_at else None,
+        # Dynamic liens (loaded separately)
+        "liens": [_lien_to_dict(l) for l in liens] if liens is not None else [],
     }
 
 
@@ -558,9 +489,20 @@ async def list_deals(
             if row.deal_id not in front_thumbs:
                 front_thumbs[row.deal_id] = row.thumbnail
 
+    # Batch-fetch liens for all deals
+    liens_by_deal: dict[str, list[DealLien]] = {did: [] for did in deal_ids}
+    if deal_ids:
+        lien_result = await db.execute(
+            select(DealLien)
+            .where(DealLien.deal_id.in_(deal_ids), DealLien.user_id == workspace_user_id(user))
+            .order_by(DealLien.sort_order, DealLien.created_at)
+        )
+        for lien in lien_result.scalars().all():
+            liens_by_deal.setdefault(lien.deal_id, []).append(lien)
+
     result_list = []
     for d in deals:
-        data = _deal_to_dict(d)
+        data = _deal_to_dict(d, liens=liens_by_deal.get(d.id, []))
         data["frontPhotoThumbnail"] = front_thumbs.get(d.id)
         result_list.append(data)
     return result_list
@@ -583,7 +525,15 @@ async def get_deal(
     deal = result.scalar_one_or_none()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
-    return _deal_to_dict(deal)
+
+    # Load liens for this deal
+    lien_result = await db.execute(
+        select(DealLien)
+        .where(DealLien.deal_id == deal_id, DealLien.user_id == workspace_user_id(user))
+        .order_by(DealLien.sort_order, DealLien.created_at)
+    )
+    liens = lien_result.scalars().all()
+    return _deal_to_dict(deal, liens=list(liens))
 
 
 @crm_deals_router.post("", status_code=status.HTTP_201_CREATED)
