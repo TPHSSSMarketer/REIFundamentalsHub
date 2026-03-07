@@ -265,13 +265,14 @@ export async function chatWithAiAndContact(
 export async function generateContentWaterfall(
   sourceText: string,
   topic?: string,
+  toneOverride?: string,
 ): Promise<{ content: Record<string, string>; topic: string; model: string; content_entry_id?: string }> {
   return withDemoFallback(
     () =>
       fetch(`${BASE_URL}/api/ai/content/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ source_text: sourceText, topic: topic ?? 'Real Estate Investing' }),
+        body: JSON.stringify({ source_text: sourceText, topic: topic ?? 'Real Estate Investing', tone_override: toneOverride }),
         credentials: 'include',
       }).then((res) => handleResponse(res)),
     {

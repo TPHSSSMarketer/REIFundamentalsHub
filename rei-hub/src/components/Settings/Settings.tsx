@@ -88,7 +88,12 @@ export default function Settings() {
     investing_experience: '',
     deal_types: [] as string[],
     primary_market: '',
+    investing_strategy: '',
+    mission_statement: '',
+    content_tone: '',
   })
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoB64, setLogoB64] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadProfile() {
@@ -110,7 +115,11 @@ export default function Settings() {
           investing_experience: u.investing_experience ?? '',
           deal_types: dtArr,
           primary_market: u.primary_market ?? '',
+          investing_strategy: u.investing_strategy ?? '',
+          mission_statement: u.mission_statement ?? '',
+          content_tone: u.content_tone ?? '',
         })
+        if (u.has_company_logo) setLogoPreview('saved')
       } catch {
         // silently fail — user may not be fully authenticated yet
       } finally {
@@ -139,6 +148,10 @@ export default function Settings() {
         investing_experience: investingProfile.investing_experience,
         deal_types: investingProfile.deal_types,
         primary_market: investingProfile.primary_market,
+        investing_strategy: investingProfile.investing_strategy,
+        mission_statement: investingProfile.mission_statement,
+        content_tone: investingProfile.content_tone,
+        ...(logoB64 ? { company_logo_b64: logoB64 } : {}),
       })
       toast.success('Investing profile saved.')
     } catch {
@@ -603,6 +616,117 @@ export default function Settings() {
                     onChange={(e) => setInvestingProfile({ ...investingProfile, primary_market: e.target.value })}
                     placeholder="e.g. Dallas-Fort Worth, TX"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
+
+                {/* ── Content Profile ── */}
+                <div className="border-t border-slate-200 pt-4 mt-4">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-3">Content Profile</h4>
+                  <p className="text-xs text-slate-500 mb-4">This info personalizes all AI-generated content in ContentHub to match your brand.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Investing Strategy</label>
+                  <textarea
+                    rows={3}
+                    value={investingProfile.investing_strategy}
+                    onChange={(e) => setInvestingProfile({ ...investingProfile, investing_strategy: e.target.value })}
+                    placeholder="Describe your investment approach (e.g., I focus on fix-and-flips in the DFW area, targeting distressed properties under $200k...)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Mission Statement</label>
+                  <textarea
+                    rows={3}
+                    value={investingProfile.mission_statement}
+                    onChange={(e) => setInvestingProfile({ ...investingProfile, mission_statement: e.target.value })}
+                    placeholder="What's your mission? (e.g., We help homeowners in difficult situations find fair solutions while creating value for our investors...)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Content Tone</label>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    {[
+                      { value: 'Professional & Educational', label: 'Professional & Educational' },
+                      { value: 'Casual & Conversational', label: 'Casual & Conversational' },
+                      { value: 'Motivational & Inspiring', label: 'Motivational & Inspiring' },
+                      { value: 'Direct & No-Nonsense', label: 'Direct & No-Nonsense' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => setInvestingProfile({ ...investingProfile, content_tone: preset.value })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          investingProfile.content_tone === preset.value
+                            ? 'bg-primary-500 text-white border-primary-500'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-primary-400'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Or type a custom tone (e.g., Friendly but authoritative, like a mentor)"
+                    value={
+                      ['Professional & Educational', 'Casual & Conversational', 'Motivational & Inspiring', 'Direct & No-Nonsense'].includes(investingProfile.content_tone)
+                        ? ''
+                        : investingProfile.content_tone
+                    }
+                    onChange={(e) => setInvestingProfile({ ...investingProfile, content_tone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Company Logo (for image watermark)</label>
+                  <p className="text-xs text-slate-500 mb-2">Upload your logo and it will be watermarked onto every AI-generated image.</p>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer text-sm">
+                      <Cloud className="w-4 h-4" />
+                      {logoPreview ? 'Change Logo' : 'Upload Logo'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error('Logo must be under 2MB.')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => {
+                            const b64 = (reader.result as string).split(',')[1]
+                            setLogoB64(b64)
+                            setLogoPreview(reader.result as string)
+                          }
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                    </label>
+                    {logoPreview && (
+                      <div className="flex items-center gap-2">
+                        {logoPreview === 'saved' ? (
+                          <span className="text-xs text-green-600 font-medium">Logo saved</span>
+                        ) : (
+                          <img src={logoPreview} alt="Logo preview" className="h-10 w-auto rounded border border-slate-200" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setLogoPreview(null); setLogoB64('') }}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-4">

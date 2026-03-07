@@ -69,6 +69,16 @@ class User(Base):
     storage_provider: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # "google_drive" or "dropbox" — chosen during onboarding
 
+    # ── Content Profile ─────────────────────────────────────────────
+    investing_strategy: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Free-form description of their investment approach
+    mission_statement: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Company mission / why they invest
+    content_tone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Preset name or custom tone description for ContentHub AI
+    company_logo_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Base64-encoded PNG of company logo for watermarking generated images
+
     # ── Plaid (Proof of Funds) ────────────────────────────────────
     plaid_access_token: Mapped[str | None] = mapped_column(String, nullable=True)
     plaid_linked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -283,9 +293,9 @@ class User(Base):
     # e.g. "TriPoint Home Solutions"
     # Falls back to user's company name
 
-    loan_company_logo_url: Mapped[Optional[str]] = mapped_column(
+    company_logo_url: Mapped[Optional[str]] = mapped_column(
         String, nullable=True)
-    # URL to company logo for portal header
+    # URL to company logo for branding (portal header, etc.)
 
     loan_portal_primary_color: Mapped[Optional[str]] = mapped_column(
         String, nullable=True, default="#1B3A6B")

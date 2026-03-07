@@ -104,6 +104,7 @@ class ContentGenerateRequest(BaseModel):
     source_text: str
     topic: Optional[str] = "Real Estate Investing"
     tags: list[str] = []
+    tone_override: Optional[str] = None
 
 
 class ContentScrapeRequest(BaseModel):
@@ -817,6 +818,7 @@ async def generate_content(
         user_id=uid,
         db=db,
         settings=settings,
+        tone_override=body.tone_override,
     )
 
     # Auto-save to ContentHub database + embed for semantic search

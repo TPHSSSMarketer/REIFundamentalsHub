@@ -1203,6 +1203,7 @@ async def generate_content_waterfall(
     user_id: Optional[int],
     db: AsyncSession,
     settings: Settings,
+    tone_override: Optional[str] = None,
 ) -> dict:
     """Generate a content waterfall — one source piece → 6 platform-specific versions.
 
@@ -1216,15 +1217,49 @@ async def generate_content_waterfall(
         model: str,
     }
     """
-    system_prompt = """You are an expert real estate content strategist and copywriter.
+    # ── Fetch user's business profile for personalization ──
+    investor_profile_block = ""
+    effective_tone = tone_override or "Professional & Educational"
+    try:
+        if user_id:
+            from rei.models.user import User as UserModel
+            result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+            profile_user = result.scalars().first()
+            if profile_user:
+                parts = []
+                if profile_user.company_name:
+                    parts.append(f"Company Name: {profile_user.company_name}")
+                if profile_user.company_phone:
+                    parts.append(f"Business Phone: {profile_user.company_phone}")
+                if profile_user.company_website:
+                    parts.append(f"Website: {profile_user.company_website}")
+                if profile_user.investing_strategy:
+                    parts.append(f"Investing Strategy: {profile_user.investing_strategy}")
+                if profile_user.mission_statement:
+                    parts.append(f"Mission: {profile_user.mission_statement}")
+                if profile_user.primary_market:
+                    parts.append(f"Primary Market: {profile_user.primary_market}")
+                if parts:
+                    investor_profile_block = "\nINVESTOR PROFILE:\n" + "\n".join(parts) + "\n"
+                # Resolve tone: override > user default > fallback
+                if not tone_override and profile_user.content_tone:
+                    effective_tone = profile_user.content_tone
+    except Exception as exc:
+        logger.warning("Failed to fetch user profile for content generation: %s", exc)
+
+    system_prompt = f"""You are an expert real estate content strategist and copywriter.
 Your job is to transform source content into platform-optimized pieces for a real estate investor's brand.
+{investor_profile_block}
+TONE: {effective_tone}
+Write all content in this tone. If the investor provided a mission or strategy, naturally weave their voice and perspective into the content. Reference their company name and website where appropriate (e.g., in CTAs).
 
 VOICE & STYLE GUIDELINES:
 - Write as a knowledgeable, approachable real estate investor sharing valuable insights
-- Use conversational yet professional language — not corporate jargon
+- Use conversational yet professional language - not corporate jargon
 - Include specific, actionable advice where possible
 - Adapt tone to each platform's audience expectations
-- Never use generic filler — every sentence should add value
+- Never use generic filler - every sentence should add value
+- NEVER use em dashes. Use regular dashes or commas instead
 
 PLATFORM REQUIREMENTS:
 1. FACEBOOK: 150-300 words. Engaging, story-driven. Start with a hook question or bold statement.
@@ -1822,6 +1857,49 @@ async def generate_platform_image_prompts(
     return prompts
 
 
+def _apply_logo_watermark(image_b64: str, logo_b64: str, image_width: int) -> str:
+    """Overlay a logo watermark onto a generated image (bottom-right corner).
+
+    Both inputs and output are base64-encoded PNG strings.
+    Uses Pillow (already in requirements.txt).
+    """
+    import io
+    from PIL import Image
+
+    # Decode the generated image
+    img_bytes = base64.b64decode(image_b64)
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+
+    # Decode the logo — strip data-URI prefix if present
+    logo_data = logo_b64
+    if "," in logo_data:
+        logo_data = logo_data.split(",", 1)[1]
+    logo_bytes = base64.b64decode(logo_data)
+    logo = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
+
+    # Resize logo to ~10% of image width, preserving aspect ratio
+    target_w = max(int(image_width * 0.10), 40)
+    aspect = logo.height / logo.width
+    target_h = int(target_w * aspect)
+    logo = logo.resize((target_w, target_h), Image.LANCZOS)
+
+    # Apply semi-transparency to the logo (70% opacity)
+    alpha = logo.split()[3]
+    alpha = alpha.point(lambda p: int(p * 0.7))
+    logo.putalpha(alpha)
+
+    # Paste in bottom-right corner with padding
+    padding = 15
+    x = img.width - target_w - padding
+    y = img.height - target_h - padding
+    img.paste(logo, (x, y), logo)
+
+    # Re-encode to base64 PNG
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
 async def generate_platform_images(
     topic: str,
     platforms: list[str],
@@ -1855,7 +1933,20 @@ async def generate_platform_images(
     # 2. Generate optimized prompts via Claude Haiku
     prompts = await generate_platform_image_prompts(topic, platforms, user_id, db, settings)
 
-    # 3. Generate images for each platform
+    # 3. Pre-fetch user's logo for watermarking (once, outside loop)
+    user_logo_b64 = None
+    try:
+        from rei.models.user import User as UserModel
+        user_result = await db.execute(
+            select(UserModel).where(UserModel.id == user_id)
+        )
+        wm_user = user_result.scalars().first()
+        if wm_user and wm_user.company_logo_b64:
+            user_logo_b64 = wm_user.company_logo_b64
+    except Exception as wm_exc:
+        logger.warning("Failed to fetch user logo for watermarking: %s", wm_exc)
+
+    # 4. Generate images for each platform
     results: dict[str, dict] = {}
     now = datetime.utcnow()
     expires = now + timedelta(days=7)
@@ -1871,6 +1962,13 @@ async def generate_platform_images(
                 height=h,
                 api_key=nvidia_key,
             )
+
+            # Watermark with user's logo if available
+            if user_logo_b64:
+                try:
+                    image_b64 = _apply_logo_watermark(image_b64, user_logo_b64, w)
+                except Exception as wm_exc:
+                    logger.warning("Logo watermark failed for %s (non-fatal): %s", plat, wm_exc)
 
             # Store in DB
             img = ContentImage(

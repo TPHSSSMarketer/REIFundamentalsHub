@@ -64,7 +64,7 @@ def get_distribution_statement_header(user: User) -> dict:
     """Return branding info for distribution statement PDF header."""
     return {
         "company_name": get_loan_company_name(user),
-        "logo_url": user.loan_company_logo_url,
+        "logo_url": user.company_logo_url,
         "primary_color": get_loan_portal_color(user),
     }
 

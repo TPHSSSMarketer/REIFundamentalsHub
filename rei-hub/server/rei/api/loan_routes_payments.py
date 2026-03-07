@@ -138,7 +138,7 @@ class EnableLoanServicingBody(BaseModel):
 
 class TenantConfigUpdateBody(BaseModel):
     loan_company_name: Optional[str] = None
-    loan_company_logo_url: Optional[str] = None
+    company_logo_url: Optional[str] = None
     loan_portal_primary_color: Optional[str] = None
     loan_default_investor_pct: Optional[float] = None
     loan_servicing_fee_pct: Optional[float] = None
@@ -1413,7 +1413,7 @@ async def admin_get_tenant_config(
         "user_id": target_user.id,
         "email": target_user.email,
         "loan_company_name": target_user.loan_company_name,
-        "loan_company_logo_url": target_user.loan_company_logo_url,
+        "company_logo_url": target_user.company_logo_url,
         "loan_portal_primary_color": target_user.loan_portal_primary_color,
         "loan_default_investor_pct": target_user.loan_default_investor_pct,
         "loan_servicing_fee_pct": target_user.loan_servicing_fee_pct,
@@ -1455,7 +1455,7 @@ async def admin_update_tenant_config(
         "user_id": target_user.id,
         "email": target_user.email,
         "loan_company_name": target_user.loan_company_name,
-        "loan_company_logo_url": target_user.loan_company_logo_url,
+        "company_logo_url": target_user.company_logo_url,
         "loan_portal_primary_color": target_user.loan_portal_primary_color,
         "loan_default_investor_pct": target_user.loan_default_investor_pct,
         "loan_servicing_fee_pct": target_user.loan_servicing_fee_pct,

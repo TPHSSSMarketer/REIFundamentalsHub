@@ -164,7 +164,7 @@ async def portal_config(user_id: int):
 
     return {
         "company_name": get_loan_company_name(portal_user),
-        "logo_url": portal_user.loan_company_logo_url,
+        "logo_url": portal_user.company_logo_url,
         "primary_color": get_loan_portal_color(portal_user),
         "stripe_publishable_key": publishable_key,
     }

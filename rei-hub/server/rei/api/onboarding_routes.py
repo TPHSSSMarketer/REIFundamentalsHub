@@ -36,10 +36,14 @@ class StepBody(BaseModel):
     company_zip: Optional[str] = None
     company_phone: Optional[str] = None
     company_website: Optional[str] = None
-    # Step 2 — Investing Profile
+    # Step 2 — Investing Profile + Content Profile
     investing_experience: Optional[str] = None
     deal_types: Optional[str] = None  # JSON list
     primary_market: Optional[str] = None
+    investing_strategy: Optional[str] = None
+    mission_statement: Optional[str] = None
+    content_tone: Optional[str] = None
+    company_logo_b64: Optional[str] = None
     # Step 3 — Storage
     storage_provider: Optional[str] = None
     # Step 4 — Phone
@@ -72,6 +76,10 @@ async def onboarding_status(
             "investing_experience": user.investing_experience,
             "deal_types": user.deal_types,
             "primary_market": user.primary_market,
+            "investing_strategy": user.investing_strategy,
+            "mission_statement": user.mission_statement,
+            "content_tone": user.content_tone,
+            "has_company_logo": bool(user.company_logo_b64),
             "storage_provider": user.storage_provider,
             "email": user.email,
             "full_name": user.full_name,
@@ -115,6 +123,14 @@ async def save_step(
         user.investing_experience = body.investing_experience
         user.deal_types = body.deal_types
         user.primary_market = body.primary_market
+        if body.investing_strategy is not None:
+            user.investing_strategy = body.investing_strategy
+        if body.mission_statement is not None:
+            user.mission_statement = body.mission_statement
+        if body.content_tone is not None:
+            user.content_tone = body.content_tone
+        if body.company_logo_b64 is not None:
+            user.company_logo_b64 = body.company_logo_b64
 
     elif step_number == 3:
         user.storage_provider = body.storage_provider

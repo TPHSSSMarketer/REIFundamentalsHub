@@ -52,6 +52,7 @@ export type ContentWaterfallRequest = {
   source_text: string
   topic?: string
   investor_name?: string
+  tone_override?: string
 }
 
 export type ContentWaterfallOutput = {
@@ -119,7 +120,7 @@ export const helmAnalyzeDeal = aiAnalyzeDeal
 export async function aiGenerateWaterfall(
   req: ContentWaterfallRequest,
 ): Promise<ContentWaterfallResponse> {
-  const result = await generateContentWaterfall(req.source_text, req.topic)
+  const result = await generateContentWaterfall(req.source_text, req.topic, req.tone_override)
   return {
     content: result.content as unknown as ContentWaterfallOutput,
     topic: result.topic,
