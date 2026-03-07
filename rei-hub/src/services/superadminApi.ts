@@ -206,7 +206,7 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
   lob:
     'Go to dashboard.lob.com > Settings > API Keys. Use test_ keys for testing, live_ keys for production. Lob supports fully designed postcards (HTML front+back) and letters. Pricing: ~$0.63/postcard, $1.04/letter.',
   usps:
-    'Register at reg.usps.com/entrancePostal.do for a free Web Tools API account. After registration, your User ID will be emailed to you. Used for certified mail tracking in Bank Negotiations.',
+    'Go to developers.usps.com and create a developer account. Create an app in the Customer Onboarding Portal (COP) and copy your Consumer Key and Consumer Secret. Used for certified mail tracking in Bank Negotiations.',
   anthropic:
     'Go to console.anthropic.com > API Keys > Create Key. Used for the AI Admin Assistant and other AI-powered features.',
   openai:
@@ -334,8 +334,9 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
     { name: 'lob_api_key', label: 'API Key (test_ or live_)', type: 'secret', help: 'From dashboard.lob.com > Settings > API Keys. Use test_ keys for development, live_ keys for production.' },
   ],
   usps: [
-    { name: 'usps_user_id', label: 'User ID', type: 'text', help: 'Emailed to you after registering at reg.usps.com/entrancePostal.do' },
-    { name: 'usps_api_url', label: 'API URL', type: 'text', help: 'Default: https://secure.shippingapis.com/ShippingAPI.dll — only change if USPS provides a different URL' },
+    { name: 'usps_client_id', label: 'Consumer Key (Client ID)', type: 'text', help: 'From developers.usps.com > Your Apps > Consumer Key' },
+    { name: 'usps_client_secret', label: 'Consumer Secret (Client Secret)', type: 'secret', help: 'From developers.usps.com > Your Apps > Consumer Secret' },
+    { name: 'usps_api_url', label: 'API Base URL', type: 'text', help: 'Default: https://apis.usps.com — only change if USPS provides a different URL' },
   ],
   anthropic: [
     { name: 'anthropic_api_key', label: 'API Key', type: 'secret', help: 'Starts with "sk-ant-" — from console.anthropic.com > API Keys' },
