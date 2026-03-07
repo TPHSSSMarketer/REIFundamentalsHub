@@ -172,7 +172,12 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   async function handleSendToAll() {
     if (!selectedNeg) return; setSending(true); setSendResults(null)
     try {
-      const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], methods: { certified_mail: sendMethods.certifiedMail ? { tracking_numbers: trackingNums, signature_cards: sigCardNums } : undefined, fax: sendMethods.fax ? { pdf_url: faxPdfUrl } : undefined, email: sendMethods.email ? { subject: emailSubject, body: emailBody } : undefined } }
+      const methods: string[] = []
+      if (sendMethods.certifiedMail) methods.push('certified_mail')
+      if (sendMethods.fax) methods.push('fax')
+      if (sendMethods.email) methods.push('email')
+      const firstDoc = documents.length > 0 ? documents[0].id : undefined
+      const payload: Record<string, any> = { letter_number: sendLetterNum, letter_type: LETTER_TYPES[sendLetterNum], send_methods: methods, document_id: firstDoc || undefined, usps_tracking_numbers: sendMethods.certifiedMail ? trackingNums : undefined, usps_signature_tracking_numbers: sendMethods.certifiedMail ? sigCardNums : undefined, fax_media_url: sendMethods.fax ? faxPdfUrl : undefined }
       const res = await sendToAll(selectedNeg.id, payload) as any; setSendResults(res); showToastMsg('Documents sent successfully')
       const c = await getCorrespondence(selectedNeg.id) as any; setCorrespondence(Array.isArray(c) ? c : c.correspondence || [])
     } catch { showToastMsg('Failed to send documents') }
@@ -447,7 +452,14 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                     </div>
                   ) : editingRecipient === rec.id ? (
                     <div className="space-y-2">
-                      {['name', 'title', 'address', 'phone', 'fax', 'email'].map(f => <input key={f} placeholder={f.charAt(0).toUpperCase() + f.slice(1)} value={editForm[f] || ''} onChange={e => setEditForm({ ...editForm, [f]: e.target.value })} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />)}
+                      {['name', 'title'].map(f => <input key={f} placeholder={f.charAt(0).toUpperCase() + f.slice(1)} value={editForm[f] || ''} onChange={e => setEditForm({ ...editForm, [f]: e.target.value })} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />)}
+                      <input placeholder="Street Address" value={editForm.mailing_address || ''} onChange={e => setEditForm({ ...editForm, mailing_address: e.target.value })} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                      <div className="grid grid-cols-3 gap-1">
+                        <input placeholder="City" value={editForm.mailing_city || ''} onChange={e => setEditForm({ ...editForm, mailing_city: e.target.value })} className="border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                        <input placeholder="State" value={editForm.mailing_state || ''} onChange={e => setEditForm({ ...editForm, mailing_state: e.target.value })} className="border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                        <input placeholder="ZIP" value={editForm.mailing_zip || ''} onChange={e => setEditForm({ ...editForm, mailing_zip: e.target.value })} className="border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                      </div>
+                      {['phone', 'fax', 'email'].map(f => <input key={f} placeholder={f.charAt(0).toUpperCase() + f.slice(1)} value={editForm[f] || ''} onChange={e => setEditForm({ ...editForm, [f]: e.target.value })} className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />)}
                       <div className="flex gap-2">
                         <button onClick={() => handleSaveRecipient(rec.id)} className="px-2 py-1 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90">Save</button>
                         <button onClick={() => handleSaveRecipient(rec.id, true)} className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:opacity-90">Mark Verified</button>
@@ -463,7 +475,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                       {rec.email && <p>&#9993;&#65039; {rec.email}</p>}
                     </div>
                     <div className="flex gap-2 pt-1">
-                      <button onClick={() => { setEditingRecipient(rec.id); setEditForm({ name: rec.name || '', title: rec.title || '', address: rec.address || '', phone: rec.phone || '', fax: rec.fax || '', email: rec.email || '' }) }} className="px-2 py-1 text-xs border border-[#1B3A6B] text-[#1B3A6B] rounded hover:bg-slate-50">Edit</button>
+                      <button onClick={() => { setEditingRecipient(rec.id); setEditForm({ name: rec.name || '', title: rec.title || '', mailing_address: rec.mailing_address || '', mailing_city: rec.mailing_city || '', mailing_state: rec.mailing_state || '', mailing_zip: rec.mailing_zip || '', phone: rec.phone || '', fax: rec.fax || '', email: rec.email || '' }) }} className="px-2 py-1 text-xs border border-[#1B3A6B] text-[#1B3A6B] rounded hover:bg-slate-50">Edit</button>
                       <button onClick={() => handleRefreshRecipient(rec.id)} className="px-2 py-1 text-xs border border-slate-300 text-slate-600 rounded hover:bg-slate-50">Re-research</button>
                     </div>
                   </>)}
@@ -572,8 +584,8 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                   <div key={rec.id} className="space-y-1">
                     <label className="text-xs text-slate-500">{formatLabel(rec.recipient_type, RECIPIENT_TYPE_LABEL)}</label>
                     <div className="flex gap-2">
-                      <input placeholder="Tracking # 9400..." value={trackingNums[rec.id] || ''} onChange={e => setTrackingNums({ ...trackingNums, [rec.id]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
-                      <input placeholder="Sig card # 9400..." value={sigCardNums[rec.id] || ''} onChange={e => setSigCardNums({ ...sigCardNums, [rec.id]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                      <input placeholder="Tracking # 9400..." value={trackingNums[rec.recipient_type] || ''} onChange={e => setTrackingNums({ ...trackingNums, [rec.recipient_type]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
+                      <input placeholder="Sig card # 9400..." value={sigCardNums[rec.recipient_type] || ''} onChange={e => setSigCardNums({ ...sigCardNums, [rec.recipient_type]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
                     </div>
                   </div>
                 ))}</div>}
@@ -599,16 +611,16 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                       <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#1B3A6B] text-white">Letter {c.letter_number}</span>
                       <span className="text-xs text-slate-500">{new Date(c.sent_date).toLocaleDateString()}</span>
                       <span className="text-xs text-slate-600">{c.recipient_name}</span>
-                      <span className="text-xs text-slate-500">{c.method?.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-500">{(c.send_method || c.method)?.replace(/_/g, ' ')}</span>
                     </div>
-                    {c.method === 'certified_mail' && <div className="text-xs text-slate-600 space-y-0.5 pl-2">
-                      {c.tracking_number && <p>Tracking: <a href={`https://tools.usps.com/go/TrackConfirmAction?tLabels=${c.tracking_number}`} target="_blank" rel="noopener noreferrer" className="text-[#1B3A6B] underline">{c.tracking_number}</a></p>}
-                      {c.signature_card && <p>Sig card: {c.signature_card}</p>}
+                    {(c.send_method || c.method) === 'certified_mail' && <div className="text-xs text-slate-600 space-y-0.5 pl-2">
+                      {(c.usps_tracking_number || c.tracking_number) && <p>Tracking: <a href={`https://tools.usps.com/go/TrackConfirmAction?tLabels=${c.usps_tracking_number || c.tracking_number}`} target="_blank" rel="noopener noreferrer" className="text-[#1B3A6B] underline">{c.usps_tracking_number || c.tracking_number}</a></p>}
+                      {(c.usps_signature_tracking_number || c.signature_card) && <p>Sig card: {c.usps_signature_tracking_number || c.signature_card}</p>}
                       <span className={`inline-block px-1.5 py-0.5 rounded ${c.status === 'delivered' || c.status === 'signed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{c.status}</span>
-                      {c.delivered_date && <p className="text-green-600">&#10003; Delivered {new Date(c.delivered_date).toLocaleDateString()}</p>}
-                      {c.signed_by && <p className="text-green-600">Signed by: {c.signed_by}</p>}
+                      {(c.usps_delivered_date || c.delivered_date) && <p className="text-green-600">&#10003; Delivered {new Date(c.usps_delivered_date || c.delivered_date).toLocaleDateString()}</p>}
+                      {(c.usps_signed_by || c.signed_by) && <p className="text-green-600">Signed by: {c.usps_signed_by || c.signed_by}</p>}
                     </div>}
-                    {c.method === 'fax' && <div className="text-xs text-slate-600 pl-2">
+                    {(c.send_method || c.method) === 'fax' && <div className="text-xs text-slate-600 pl-2">
                       <span className={`inline-block px-1.5 py-0.5 rounded ${c.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{c.status}</span>
                       {c.pages && <span className="ml-2">Pages: {c.pages}</span>}
                     </div>}

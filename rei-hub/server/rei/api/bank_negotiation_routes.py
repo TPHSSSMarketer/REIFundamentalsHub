@@ -117,7 +117,7 @@ class DocumentUpdate(BaseModel):
 
 
 class SendCorrespondence(BaseModel):
-    document_id: str
+    document_id: Optional[str] = None
     send_methods: list[str]  # ["certified_mail", "fax"]
     letter_number: int = 1  # 1, 2, or 3
     letter_type: str = "initial"  # initial, followup, final_demand

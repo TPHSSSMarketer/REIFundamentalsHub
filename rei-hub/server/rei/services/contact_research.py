@@ -220,11 +220,20 @@ def _parse_json_response(text: str) -> dict:
 
 def format_recipient_for_display(recipient) -> dict:
     """Return safe display version of a NegotiationRecipient model instance."""
+    # Build a combined address string for easy display
+    address_parts = filter(None, [
+        recipient.mailing_address,
+        recipient.mailing_city,
+        ((recipient.mailing_state or "") + " " + (recipient.mailing_zip or "")).strip() or None,
+    ])
+    combined_address = ", ".join(address_parts) or None
+
     return {
         "id": recipient.id,
         "recipient_type": recipient.recipient_type,
         "name": recipient.name,
         "title": recipient.title,
+        "address": combined_address,
         "mailing_address": recipient.mailing_address,
         "mailing_city": recipient.mailing_city,
         "mailing_state": recipient.mailing_state,
