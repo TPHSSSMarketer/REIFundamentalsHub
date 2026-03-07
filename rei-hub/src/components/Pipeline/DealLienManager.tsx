@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Banknote,
   Plus,
@@ -466,25 +466,30 @@ function LienCard({
 
 // ── Negotiation Modal ──────────────────────────────────────────────
 
+/** Map a DealLien's lienType to the service category for negotiations. */
+function lienTypeToService(lienType: string): string {
+  const lower = lienType.toLowerCase()
+  if (lower.includes('mortgage')) return 'Bank/Mortgage'
+  if (lower.includes('county') || lower.includes('tax')) return 'County Tax'
+  return 'Other Lien'
+}
+
 function NegotiationModal({
-  selectedLienIds,
+  selectedLiens,
   onSubmit,
   onCancel,
 }: {
-  selectedLienIds: Set<string>
+  selectedLiens: DealLien[]
   onSubmit: (serviceTypes: string[], message: string) => void
   onCancel: () => void
 }) {
-  const [serviceTypes, setServiceTypes] = useState<string[]>([])
   const [message, setMessage] = useState('')
 
-  const toggleServiceType = (type: string) => {
-    setServiceTypes((prev) =>
-      prev.includes(type)
-        ? prev.filter((t) => t !== type)
-        : [...prev, type]
-    )
-  }
+  // Auto-derive unique service types from the selected liens
+  const serviceTypes = useMemo(() => {
+    const types = new Set(selectedLiens.map((l) => lienTypeToService(l.lienType)))
+    return Array.from(types)
+  }, [selectedLiens])
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
@@ -494,21 +499,46 @@ function NegotiationModal({
         </h3>
 
         <div className="space-y-3 mb-4">
+          {/* Summary of what's being sent */}
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">
-              Service Type *
+              Selected Liens ({selectedLiens.length})
             </p>
-            <div className="space-y-2">
-              {['Bank/Mortgage', 'County Tax', 'Other Lien'].map((type) => (
-                <label key={type} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={serviceTypes.includes(type)}
-                    onChange={() => toggleServiceType(type)}
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm text-gray-700">{type}</span>
-                </label>
+            <div className="space-y-1.5">
+              {selectedLiens.map((lien) => (
+                <div
+                  key={lien.id}
+                  className="flex items-center justify-between text-sm bg-gray-50 px-3 py-2 rounded-lg"
+                >
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      {lien.lienHolder}
+                    </span>
+                    <span className="text-gray-500 ml-2">
+                      {lien.lienType}
+                    </span>
+                  </div>
+                  {lien.balance != null && (
+                    <span className="text-gray-600 font-medium">
+                      ${lien.balance.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Auto-derived service types (read-only) */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Service Types</p>
+            <div className="flex flex-wrap gap-1.5">
+              {serviceTypes.map((type) => (
+                <span
+                  key={type}
+                  className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700"
+                >
+                  {type}
+                </span>
               ))}
             </div>
           </div>
@@ -536,8 +566,7 @@ function NegotiationModal({
           </button>
           <button
             onClick={() => onSubmit(serviceTypes, message)}
-            disabled={serviceTypes.length === 0}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
             <Send className="w-4 h-4" />
             Submit
@@ -776,7 +805,7 @@ export default function DealLienManager({
       {/* Modals */}
       {showNegotiationModal && (
         <NegotiationModal
-          selectedLienIds={selectedLienIds}
+          selectedLiens={liens.filter((l) => selectedLienIds.has(l.id))}
           onSubmit={handleSendToNegotiations}
           onCancel={() => setShowNegotiationModal(false)}
         />

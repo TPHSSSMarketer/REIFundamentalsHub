@@ -265,7 +265,17 @@ app = FastAPI(
     openapi_url=_openapi_url,
 )
 
+# CSRF protection — validates double-submit cookie on state-changing requests
+# IMPORTANT: CSRF must be added BEFORE CORS, because Starlette processes
+# middleware in LIFO order (last added = outermost). We need CORS to be the
+# outermost layer so that even CSRF 403 rejections include CORS headers —
+# otherwise the browser sees a CORS error ("Failed to fetch") instead of the
+# real 403 error message.
+from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
+app.add_middleware(CSRFProtectionMiddleware)
+
 # CORS — allow hub frontend with credentials for HttpOnly cookie auth
+# Added LAST so it becomes the outermost middleware layer.
 if settings.environment == "development":
     _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 else:
@@ -277,10 +287,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
-
-# CSRF protection — validates double-submit cookie on state-changing requests
-from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
-app.add_middleware(CSRFProtectionMiddleware)
 
 
 @app.middleware("http")
