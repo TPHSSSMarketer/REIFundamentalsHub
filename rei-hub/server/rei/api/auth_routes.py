@@ -244,6 +244,10 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         "company_city": getattr(current_user, "company_city", None),
         "company_state": getattr(current_user, "company_state", None),
         "company_zip": getattr(current_user, "company_zip", None),
+        "mission_statement": getattr(current_user, "mission_statement", None),
+        "content_tone": getattr(current_user, "content_tone", None),
+        "investing_strategy": getattr(current_user, "investing_strategy", None),
+        "primary_market": getattr(current_user, "primary_market", None),
         "primary_color": None,  # Not stored per user currently
     }
 
