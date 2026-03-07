@@ -248,7 +248,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   }
 
   // Aggregate stats across all properties
-  const allNegs = properties.flatMap((p: any) => p.negotiations || [])
+  const allNegs = properties.flatMap((p: any) => p.lenders || p.negotiations || [])
   const stats = {
     total: allNegs.length,
     active: allNegs.filter((n: any) => n.status === 'active').length,
@@ -418,7 +418,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                       {rec.manually_verified && <span className="text-xs text-green-600 font-medium">&#10003; Verified</span>}
                     </div>
                   </div>
-                  {!rec.researched && !rec.name ? (
+                  {!rec.ai_researched && !rec.name ? (
                     <div className="flex items-center gap-2 py-2">
                       <div className="w-4 h-4 border-2 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
                       <span className="text-xs text-slate-500">AI researching...</span>

@@ -157,7 +157,12 @@ async def _bg_research_bank_contacts(
     negotiation_id: str,
     user_id: int,
 ) -> None:
-    """Run contact research in background with its own DB session."""
+    """Run contact research in background with its own DB session.
+
+    Placeholder recipient records are created by the create-negotiation
+    endpoint *before* this task runs.  This function updates those records
+    with AI research results.
+    """
     settings = get_settings()
     async with async_session_factory() as db:
         try:
@@ -171,30 +176,57 @@ async def _bg_research_bank_contacts(
             )
 
             for res in results:
-                recipient = NegotiationRecipient(
-                    negotiation_id=negotiation_id,
-                    user_id=user_id,
-                    recipient_type=res.get("recipient_type", ""),
-                    name=res.get("name"),
-                    title=res.get("title"),
-                    mailing_address=res.get("mailing_address"),
-                    mailing_city=res.get("mailing_city"),
-                    mailing_state=res.get("mailing_state"),
-                    mailing_zip=res.get("mailing_zip"),
-                    phone=res.get("phone"),
-                    fax=res.get("fax"),
-                    email=res.get("email"),
-                    ai_researched=True,
-                    ai_researched_at=datetime.utcnow(),
-                    ai_research_provider="nvidia_aiq",
-                    ai_confidence=res.get("confidence", "low"),
-                    ai_sources=json.dumps(res.get("sources", [])),
+                rtype = res.get("recipient_type", "")
+                # Find the placeholder record
+                row = await db.execute(
+                    select(NegotiationRecipient).where(
+                        NegotiationRecipient.negotiation_id == negotiation_id,
+                        NegotiationRecipient.recipient_type == rtype,
+                    )
                 )
-                db.add(recipient)
+                recipient = row.scalar_one_or_none()
+                if recipient:
+                    # Update existing placeholder with AI results
+                    recipient.name = res.get("name")
+                    recipient.title = res.get("title")
+                    recipient.mailing_address = res.get("mailing_address")
+                    recipient.mailing_city = res.get("mailing_city")
+                    recipient.mailing_state = res.get("mailing_state")
+                    recipient.mailing_zip = res.get("mailing_zip")
+                    recipient.phone = res.get("phone")
+                    recipient.fax = res.get("fax")
+                    recipient.email = res.get("email")
+                    recipient.ai_researched = True
+                    recipient.ai_researched_at = datetime.utcnow()
+                    recipient.ai_research_provider = "nvidia_aiq"
+                    recipient.ai_confidence = res.get("confidence", "low")
+                    recipient.ai_sources = json.dumps(res.get("sources", []))
+                else:
+                    # Fallback: create if placeholder missing
+                    new_rec = NegotiationRecipient(
+                        negotiation_id=negotiation_id,
+                        user_id=user_id,
+                        recipient_type=rtype,
+                        name=res.get("name"),
+                        title=res.get("title"),
+                        mailing_address=res.get("mailing_address"),
+                        mailing_city=res.get("mailing_city"),
+                        mailing_state=res.get("mailing_state"),
+                        mailing_zip=res.get("mailing_zip"),
+                        phone=res.get("phone"),
+                        fax=res.get("fax"),
+                        email=res.get("email"),
+                        ai_researched=True,
+                        ai_researched_at=datetime.utcnow(),
+                        ai_research_provider="nvidia_aiq",
+                        ai_confidence=res.get("confidence", "low"),
+                        ai_sources=json.dumps(res.get("sources", [])),
+                    )
+                    db.add(new_rec)
 
             await db.commit()
             logger.info(
-                "Contact research complete for negotiation %s — %d recipients created",
+                "Contact research complete for negotiation %s — %d recipients updated",
                 negotiation_id,
                 len(results),
             )
@@ -596,7 +628,21 @@ async def create_negotiation(
     await db.commit()
     await db.refresh(negotiation)
 
-    # Trigger background AI contact research
+    # Create 4 placeholder recipient records immediately so UI shows them
+    from rei.services.contact_research import RECIPIENT_TYPES as _RT
+    for rtype, rconfig in _RT.items():
+        placeholder = NegotiationRecipient(
+            negotiation_id=negotiation.id,
+            user_id=workspace_user_id(user),
+            recipient_type=rtype,
+            title=rconfig["title"],
+            ai_researched=False,           # False = still researching
+            ai_confidence=None,
+        )
+        db.add(placeholder)
+    await db.commit()
+
+    # Trigger background AI contact research to fill in the details
     background_tasks.add_task(
         _bg_research_bank_contacts,
         bank_name,
