@@ -300,15 +300,10 @@ export default function ContentHub() {
 
   return (
     <div className="space-y-6">
-      {/* Coming Soon Banner */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-        <span>AI content generation is being upgraded to native AI. Some features may be temporarily unavailable.</span>
-      </div>
-
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Content Hub</h1>
+          <h1 className="text-2xl font-bold text-slate-800">ContentHub</h1>
           <p className="text-slate-600">Generate a content waterfall for all your platforms</p>
         </div>
         <button

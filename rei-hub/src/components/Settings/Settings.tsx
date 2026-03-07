@@ -1130,7 +1130,7 @@ export default function Settings() {
           <h2 className="text-lg font-semibold text-slate-800">Social Accounts</h2>
         </div>
         <p className="text-sm text-slate-600 mb-4">
-          Connect your social media accounts to publish content directly from Content Hub.
+          Connect your social media accounts to publish content directly from ContentHub.
         </p>
 
         {socialLoading ? (

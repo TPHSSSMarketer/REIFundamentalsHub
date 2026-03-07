@@ -477,82 +477,82 @@ export default function LeadCenterPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex gap-1 border-b-2 border-slate-200">
         <button
           onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'templates'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Layout className="w-4 h-4 inline mr-2" />
+          <Layout className="w-5 h-5 inline mr-2 -mt-0.5" />
           Templates
         </button>
         <button
           onClick={() => setActiveTab('builder')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'builder'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Zap className="w-4 h-4 inline mr-2" />
+          <Zap className="w-5 h-5 inline mr-2 -mt-0.5" />
           Builder
         </button>
         <button
           onClick={() => setActiveTab('sites')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'sites'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Eye className="w-4 h-4 inline mr-2" />
+          <Eye className="w-5 h-5 inline mr-2 -mt-0.5" />
           Published Sites
         </button>
         <button
           onClick={() => setActiveTab('leads')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'leads'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Users className="w-4 h-4 inline mr-2" />
+          <Users className="w-5 h-5 inline mr-2 -mt-0.5" />
           Leads ({leads.length})
         </button>
         <button
           onClick={() => setActiveTab('embed')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'embed'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Code className="w-4 h-4 inline mr-2" />
+          <Code className="w-5 h-5 inline mr-2 -mt-0.5" />
           Embed
         </button>
         <button
           onClick={() => setActiveTab('pipeline')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'pipeline'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Upload className="w-4 h-4 inline mr-2" />
+          <Upload className="w-5 h-5 inline mr-2 -mt-0.5" />
           Leads Pipeline
         </button>
         <button
           onClick={() => setActiveTab('direct_mail')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+          className={`px-5 py-3 text-base font-semibold transition-colors border-b-3 ${
             activeTab === 'direct_mail'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-primary-600 text-primary-600 bg-primary-50'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <Send className="w-4 h-4 inline mr-2" />
+          <Send className="w-5 h-5 inline mr-2 -mt-0.5" />
           Direct Mail
         </button>
       </div>

@@ -65,7 +65,7 @@ const features = [
     badge: null as string | null,
   },
   {
-    name: 'Content Hub',
+    name: 'ContentHub',
     description: 'Generate investor content and publish to WordPress',
     icon: Megaphone,
     color: 'bg-yellow-100 text-yellow-600',
