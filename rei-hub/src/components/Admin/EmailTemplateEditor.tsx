@@ -32,13 +32,14 @@ import { toast } from 'sonner'
 
 // ── Category ordering & colors ──────────────────────────────────────
 
-const CATEGORY_ORDER = ['Onboarding', 'Billing', 'AI Credits', 'Leads']
+const CATEGORY_ORDER = ['Onboarding', 'Billing', 'AI Credits', 'Leads', 'Negotiations']
 
 const CATEGORY_COLORS: Record<string, string> = {
   Onboarding: 'bg-blue-100 text-blue-700',
   Billing: 'bg-green-100 text-green-700',
   'AI Credits': 'bg-purple-100 text-purple-700',
   Leads: 'bg-amber-100 text-amber-700',
+  Negotiations: 'bg-rose-100 text-rose-700',
 }
 
 // ── Main Component ──────────────────────────────────────────────────

@@ -196,6 +196,132 @@ DEFAULT_TEMPLATES: dict[str, dict] = {
         "cta_text": "Buy Credits",
         "cta_url_template": "{{hub_url}}/billing",
     },
+    # ── Negotiations ─────────────────────────────────────────────────────
+    "negotiation_request_confirmation": {
+        "display_name": "Request Received",
+        "category": "Negotiations",
+        "description": "Sent to the user when they submit a new negotiation request.",
+        "subject": "Negotiation Request Received",
+        "body_html": (
+            "<p>Hi {{user_name}},</p>"
+            "<p>We've received your negotiation request for the following property:</p>"
+            '<div style="background:#f8f9fa;padding:12px;border-radius:6px;margin:16px 0;">'
+            "<strong>Property:</strong> {{property_address}}<br>"
+            "<strong>Services Requested:</strong> {{service_types}}"
+            "</div>"
+            "<p>Our team will review your request and get back to you shortly with next steps.</p>"
+            "<p>Thank you for choosing REIFundamentals!</p>"
+        ),
+        "variables": ["user_name", "property_address", "service_types", "hub_url"],
+        "cta_text": "View Your Deals",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_request_accepted": {
+        "display_name": "Request Accepted",
+        "category": "Negotiations",
+        "description": "Sent when admin accepts the negotiation request.",
+        "subject": "Negotiation Request Accepted",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>Your negotiation request (ID: <strong>{{request_id}}</strong>) "
+            "has been <strong>accepted and approved</strong>.</p>"
+            "<p>Our team will begin creating cases and starting work on your request. "
+            "You'll receive updates as we progress.</p>"
+            "<p>Thank you for choosing REIFundamentals!</p>"
+        ),
+        "variables": ["request_id", "hub_url"],
+        "cta_text": "View Your Negotiations",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_request_info_needed": {
+        "display_name": "More Info Needed",
+        "category": "Negotiations",
+        "description": "Sent when admin needs more information before proceeding.",
+        "subject": "More Information Needed for Your Negotiation Request",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>Your negotiation request (ID: <strong>{{request_id}}</strong>) "
+            "has been received, but we need more information before we can proceed.</p>"
+            "<p>Please log in to your dashboard and check the messages on your deal "
+            "to see what additional details our team has requested.</p>"
+            "<p>Once we receive your information, we'll proceed with your request.</p>"
+        ),
+        "variables": ["request_id", "hub_url"],
+        "cta_text": "View Details",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_request_declined": {
+        "display_name": "Request Declined",
+        "category": "Negotiations",
+        "description": "Sent when admin declines the negotiation request.",
+        "subject": "Negotiation Request Update",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>Your negotiation request (ID: <strong>{{request_id}}</strong>) "
+            "has been received, but unfortunately could not be processed at this time.</p>"
+            "<p>If you believe this was in error or have questions, please reach out "
+            "to our support team for further assistance.</p>"
+        ),
+        "variables": ["request_id", "hub_url"],
+        "cta_text": "Contact Support",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_case_update": {
+        "display_name": "Case Activity Update",
+        "category": "Negotiations",
+        "description": "Sent when admin logs a new activity on a case (AI-sanitized summary).",
+        "subject": "Case Update",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>There's a new update on your negotiation case "
+            "(ID: <strong>{{case_id}}</strong>):</p>"
+            '<div style="background:#f8f9fa;padding:16px;border-radius:6px;'
+            'margin:16px 0;line-height:1.6;">'
+            "{{user_summary}}"
+            "</div>"
+            "<p>Log in to your dashboard to see the full details and reply if needed.</p>"
+            "<p>Thank you for choosing REIFundamentals!</p>"
+        ),
+        "variables": ["case_id", "user_summary", "hub_url"],
+        "cta_text": "View Case",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_tracking_update": {
+        "display_name": "Tracking Status Update",
+        "category": "Negotiations",
+        "description": "Sent when USPS tracking status changes (delivered, returned, etc.).",
+        "subject": "Tracking Update — {{tracking_status}}",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>The tracking status for your negotiation case "
+            "(ID: <strong>{{case_id}}</strong>) has been updated:</p>"
+            '<div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;">'
+            "<strong>Current Status:</strong> {{tracking_status}}<br>"
+            "<strong>Case Reference:</strong> {{case_id}}"
+            "</div>"
+            "<p>Log in to your dashboard to view more details about your case.</p>"
+            "<p>Thank you for using REIFundamentals!</p>"
+        ),
+        "variables": ["case_id", "tracking_status", "hub_url"],
+        "cta_text": "View Case",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
+    "negotiation_new_message": {
+        "display_name": "New Message",
+        "category": "Negotiations",
+        "description": "Sent when admin sends a chat message on a case.",
+        "subject": "New Message on Your Case",
+        "body_html": (
+            "<p>Hi there,</p>"
+            "<p>You have a new message regarding your negotiation case "
+            "(ID: <strong>{{case_id}}</strong>).</p>"
+            "<p>Log in to your dashboard to view and reply to your message.</p>"
+            "<p>Thank you for using REIFundamentals!</p>"
+        ),
+        "variables": ["case_id", "hub_url"],
+        "cta_text": "View Messages",
+        "cta_url_template": "{{hub_url}}/pipeline",
+    },
 }
 
 # Sample data for previews and test emails
@@ -222,6 +348,13 @@ SAMPLE_VARIABLES: dict[str, str] = {
     "price": "$185,000",
     "property_type": "Single Family",
     "credits_remaining": "$4.50",
+    # Negotiation variables
+    "user_name": "Alex Chen",
+    "service_types": "Bank/Mortgage, County Tax",
+    "request_id": "abc12345",
+    "case_id": "def67890",
+    "user_summary": "Correspondence was sent to the bank's loss mitigation department via certified mail. We are currently awaiting a formal response, which is expected within 30 business days.",
+    "tracking_status": "Delivered",
 }
 
 

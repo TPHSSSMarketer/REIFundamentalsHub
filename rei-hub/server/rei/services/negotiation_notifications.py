@@ -15,6 +15,12 @@ TELEGRAM SETUP:
 - To find your chat_id: message the bot, then visit
   https://api.telegram.org/bot<TOKEN>/getUpdates
   and look for the chat.id in the response
+
+TEMPLATE INTEGRATION:
+- All user-facing emails use _send_with_template() so the admin can
+  customise subject/body from the Email Templates tab in the admin UI.
+- Templates are registered in email_template_service.DEFAULT_TEMPLATES
+  under the "Negotiations" category.
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from rei.services.email import send_email
+from rei.services.email import _send_with_template
 
 if TYPE_CHECKING:
     from rei.config import Settings
@@ -32,6 +38,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
+
+
+# ── DB session helper ─────────────────────────────────────────────────
+
+async def _get_db():
+    """Create a standalone async db session for template lookups."""
+    from rei.database import async_session_factory
+    return async_session_factory()
 
 
 # ── Telegram notification (core) ─────────────────────────────────────
@@ -113,22 +127,34 @@ async def notify_new_request(
 
     await send_negotiation_telegram(message, settings)
 
-    # Send email confirmation to user
-    subject = "Negotiation Request Received"
-    html_content = f"""
-    <h2>Thank You for Your Request</h2>
-    <p>Hi {user_name},</p>
-    <p>We've received your negotiation request for the following property:</p>
-    <div style="background:#f8f9fa;padding:12px;border-radius:6px;margin:16px 0;">
-        <strong>Property:</strong> {property_address}<br>
-        <strong>Services Requested:</strong> {service_types}
-    </div>
-    <p>Our team will review your request and get back to you shortly with next steps.</p>
-    <p>Thank you for choosing REIFundamentals!</p>
-    """
-
+    # Send templated email confirmation to user
+    hub_url = settings.hub_url
     try:
-        await send_email(user_email, user_name, subject, html_content, settings)
+        async with await _get_db() as db:
+            await _send_with_template(
+                template_type="negotiation_request_confirmation",
+                to_email=user_email,
+                to_name=user_name,
+                variables={
+                    "user_name": user_name,
+                    "property_address": property_address,
+                    "service_types": service_types,
+                },
+                default_subject="Negotiation Request Received",
+                default_body=(
+                    f"<p>Hi {user_name},</p>"
+                    f"<p>We've received your negotiation request for the following property:</p>"
+                    f'<div style="background:#f8f9fa;padding:12px;border-radius:6px;margin:16px 0;">'
+                    f"<strong>Property:</strong> {property_address}<br>"
+                    f"<strong>Services Requested:</strong> {service_types}"
+                    f"</div>"
+                    f"<p>Our team will review your request and get back to you shortly with next steps.</p>"
+                ),
+                cta_text="View Your Dashboard",
+                cta_url=f"{hub_url}/negotiations",
+                settings=settings,
+                db=db,
+            )
         logger.info(f"New request confirmation email sent to {user_email}")
     except Exception as e:
         logger.error(f"Failed to send new request email to {user_email}: {e}")
@@ -144,36 +170,72 @@ async def notify_request_update(
     Notify user when admin accepts, requests info, or declines their request.
 
     Sends email to user with status update and next steps.
+    Uses status-specific templates so each can be customised independently.
     """
-    # Build status-specific subject and body
-    if new_status == "accepted":
-        subject = "Negotiation Request Accepted"
-        status_text = "accepted and approved"
-        next_steps = "Our team will begin creating cases and starting work on your request. You'll receive updates as we progress."
-    elif new_status == "info_requested":
-        subject = "More Information Needed"
-        status_text = "received, but we need more information"
-        next_steps = "Please reply to this email with the additional details our team has requested. Once we receive your information, we'll proceed with your request."
-    elif new_status == "declined":
-        subject = "Negotiation Request Update"
-        status_text = "received, but unfortunately could not be processed"
-        next_steps = "If you believe this was in error or have questions, please reach out to our support team for further assistance."
-    else:
-        subject = "Negotiation Request Update"
-        status_text = f"has been updated to {new_status}"
-        next_steps = "Check your dashboard for more details."
+    hub_url = settings.hub_url
 
-    html_content = f"""
-    <h2>Request Status Update</h2>
-    <p>Hi there,</p>
-    <p>Your negotiation request (ID: <strong>{request_id}</strong>) has been <strong>{status_text}</strong>.</p>
-    <p>{next_steps}</p>
-    <p>If you have any questions, please don't hesitate to contact our support team.</p>
-    <p>Thank you for using REIFundamentals!</p>
-    """
+    # Map status → template_type and defaults
+    STATUS_MAP = {
+        "accepted": {
+            "template_type": "negotiation_request_accepted",
+            "default_subject": "Negotiation Request Accepted",
+            "default_body": (
+                f"<p>Hi there,</p>"
+                f"<p>Your negotiation request (ID: <strong>{request_id}</strong>) has been "
+                f"<strong>accepted and approved</strong>.</p>"
+                f"<p>Our team will begin creating cases and starting work on your request. "
+                f"You'll receive updates as we progress.</p>"
+            ),
+        },
+        "info_requested": {
+            "template_type": "negotiation_request_info_needed",
+            "default_subject": "More Information Needed",
+            "default_body": (
+                f"<p>Hi there,</p>"
+                f"<p>Your negotiation request (ID: <strong>{request_id}</strong>) has been "
+                f"<strong>received, but we need more information</strong>.</p>"
+                f"<p>Please reply to this email with the additional details our team has requested. "
+                f"Once we receive your information, we'll proceed with your request.</p>"
+            ),
+        },
+        "declined": {
+            "template_type": "negotiation_request_declined",
+            "default_subject": "Negotiation Request Update",
+            "default_body": (
+                f"<p>Hi there,</p>"
+                f"<p>Your negotiation request (ID: <strong>{request_id}</strong>) has been "
+                f"<strong>received, but unfortunately could not be processed</strong>.</p>"
+                f"<p>If you believe this was in error or have questions, please reach out to our "
+                f"support team for further assistance.</p>"
+            ),
+        },
+    }
+
+    mapping = STATUS_MAP.get(new_status, {
+        "template_type": "negotiation_request_accepted",  # fallback
+        "default_subject": "Negotiation Request Update",
+        "default_body": (
+            f"<p>Hi there,</p>"
+            f"<p>Your negotiation request (ID: <strong>{request_id}</strong>) "
+            f"has been updated to <strong>{new_status}</strong>.</p>"
+            f"<p>Check your dashboard for more details.</p>"
+        ),
+    })
 
     try:
-        await send_email(user_email, "", subject, html_content, settings)
+        async with await _get_db() as db:
+            await _send_with_template(
+                template_type=mapping["template_type"],
+                to_email=user_email,
+                to_name="",
+                variables={"request_id": request_id},
+                default_subject=mapping["default_subject"],
+                default_body=mapping["default_body"],
+                cta_text="View Your Dashboard",
+                cta_url=f"{hub_url}/negotiations",
+                settings=settings,
+                db=db,
+            )
         logger.info(f"Request update email ({new_status}) sent to {user_email}")
     except Exception as e:
         logger.error(f"Failed to send request update email to {user_email}: {e}")
@@ -194,20 +256,35 @@ async def notify_new_activity(
     Sends the sanitized user_summary (AI-generated) via email.
     Do NOT include admin_note.
     """
-    subject = "Case Update"
-    html_content = f"""
-    <h2>New Update on Your Case</h2>
-    <p>Hi there,</p>
-    <p>There's a new update on your negotiation case (ID: <strong>{case_id}</strong>):</p>
-    <div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;line-height:1.6;">
-        {user_summary.replace(chr(10), '<br>')}
-    </div>
-    <p>Log in to your dashboard to see the full details and reply if needed.</p>
-    <p>Thank you for choosing REIFundamentals!</p>
-    """
+    hub_url = settings.hub_url
+    formatted_summary = user_summary.replace(chr(10), "<br>")
 
     try:
-        await send_email(user_email, "", subject, html_content, settings)
+        async with await _get_db() as db:
+            await _send_with_template(
+                template_type="negotiation_case_update",
+                to_email=user_email,
+                to_name="",
+                variables={
+                    "case_id": case_id,
+                    "user_summary": formatted_summary,
+                },
+                default_subject="Case Update",
+                default_body=(
+                    f"<p>Hi there,</p>"
+                    f"<p>There's a new update on your negotiation case "
+                    f"(ID: <strong>{case_id}</strong>):</p>"
+                    f'<div style="background:#f8f9fa;padding:16px;border-radius:6px;'
+                    f'margin:16px 0;line-height:1.6;">'
+                    f"{formatted_summary}"
+                    f"</div>"
+                    f"<p>Log in to your dashboard to see the full details and reply if needed.</p>"
+                ),
+                cta_text="View Case Details",
+                cta_url=f"{hub_url}/negotiations",
+                settings=settings,
+                db=db,
+            )
         logger.info(f"Activity update email sent for case {case_id} to {user_email}")
     except Exception as e:
         logger.error(f"Failed to send activity update email for case {case_id}: {e}")
@@ -227,21 +304,34 @@ async def notify_tracking_update(
 
     Called when USPS or Fax tracking status changes on a correspondence/activity.
     """
-    subject = f"Tracking Update — {tracking_status}"
-    html_content = f"""
-    <h2>Tracking Status Update</h2>
-    <p>Hi there,</p>
-    <p>The tracking status for your negotiation case (ID: <strong>{case_id}</strong>) has been updated:</p>
-    <div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;">
-        <strong>Current Status:</strong> {tracking_status}<br>
-        <strong>Case Reference:</strong> {case_id}
-    </div>
-    <p>Log in to your dashboard to view more details about your case.</p>
-    <p>Thank you for using REIFundamentals!</p>
-    """
+    hub_url = settings.hub_url
 
     try:
-        await send_email(user_email, "", subject, html_content, settings)
+        async with await _get_db() as db:
+            await _send_with_template(
+                template_type="negotiation_tracking_update",
+                to_email=user_email,
+                to_name="",
+                variables={
+                    "case_id": case_id,
+                    "tracking_status": tracking_status,
+                },
+                default_subject=f"Tracking Update — {tracking_status}",
+                default_body=(
+                    f"<p>Hi there,</p>"
+                    f"<p>The tracking status for your negotiation case "
+                    f"(ID: <strong>{case_id}</strong>) has been updated:</p>"
+                    f'<div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;">'
+                    f"<strong>Current Status:</strong> {tracking_status}<br>"
+                    f"<strong>Case Reference:</strong> {case_id}"
+                    f"</div>"
+                    f"<p>Log in to your dashboard to view more details about your case.</p>"
+                ),
+                cta_text="View Tracking",
+                cta_url=f"{hub_url}/negotiations",
+                settings=settings,
+                db=db,
+            )
         logger.info(f"Tracking update email sent for case {case_id} to {user_email}")
     except Exception as e:
         logger.error(f"Failed to send tracking update email for case {case_id}: {e}")
@@ -267,18 +357,28 @@ async def notify_new_message(
         message = f"💬 *New message from user* in case {_escape_markdown(case_id)}"
         await send_negotiation_telegram(message, settings)
     elif sender_role == "admin":
-        # Send email to user that admin sent a message
-        subject = "New Message on Your Case"
-        html_content = f"""
-        <h2>New Message</h2>
-        <p>Hi there,</p>
-        <p>You have a new message regarding your negotiation case (ID: <strong>{case_id}</strong>).</p>
-        <p>Log in to your dashboard to view and reply to your message.</p>
-        <p>Thank you for using REIFundamentals!</p>
-        """
+        # Send templated email to user that admin sent a message
+        hub_url = settings.hub_url
 
         try:
-            await send_email(recipient_email, "", subject, html_content, settings)
+            async with await _get_db() as db:
+                await _send_with_template(
+                    template_type="negotiation_new_message",
+                    to_email=recipient_email,
+                    to_name="",
+                    variables={"case_id": case_id},
+                    default_subject="New Message on Your Case",
+                    default_body=(
+                        f"<p>Hi there,</p>"
+                        f"<p>You have a new message regarding your negotiation case "
+                        f"(ID: <strong>{case_id}</strong>).</p>"
+                        f"<p>Log in to your dashboard to view and reply to your message.</p>"
+                    ),
+                    cta_text="View Messages",
+                    cta_url=f"{hub_url}/negotiations",
+                    settings=settings,
+                    db=db,
+                )
             logger.info(f"New message notification email sent for case {case_id} to {recipient_email}")
         except Exception as e:
             logger.error(f"Failed to send message notification email for case {case_id}: {e}")
