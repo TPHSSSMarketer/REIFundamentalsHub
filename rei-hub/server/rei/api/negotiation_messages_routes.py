@@ -156,6 +156,7 @@ async def send_message(
             sender_role=sender_role,
             recipient_email=recipient_email,
             settings=get_settings(),
+            user_id=case.user_id if case else None,
         )
     except Exception as e:
         logger.warning("Failed to send message notification: %s", e)

@@ -540,6 +540,7 @@ async def update_activity_tracking(
                                 tracking_status="delivered",
                                 user_email=owner.email,
                                 settings=settings,
+                                user_id=case.user_id,
                             )
                 except Exception as e:
                     logger.warning("Failed to send delivered notification: %s", e)
@@ -561,6 +562,7 @@ async def update_activity_tracking(
                                 tracking_status="returned",
                                 user_email=owner.email,
                                 settings=settings,
+                                user_id=case.user_id,
                             )
                 except Exception as e:
                     logger.warning("Failed to send returned notification: %s", e)

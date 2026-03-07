@@ -161,6 +161,7 @@ async def create_activity(
             user_summary=activity.user_summary or body.adminNote[:100],
             user_email=owner.email if owner else "",
             settings=get_settings(),
+            user_id=case.user_id,
         )
     except Exception as e:
         logger.warning("Failed to send activity notification: %s", e)

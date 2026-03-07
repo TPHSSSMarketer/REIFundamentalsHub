@@ -4,14 +4,19 @@ ADMIN NOTIFICATIONS (Telegram + WhatsApp + Slack):
   Sent when users take actions — new request, new message.
   All three channels are optional: if not configured, silently skipped.
 
-USER NOTIFICATIONS (Email):
+USER NOTIFICATIONS (Email + Telegram + WhatsApp + Slack):
   Sent when admin takes actions — accept/decline, activity, tracking, message.
-  Uses _send_with_template() so templates are editable in Admin → Email Templates.
+  Email uses _send_with_template() so templates are editable in Admin → Email Templates.
+  Telegram/WhatsApp/Slack use per-user settings from their profile.
 
-SETUP:
+SETUP (Admin channels):
   Telegram: SuperAdmin → Telegram → Bot Token + Chat ID
   WhatsApp: SuperAdmin → Twilio → WhatsApp From/To Numbers
   Slack:    SuperAdmin → Slack → Incoming Webhook URL
+
+SETUP (User channels):
+  Users configure their own Telegram Chat ID, WhatsApp number, or Slack webhook
+  in Settings → Preferences → Notifications.
 """
 
 from __future__ import annotations
@@ -77,6 +82,135 @@ async def _notify_admin(
                 logger.debug("Slack notification skipped: %s", e)
     except Exception as e:
         logger.warning("Could not open DB session for WhatsApp/Slack: %s", e)
+
+
+# ── Multi-channel user notification ──────────────────────────────────
+
+
+async def _notify_user(
+    user_id: int,
+    telegram_msg: str,
+    plain_msg: str,
+) -> None:
+    """Send notifications to a user via their configured channels.
+
+    Looks up the user's Telegram/WhatsApp/Slack preferences and sends
+    to every enabled channel. Each channel is independent — failures
+    are logged but never raised.
+
+    Args:
+        user_id: The user's DB id.
+        telegram_msg: MarkdownV2-formatted message for Telegram.
+        plain_msg: Plain text message for WhatsApp and Slack.
+    """
+    from rei.config import get_settings
+    from rei.models.user import User
+    from sqlalchemy import select
+
+    try:
+        async with await _get_db() as db:
+            result = await db.execute(select(User).filter(User.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.warning("User %s not found for notification", user_id)
+                return
+
+            settings = get_settings()
+
+            # Telegram — reuse admin bot token, send to user's chat_id
+            if user.telegram_enabled and user.telegram_chat_id:
+                try:
+                    await _send_user_telegram(telegram_msg, user.telegram_chat_id, settings)
+                except Exception as e:
+                    logger.debug("User Telegram notification failed for user %s: %s", user_id, e)
+
+            # WhatsApp — admin's Twilio creds, user's phone number
+            if user.whatsapp_enabled and user.whatsapp_phone_number:
+                try:
+                    await _send_user_whatsapp(plain_msg, user.whatsapp_phone_number, db)
+                except Exception as e:
+                    logger.debug("User WhatsApp notification failed for user %s: %s", user_id, e)
+
+            # Slack — user's own webhook URL
+            if user.slack_enabled and user.slack_webhook_url:
+                try:
+                    await _send_user_slack(plain_msg, user.slack_webhook_url)
+                except Exception as e:
+                    logger.debug("User Slack notification failed for user %s: %s", user_id, e)
+    except Exception as e:
+        logger.warning("Could not send user notifications for user %s: %s", user_id, e)
+
+
+async def _send_user_telegram(message: str, chat_id: str, settings) -> bool:
+    """Send a Telegram message to a user using the admin bot token."""
+    bot_token = getattr(settings, "telegram_bot_token", "") or ""
+    if not bot_token or not chat_id:
+        return False
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": _escape_markdown(message),
+                    "parse_mode": "MarkdownV2",
+                },
+                timeout=10,
+            )
+            return resp.status_code == 200
+    except Exception as e:
+        logger.error("Failed to send user Telegram message: %s", e)
+        return False
+
+
+async def _send_user_whatsapp(message: str, to_number: str, db) -> bool:
+    """Send a WhatsApp message to a user via admin's Twilio creds."""
+    from rei.services.credentials_service import get_provider_credentials
+
+    creds = await get_provider_credentials(db, "twilio")
+    if not creds:
+        return False
+
+    account_sid = creds.get("twilio_account_sid", "")
+    auth_token = creds.get("twilio_auth_token", "")
+    from_number = creds.get("twilio_whatsapp_from_number", "")
+
+    if not all([account_sid, auth_token, from_number]):
+        return False
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                auth=(account_sid, auth_token),
+                data={
+                    "From": f"whatsapp:{from_number}",
+                    "To": f"whatsapp:{to_number}",
+                    "Body": message,
+                },
+                timeout=15,
+            )
+            return resp.status_code in (200, 201)
+    except Exception as e:
+        logger.error("Failed to send user WhatsApp message: %s", e)
+        return False
+
+
+async def _send_user_slack(message: str, webhook_url: str) -> bool:
+    """Send a Slack message to a user's own webhook URL."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                webhook_url,
+                json={"text": message},
+                timeout=10,
+            )
+            return resp.status_code == 200
+    except Exception as e:
+        logger.error("Failed to send user Slack message: %s", e)
+        return False
 
 
 # ── Telegram notification (core) ─────────────────────────────────────
@@ -203,6 +337,7 @@ async def notify_request_update(
     new_status: str,
     user_email: str,
     settings: Settings,
+    user_id: int | None = None,
 ) -> None:
     """
     Notify user when admin accepts, requests info, or declines their request.
@@ -278,6 +413,12 @@ async def notify_request_update(
     except Exception as e:
         logger.error(f"Failed to send request update email to {user_email}: {e}")
 
+    # Also notify user via their configured channels
+    if user_id:
+        telegram_msg = f"📋 *Negotiation request update*: {_escape_markdown(new_status)}"
+        plain_msg = f"📋 Your negotiation request has been updated to: {new_status}. Log in to view details."
+        await _notify_user(user_id, telegram_msg, plain_msg)
+
 
 # ── Activity notifications ───────────────────────────────────────────
 
@@ -287,6 +428,7 @@ async def notify_new_activity(
     user_summary: str,
     user_email: str,
     settings: Settings,
+    user_id: int | None = None,
 ) -> None:
     """
     Notify user when admin logs a new activity in their case.
@@ -327,6 +469,14 @@ async def notify_new_activity(
     except Exception as e:
         logger.error(f"Failed to send activity update email for case {case_id}: {e}")
 
+    # Also notify user via their configured channels
+    if user_id:
+        # Truncate summary for messaging channels
+        short_summary = user_summary[:200] + ("..." if len(user_summary) > 200 else "")
+        telegram_msg = f"📝 *Case update* for {_escape_markdown(case_id)}\n{_escape_markdown(short_summary)}"
+        plain_msg = f"📝 Case update for {case_id}: {short_summary}"
+        await _notify_user(user_id, telegram_msg, plain_msg)
+
 
 # ── Tracking notifications ───────────────────────────────────────────
 
@@ -336,9 +486,10 @@ async def notify_tracking_update(
     tracking_status: str,
     user_email: str,
     settings: Settings,
+    user_id: int | None = None,
 ) -> None:
     """
-    Push tracking status changes to user.
+    Push tracking status changes to user via email + their configured channels.
 
     Called when USPS or Fax tracking status changes on a correspondence/activity.
     """
@@ -374,6 +525,12 @@ async def notify_tracking_update(
     except Exception as e:
         logger.error(f"Failed to send tracking update email for case {case_id}: {e}")
 
+    # Also notify user via their configured channels
+    if user_id:
+        telegram_msg = f"📦 *Tracking update* for case {_escape_markdown(case_id)}: {_escape_markdown(tracking_status)}"
+        plain_msg = f"📦 Tracking update for case {case_id}: {tracking_status}"
+        await _notify_user(user_id, telegram_msg, plain_msg)
+
 
 # ── Chat message notifications ───────────────────────────────────────
 
@@ -383,12 +540,13 @@ async def notify_new_message(
     sender_role: str,
     recipient_email: str,
     settings: Settings,
+    user_id: int | None = None,
 ) -> None:
     """
     Notify the other party when a chat message is received.
 
     If sender is user → Notify admin (Telegram + WhatsApp + Slack)
-    If sender is admin → Send email to user
+    If sender is admin → Send email + user channels (Telegram/WhatsApp/Slack)
     """
     if sender_role == "user":
         # Notify admin via all configured channels
@@ -421,6 +579,12 @@ async def notify_new_message(
             logger.info(f"New message notification email sent for case {case_id} to {recipient_email}")
         except Exception as e:
             logger.error(f"Failed to send message notification email for case {case_id}: {e}")
+
+        # Also notify user via their configured channels
+        if user_id:
+            telegram_msg = f"💬 *New message from your negotiator* on case {_escape_markdown(case_id)}"
+            plain_msg = f"💬 New message from your negotiator on case {case_id}. Log in to view."
+            await _notify_user(user_id, telegram_msg, plain_msg)
 
 
 # ── Internal helpers ─────────────────────────────────────────────────

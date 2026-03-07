@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2, Users, Sliders, Link2 } from 'lucide-react'
+import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2, Users, Sliders, Link2, Bell, MessageCircle } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
@@ -194,6 +194,17 @@ export default function Settings() {
   const [currencyEnabled, setCurrencyEnabled] = useState(false)
   const [preferredCurrency, setPreferredCurrency] = useState('EUR')
 
+  // Notification preferences state
+  const [notifPrefs, setNotifPrefs] = useState({
+    telegram_enabled: false,
+    telegram_chat_id: '',
+    whatsapp_enabled: false,
+    whatsapp_phone_number: '',
+    slack_enabled: false,
+    slack_webhook_url: '',
+  })
+  const [notifSaving, setNotifSaving] = useState(false)
+
   const [analyzerLoading, setAnalyzerLoading] = useState(true)
   const [analyzerSaving, setAnalyzerSaving] = useState(false)
 
@@ -232,6 +243,31 @@ export default function Settings() {
       }
     }
     loadAnalyzerPrefs()
+  }, [])
+
+  // Load notification preferences
+  useEffect(() => {
+    async function loadNotifPrefs() {
+      try {
+        const res = await fetch(`${BASE_URL}/api/user/notifications/preferences`, {
+          headers: getAuthHeader(),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setNotifPrefs({
+            telegram_enabled: data.telegram_enabled ?? false,
+            telegram_chat_id: data.telegram_chat_id ?? '',
+            whatsapp_enabled: data.whatsapp_enabled ?? false,
+            whatsapp_phone_number: data.whatsapp_phone_number ?? '',
+            slack_enabled: data.slack_enabled ?? false,
+            slack_webhook_url: data.slack_webhook_url ?? '',
+          })
+        }
+      } catch {
+        // use defaults
+      }
+    }
+    loadNotifPrefs()
   }, [])
 
   useEffect(() => {
@@ -438,6 +474,23 @@ export default function Settings() {
       toast.error('Failed to save analyzer defaults.')
     } finally {
       setAnalyzerSaving(false)
+    }
+  }
+
+  const handleSaveNotifPrefs = async () => {
+    setNotifSaving(true)
+    try {
+      const res = await fetch(`${BASE_URL}/api/user/notifications/preferences`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifPrefs),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      toast.success('Notification preferences saved.')
+    } catch {
+      toast.error('Failed to save notification preferences.')
+    } finally {
+      setNotifSaving(false)
     }
   }
 
@@ -1447,6 +1500,144 @@ export default function Settings() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Bell className="w-5 h-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-slate-800">Notifications</h2>
+        </div>
+        <p className="text-sm text-slate-600 mb-6">
+          Get negotiation updates, lead alerts, and case activity via Telegram, WhatsApp, or Slack — in addition to email.
+        </p>
+
+        <div className="space-y-6">
+          {/* Telegram */}
+          <div className="border-b border-slate-200 pb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-blue-500" />
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Telegram</h3>
+                  <p className="text-xs text-slate-500">Instant alerts on Telegram</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNotifPrefs({ ...notifPrefs, telegram_enabled: !notifPrefs.telegram_enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  notifPrefs.telegram_enabled ? 'bg-primary-500' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifPrefs.telegram_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {notifPrefs.telegram_enabled && (
+              <div className="ml-7">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Telegram Chat ID</label>
+                <input
+                  type="text"
+                  value={notifPrefs.telegram_chat_id}
+                  onChange={(e) => setNotifPrefs({ ...notifPrefs, telegram_chat_id: e.target.value })}
+                  placeholder="e.g., 123456789"
+                  className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Message our Telegram bot to get your Chat ID. Ask your admin for the bot link.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* WhatsApp */}
+          <div className="border-b border-slate-200 pb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-green-500" />
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">WhatsApp</h3>
+                  <p className="text-xs text-slate-500">Receive notifications via WhatsApp</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNotifPrefs({ ...notifPrefs, whatsapp_enabled: !notifPrefs.whatsapp_enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  notifPrefs.whatsapp_enabled ? 'bg-primary-500' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifPrefs.whatsapp_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {notifPrefs.whatsapp_enabled && (
+              <div className="ml-7">
+                <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp Phone Number</label>
+                <input
+                  type="tel"
+                  value={notifPrefs.whatsapp_phone_number}
+                  onChange={(e) => setNotifPrefs({ ...notifPrefs, whatsapp_phone_number: e.target.value })}
+                  placeholder="e.g., +18005550000"
+                  className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter your number in international format: +1 followed by 10 digits for US numbers.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Slack */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-purple-500" />
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Slack</h3>
+                  <p className="text-xs text-slate-500">Send alerts to a Slack channel</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNotifPrefs({ ...notifPrefs, slack_enabled: !notifPrefs.slack_enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  notifPrefs.slack_enabled ? 'bg-primary-500' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifPrefs.slack_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {notifPrefs.slack_enabled && (
+              <div className="ml-7">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Slack Webhook URL</label>
+                <input
+                  type="password"
+                  value={notifPrefs.slack_webhook_url}
+                  onChange={(e) => setNotifPrefs({ ...notifPrefs, slack_webhook_url: e.target.value })}
+                  placeholder="https://hooks.slack.com/services/..."
+                  className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Create an Incoming Webhook at api.slack.com and paste the URL here.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <button
+            onClick={handleSaveNotifPrefs}
+            disabled={notifSaving}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors text-sm"
+          >
+            {notifSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {notifSaving ? 'Saving...' : 'Save Preferences'}
+          </button>
         </div>
       </div>
 

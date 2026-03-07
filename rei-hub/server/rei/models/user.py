@@ -105,6 +105,14 @@ class User(Base):
     # ── Notification Preferences ──────────────────────────────────
     lead_email_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # User notification channels (Telegram / WhatsApp / Slack)
+    telegram_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    telegram_chat_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    whatsapp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    whatsapp_phone_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    slack_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    slack_webhook_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # ── Deal Analyzer Preferences ─────────────────────────────────
     analyzer_arv_multiplier: Mapped[float] = mapped_column(
         Float, default=0.70)

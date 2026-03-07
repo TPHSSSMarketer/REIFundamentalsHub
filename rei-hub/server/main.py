@@ -62,6 +62,7 @@ from rei.api.flow_builder_routes import flow_builder_router
 from rei.api.webchat_routes import webchat_router, webchat_public_router
 from rei.api.admin_assistant_routes import admin_assistant_router
 from rei.api.underwriting_routes import underwriting_router
+from rei.api.user_preferences_routes import user_preferences_router
 from rei.api.property_routes import property_router
 from rei.api.email_template_routes import email_template_router
 from rei.config import get_settings
@@ -419,6 +420,7 @@ app.include_router(property_router, prefix="/api")
 app.include_router(email_template_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(content_hub_router, prefix="/api")
+app.include_router(user_preferences_router, prefix="/api")
 
 
 @app.get("/health")

@@ -283,6 +283,7 @@ async def request_more_info(
             new_status=req.status,
             user_email=owner.email if owner else "",
             settings=get_settings(),
+            user_id=req.user_id,
         )
     except Exception as e:
         logger.warning("Failed to send request update notification: %s", e)
@@ -332,6 +333,7 @@ async def decline_negotiation_request(
             new_status=req.status,
             user_email=owner.email if owner else "",
             settings=get_settings(),
+            user_id=req.user_id,
         )
     except Exception as e:
         logger.warning("Failed to send request update notification: %s", e)
