@@ -41,6 +41,12 @@ import FlowEditor from './components/FlowBuilder/FlowEditor'
 import AdminAssistantPage from './components/AdminAssistant/AdminAssistantPage'
 import { isAuthenticated } from './services/auth'
 
+/** Redirect component — sends user to an external URL */
+function ExternalRedirect({ to }: { to: string }) {
+  window.location.href = to
+  return null
+}
+
 function BillingCompletePage() {
   const navigate = useNavigate()
 
@@ -113,7 +119,7 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={isAuthenticated() ? <Navigate to="/pipeline" replace /> : <LandingPage />}
+          element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LandingPage />}
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -121,6 +127,8 @@ function App() {
         <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
         <Route path="/pay" element={<PaymentPortalPage />} />
+        <Route path="/privacy" element={<ExternalRedirect to="https://reifundamentalshub.com/privacy.html" />} />
+        <Route path="/terms" element={<ExternalRedirect to="https://reifundamentalshub.com/terms.html" />} />
         <Route
           path="/billing/complete"
           element={

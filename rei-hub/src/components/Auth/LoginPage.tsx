@@ -34,7 +34,7 @@ export default function LoginPage() {
       // Backend set HttpOnly cookies on the Google OAuth redirect.
       // No need to store anything in localStorage — just navigate.
       disableDemoMode() // Clear demo mode on real login
-      navigate('/pipeline', { replace: true })
+      navigate('/dashboard', { replace: true })
       return
     }
 
@@ -61,7 +61,7 @@ export default function LoginPage() {
 
     if (result.success) {
       disableDemoMode() // Clear demo mode on real login
-      navigate('/pipeline')
+      navigate('/dashboard')
     } else {
       setError(result.error ?? 'Login failed')
       setPassword('')
@@ -184,7 +184,7 @@ export default function LoginPage() {
           <button
             onClick={() => {
               enableDemoMode()
-              navigate('/pipeline')
+              navigate('/dashboard')
             }}
             className="mt-4 w-full rounded-lg border-2 border-dashed border-slate-300 text-slate-600 py-2.5 text-sm font-medium hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
           >

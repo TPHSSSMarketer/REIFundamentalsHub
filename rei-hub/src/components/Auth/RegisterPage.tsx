@@ -44,7 +44,7 @@ export default function RegisterPage() {
     const result = await register(email, password, fullName || undefined)
 
     if (result.success) {
-      navigate('/pipeline')
+      navigate('/dashboard')
     } else {
       setError(result.error ?? 'Registration failed')
     }

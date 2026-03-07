@@ -67,7 +67,7 @@ export default function AcceptInvitePage() {
       await acceptInvite(token!, inviteEmail, fullName.trim(), password)
       setSuccess(true)
       // Backend sets auth cookies on accept, redirect after brief delay
-      setTimeout(() => navigate('/pipeline', { replace: true }), 2000)
+      setTimeout(() => navigate('/dashboard', { replace: true }), 2000)
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
