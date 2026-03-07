@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { getNegotiations, getTrackingSummary, refreshAllTracking } from '../../../services/bankNegotiationApi'
 
 const USPS_URL = 'https://tools.usps.com/go/TrackConfirmAction?tLabels='
+const RECIPIENT_LABELS: Record<string, string> = { ceo: 'CEO', general_counsel: 'General Counsel', registered_agent: 'Registered Agent', respa_address: 'RESPA Address', loss_mitigation: 'Loss Mitigation', collections: 'Collections' }
+function fmtLabel(raw: string) { return RECIPIENT_LABELS[raw] || raw.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
 
 function overallStatus(tracking: any): { label: string; style: string } {
   if (!tracking || !tracking.recipients?.length) return { label: 'Not Sent', style: 'bg-gray-100 text-gray-600' }
@@ -101,7 +103,7 @@ export default function TrackingTab() {
                   </tr></thead>
                   <tbody>{recipients.map((rec: any, i: number) => (
                     <tr key={i} className="border-b last:border-0">
-                      <td className="px-4 py-2 text-slate-800 font-medium">{rec.recipient_type || rec.name}</td>
+                      <td className="px-4 py-2 text-slate-800 font-medium">{fmtLabel(rec.recipient_type || rec.name || '')}</td>
                       <td className="px-4 py-2">
                         {rec.cert_mail?.tracking_number ? (<>
                           <a href={`${USPS_URL}${rec.cert_mail.tracking_number}`} target="_blank" rel="noopener noreferrer" className="text-[#1B3A6B] underline block">{rec.cert_mail.tracking_number}</a>

@@ -34,6 +34,21 @@ const LOAN_TYPE_BADGE: Record<string, string> = {
   'Other': 'bg-gray-500 text-white',
 }
 
+// Display-friendly labels for snake_case values from the backend
+const NEGOTIATION_TYPE_LABEL: Record<string, string> = {
+  short_sale: 'Short Sale', loan_modification: 'Loan Modification',
+  deed_in_lieu: 'Deed in Lieu', payoff: 'Payoff', other: 'Other',
+}
+const RECIPIENT_TYPE_LABEL: Record<string, string> = {
+  ceo: 'CEO', general_counsel: 'General Counsel',
+  registered_agent: 'Registered Agent', respa_address: 'RESPA Address',
+  loss_mitigation: 'Loss Mitigation', collections: 'Collections',
+}
+function formatLabel(raw: string, labelMap?: Record<string, string>): string {
+  if (labelMap && labelMap[raw]) return labelMap[raw]
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 const LETTER_TYPES: Record<number, string> = { 1: 'Initial', 2: 'Follow-up', 3: 'Final Demand' }
 const CONFIDENCE_DOT: Record<string, string> = { high: 'bg-green-500', medium: 'bg-yellow-500', low: 'bg-red-500' }
 const DOCUMENT_TYPE_BADGE: Record<string, string> = {
@@ -322,8 +337,9 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                         ))}
                       </tr></thead>
                       <tbody>{lenders.map((n: any) => {
-                        const loanType = n.loan_type || n.negotiation_type || 'Other'
-                        const loanBadge = LOAN_TYPE_BADGE[loanType] || LOAN_TYPE_BADGE['Other']
+                        const loanTypeRaw = n.loan_type || n.negotiation_type || 'Other'
+                        const loanType = formatLabel(loanTypeRaw, NEGOTIATION_TYPE_LABEL)
+                        const loanBadge = LOAN_TYPE_BADGE[loanType] || LOAN_TYPE_BADGE[loanTypeRaw] || LOAN_TYPE_BADGE['Other']
                         const lastLetter = n.last_letter_number
                           ? `Letter ${n.last_letter_number} \u2014 ${n.last_letter_date ? new Date(n.last_letter_date).toLocaleDateString() : ''}`
                           : '\u2014'
@@ -386,10 +402,17 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
             {/* Recipients */}
             <div>
               <h4 className="text-sm font-semibold text-slate-700 mb-2">{recipients.length} Recipients</h4>
+              {recipients.length === 0 && (
+                <div className="flex items-center gap-2 py-3 px-4 bg-blue-50 rounded-lg border border-blue-200 mb-3">
+                  <div className="w-4 h-4 border-2 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-slate-600">AI is researching bank contacts. This may take a minute — try refreshing.</span>
+                  <button onClick={() => openDetail(selectedNeg)} className="ml-auto px-2 py-1 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90">Refresh</button>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{recipients.map((rec: any) => (
                 <div key={rec.id} className="border border-slate-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#1B3A6B] text-white">{rec.recipient_type}</span>
+                    <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#1B3A6B] text-white">{formatLabel(rec.recipient_type, RECIPIENT_TYPE_LABEL)}</span>
                     <div className="flex items-center gap-1">
                       {rec.ai_confidence && <span className="flex items-center gap-1 text-xs text-slate-500"><span className={`w-2 h-2 rounded-full inline-block ${CONFIDENCE_DOT[rec.ai_confidence] || 'bg-gray-400'}`} />{rec.ai_confidence}</span>}
                       {rec.manually_verified && <span className="text-xs text-green-600 font-medium">&#10003; Verified</span>}
@@ -487,7 +510,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                 <label className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={sendMethods.certifiedMail} onChange={e => setSendMethods({ ...sendMethods, certifiedMail: e.target.checked })} className="accent-[#1B3A6B]" />Certified Mail</label>
                 {sendMethods.certifiedMail && <div className="pl-5 space-y-2">{recipients.map((rec: any) => (
                   <div key={rec.id} className="space-y-1">
-                    <label className="text-xs text-slate-500">{rec.recipient_type}</label>
+                    <label className="text-xs text-slate-500">{formatLabel(rec.recipient_type, RECIPIENT_TYPE_LABEL)}</label>
                     <div className="flex gap-2">
                       <input placeholder="Tracking # 9400..." value={trackingNums[rec.id] || ''} onChange={e => setTrackingNums({ ...trackingNums, [rec.id]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
                       <input placeholder="Sig card # 9400..." value={sigCardNums[rec.id] || ''} onChange={e => setSigCardNums({ ...sigCardNums, [rec.id]: e.target.value })} className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]" />
