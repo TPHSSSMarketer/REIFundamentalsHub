@@ -43,7 +43,7 @@ const navItems = [
   { to: '/portfolio', icon: Building2, label: 'Portfolio' },
   { to: '/documents', icon: FileText, label: 'Documents' },
   // Email Marketing now lives inside AssistantHub
-  { to: '/lead-capture', icon: Globe, label: 'Lead Capture' },
+  { to: '/leadhub', icon: Globe, label: 'LeadHub' },
   { to: '/phone', icon: Phone, label: 'Phone' },
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
   { to: '/assistant', icon: Bot, label: 'Assistant' },

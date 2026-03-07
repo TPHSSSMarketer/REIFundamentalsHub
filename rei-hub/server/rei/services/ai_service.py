@@ -349,6 +349,7 @@ PLATFORM_DIMENSIONS: dict[str, tuple[int, int]] = {
     "youtube_thumb":  (1024, 576),   # Landscape
     "blog":           (1024, 576),   # Landscape
     "youtube_short":  (576, 1024),   # Portrait
+    "postcard":       (1024, 683),   # Postcard landscape
 }
 
 
@@ -1190,6 +1191,193 @@ Return ONLY the JSON object, nothing else."""
             "outcome": "unknown",
             "summary": f"Analysis error: {str(e)}",
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Direct Mail — AI Copy Generation for Postcards & Letters
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def generate_direct_mail_copy(
+    lead,
+    mail_type: str,
+    campaign_type: str,
+    user_profile,
+    custom_instructions: str | None,
+    db,
+    settings,
+) -> str:
+    """Generate personalized direct mail copy for a lead using Claude.
+
+    Returns the generated copy text (already humanized).
+    """
+    from rei.services.credentials_service import get_provider_credentials
+
+    # Get Anthropic API key
+    anthropic_key = ""
+    try:
+        creds = await get_provider_credentials(db, "anthropic")
+        if creds and creds.get("anthropic_api_key"):
+            anthropic_key = creds["anthropic_api_key"]
+    except Exception:
+        pass
+    if not anthropic_key:
+        anthropic_key = getattr(settings, "anthropic_api_key", "") or ""
+    if not anthropic_key:
+        raise ValueError("No Anthropic API key configured.")
+
+    # Build lead context
+    lead_name = lead.full_name or f"{lead.first_name or ''} {lead.last_name or ''}".strip() or "Homeowner"
+    lead_address = f"{lead.address or ''}, {lead.city or ''}, {lead.state or ''} {lead.zip_code or ''}".strip(", ")
+
+    # Build investor profile context
+    company_name = user_profile.company_name if user_profile else "Our Company"
+    company_phone = user_profile.company_phone if user_profile else ""
+    company_website = user_profile.company_website if user_profile else ""
+    mission = user_profile.mission_statement if user_profile else ""
+    tone = user_profile.content_tone if user_profile else "Professional & Educational"
+
+    length_guide = "Keep it to 3-5 sentences for a postcard back." if mail_type == "postcard" else "Write 2-3 paragraphs for a professional letter."
+
+    campaign_descriptions = {
+        "motivated_seller": "reaching out to a homeowner who may want to sell their property quickly for cash",
+        "cash_offer": "making a cash offer to purchase a property",
+        "we_buy_houses": "letting the homeowner know we buy houses in any condition",
+        "follow_up": "following up on a previous letter or postcard",
+        "probate": "reaching out sensitively about an inherited property",
+        "pre_foreclosure": "reaching out to a homeowner facing potential foreclosure",
+        "absentee_owner": "reaching out to an owner who does not live at the property",
+        "vacant_property": "reaching out about a property that appears vacant",
+    }
+    campaign_desc = campaign_descriptions.get(campaign_type, f"a direct mail campaign about {campaign_type}")
+
+    system_prompt = f"""You are a direct mail copywriter for a real estate investment company.
+
+COMPANY: {company_name}
+{f"PHONE: {company_phone}" if company_phone else ""}
+{f"WEBSITE: {company_website}" if company_website else ""}
+{f"MISSION: {mission}" if mission else ""}
+
+TONE: {tone}
+
+Write a {mail_type} for {campaign_desc}.
+
+RECIPIENT: {lead_name}
+PROPERTY: {lead_address}
+{f"PROPERTY TYPE: {lead.property_type}" if lead.property_type else ""}
+
+{length_guide}
+
+RULES:
+- Address the recipient by name where natural
+- Include the company name and phone number
+- Be warm, genuine, and human-sounding
+- Never use em dashes
+- No filler phrases like "comprehensive guide" or "let's dive in"
+- Make it feel like a real person wrote it, not a marketing template
+- Include a clear call to action (call us, visit our website, etc.)
+{f"ADDITIONAL INSTRUCTIONS: {custom_instructions}" if custom_instructions else ""}
+
+Write ONLY the mail copy text. No subject lines, headers, or meta-instructions."""
+
+    import httpx
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": anthropic_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": f"Write the {mail_type} copy now."}],
+                "system": system_prompt,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    copy_text = ""
+    for block in data.get("content", []):
+        if block.get("type") == "text":
+            copy_text += block["text"]
+
+    # Run through humanizer
+    try:
+        from rei.services.admin_humanizer_service import humanize_text
+        copy_text = humanize_text(copy_text)
+    except Exception:
+        pass
+
+    return copy_text.strip()
+
+
+async def generate_postcard_image(
+    campaign_type: str,
+    custom_prompt: str | None,
+    db,
+    user_id: int,
+) -> str:
+    """Generate an AI image for a postcard front using NVIDIA Stable Diffusion.
+
+    Returns base64-encoded PNG string.
+    """
+    from rei.services.credentials_service import get_provider_credentials
+
+    # Get NVIDIA API key
+    nvidia_key = ""
+    try:
+        creds = await get_provider_credentials(db, "nvidia")
+        if creds and creds.get("nvidia_api_key"):
+            nvidia_key = creds["nvidia_api_key"]
+    except Exception:
+        pass
+    if not nvidia_key:
+        raise ValueError("No NVIDIA API key configured for image generation.")
+
+    # Build prompt based on campaign type
+    prompt_templates = {
+        "motivated_seller": "Professional real estate photography of a beautiful suburban house with a SOLD sign in the front yard, warm golden hour lighting, lush green lawn, inviting atmosphere, high quality real estate marketing photo",
+        "cash_offer": "Professional photo of a real estate investor handing over cash money with house keys on a table, modern clean office setting, business transaction, warm lighting, high quality commercial photography",
+        "we_buy_houses": "Professional wide angle photo of a diverse neighborhood of houses in various conditions, suburban street view, warm sunlight, inviting real estate marketing imagery, high quality photography",
+        "probate": "Peaceful serene photo of a well-maintained family home with a white picket fence, soft warm morning light, gentle and respectful atmosphere, traditional American home, high quality real estate photography",
+        "pre_foreclosure": "Professional photo of a helpful real estate advisor meeting with a homeowner at their front door, warm genuine handshake, supportive atmosphere, residential neighborhood, high quality photography",
+        "absentee_owner": "Professional aerial view photo of a residential property with a well-maintained yard, suburban neighborhood, clear blue sky, real estate investment property, high quality drone photography",
+        "vacant_property": "Professional photo of a vacant house with potential, empty but well-structured property, blue sky background, real estate opportunity, renovation potential, high quality real estate photography",
+        "follow_up": "Professional close-up photo of a handwritten letter next to house keys on a wooden desk, warm personal touch, real estate marketing, cozy office setting, high quality product photography",
+    }
+
+    if custom_prompt:
+        prompt = custom_prompt
+    else:
+        prompt = prompt_templates.get(
+            campaign_type,
+            "Professional real estate photography of a beautiful suburban house, warm lighting, high quality marketing photo"
+        )
+
+    w, h = PLATFORM_DIMENSIONS.get("postcard", (1024, 683))
+
+    image_b64 = await _call_nvidia_image(
+        prompt=prompt,
+        width=w,
+        height=h,
+        api_key=nvidia_key,
+    )
+
+    # Apply logo watermark if user has one
+    from sqlalchemy import select
+    from rei.models.user import User as UserModel
+    user_result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+    profile = user_result.scalar_one_or_none()
+    if profile and profile.company_logo_url:
+        try:
+            image_b64 = _apply_logo_watermark(image_b64, profile.company_logo_url, w)
+        except Exception as exc:
+            logger.warning("Logo watermark failed for postcard: %s", exc)
+
+    return image_b64
 
 
 # ═══════════════════════════════════════════════════════════════════════

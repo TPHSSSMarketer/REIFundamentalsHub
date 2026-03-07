@@ -12,7 +12,7 @@ import Portfolio from './components/Portfolio/Portfolio'
 import ProofOfFundsPage from './components/ProofOfFunds/ProofOfFundsPage'
 import DocumentsPage from './components/Documents/DocumentsPage'
 import EmailMarketingPage from './components/EmailMarketing/EmailMarketingPage'
-import LeadCaptureWebsitesPage from './components/LeadCapture/LeadCaptureWebsitesPage'
+import LeadCenterPage from './components/LeadCenter/LeadCenterPage'
 import PhonePage from './components/Phone/PhonePage'
 import Markets from './components/Markets/Markets'
 import Settings from './components/Settings/Settings'
@@ -79,7 +79,7 @@ function AppLayout() {
         <Route path="/proof-of-funds" element={<ProofOfFundsPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/email-marketing" element={<Navigate to="/assistanthub" replace />} />
-        <Route path="/lead-capture" element={<LeadCaptureWebsitesPage />} />
+        <Route path="/leadhub" element={<LeadCenterPage />} />
         <Route path="/phone" element={<PhonePage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/loan-servicing" element={<LoanServicingPage />} />

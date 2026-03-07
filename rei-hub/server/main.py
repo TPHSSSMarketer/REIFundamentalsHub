@@ -35,6 +35,8 @@ from rei.api.deals_routes import deals_router
 from rei.api.documents_routes import documents_router
 from rei.api.email_marketing_routes import email_marketing_router
 from rei.api.lead_capture_routes import lead_capture_router, lead_capture_public_router
+from rei.api.leads_pipeline_routes import router as leads_pipeline_router
+from rei.api.direct_mail_routes import router as direct_mail_router
 from rei.api.loan_routes_payments import router as loan_payments_router
 from rei.api.loan_routes_properties import router as loan_properties_router
 from rei.api.geocoding_routes import geocoding_router
@@ -385,6 +387,8 @@ app.include_router(square_router, prefix="/api")
 app.include_router(social_media_router, prefix="/api")
 app.include_router(lead_capture_router, prefix="/api")
 app.include_router(lead_capture_public_router)
+app.include_router(leads_pipeline_router, prefix="/api")
+app.include_router(direct_mail_router, prefix="/api")
 app.include_router(crm_buyer_criteria_router, prefix="/api")
 app.include_router(crm_contacts_router, prefix="/api")
 app.include_router(crm_deal_files_router, prefix="/api")

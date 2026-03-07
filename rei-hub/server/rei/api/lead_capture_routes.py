@@ -1,4 +1,4 @@
-"""Lead Capture Website routes — CRUD sites, public form submission, site serving."""
+"""LeadHub Website routes — CRUD sites, public form submission, site serving."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ from rei.services.security import check_rate_limit, rl_ip_key
 logger = logging.getLogger(__name__)
 
 # Authenticated routes (CRUD)
-lead_capture_router = APIRouter(prefix="/lead-capture", tags=["lead-capture"])
+lead_capture_router = APIRouter(prefix="/leadhub", tags=["leadhub"])
 # Public routes (site serving + form submission)
-lead_capture_public_router = APIRouter(tags=["lead-capture-public"])
+lead_capture_public_router = APIRouter(tags=["leadhub-public"])
 
 
 # ── Pydantic Models ──────────────────────────────────────────────

@@ -242,7 +242,7 @@ export async function getTemplates(): Promise<LeadCaptureTemplate[]> {
 
 export async function getWebsites(): Promise<PublishedWebsite[]> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -254,7 +254,7 @@ export async function getWebsites(): Promise<PublishedWebsite[]> {
 
 export async function createWebsite(config: WebsiteConfig): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({
@@ -275,7 +275,7 @@ export async function createWebsite(config: WebsiteConfig): Promise<PublishedWeb
 
 export async function updateWebsite(id: string, config: WebsiteConfig): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({
@@ -296,7 +296,7 @@ export async function publishWebsite(
 ): Promise<PublishedWebsite> {
   return withDemoFallback(async () => {
     // First get the latest site config from the server
-    const siteRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const siteRes = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -309,7 +309,7 @@ export async function publishWebsite(
     const html = generateHtml(config)
 
     // Send the generated HTML to the publish endpoint
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}/publish`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites/${id}/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ html }),
@@ -323,7 +323,7 @@ export async function publishWebsite(
 
 export async function deleteWebsite(id: string): Promise<void> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${id}`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites/${id}`, {
       method: 'DELETE',
       headers: getAuthHeader(),
       credentials: 'include',
@@ -336,14 +336,14 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
   return withDemoFallback(async () => {
     // If a specific website is requested, fetch submissions for it
     if (websiteId) {
-      const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${websiteId}/submissions`, {
+      const res = await fetch(`${BASE_URL}/api/leadhub/sites/${websiteId}/submissions`, {
         headers: getAuthHeader(),
         credentials: 'include',
       })
       if (!res.ok) throw new Error(`Failed to fetch submissions: ${res.status}`)
       const data = (await res.json()) as Record<string, unknown>[]
       // We need the site name — fetch sites list
-      const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+      const sitesRes = await fetch(`${BASE_URL}/api/leadhub/sites`, {
         headers: getAuthHeader(),
         credentials: 'include',
       })
@@ -354,7 +354,7 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
     }
 
     // No specific site — fetch submissions for ALL sites
-    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const sitesRes = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -365,7 +365,7 @@ export async function getLeads(websiteId?: string): Promise<CapturedLead[]> {
     for (const site of sites) {
       try {
         const res = await fetch(
-          `${BASE_URL}/api/lead-capture/sites/${site.id}/submissions`,
+          `${BASE_URL}/api/leadhub/sites/${site.id}/submissions`,
           { headers: getAuthHeader(), credentials: 'include' }
         )
         if (res.ok) {
@@ -398,7 +398,7 @@ export async function addLead(
 
 export async function deleteLead(id: string): Promise<void> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/submissions/${id}`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/submissions/${id}`, {
       method: 'DELETE',
       headers: getAuthHeader(),
       credentials: 'include',
@@ -410,7 +410,7 @@ export async function deleteLead(id: string): Promise<void> {
 export async function downloadWebsiteHTML(id: string): Promise<string> {
   return withDemoFallback(async () => {
     // Fetch the site, get its slug, then fetch the published HTML
-    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const sitesRes = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -690,7 +690,7 @@ export async function generateEmbedPopupCode(websiteId: string, config: WebsiteC
 export async function updateCustomDomain(websiteId: string, domain: string): Promise<void> {
   return withDemoFallback(async () => {
     // Update the config with the custom domain
-    const sitesRes = await fetch(`${BASE_URL}/api/lead-capture/sites`, {
+    const sitesRes = await fetch(`${BASE_URL}/api/leadhub/sites`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -700,7 +700,7 @@ export async function updateCustomDomain(websiteId: string, domain: string): Pro
     if (!site) throw new Error('Site not found')
 
     const config = { ...(site.config as WebsiteConfig), custom_domain: domain }
-    await fetch(`${BASE_URL}/api/lead-capture/sites/${websiteId}`, {
+    await fetch(`${BASE_URL}/api/leadhub/sites/${websiteId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ config }),
@@ -731,7 +731,7 @@ export interface SiteAnalytics {
 
 export async function getAnalytics(siteId: string, days = 30): Promise<SiteAnalytics> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/sites/${siteId}/analytics?days=${days}`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/sites/${siteId}/analytics?days=${days}`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -748,7 +748,7 @@ export async function updateSubmissionCRM(
   crmDealId: string
 ): Promise<void> {
   try {
-    await fetch(`${BASE_URL}/api/lead-capture/submissions/${submissionId}`, {
+    await fetch(`${BASE_URL}/api/leadhub/submissions/${submissionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({
@@ -799,8 +799,8 @@ export async function syncLeadsToCRM(leads: CapturedLead[]): Promise<void> {
         email: lead.email,
         phone: lead.phone,
         role: 'seller',
-        source: 'Lead Capture',
-        tags: ['lead-capture'],
+        source: 'LeadHub',
+        tags: ['leadhub'],
       })
 
       // Create Deal linked to contact
@@ -810,7 +810,7 @@ export async function syncLeadsToCRM(leads: CapturedLead[]): Promise<void> {
         contactId: contact.id,
         contactName: contact.name,
         stage: 'lead',
-        source: 'Lead Capture',
+        source: 'LeadHub',
         notes: lead.message || '',
       })
 
@@ -835,7 +835,7 @@ export interface NotificationSettings {
 
 export async function getNotificationSettings(): Promise<NotificationSettings> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/notification-settings`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/notification-settings`, {
       headers: getAuthHeader(),
       credentials: 'include',
     })
@@ -848,7 +848,7 @@ export async function updateNotificationSettings(
   settings: NotificationSettings,
 ): Promise<NotificationSettings> {
   return withDemoFallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/lead-capture/notification-settings`, {
+    const res = await fetch(`${BASE_URL}/api/leadhub/notification-settings`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(settings),

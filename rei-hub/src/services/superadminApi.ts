@@ -87,6 +87,8 @@ const PROVIDER_META: Record<
     category: 'Calendar',
     icon: '📆',
   },
+  thanks_io: { display_name: 'Thanks.io', category: 'Direct Mail', icon: '📬' },
+  lob: { display_name: 'Lob', category: 'Direct Mail', icon: '📮' },
   usps: { display_name: 'USPS', category: 'Shipping', icon: '📦' },
   anthropic: { display_name: 'Anthropic (Claude)', category: 'AI', icon: '🤖' },
   openai: { display_name: 'OpenAI', category: 'AI', icon: '🧠' },
@@ -199,6 +201,10 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
     'Go to dropbox.com/developers/apps > Create App. Choose "Scoped access" and "Full Dropbox". Copy the App Key and App Secret. Set the Redirect URI to your backend callback URL.',
   outlook:
     'Go to portal.azure.com > Azure Active Directory > App Registrations > New Registration. Under Authentication, add a redirect URI. Under Certificates & Secrets, create a new client secret. Copy the Application (Client) ID and secret value.',
+  thanks_io:
+    'Go to dashboard.thanks.io/account to get your API key. Thanks.io provides handwritten-style postcards and letters for direct mail marketing. Pricing: ~$0.59/postcard, $0.99/letter.',
+  lob:
+    'Go to dashboard.lob.com > Settings > API Keys. Use test_ keys for testing, live_ keys for production. Lob supports fully designed postcards (HTML front+back) and letters. Pricing: ~$0.63/postcard, $1.04/letter.',
   usps:
     'Register at reg.usps.com/entrancePostal.do for a free Web Tools API account. After registration, your User ID will be emailed to you. Used for certified mail tracking in Bank Negotiations.',
   anthropic:
@@ -320,6 +326,12 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
     { name: 'outlook_client_id', label: 'Application (Client) ID', type: 'text', help: 'From Azure Portal > App Registrations > Your App > Overview' },
     { name: 'outlook_client_secret', label: 'Client Secret', type: 'secret', help: 'From Certificates & Secrets > New Client Secret' },
     { name: 'outlook_redirect_uri', label: 'Redirect URI', type: 'text', help: 'Must match what you entered in Azure under Authentication' },
+  ],
+  thanks_io: [
+    { name: 'thanks_io_api_key', label: 'API Key', type: 'secret', help: 'From dashboard.thanks.io/account. Used for sending postcards and letters via Direct Mail in LeadHub.' },
+  ],
+  lob: [
+    { name: 'lob_api_key', label: 'API Key (test_ or live_)', type: 'secret', help: 'From dashboard.lob.com > Settings > API Keys. Use test_ keys for development, live_ keys for production.' },
   ],
   usps: [
     { name: 'usps_user_id', label: 'User ID', type: 'text', help: 'Emailed to you after registering at reg.usps.com/entrancePostal.do' },

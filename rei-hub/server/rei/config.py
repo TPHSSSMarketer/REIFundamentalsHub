@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 1440
     cors_origins: str = "http://localhost:3000"
+    server_url: str = "http://localhost:8001"  # Public URL for this server (used for mail provider image hosting)
 
     # ── HttpOnly Cookie Auth ──────────────────────────────────────
     access_token_expire_minutes: int = 15       # Short-lived access token

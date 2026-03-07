@@ -143,6 +143,12 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
     "nvidia": [
         {"name": "nvidia_api_key", "label": "API Key", "type": "secret"},
     ],
+    "thanks_io": [
+        {"name": "thanks_io_api_key", "label": "API Key", "type": "secret"},
+    ],
+    "lob": [
+        {"name": "lob_api_key", "label": "API Key (test_ or live_)", "type": "secret"},
+    ],
     "attom": [
         {"name": "attom_api_key", "label": "API Key", "type": "secret"},
     ],

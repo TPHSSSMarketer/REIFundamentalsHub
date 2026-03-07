@@ -231,6 +231,22 @@ async def me(current_user: User = Depends(get_current_user)):
         company_name=getattr(current_user, "company_name", None),
     )
 
+
+@auth_router.get("/me/profile")
+async def get_profile(current_user: User = Depends(get_current_user)):
+    """Return the user's full company profile for direct mail and branding."""
+    return {
+        "company_name": getattr(current_user, "company_name", None),
+        "company_phone": getattr(current_user, "company_phone", None),
+        "company_website": getattr(current_user, "company_website", None),
+        "company_logo_b64": getattr(current_user, "company_logo_b64", None),
+        "company_address": getattr(current_user, "company_address", None),
+        "company_city": getattr(current_user, "company_city", None),
+        "company_state": getattr(current_user, "company_state", None),
+        "company_zip": getattr(current_user, "company_zip", None),
+        "primary_color": None,  # Not stored per user currently
+    }
+
 # ── Refresh ───────────────────────────────────────────────────────
 
 
