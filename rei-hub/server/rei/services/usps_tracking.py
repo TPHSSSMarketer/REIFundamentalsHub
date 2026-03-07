@@ -1,14 +1,22 @@
-"""USPS Web Tools API integration for certified mail tracking.
+"""USPS Tracking API V3.2 (OAuth 2.0) integration for certified mail tracking.
 
-Uses httpx for HTTP requests and xml.etree.ElementTree for XML parsing.
-No additional packages required.
+Replaces the legacy Web Tools XML API (retired Jan 2026) with the new
+REST/JSON Tracking 3.2 endpoint at apis.usps.com.
+
+Authentication uses OAuth 2.0 Client Credentials flow:
+  POST https://apis.usps.com/oauth2/v3/token
+  → Bearer token (valid ~8 hours, cached in-memory)
+
+Tracking endpoint:
+  POST https://apis.usps.com/api/v3/tracking
+  Body: [{ "trackingNumber": "..." }]
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import xml.etree.ElementTree as ET
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -16,7 +24,52 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-USPS_API_URL = "https://secure.shippingapis.com/ShippingAPI.dll"
+# ── Token cache ─────────────────────────────────────────────────────────
+
+_token_cache: dict = {
+    "access_token": None,
+    "expires_at": 0,
+}
+
+
+async def _get_access_token(
+    client_id: str,
+    client_secret: str,
+    base_url: str = "https://apis.usps.com",
+) -> str:
+    """Obtain (or return cached) OAuth 2.0 Bearer token from USPS.
+
+    Tokens are valid for ~8 hours. We cache and reuse until 5 minutes
+    before expiry.
+    """
+    # Return cached token if still valid (with 5-min buffer)
+    if _token_cache["access_token"] and time.time() < _token_cache["expires_at"] - 300:
+        return _token_cache["access_token"]
+
+    token_url = f"{base_url}/oauth2/v3/token"
+    payload = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "client_credentials",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            token_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+
+    data = resp.json()
+    access_token = data["access_token"]
+    expires_in = data.get("expires_in", 28800)  # Default 8 hours
+
+    _token_cache["access_token"] = access_token
+    _token_cache["expires_at"] = time.time() + expires_in
+
+    logger.info("USPS OAuth token obtained, expires in %d seconds", expires_in)
+    return access_token
 
 
 # ── Single package tracking ──────────────────────────────────────────────
@@ -24,120 +77,71 @@ USPS_API_URL = "https://secure.shippingapis.com/ShippingAPI.dll"
 
 async def track_package(
     tracking_number: str,
-    usps_user_id: str,
+    client_id: str,
+    client_secret: str,
+    base_url: str = "https://apis.usps.com",
 ) -> dict:
-    """Track a USPS package by tracking number.
+    """Track a USPS package by tracking number using the V3.2 REST API.
 
-    Returns status, location, delivery info, and full history.
+    Returns status, location, delivery info, and full event history.
     """
-    xml_request = (
-        f'<TrackFieldRequest USERID="{usps_user_id}">'
-        "<Revision>1</Revision>"
-        "<ClientIp>127.0.0.1</ClientIp>"
-        "<SourceId>REIHub</SourceId>"
-        f'<TrackID ID="{tracking_number}"/>'
-        "</TrackFieldRequest>"
-    )
-
     try:
+        token = await _get_access_token(client_id, client_secret, base_url)
+
+        tracking_url = f"{base_url}/api/v3/tracking"
+        payload = [{"trackingNumber": tracking_number}]
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                USPS_API_URL,
-                data={"API": "TrackV2", "XML": xml_request},
+                tracking_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
             )
-            resp.raise_for_status()
 
-        raw_xml = resp.text
-        root = ET.fromstring(raw_xml)
+        # Handle 401 by refreshing token once and retrying
+        if resp.status_code == 401:
+            _token_cache["access_token"] = None
+            _token_cache["expires_at"] = 0
+            token = await _get_access_token(client_id, client_secret, base_url)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    tracking_url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                )
 
-        # Check for API-level error
-        error_el = root.find(".//Error")
-        if error_el is not None:
-            error_desc = error_el.findtext("Description", "Unknown USPS error")
+        resp.raise_for_status()
+        data = resp.json()
+
+        # V3.2 returns an array of tracking results
+        if not data or not isinstance(data, list):
             return {
                 "tracking_number": tracking_number,
                 "status": "unknown",
-                "error": error_desc,
+                "error": "Empty response from USPS",
             }
 
-        track_info = root.find(".//TrackInfo")
-        if track_info is None:
-            return {
-                "tracking_number": tracking_number,
-                "status": "unknown",
-                "error": "No tracking info returned",
-            }
+        result = data[0]
+        return _parse_tracking_result(result, tracking_number)
 
-        # Parse TrackSummary (most recent event)
-        summary = track_info.find("TrackSummary")
-        current_event = ""
-        current_location = ""
-        event_date = None
-        signed_by: Optional[str] = None
-
-        if summary is not None:
-            current_event = summary.findtext("Event", "")
-            city = summary.findtext("EventCity", "")
-            state = summary.findtext("EventState", "")
-            current_location = f"{city}, {state}".strip(", ")
-            event_date_str = summary.findtext("EventDate", "")
-            event_time_str = summary.findtext("EventTime", "")
-            event_date = _parse_usps_datetime(event_date_str, event_time_str)
-
-            signed_name = summary.findtext("SignedForByName")
-            if signed_name:
-                signed_by = signed_name
-
-        # Determine delivery status
-        delivered = False
-        delivered_date: Optional[datetime] = None
-        signature_date: Optional[datetime] = None
-        status = determine_status(current_event)
-
-        if status == "delivered":
-            delivered = True
-            delivered_date = event_date
-            if signed_by:
-                signature_date = event_date
-
-        # Parse TrackDetail elements (history)
-        history: list[dict] = []
-        for detail in track_info.findall("TrackDetail"):
-            detail_event = detail.findtext("Event", "")
-            detail_city = detail.findtext("EventCity", "")
-            detail_state = detail.findtext("EventState", "")
-            detail_date_str = detail.findtext("EventDate", "")
-            detail_time_str = detail.findtext("EventTime", "")
-            detail_dt = _parse_usps_datetime(detail_date_str, detail_time_str)
-
-            history.append({
-                "event": detail_event,
-                "location": f"{detail_city}, {detail_state}".strip(", "),
-                "datetime": detail_dt.isoformat() if detail_dt else None,
-            })
-
-            # Check history for delivery/signature if not found in summary
-            if not delivered and "DELIVERED" in detail_event.upper():
-                delivered = True
-                delivered_date = detail_dt
-                detail_signed = detail.findtext("SignedForByName")
-                if detail_signed:
-                    signed_by = detail_signed
-                    signature_date = detail_dt
-
+    except httpx.HTTPStatusError as exc:
+        logger.exception("USPS tracking HTTP error for %s: %s", tracking_number, exc.response.status_code)
+        error_body = ""
+        try:
+            error_body = exc.response.text
+        except Exception:
+            pass
         return {
             "tracking_number": tracking_number,
-            "status": status,
-            "current_event": current_event,
-            "current_location": current_location,
-            "delivered": delivered,
-            "delivered_date": delivered_date.isoformat() if delivered_date else None,
-            "signed_by": signed_by,
-            "signature_date": signature_date.isoformat() if signature_date else None,
-            "history": history,
-            "raw_response": raw_xml,
+            "status": "unknown",
+            "error": f"HTTP {exc.response.status_code}: {error_body[:200]}",
         }
-
     except Exception as exc:
         logger.exception("USPS tracking failed for %s", tracking_number)
         return {
@@ -150,21 +154,24 @@ async def track_package(
 # ── Status determination ─────────────────────────────────────────────────
 
 
-def determine_status(event_text: str) -> str:
-    """Determine a normalized status from USPS event text."""
-    event_upper = event_text.upper()
+def determine_status(status_text: str, status_category: str = "") -> str:
+    """Determine a normalized status from USPS status fields."""
+    text_upper = (status_text or "").upper()
+    cat_upper = (status_category or "").upper()
 
-    if "DELIVERED" in event_upper:
+    if "DELIVERED" in text_upper or "DELIVERED" in cat_upper:
         return "delivered"
-    if "ATTEMPTED" in event_upper or "NOTICE LEFT" in event_upper:
+    if "ATTEMPTED" in text_upper or "NOTICE LEFT" in text_upper:
         return "attempted"
-    if "RETURNED" in event_upper or "UNDELIVERABLE" in event_upper:
+    if "RETURNED" in text_upper or "UNDELIVERABLE" in text_upper:
         return "returned"
     if any(
-        kw in event_upper
-        for kw in ("ACCEPTANCE", "SHIPPED", "IN TRANSIT", "ARRIVED")
+        kw in text_upper
+        for kw in ("ACCEPTANCE", "SHIPPED", "IN TRANSIT", "ARRIVED", "TRANSIT")
     ):
         return "in_transit"
+    if "PRE-SHIPMENT" in text_upper or "PRE_SHIPMENT" in cat_upper:
+        return "pre_shipment"
 
     return "in_transit"
 
@@ -174,85 +181,60 @@ def determine_status(event_text: str) -> str:
 
 async def track_multiple(
     tracking_numbers: list[str],
-    usps_user_id: str,
+    client_id: str,
+    client_secret: str,
+    base_url: str = "https://apis.usps.com",
 ) -> list[dict]:
-    """Track up to 10 packages in one API call.
+    """Track up to 35 packages in one API call.
 
-    USPS supports batch tracking in a single request.
+    V3.2 supports 1-35 items per request.
     """
-    numbers = tracking_numbers[:10]
-
-    track_ids = "".join(f'<TrackID ID="{t}"/>' for t in numbers)
-    xml_request = (
-        f'<TrackFieldRequest USERID="{usps_user_id}">'
-        "<Revision>1</Revision>"
-        "<ClientIp>127.0.0.1</ClientIp>"
-        "<SourceId>REIHub</SourceId>"
-        f"{track_ids}"
-        "</TrackFieldRequest>"
-    )
+    numbers = tracking_numbers[:35]
 
     try:
+        token = await _get_access_token(client_id, client_secret, base_url)
+
+        tracking_url = f"{base_url}/api/v3/tracking"
+        payload = [{"trackingNumber": tn} for tn in numbers]
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                USPS_API_URL,
-                data={"API": "TrackV2", "XML": xml_request},
+                tracking_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
             )
-            resp.raise_for_status()
 
-        raw_xml = resp.text
-        root = ET.fromstring(raw_xml)
+        # Handle 401 by refreshing token once
+        if resp.status_code == 401:
+            _token_cache["access_token"] = None
+            _token_cache["expires_at"] = 0
+            token = await _get_access_token(client_id, client_secret, base_url)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    tracking_url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        resp.raise_for_status()
+        data = resp.json()
+
+        if not isinstance(data, list):
+            return [
+                {"tracking_number": tn, "status": "unknown", "error": "Unexpected response format"}
+                for tn in numbers
+            ]
 
         results: list[dict] = []
-        for track_info in root.findall(".//TrackInfo"):
-            tn = track_info.get("ID", "")
-
-            # Check for per-package error
-            error_el = track_info.find("Error")
-            if error_el is not None:
-                results.append({
-                    "tracking_number": tn,
-                    "status": "unknown",
-                    "error": error_el.findtext("Description", "Unknown error"),
-                })
-                continue
-
-            summary = track_info.find("TrackSummary")
-            current_event = ""
-            current_location = ""
-            delivered = False
-            delivered_date: Optional[datetime] = None
-            signed_by: Optional[str] = None
-
-            if summary is not None:
-                current_event = summary.findtext("Event", "")
-                city = summary.findtext("EventCity", "")
-                state = summary.findtext("EventState", "")
-                current_location = f"{city}, {state}".strip(", ")
-
-                event_date_str = summary.findtext("EventDate", "")
-                event_time_str = summary.findtext("EventTime", "")
-                event_dt = _parse_usps_datetime(event_date_str, event_time_str)
-
-                signed_name = summary.findtext("SignedForByName")
-                if signed_name:
-                    signed_by = signed_name
-
-                if "DELIVERED" in current_event.upper():
-                    delivered = True
-                    delivered_date = event_dt
-
-            results.append({
-                "tracking_number": tn,
-                "status": determine_status(current_event),
-                "current_event": current_event,
-                "current_location": current_location,
-                "delivered": delivered,
-                "delivered_date": (
-                    delivered_date.isoformat() if delivered_date else None
-                ),
-                "signed_by": signed_by,
-            })
+        for i, item in enumerate(data):
+            tn = item.get("trackingNumber", numbers[i] if i < len(numbers) else "")
+            results.append(_parse_tracking_result(item, tn))
 
         return results
 
@@ -264,6 +246,44 @@ async def track_multiple(
         ]
 
 
+# ── Credential resolution ────────────────────────────────────────────────
+
+
+async def get_usps_credentials(
+    async_db=None,
+    settings=None,
+) -> tuple[str, str, str]:
+    """Resolve USPS OAuth credentials from the database (SuperAdmin)
+    first, falling back to environment variables.
+
+    Returns (client_id, client_secret, base_url).
+    """
+    from rei.config import get_settings
+    if settings is None:
+        settings = get_settings()
+
+    client_id = settings.usps_client_id
+    client_secret = settings.usps_client_secret
+    base_url = settings.usps_api_url or "https://apis.usps.com"
+
+    # Try database (SuperAdmin credentials) — single source of truth
+    if async_db is not None:
+        try:
+            from rei.services.credentials_service import get_provider_credentials
+            creds = await get_provider_credentials(async_db, "usps")
+            if creds:
+                if creds.get("usps_client_id"):
+                    client_id = creds["usps_client_id"]
+                if creds.get("usps_client_secret"):
+                    client_secret = creds["usps_client_secret"]
+                if creds.get("usps_api_url"):
+                    base_url = creds["usps_api_url"]
+        except Exception as exc:
+            logger.warning("Failed to read USPS credentials from DB: %s", exc)
+
+    return client_id, client_secret, base_url
+
+
 # ── Correspondence record updater ────────────────────────────────────────
 
 
@@ -271,10 +291,12 @@ async def update_correspondence_tracking(
     correspondence_id: str,
     db,
     settings,
+    async_db=None,
 ) -> Optional[dict]:
     """Update a single correspondence record with latest USPS status.
 
-    Called by background processor.
+    Called by background processor and bank negotiation routes.
+    If async_db is provided, credentials are read from SuperAdmin DB.
     """
     from rei.models.user import NegotiationCorrespondence
 
@@ -295,9 +317,24 @@ async def update_correspondence_tracking(
         )
         return None
 
+    # Resolve credentials from DB (SuperAdmin) or env vars
+    client_id, client_secret, base_url = await get_usps_credentials(
+        async_db=async_db, settings=settings,
+    )
+
+    if not client_id or not client_secret:
+        logger.error("USPS credentials not configured. Set them in SuperAdmin → Credentials → USPS.")
+        return {
+            "tracking_number": corr.usps_tracking_number,
+            "status": "unknown",
+            "error": "USPS credentials not configured",
+        }
+
     result = await track_package(
         corr.usps_tracking_number,
-        settings.usps_user_id,
+        client_id,
+        client_secret,
+        base_url,
     )
 
     corr.usps_status = result.get("status")
@@ -317,27 +354,127 @@ async def update_correspondence_tracking(
 # ── Internal helpers ─────────────────────────────────────────────────────
 
 
+def _parse_tracking_result(item: dict, tracking_number: str) -> dict:
+    """Parse a single V3.2 tracking response object into our standard format."""
+
+    # Check for error in response
+    error = item.get("error") or item.get("errorMessage")
+    if error:
+        return {
+            "tracking_number": tracking_number,
+            "status": "unknown",
+            "error": str(error),
+        }
+
+    status_text = item.get("status", "")
+    status_category = item.get("statusCategory", "")
+    status_summary = item.get("statusSummary", "")
+    status = determine_status(status_text, status_category)
+
+    dest_city = item.get("destinationCity", "")
+    dest_state = item.get("destinationState", "")
+    current_location = f"{dest_city}, {dest_state}".strip(", ")
+
+    delivered = status == "delivered"
+    delivered_date: Optional[str] = None
+    signed_by: Optional[str] = None
+    signature_date: Optional[str] = None
+
+    # Parse tracking events for delivery/signature details
+    history: list[dict] = []
+    tracking_events = item.get("trackingEvents", [])
+
+    for event in tracking_events:
+        event_type = event.get("eventType", "")
+        event_city = event.get("eventCity", "")
+        event_state = event.get("eventState", "")
+        event_zip = event.get("eventZIPCode", "")
+        event_date = event.get("eventTimestamp", "")
+
+        location = f"{event_city}, {event_state}".strip(", ")
+        if event_zip:
+            location = f"{location} {event_zip}".strip()
+
+        history.append({
+            "event": event_type,
+            "location": location,
+            "datetime": event_date,
+        })
+
+        # Check for delivery details
+        if "DELIVERED" in event_type.upper():
+            delivered = True
+            delivered_date = event_date
+            if not current_location:
+                current_location = location
+
+    # Extract signed-by from status summary if present
+    if delivered and status_summary:
+        summary_upper = status_summary.upper()
+        if "SIGNED" in summary_upper:
+            # Try to extract signed-by name from summary
+            signed_by = _extract_signed_by(status_summary)
+            signature_date = delivered_date
+
+    # Use first event as current location if not set
+    if not current_location and history:
+        current_location = history[0].get("location", "")
+
+    return {
+        "tracking_number": tracking_number,
+        "status": status,
+        "current_event": status_text,
+        "current_location": current_location,
+        "delivered": delivered,
+        "delivered_date": delivered_date,
+        "signed_by": signed_by,
+        "signature_date": signature_date,
+        "status_summary": status_summary,
+        "history": history,
+        "raw_response": json.dumps(item),
+    }
+
+
+def _extract_signed_by(summary: str) -> Optional[str]:
+    """Try to extract a signed-by name from the status summary text."""
+    # Common patterns: "Signed for by: JOHN DOE" or "signed by J DOE"
+    import re
+    patterns = [
+        r"[Ss]igned\s+(?:for\s+)?by[:\s]+([A-Z][A-Z\s.]+)",
+        r"[Ss]igned[:\s]+([A-Z][A-Z\s.]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, summary)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
 def _parse_usps_datetime(
     date_str: str, time_str: str = ""
 ) -> Optional[datetime]:
-    """Parse USPS date/time strings into a datetime object."""
+    """Parse USPS date/time strings into a datetime object.
+
+    Kept for backwards compatibility with existing correspondence records.
+    """
     if not date_str:
         return None
     try:
         combined = f"{date_str} {time_str}".strip()
-        # USPS returns dates like "October 15, 2024" or "October 15, 2024 10:30 am"
         for fmt in (
             "%B %d, %Y %I:%M %p",
             "%B %d, %Y %I:%M%p",
             "%B %d, %Y",
             "%m/%d/%Y %I:%M %p",
             "%m/%d/%Y",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%d",
         ):
             try:
                 return datetime.strptime(combined, fmt)
             except ValueError:
                 continue
-        # Last resort: date only
         return datetime.strptime(date_str, "%B %d, %Y")
     except (ValueError, TypeError):
         logger.debug("Could not parse USPS datetime: %s %s", date_str, time_str)

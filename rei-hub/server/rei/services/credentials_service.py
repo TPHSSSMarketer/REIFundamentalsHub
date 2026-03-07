@@ -219,7 +219,7 @@ async def test_provider_connection(
         "resend": ["resend_api_key"],
         "google_calendar": ["google_client_id", "google_client_secret"],
         "outlook": ["outlook_client_id", "outlook_client_secret"],
-        "usps": ["usps_user_id"],
+        "usps": ["usps_client_id", "usps_client_secret"],
         "anthropic": ["anthropic_api_key"],
         "openai": ["openai_api_key"],
         "nvidia": ["nvidia_api_key"],

@@ -147,11 +147,14 @@ class Settings(BaseSettings):
     # is auto-promoted to SuperAdmin on app startup. Also available
     # via POST /api/superadmin/bootstrap. Remove both vars after use.
 
-    # ── USPS Web Tools API ──────────────────────────────────────────
+    # ── USPS API (OAuth V3) ──────────────────────────────────────────
+    usps_client_id: str = ""
+    usps_client_secret: str = ""
+    # Register at: developers.usps.com → COP → My Apps
+    # Consumer Key = client_id, Consumer Secret = client_secret
+    usps_api_url: str = "https://apis.usps.com"
+    # Legacy (kept for migration; unused by new OAuth flow)
     usps_user_id: str = ""
-    # Register at: reg.usps.com/entrancePostal.do
-    # Free account — get User ID after registration
-    usps_api_url: str = "https://secure.shippingapis.com/ShippingAPI.dll"
 
     # ── Google Calendar ─────────────────────────────────────────────
     google_client_id: str = ""

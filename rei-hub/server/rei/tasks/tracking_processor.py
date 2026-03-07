@@ -70,7 +70,7 @@ async def process_pending_tracking(db_session_factory, settings) -> None:
                         and corr.usps_status not in ("delivered", "returned")
                     ):
                         await update_correspondence_tracking(
-                            corr.id, db.sync_session, settings
+                            corr.id, db.sync_session, settings, async_db=db
                         )
 
                     if (

@@ -131,8 +131,9 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "outlook_redirect_uri", "label": "Redirect URI", "type": "text"},
     ],
     "usps": [
-        {"name": "usps_user_id", "label": "User ID", "type": "text"},
-        {"name": "usps_api_url", "label": "API URL", "type": "text"},
+        {"name": "usps_client_id", "label": "Consumer Key (Client ID)", "type": "text"},
+        {"name": "usps_client_secret", "label": "Consumer Secret (Client Secret)", "type": "secret"},
+        {"name": "usps_api_url", "label": "API Base URL", "type": "text"},
     ],
     "anthropic": [
         {"name": "anthropic_api_key", "label": "API Key", "type": "secret"},
