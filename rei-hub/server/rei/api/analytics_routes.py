@@ -22,16 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import PLANS
 from rei.models.user import (
-    BankNegotiation,
     ContractForDeed,
     DistributionStatement,
     LandTrust,
     LoanDefault,
     LoanPayment,
-    NegotiationCorrespondence,
-    NegotiationFollowUp,
     User,
 )
+from rei.models.negotiation import NegotiationCase, NegotiationActivity
 
 logger = logging.getLogger(__name__)
 
@@ -652,66 +650,62 @@ async def negotiations_overview(
     """Bank negotiation analytics overview."""
     _check_negotiation_access(user)
     dt_start, dt_end = get_date_range(period, start_date, end_date)
-    uf_neg = _user_filter(BankNegotiation, user)
-    uf_corr = _user_filter(NegotiationCorrespondence, user)
+    uf_case = _user_filter(NegotiationCase, user)
+    uf_activity = _user_filter(NegotiationActivity, user)
 
     # ── Status counts ─────────────────────────────────────────────
     active_q = (
         select(func.count())
-        .select_from(BankNegotiation)
+        .select_from(NegotiationCase)
         .where(
-            uf_neg,
-            BankNegotiation.status.in_(["active", "pending_response"]),
+            uf_case,
+            NegotiationCase.status.in_(["intake", "researching", "in_progress", "awaiting_response"]),
         )
     )
     total_active = (await db.execute(active_q)).scalar() or 0
 
-    approved_q = (
+    resolved_q = (
         select(func.count())
-        .select_from(BankNegotiation)
-        .where(uf_neg, BankNegotiation.status == "approved")
+        .select_from(NegotiationCase)
+        .where(uf_case, NegotiationCase.status == "resolved")
     )
-    total_approved = (await db.execute(approved_q)).scalar() or 0
+    total_resolved = (await db.execute(resolved_q)).scalar() or 0
 
-    denied_q = (
+    closed_q = (
         select(func.count())
-        .select_from(BankNegotiation)
-        .where(uf_neg, BankNegotiation.status == "denied")
+        .select_from(NegotiationCase)
+        .where(uf_case, NegotiationCase.status == "closed")
     )
-    total_denied = (await db.execute(denied_q)).scalar() or 0
+    total_closed = (await db.execute(closed_q)).scalar() or 0
 
-    completed_q = (
-        select(func.count())
-        .select_from(BankNegotiation)
-        .where(uf_neg, BankNegotiation.status == "completed")
-    )
-    total_completed = (await db.execute(completed_q)).scalar() or 0
-
-    closed_total = total_approved + total_denied
-    approval_rate = (
-        (total_approved / closed_total * 100) if closed_total else 0.0
+    total_completed = total_resolved
+    closed_total = total_resolved + total_closed
+    resolution_rate = (
+        (total_resolved / closed_total * 100) if closed_total else 0.0
     )
 
-    # ── Letters sent / delivered in period ─────────────────────────
+    # ── Correspondence sent / delivered in period ──────────────────
     sent_q = (
         select(func.count())
-        .select_from(NegotiationCorrespondence)
+        .select_from(NegotiationActivity)
         .where(
-            uf_corr,
-            NegotiationCorrespondence.sent_date >= dt_start,
-            NegotiationCorrespondence.sent_date <= dt_end,
+            uf_activity,
+            NegotiationActivity.activity_type == "correspondence_sent",
+            NegotiationActivity.created_at >= dt_start,
+            NegotiationActivity.created_at <= dt_end,
         )
     )
     letters_sent_period = (await db.execute(sent_q)).scalar() or 0
 
     delivered_q = (
         select(func.count())
-        .select_from(NegotiationCorrespondence)
+        .select_from(NegotiationActivity)
         .where(
-            uf_corr,
-            NegotiationCorrespondence.status == "delivered",
-            NegotiationCorrespondence.sent_date >= dt_start,
-            NegotiationCorrespondence.sent_date <= dt_end,
+            uf_activity,
+            NegotiationActivity.activity_type == "correspondence_sent",
+            NegotiationActivity.tracking_status == "delivered",
+            NegotiationActivity.created_at >= dt_start,
+            NegotiationActivity.created_at <= dt_end,
         )
     )
     letters_delivered_period = (await db.execute(delivered_q)).scalar() or 0
@@ -722,146 +716,66 @@ async def negotiations_overview(
         else 0.0
     )
 
-    # ── Average days to response ──────────────────────────────────
-    # Approximation: days between negotiation created_at and updated_at
-    # for negotiations that moved past "active".
+    # ── Average days to resolution ────────────────────────────────
+    # Days between case created_at and resolved_at for resolved cases
     resp_q = (
         select(
             func.avg(
-                func.julianday(BankNegotiation.updated_at)
-                - func.julianday(BankNegotiation.created_at)
+                func.julianday(NegotiationCase.resolved_at)
+                - func.julianday(NegotiationCase.created_at)
             )
         )
         .where(
-            uf_neg,
-            BankNegotiation.status.notin_(["active", "pending_response"]),
+            uf_case,
+            NegotiationCase.status.in_(["resolved", "closed"]),
+            NegotiationCase.resolved_at.isnot(None),
         )
     )
     avg_days_to_response = float((await db.execute(resp_q)).scalar() or 0)
 
-    # ── By negotiation type ───────────────────────────────────────
+    # ── By service type ───────────────────────────────────────────
     by_type_q = (
         select(
-            BankNegotiation.negotiation_type,
+            NegotiationCase.service_type,
             func.count(),
             func.sum(
                 case(
-                    (BankNegotiation.status == "approved", 1),
+                    (NegotiationCase.status == "resolved", 1),
                     else_=0,
                 )
             ),
             func.sum(
                 case(
-                    (BankNegotiation.status == "denied", 1),
+                    (NegotiationCase.status == "closed", 1),
                     else_=0,
                 )
             ),
         )
-        .where(uf_neg)
-        .group_by(BankNegotiation.negotiation_type)
+        .where(uf_case)
+        .group_by(NegotiationCase.service_type)
     )
     type_rows = (await db.execute(by_type_q)).all()
-    by_negotiation_type = [
+    by_service_type = [
         {
-            "type": r[0],
+            "service_type": r[0],
             "count": r[1],
-            "approved": int(r[2] or 0),
-            "denied": int(r[3] or 0),
+            "resolved": int(r[2] or 0),
+            "closed": int(r[3] or 0),
         }
         for r in type_rows
     ]
 
-    # ── By bank — top 10 ─────────────────────────────────────────
-    by_bank_q = (
-        select(
-            BankNegotiation.bank_name,
-            func.count(),
-            BankNegotiation.status,
-        )
-        .where(uf_neg)
-        .group_by(BankNegotiation.bank_name, BankNegotiation.status)
-        .order_by(func.count().desc())
-        .limit(10)
-    )
-    bank_rows = (await db.execute(by_bank_q)).all()
-    by_bank = [
-        {"bank_name": r[0], "count": r[1], "status": r[2]}
-        for r in bank_rows
-    ]
-
-    # ── Letter series progress ────────────────────────────────────
-    def _letter_count(letter_num: int):
-        q = (
-            select(func.count())
-            .select_from(NegotiationCorrespondence)
-            .where(
-                uf_corr,
-                NegotiationCorrespondence.letter_number == letter_num,
-            )
-        )
-        return q
-
-    l1_sent = (await db.execute(_letter_count(1))).scalar() or 0
-    l2_sent = (await db.execute(_letter_count(2))).scalar() or 0
-    l3_sent = (await db.execute(_letter_count(3))).scalar() or 0
-
-    # Negotiations where all 3 letters sent
-    all3_q = (
-        select(func.count(func.distinct(NegotiationCorrespondence.negotiation_id)))
-        .where(uf_corr, NegotiationCorrespondence.letter_number == 3)
-    )
-    all_3_complete = (await db.execute(all3_q)).scalar() or 0
-
-    letter_series_progress = {
-        "letter_1_sent": l1_sent,
-        "letter_2_sent": l2_sent,
-        "letter_3_sent": l3_sent,
-        "all_3_complete": all_3_complete,
-    }
-
-    # ── Follow-ups ────────────────────────────────────────────────
-    now = datetime.utcnow()
-    seven_days = now + timedelta(days=7)
-    uf_fu = _user_filter(NegotiationFollowUp, user)
-
-    pending_q = (
-        select(func.count())
-        .select_from(NegotiationFollowUp)
-        .where(
-            uf_fu,
-            NegotiationFollowUp.completed.is_(False),
-            NegotiationFollowUp.due_date <= seven_days,
-            NegotiationFollowUp.due_date >= now,
-        )
-    )
-    pending_followups = (await db.execute(pending_q)).scalar() or 0
-
-    overdue_q = (
-        select(func.count())
-        .select_from(NegotiationFollowUp)
-        .where(
-            uf_fu,
-            NegotiationFollowUp.completed.is_(False),
-            NegotiationFollowUp.due_date < now,
-        )
-    )
-    overdue_followups = (await db.execute(overdue_q)).scalar() or 0
-
     return {
         "total_active": total_active,
-        "total_approved": total_approved,
-        "total_denied": total_denied,
+        "total_resolved": total_resolved,
+        "total_closed": total_closed,
         "total_completed": total_completed,
-        "approval_rate": round(approval_rate, 2),
+        "resolution_rate": round(resolution_rate, 2),
         "letters_sent_period": letters_sent_period,
         "letters_delivered_period": letters_delivered_period,
         "delivery_rate": round(delivery_rate, 2),
         "avg_days_to_response": round(avg_days_to_response, 1),
-        "by_negotiation_type": by_negotiation_type,
-        "by_bank": by_bank,
-        "letter_series_progress": letter_series_progress,
-        "pending_followups": pending_followups,
-        "overdue_followups": overdue_followups,
+        "by_service_type": by_service_type,
     }
 
 
@@ -1267,40 +1181,35 @@ async def export_negotiations(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """CSV export of negotiation correspondence log."""
+    """CSV export of negotiation activity log."""
     _check_negotiation_access(user)
     dt_start, dt_end = get_date_range(period, start_date, end_date)
-    uf = _user_filter(NegotiationCorrespondence, user)
+    uf = _user_filter(NegotiationActivity, user)
 
-    corr = (
+    activities = (
         await db.execute(
-            select(NegotiationCorrespondence)
+            select(NegotiationActivity)
             .where(
                 uf,
-                NegotiationCorrespondence.sent_date >= dt_start,
-                NegotiationCorrespondence.sent_date <= dt_end,
+                NegotiationActivity.created_at >= dt_start,
+                NegotiationActivity.created_at <= dt_end,
             )
-            .order_by(NegotiationCorrespondence.sent_date.desc())
+            .order_by(NegotiationActivity.created_at.desc())
         )
     ).scalars().all()
 
     rows = [
         {
-            "id": c.id,
-            "negotiation_id": c.negotiation_id,
-            "recipient_id": c.recipient_id,
-            "send_method": c.send_method,
-            "sent_date": (
-                c.sent_date.strftime("%Y-%m-%d") if c.sent_date else ""
+            "id": a.id,
+            "case_id": a.case_id,
+            "activity_type": a.activity_type,
+            "tracking_status": a.tracking_status or "",
+            "usps_tracking_number": a.usps_tracking_number or "",
+            "created_at": (
+                a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else ""
             ),
-            "letter_number": c.letter_number,
-            "letter_type": c.letter_type,
-            "usps_tracking_number": c.usps_tracking_number or "",
-            "usps_status": c.usps_status or "",
-            "fax_status": c.fax_status or "",
-            "status": c.status,
         }
-        for c in corr
+        for a in activities
     ]
 
     start_str = dt_start.strftime("%Y-%m-%d")

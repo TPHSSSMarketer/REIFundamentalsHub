@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from rei.services.email import send_email
+
 if TYPE_CHECKING:
     from rei.config import Settings
 
@@ -94,6 +96,7 @@ async def notify_new_request(
     Notify admin when a user submits a new negotiation request.
 
     Sends a Telegram message with request summary (property, service types, user).
+    Also sends email to user confirming receipt of request.
     """
     property_address = request_data.get("property_address", "Unknown")
     service_types = request_data.get("service_types_json", "[]")
@@ -110,7 +113,25 @@ async def notify_new_request(
 
     await send_negotiation_telegram(message, settings)
 
-    # TODO: Send email notification to user confirming receipt of request
+    # Send email confirmation to user
+    subject = "Negotiation Request Received"
+    html_content = f"""
+    <h2>Thank You for Your Request</h2>
+    <p>Hi {user_name},</p>
+    <p>We've received your negotiation request for the following property:</p>
+    <div style="background:#f8f9fa;padding:12px;border-radius:6px;margin:16px 0;">
+        <strong>Property:</strong> {property_address}<br>
+        <strong>Services Requested:</strong> {service_types}
+    </div>
+    <p>Our team will review your request and get back to you shortly with next steps.</p>
+    <p>Thank you for choosing REIFundamentals!</p>
+    """
+
+    try:
+        await send_email(user_email, user_name, subject, html_content, settings)
+        logger.info(f"New request confirmation email sent to {user_email}")
+    except Exception as e:
+        logger.error(f"Failed to send new request email to {user_email}: {e}")
 
 
 async def notify_request_update(
@@ -124,11 +145,38 @@ async def notify_request_update(
 
     Sends email to user with status update and next steps.
     """
-    # TODO: Send email to user with request status update
-    # Subject: "Negotiation Request Update: [request_id]"
-    # Body: Include status, what happens next, reply instructions
-    # Also send Telegram/WhatsApp/Slack notification to admin logging this action
-    pass
+    # Build status-specific subject and body
+    if new_status == "accepted":
+        subject = "Negotiation Request Accepted"
+        status_text = "accepted and approved"
+        next_steps = "Our team will begin creating cases and starting work on your request. You'll receive updates as we progress."
+    elif new_status == "info_requested":
+        subject = "More Information Needed"
+        status_text = "received, but we need more information"
+        next_steps = "Please reply to this email with the additional details our team has requested. Once we receive your information, we'll proceed with your request."
+    elif new_status == "declined":
+        subject = "Negotiation Request Update"
+        status_text = "received, but unfortunately could not be processed"
+        next_steps = "If you believe this was in error or have questions, please reach out to our support team for further assistance."
+    else:
+        subject = "Negotiation Request Update"
+        status_text = f"has been updated to {new_status}"
+        next_steps = "Check your dashboard for more details."
+
+    html_content = f"""
+    <h2>Request Status Update</h2>
+    <p>Hi there,</p>
+    <p>Your negotiation request (ID: <strong>{request_id}</strong>) has been <strong>{status_text}</strong>.</p>
+    <p>{next_steps}</p>
+    <p>If you have any questions, please don't hesitate to contact our support team.</p>
+    <p>Thank you for using REIFundamentals!</p>
+    """
+
+    try:
+        await send_email(user_email, "", subject, html_content, settings)
+        logger.info(f"Request update email ({new_status}) sent to {user_email}")
+    except Exception as e:
+        logger.error(f"Failed to send request update email to {user_email}: {e}")
 
 
 # ── Activity notifications ───────────────────────────────────────────
@@ -144,12 +192,25 @@ async def notify_new_activity(
     Notify user when admin logs a new activity in their case.
 
     Sends the sanitized user_summary (AI-generated) via email.
+    Do NOT include admin_note.
     """
-    # TODO: Send email to user with activity summary
-    # Subject: "Case [case_id] Update"
-    # Body: Include user_summary with formatting
-    # Do NOT include admin_note or attachments
-    pass
+    subject = "Case Update"
+    html_content = f"""
+    <h2>New Update on Your Case</h2>
+    <p>Hi there,</p>
+    <p>There's a new update on your negotiation case (ID: <strong>{case_id}</strong>):</p>
+    <div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;line-height:1.6;">
+        {user_summary.replace(chr(10), '<br>')}
+    </div>
+    <p>Log in to your dashboard to see the full details and reply if needed.</p>
+    <p>Thank you for choosing REIFundamentals!</p>
+    """
+
+    try:
+        await send_email(user_email, "", subject, html_content, settings)
+        logger.info(f"Activity update email sent for case {case_id} to {user_email}")
+    except Exception as e:
+        logger.error(f"Failed to send activity update email for case {case_id}: {e}")
 
 
 # ── Tracking notifications ───────────────────────────────────────────
@@ -166,10 +227,24 @@ async def notify_tracking_update(
 
     Called when USPS or Fax tracking status changes on a correspondence/activity.
     """
-    # TODO: Send email/SMS to user with tracking update
-    # e.g., "Package delivered", "Attempted delivery", "In transit"
-    # Include tracking number, delivery date/time if available
-    pass
+    subject = f"Tracking Update — {tracking_status}"
+    html_content = f"""
+    <h2>Tracking Status Update</h2>
+    <p>Hi there,</p>
+    <p>The tracking status for your negotiation case (ID: <strong>{case_id}</strong>) has been updated:</p>
+    <div style="background:#f8f9fa;padding:16px;border-radius:6px;margin:16px 0;">
+        <strong>Current Status:</strong> {tracking_status}<br>
+        <strong>Case Reference:</strong> {case_id}
+    </div>
+    <p>Log in to your dashboard to view more details about your case.</p>
+    <p>Thank you for using REIFundamentals!</p>
+    """
+
+    try:
+        await send_email(user_email, "", subject, html_content, settings)
+        logger.info(f"Tracking update email sent for case {case_id} to {user_email}")
+    except Exception as e:
+        logger.error(f"Failed to send tracking update email for case {case_id}: {e}")
 
 
 # ── Chat message notifications ───────────────────────────────────────
@@ -188,12 +263,25 @@ async def notify_new_message(
     If sender is admin → Send email to user
     """
     if sender_role == "user":
-        # TODO: Send Telegram to admin that user sent a message
+        # Send Telegram to admin that user sent a message
         message = f"💬 *New message from user* in case {_escape_markdown(case_id)}"
         await send_negotiation_telegram(message, settings)
     elif sender_role == "admin":
-        # TODO: Send email to user that admin sent a message
-        pass
+        # Send email to user that admin sent a message
+        subject = "New Message on Your Case"
+        html_content = f"""
+        <h2>New Message</h2>
+        <p>Hi there,</p>
+        <p>You have a new message regarding your negotiation case (ID: <strong>{case_id}</strong>).</p>
+        <p>Log in to your dashboard to view and reply to your message.</p>
+        <p>Thank you for using REIFundamentals!</p>
+        """
+
+        try:
+            await send_email(recipient_email, "", subject, html_content, settings)
+            logger.info(f"New message notification email sent for case {case_id} to {recipient_email}")
+        except Exception as e:
+            logger.error(f"Failed to send message notification email for case {case_id}: {e}")
 
 
 # ── Internal helpers ─────────────────────────────────────────────────

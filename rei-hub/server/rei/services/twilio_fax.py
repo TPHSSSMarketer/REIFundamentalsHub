@@ -193,8 +193,16 @@ async def update_fax_status(
     """Update correspondence record with latest fax status from Twilio.
 
     Called by background processor.
+    Returns None if model is not available or record not found.
     """
-    from rei.models.user import NegotiationCorrespondence
+    try:
+        from rei.models.user import NegotiationCorrespondence
+    except ImportError:
+        logger.warning(
+            "NegotiationCorrespondence model not found — skipping fax status update for %s",
+            correspondence_id,
+        )
+        return None
 
     corr = db.query(NegotiationCorrespondence).filter_by(
         id=correspondence_id

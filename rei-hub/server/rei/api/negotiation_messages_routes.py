@@ -142,7 +142,25 @@ async def send_message(
     await db.commit()
     await db.refresh(message)
 
-    # TODO: Call notify_new_message() to notify other party
+    # Notify other party (Telegram to admin, email to user)
+    try:
+        from rei.services.negotiation_notifications import notify_new_message
+        from rei.config import get_settings
+        # Get the other party's email
+        case = await db.get(NegotiationCase, message.case_id)
+        if sender_role == "user":
+            recipient_email = ""  # admin gets Telegram, not email
+        else:
+            owner = await db.get(User, case.user_id) if case else None
+            recipient_email = owner.email if owner else ""
+        await notify_new_message(
+            case_id=str(message.case_id),
+            sender_role=sender_role,
+            recipient_email=recipient_email,
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send message notification: %s", e)
 
     return _message_to_dict(message)
 

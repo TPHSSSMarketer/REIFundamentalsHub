@@ -143,8 +143,30 @@ async def create_activity(
     await db.commit()
     await db.refresh(activity)
 
-    # TODO: Call negotiation_summary.py to generate user_summary via MiniMax
-    # TODO: Call notify_new_activity() to notify user
+    # Generate AI-sanitized user summary
+    try:
+        from rei.services.negotiation_summary import generate_user_summary
+        user_summary = await generate_user_summary(body.adminNote, case.service_type)
+        if user_summary:
+            activity.user_summary = user_summary
+            await db.commit()
+    except Exception as e:
+        logger.warning("Failed to generate user summary: %s", e)
+
+    # Notify user of new activity
+    try:
+        from rei.services.negotiation_notifications import notify_new_activity
+        from rei.config import get_settings
+        # Get user email from case owner
+        owner = await db.get(User, case.user_id)
+        await notify_new_activity(
+            case_id=str(case.id),
+            user_summary=activity.user_summary or body.adminNote[:100],
+            user_email=owner.email if owner else "",
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send activity notification: %s", e)
 
     return _activity_to_dict(activity, is_admin=True)
 

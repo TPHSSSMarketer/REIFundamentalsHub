@@ -119,8 +119,18 @@ async def submit_negotiation_request(
     await db.commit()
     await db.refresh(request)
 
-    # TODO: Phase 3D — Trigger admin notification here
-    # background_tasks.add_task(notify_admin_of_new_request, request.id)
+    # Notify admin (Telegram) + user (email)
+    try:
+        from rei.services.negotiation_notifications import notify_new_request
+        from rei.config import get_settings
+        await notify_new_request(
+            request_data={"property_address": property_address or "Unknown", "service_types_json": body.serviceTypes, "deal_id": str(body.dealId)},
+            user_email=user.email,
+            user_name=user.full_name or user.email,
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send new request notification: %s", e)
 
     return _request_to_dict(request)
 
@@ -259,8 +269,23 @@ async def request_more_info(
     await db.commit()
     await db.refresh(req)
 
-    # TODO: Phase 3D — Send notification to user here
-    # background_tasks.add_task(notify_user_info_requested, req.id, body.message)
+    # Notify user of status change
+    try:
+        from rei.services.negotiation_notifications import notify_request_update
+        from rei.config import get_settings
+        # Fetch the request owner to get their email
+        owner_result = await db.execute(
+            select(User).where(User.id == req.user_id)
+        )
+        owner = owner_result.scalar_one_or_none()
+        await notify_request_update(
+            request_id=str(req.id),
+            new_status=req.status,
+            user_email=owner.email if owner else "",
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send request update notification: %s", e)
 
     return _request_to_dict(req)
 
@@ -292,5 +317,23 @@ async def decline_negotiation_request(
 
     await db.commit()
     await db.refresh(req)
+
+    # Send notification to user
+    try:
+        from rei.services.negotiation_notifications import notify_request_update
+        from rei.config import get_settings
+        # Fetch the request owner to get their email
+        owner_result = await db.execute(
+            select(User).where(User.id == req.user_id)
+        )
+        owner = owner_result.scalar_one_or_none()
+        await notify_request_update(
+            request_id=str(req.id),
+            new_status=req.status,
+            user_email=owner.email if owner else "",
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send request update notification: %s", e)
 
     return _request_to_dict(req)

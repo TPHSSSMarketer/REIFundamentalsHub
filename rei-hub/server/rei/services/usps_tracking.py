@@ -296,9 +296,17 @@ async def update_correspondence_tracking(
 
     Called by background processor and bank negotiation routes.
     Uses async_db (AsyncSession) for both credential lookup and record updates.
+    Returns None if model is not available or record not found.
     """
-    from sqlalchemy import select
-    from rei.models.user import NegotiationCorrespondence
+    try:
+        from sqlalchemy import select
+        from rei.models.user import NegotiationCorrespondence
+    except ImportError:
+        logger.warning(
+            "NegotiationCorrespondence model not found — skipping USPS tracking update for %s",
+            correspondence_id,
+        )
+        return None
 
     result_row = await async_db.execute(
         select(NegotiationCorrespondence).where(
@@ -518,24 +526,44 @@ async def update_activity_tracking(
                 activity.usps_signed_by = result.get("signed_by")
                 activity.tracking_status = "delivered"
 
-                # TODO: Notify user that tracking status changed to delivered
-                # await notify_tracking_update(
-                #     case_id=activity.case_id,
-                #     tracking_status="delivered",
-                #     user_email=...,  # Need to fetch user email
-                #     settings=settings,
-                # )
+                # Notify user that tracking status changed to delivered
+                try:
+                    from rei.services.negotiation_notifications import notify_tracking_update
+                    from rei.models.negotiation import NegotiationCase
+                    from rei.models.user import User
+                    case = await async_db.get(NegotiationCase, activity.case_id)
+                    if case:
+                        owner = await async_db.get(User, case.user_id)
+                        if owner:
+                            await notify_tracking_update(
+                                case_id=str(activity.case_id),
+                                tracking_status="delivered",
+                                user_email=owner.email,
+                                settings=settings,
+                            )
+                except Exception as e:
+                    logger.warning("Failed to send delivered notification: %s", e)
 
             if result.get("status") == "returned":
                 activity.tracking_status = "returned"
 
-                # TODO: Notify user that package was returned
-                # await notify_tracking_update(
-                #     case_id=activity.case_id,
-                #     tracking_status="returned",
-                #     user_email=...,
-                #     settings=settings,
-                # )
+                # Notify user that package was returned
+                try:
+                    from rei.services.negotiation_notifications import notify_tracking_update
+                    from rei.models.negotiation import NegotiationCase
+                    from rei.models.user import User
+                    case = await async_db.get(NegotiationCase, activity.case_id)
+                    if case:
+                        owner = await async_db.get(User, case.user_id)
+                        if owner:
+                            await notify_tracking_update(
+                                case_id=str(activity.case_id),
+                                tracking_status="returned",
+                                user_email=owner.email,
+                                settings=settings,
+                            )
+                except Exception as e:
+                    logger.warning("Failed to send returned notification: %s", e)
 
             await async_db.commit()
 

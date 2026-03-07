@@ -264,7 +264,38 @@ async def trigger_research(
     db.add(case)
     await db.commit()
 
-    # TODO: Background task: call contact_research.py
-    # background_tasks.add_task(research_contacts, case_id)
+    # Trigger contact research as a background task
+    async def _run_research(case_id_: str, deal_id_: str, user_id_: int):
+        try:
+            from rei.services.contact_research import research_bank_contacts
+            from rei.config import get_settings
+            from rei.database import async_session_factory
+            from rei.models.crm import CrmDeal
+            from rei.models.negotiation import DealLien
+
+            async with async_session_factory() as bg_db:
+                # Get deal to find property state
+                deal = await bg_db.get(CrmDeal, deal_id_)
+                state = deal.property_state if deal else ""
+
+                # Get first lien holder name for research
+                lien_result = await bg_db.execute(
+                    select(DealLien).where(DealLien.deal_id == deal_id_).limit(1)
+                )
+                lien = lien_result.scalar_one_or_none()
+                bank_name = lien.lien_holder if lien else "Unknown"
+
+                await research_bank_contacts(
+                    bank_name=bank_name,
+                    state=state or "",
+                    negotiation_id=case_id_,
+                    user_id=user_id_,
+                    db=bg_db,
+                    settings=get_settings(),
+                )
+        except Exception as e:
+            logger.error("Background contact research failed for case %s: %s", case_id_, e)
+
+    background_tasks.add_task(_run_research, str(case.id), str(case.deal_id), user.id)
 
     return {"detail": "Research started"}

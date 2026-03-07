@@ -559,6 +559,45 @@ def _fire_usage_reminder(user_obj: User, pct_used: int, settings: Settings) -> N
         pass  # No running loop — skip (shouldn't happen in FastAPI)
 
 
+async def call_ai(
+    task_type: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int = 300,
+    temperature: float = 0.2,
+) -> Optional[dict]:
+    """Lightweight AI call for system-level tasks (not user-billed).
+
+    Wraps ai_complete() with a simpler interface that accepts system_prompt
+    + user_prompt instead of a messages list. Used by negotiation_summary.py
+    and other services that need AI without a user context.
+
+    Returns: { content, provider, model, tokens_used } or None on failure.
+    """
+    from rei.config import get_settings
+    settings = get_settings()
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    try:
+        from rei.database import async_session_factory
+        async with async_session_factory() as db:
+            return await ai_complete(
+                messages=messages,
+                user_id=None,
+                db=db,
+                settings=settings,
+                task_type=task_type,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+    except Exception as e:
+        logger.error("call_ai failed for task_type=%s: %s", task_type, e)
+        return None
+
+
 async def ai_complete(
     messages: list[dict],
     user_id: Optional[int],
