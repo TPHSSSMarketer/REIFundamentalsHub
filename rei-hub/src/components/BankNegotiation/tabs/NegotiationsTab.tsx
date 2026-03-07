@@ -206,13 +206,22 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   }
 
   function openAddLender(propertyAddress: string) {
+    const prop = properties.find((p: any) => p.property_address === propertyAddress)
     setPrefillAddress(propertyAddress)
-    setForm(prev => ({ ...prev, property_address: propertyAddress }))
+    setForm(prev => ({
+      ...prev,
+      bank_name: '', loan_number: '', current_balance: '', negotiation_type: 'Short Sale',
+      our_offer: '', target_outcome: '', land_trust_id: '', notes: '',
+      property_address: propertyAddress,
+      city: prop?.property_city || prev.city,
+      state: prop?.property_state || prev.state,
+      zip: prop?.property_zip || prev.zip,
+    }))
     setShowCreateModal(true)
   }
 
   function getPropertySummary(prop: any) {
-    const lenders = prop.negotiations || []
+    const lenders = prop.lenders || prop.negotiations || []
     const total = lenders.length
     const active = lenders.filter((n: any) => n.status === 'active' || n.status === 'pending_response').length
     const approved = lenders.filter((n: any) => n.status === 'approved').length
@@ -266,7 +275,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
             const addr = prop.property_address || ''
             const summary = getPropertySummary(prop)
             const isCollapsed = collapsed[addr] === true
-            const lenders = prop.negotiations || []
+            const lenders = prop.lenders || prop.negotiations || []
             return (
               <div key={addr} ref={el => { propertyRefs.current[addr] = el }} className="bg-white rounded-xl shadow overflow-hidden">
                 {/* Property Card Header */}
@@ -533,17 +542,27 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-bold text-slate-800">New Negotiation</h3>
+              <h3 className="text-lg font-bold text-slate-800">{prefillAddress ? 'Add Lender / Servicer' : 'Add New Property'}</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
+              {prefillAddress ? (
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <p className="text-xs text-slate-500 mb-1">Property</p>
+                  <p className="text-sm font-semibold text-slate-800">{form.property_address}</p>
+                  <p className="text-xs text-slate-500">{[form.city, form.state, form.zip].filter(Boolean).join(', ')}</p>
+                </div>
+              ) : (
+                <>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Address *</label><input required value={form.property_address} onChange={e => setForm({ ...form, property_address: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">City</label><input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">State</label><select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"><option value="">Select state</option>{US_STATES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label><input value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
+                  </div>
+                </>
+              )}
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Bank/Servicer Name *</label><input required value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Property Address *</label><input required value={form.property_address} onChange={e => { if (!prefillAddress) setForm({ ...form, property_address: e.target.value }) }} readOnly={!!prefillAddress} className={`w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B] ${prefillAddress ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">City</label><input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">State</label><select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"><option value="">Select state</option>{US_STATES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label><input value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
-              </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Loan Number</label><input value={form.loan_number} onChange={e => setForm({ ...form, loan_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Current Balance ($)</label><input type="number" value={form.current_balance} onChange={e => setForm({ ...form, current_balance: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
               <div>
@@ -556,7 +575,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]" /></div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>
-                <button type="submit" disabled={creating} className="px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50">{creating ? 'Creating...' : 'Create Negotiation'}</button>
+                <button type="submit" disabled={creating} className="px-4 py-2 bg-[#1B3A6B] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50">{creating ? 'Creating...' : prefillAddress ? 'Add Lender' : 'Add Property'}</button>
               </div>
             </form>
           </div>
