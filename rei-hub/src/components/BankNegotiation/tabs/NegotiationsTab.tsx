@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 import {
   getNegotiationsByProperty, createNegotiation, getRecipients, getCorrespondence,
   sendToAll, refreshRecipient, updateRecipient, refreshAllTracking, getDocuments, createDocument,
-  getNotes, createNote, deleteNote,
+  getNotes, createNote, deleteNote, deleteNegotiation,
 } from '../../../services/bankNegotiationApi'
 
 interface Props {
@@ -110,6 +110,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
   const [notes, setNotes] = useState<any[]>([])
   const [newNote, setNewNote] = useState('')
   const propertyRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const initializedRef = useRef(false)
 
   useEffect(() => { fetchProperties() }, [])
@@ -239,6 +240,17 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
       await deleteNote(selectedNeg.id, noteId)
       setNotes(prev => prev.filter((n: any) => n.id !== noteId))
     } catch { showToastMsg('Failed to delete note') }
+  }
+
+  async function handleDeleteNegotiation(negId: string) {
+    try {
+      await deleteNegotiation(negId)
+      showToastMsg('Negotiation deleted')
+      setShowDetailPanel(false)
+      setSelectedNeg(null)
+      setConfirmDeleteId(null)
+      fetchProperties()
+    } catch { showToastMsg('Failed to delete negotiation') }
   }
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000) }
@@ -407,7 +419,18 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                 <p className="text-xs text-slate-500 truncate">{selectedNeg.property_address}</p>
               </div>
             </div>
-            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full shrink-0 ${STATUS_BADGE[selectedNeg.status] || 'bg-gray-100 text-gray-600'}`}>{(selectedNeg.status || '').replace(/_/g, ' ')}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_BADGE[selectedNeg.status] || 'bg-gray-100 text-gray-600'}`}>{(selectedNeg.status || '').replace(/_/g, ' ')}</span>
+              {confirmDeleteId === selectedNeg.id ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-[#CC2229]">Delete?</span>
+                  <button onClick={() => handleDeleteNegotiation(selectedNeg.id)} className="px-2 py-0.5 text-xs bg-[#CC2229] text-white rounded hover:opacity-90">Yes</button>
+                  <button onClick={() => setConfirmDeleteId(null)} className="px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700">No</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDeleteId(selectedNeg.id)} className="px-2 py-1 text-xs text-[#CC2229] border border-[#CC2229] rounded hover:bg-red-50" title="Delete this negotiation">Delete</button>
+              )}
+            </div>
           </div>
 
           <div className="p-5 space-y-6">

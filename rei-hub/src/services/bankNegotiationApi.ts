@@ -149,6 +149,18 @@ export async function updateNegotiation(negId: string, data: Record<string, any>
   )
 }
 
+export async function deleteNegotiation(negId: string) {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/negotiations/${negId}`, {
+        method: 'DELETE',
+        headers: headers(),
+        credentials: 'include',
+      }).then((res) => handleResponse(res, 'Failed to delete negotiation')),
+    { message: 'Negotiation deleted' }
+  )
+}
+
 // ── Recipients ───────────────────────────────────────────────────
 
 export async function getRecipients(negId: string) {
@@ -183,7 +195,7 @@ export async function refreshRecipient(negId: string, recId: string) {
     () =>
       fetch(`${BASE_URL}/api/negotiations/${negId}/recipients/${recId}/refresh`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: headers(),
         credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to refresh recipient')),
     { id: recId, refreshed_at: new Date().toISOString(), status: 'active' }
@@ -278,7 +290,7 @@ export async function refreshAllTracking() {
     () =>
       fetch(`${BASE_URL}/api/negotiations/tracking/refresh-all`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: headers(),
         credentials: 'include',
       }).then((res) => handleResponse(res, 'Failed to refresh all tracking')),
     { refreshed_count: 2, timestamp: new Date().toISOString() }

@@ -821,6 +821,39 @@ async def update_negotiation(
     return _serialize_negotiation(negotiation)
 
 
+@router.delete("/{neg_id}")
+async def delete_negotiation(
+    neg_id: str,
+    request: Request,
+    user: User = Depends(get_current_user_with_banking),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a negotiation and all related data (recipients, correspondence, documents, notes)."""
+    negotiation = await _get_negotiation_or_404(neg_id, user, db)
+
+    # Delete related records in order (children first)
+    for model in (NegotiationNote, NegotiationCorrespondence, NegotiationDocument, NegotiationRecipient):
+        await db.execute(
+            model.__table__.delete().where(model.negotiation_id == neg_id)
+        )
+
+    await db.delete(negotiation)
+    await db.commit()
+
+    # Audit log
+    try:
+        await db.run_sync(lambda s: audit_log(
+            s, action="delete_negotiation", user_id=user.id, user_email=user.email,
+            ip_address=request.client.host, resource_type="bank_negotiation",
+            resource_id=neg_id,
+            details={"bank_name": negotiation.bank_name, "property_address": negotiation.property_address},
+        ))
+    except Exception:
+        pass
+
+    return {"message": "Negotiation deleted"}
+
+
 # ---------------------------------------------------------------------------
 # RECIPIENT ENDPOINTS
 # ---------------------------------------------------------------------------
