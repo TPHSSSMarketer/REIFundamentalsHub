@@ -87,10 +87,14 @@ async def get_current_user(
     return user
 
 
-def workspace_user_id(user: User) -> int:
+def workspace_user_id(user: User = Depends(get_current_user)) -> int:
     """Return the user ID that owns the shared workspace.
 
     Team members (owner_id is set) share their owner's data.
     Account owners and standalone users use their own ID.
+
+    Can be used two ways:
+      1. As a FastAPI dependency: uid: int = Depends(workspace_user_id)
+      2. As a plain function call: workspace_user_id(user)
     """
     return user.owner_id if user.owner_id is not None else user.id
