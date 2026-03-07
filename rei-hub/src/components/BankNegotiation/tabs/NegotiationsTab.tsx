@@ -138,8 +138,9 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault(); setCreating(true)
+    const typeMap: Record<string, string> = { 'Short Sale': 'short_sale', 'Loan Modification': 'loan_modification', 'Deed in Lieu': 'deed_in_lieu', 'Payoff': 'payoff', 'Other': 'other' }
     try {
-      await createNegotiation({ ...form, current_balance: form.current_balance ? parseFloat(form.current_balance) : undefined, our_offer: form.our_offer ? parseFloat(form.our_offer) : undefined, land_trust_id: form.land_trust_id || undefined })
+      await createNegotiation({ bank_name: form.bank_name, property_address: form.property_address, property_city: form.city, property_state: form.state, property_zip: form.zip, loan_number: form.loan_number || undefined, loan_balance: form.current_balance ? parseFloat(form.current_balance) : undefined, negotiation_type: typeMap[form.negotiation_type] || form.negotiation_type.toLowerCase().replace(/ /g, '_'), our_offer: form.our_offer ? parseFloat(form.our_offer) : undefined, target_outcome: form.target_outcome || undefined, land_trust_id: form.land_trust_id || undefined, notes: form.notes || undefined })
       showToastMsg('Created. AI researching bank contacts now.')
       setShowCreateModal(false)
       setPrefillAddress(null)
