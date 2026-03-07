@@ -91,6 +91,8 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "twilio_api_key_sid", "label": "API Key SID", "type": "text"},
         {"name": "twilio_api_key_secret", "label": "API Key Secret", "type": "secret"},
         {"name": "twilio_twiml_app_sid", "label": "TwiML App SID", "type": "text"},
+        {"name": "twilio_whatsapp_from_number", "label": "WhatsApp From Number", "type": "text"},
+        {"name": "twilio_whatsapp_to_number", "label": "WhatsApp Admin Number", "type": "text"},
     ],
     "elevenlabs": [
         {"name": "elevenlabs_api_key", "label": "API Key", "type": "secret"},
@@ -159,6 +161,9 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
     "telegram": [
         {"name": "telegram_bot_token", "label": "Bot Token", "type": "secret"},
         {"name": "telegram_chat_id", "label": "Chat ID", "type": "text"},
+    ],
+    "slack": [
+        {"name": "slack_webhook_url", "label": "Incoming Webhook URL", "type": "secret"},
     ],
     # ── Free API Integrations ──────────────────────────────────────────
     "openweathermap": [

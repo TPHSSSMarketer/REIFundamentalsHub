@@ -223,6 +223,7 @@ async def test_provider_connection(
         "anthropic": ["anthropic_api_key"],
         "openai": ["openai_api_key"],
         "nvidia": ["nvidia_api_key"],
+        "slack": ["slack_webhook_url"],
     }
 
     needed = required_fields.get(provider_name, [])
@@ -247,6 +248,19 @@ async def test_provider_connection(
             client = Client(config["twilio_account_sid"], config["twilio_auth_token"])
             client.api.accounts.list(limit=1)
             return {"status": "connected", "message": "Twilio account verified"}
+
+        elif provider_name == "slack":
+            import httpx
+            webhook_url = config.get("slack_webhook_url", "")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    webhook_url,
+                    json={"text": "✅ REIFundamentals Hub — Slack connection test successful!"},
+                    timeout=10,
+                )
+                if resp.status_code == 200 and resp.text == "ok":
+                    return {"status": "connected", "message": "Slack webhook verified — test message sent"}
+                return {"status": "error", "message": f"Slack returned {resp.status_code}: {resp.text[:200]}"}
 
         elif provider_name == "sendgrid":
             import httpx

@@ -108,6 +108,11 @@ const PROVIDER_META: Record<
     category: 'Communication',
     icon: '✈️',
   },
+  slack: {
+    display_name: 'Slack',
+    category: 'Communication',
+    icon: '💬',
+  },
   // ── Free API Integrations ──────────────────────────────────────────
   openweathermap: {
     display_name: 'OpenWeatherMap',
@@ -182,7 +187,7 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
   plaid:
     'Go to dashboard.plaid.com > Team Settings > Keys. Copy your Client ID and Secret. Set Environment to "sandbox" for testing, "development" for development, or "production" for live.',
   twilio:
-    'Go to console.twilio.com. Your Account SID and Auth Token are on the dashboard. For API Key SID and Secret, go to Account > API Keys & Tokens > Create API Key. For TwiML App SID, go to Voice > TwiML > TwiML Apps and create an app.',
+    'Go to console.twilio.com. Your Account SID and Auth Token are on the dashboard. For API Key SID and Secret, go to Account > API Keys & Tokens > Create API Key. For TwiML App SID, go to Voice > TwiML > TwiML Apps and create an app. For WhatsApp: enable the Twilio WhatsApp Sandbox under Messaging > Try It Out > Send a WhatsApp Message. Your WhatsApp From Number is the sandbox number Twilio provides (e.g., +14155238886). The WhatsApp Admin Number is your personal number.',
   elevenlabs:
     'Go to elevenlabs.io > Profile Settings > API Keys. Generate a new API key and paste it here. Used for AI voicemail greetings and voice synthesis.',
   sendgrid:
@@ -219,6 +224,8 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
     'Register at huduser.gov/hudapi/public/register to get your API key (JWT). Used for HUD housing and fair market rent data lookups.',
   telegram:
     'Message @BotFather on Telegram to create a new bot and get your Bot Token. To find your Chat ID, message your bot then visit https://api.telegram.org/bot<TOKEN>/getUpdates and look for the chat.id field. Used for admin notifications.',
+  slack:
+    'Go to api.slack.com/apps > Create New App > From Scratch. Pick your workspace. Go to Incoming Webhooks > Activate > Add New Webhook to Workspace. Pick the channel for admin notifications (e.g., #negotiations). Copy the Webhook URL and paste it here. Used for admin alerts when users submit negotiation requests or send messages.',
   openweathermap:
     'Go to openweathermap.org/appid and sign up for a free account. Your API key will be emailed and also visible on your account page. Free tier: 1,000 calls/day. Used for weather data on market cards.',
   census_bureau:
@@ -288,6 +295,8 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
     { name: 'twilio_api_key_sid', label: 'API Key SID', type: 'text', help: 'Starts with "SK" — from Account > API Keys' },
     { name: 'twilio_api_key_secret', label: 'API Key Secret', type: 'secret', help: 'Shown once when the API key is created' },
     { name: 'twilio_twiml_app_sid', label: 'TwiML App SID', type: 'text', help: 'Starts with "AP" — from Voice > TwiML Apps' },
+    { name: 'twilio_whatsapp_from_number', label: 'WhatsApp From Number', type: 'text', help: 'Twilio sandbox number e.g. +14155238886 — or your registered WhatsApp business number' },
+    { name: 'twilio_whatsapp_to_number', label: 'WhatsApp Admin Number', type: 'text', help: 'Your personal WhatsApp number e.g. +1234567890 — receives negotiation alerts' },
   ],
   elevenlabs: [
     { name: 'elevenlabs_api_key', label: 'API Key', type: 'secret', help: 'From elevenlabs.io > Profile Settings > API Keys' },
@@ -356,6 +365,9 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
   telegram: [
     { name: 'telegram_bot_token', label: 'Bot Token', type: 'secret', help: 'From @BotFather on Telegram — looks like "123456:ABC-DEF..."' },
     { name: 'telegram_chat_id', label: 'Chat ID', type: 'text', help: 'Your personal chat ID — get it from the /getUpdates API after messaging your bot' },
+  ],
+  slack: [
+    { name: 'slack_webhook_url', label: 'Incoming Webhook URL', type: 'secret', help: 'Starts with "https://hooks.slack.com/services/..." — from your Slack app > Incoming Webhooks' },
   ],
   // ── Free API Integrations ──────────────────────────────────────────
   openweathermap: [

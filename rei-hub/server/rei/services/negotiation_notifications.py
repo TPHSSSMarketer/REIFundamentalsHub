@@ -1,26 +1,17 @@
-"""Negotiation Notification Service — Email + Telegram alerts for negotiation events.
+"""Negotiation Notification Service — multi-channel alerts for negotiation events.
 
-When users submit negotiation requests or receive updates on their cases,
-notifications are sent to both admin (via Telegram) and users (via email).
+ADMIN NOTIFICATIONS (Telegram + WhatsApp + Slack):
+  Sent when users take actions — new request, new message.
+  All three channels are optional: if not configured, silently skipped.
 
-TWO-SIDED NOTIFICATIONS:
-1. User submits a request → Telegram alert to admin (Chris) with deal snapshot
-2. Admin accepts/declines/requests info → Email to user with status update
-3. Admin logs activity → Email to user with sanitized summary
-4. Package tracking updates → Push to user when status changes
+USER NOTIFICATIONS (Email):
+  Sent when admin takes actions — accept/decline, activity, tracking, message.
+  Uses _send_with_template() so templates are editable in Admin → Email Templates.
 
-TELEGRAM SETUP:
-- The bot token is stored in Settings (telegram_bot_token)
-- The chat ID is stored in Settings (telegram_chat_id)
-- To find your chat_id: message the bot, then visit
-  https://api.telegram.org/bot<TOKEN>/getUpdates
-  and look for the chat.id in the response
-
-TEMPLATE INTEGRATION:
-- All user-facing emails use _send_with_template() so the admin can
-  customise subject/body from the Email Templates tab in the admin UI.
-- Templates are registered in email_template_service.DEFAULT_TEMPLATES
-  under the "Negotiations" category.
+SETUP:
+  Telegram: SuperAdmin → Telegram → Bot Token + Chat ID
+  WhatsApp: SuperAdmin → Twilio → WhatsApp From/To Numbers
+  Slack:    SuperAdmin → Slack → Incoming Webhook URL
 """
 
 from __future__ import annotations
@@ -46,6 +37,46 @@ async def _get_db():
     """Create a standalone async db session for template lookups."""
     from rei.database import async_session_factory
     return async_session_factory()
+
+
+# ── Multi-channel admin notification ──────────────────────────────────
+
+async def _notify_admin(
+    telegram_message: str,
+    plain_message: str,
+    settings: Settings,
+) -> None:
+    """Send an admin alert to all configured channels (Telegram, WhatsApp, Slack).
+
+    Each channel is independent: if one fails or isn't configured, the others
+    still fire. Errors are logged but never raised.
+
+    Args:
+        telegram_message: MarkdownV2-formatted message for Telegram.
+        plain_message: Plain text message for WhatsApp and Slack.
+        settings: App settings (used for Telegram bot token/chat ID).
+    """
+    # Telegram (uses settings, not encrypted credentials)
+    await send_negotiation_telegram(telegram_message, settings)
+
+    # WhatsApp + Slack (use encrypted credentials from DB)
+    try:
+        async with await _get_db() as db:
+            # WhatsApp via Twilio
+            try:
+                from rei.services.whatsapp_service import send_whatsapp_message
+                await send_whatsapp_message(plain_message, db=db)
+            except Exception as e:
+                logger.debug("WhatsApp notification skipped: %s", e)
+
+            # Slack via Incoming Webhook
+            try:
+                from rei.services.slack_service import send_slack_message
+                await send_slack_message(plain_message, db=db)
+            except Exception as e:
+                logger.debug("Slack notification skipped: %s", e)
+    except Exception as e:
+        logger.warning("Could not open DB session for WhatsApp/Slack: %s", e)
 
 
 # ── Telegram notification (core) ─────────────────────────────────────
@@ -116,7 +147,7 @@ async def notify_new_request(
     service_types = request_data.get("service_types_json", "[]")
     deal_id = request_data.get("deal_id", "")
 
-    message = (
+    telegram_msg = (
         f"🏦 *New Negotiation Request*\n\n"
         f"*Property:* {_escape_markdown(property_address)}\n"
         f"*Services:* {_escape_markdown(service_types)}\n"
@@ -125,7 +156,14 @@ async def notify_new_request(
         f"*Deal ID:* {_escape_markdown(deal_id)}"
     )
 
-    await send_negotiation_telegram(message, settings)
+    plain_msg = (
+        f"🏦 New Negotiation Request\n"
+        f"Property: {property_address}\n"
+        f"Services: {service_types}\n"
+        f"From: {user_name} ({user_email})"
+    )
+
+    await _notify_admin(telegram_msg, plain_msg, settings)
 
     # Send templated email confirmation to user
     hub_url = settings.hub_url
@@ -349,13 +387,14 @@ async def notify_new_message(
     """
     Notify the other party when a chat message is received.
 
-    If sender is user → Send Telegram to admin
+    If sender is user → Notify admin (Telegram + WhatsApp + Slack)
     If sender is admin → Send email to user
     """
     if sender_role == "user":
-        # Send Telegram to admin that user sent a message
-        message = f"💬 *New message from user* in case {_escape_markdown(case_id)}"
-        await send_negotiation_telegram(message, settings)
+        # Notify admin via all configured channels
+        telegram_msg = f"💬 *New message from user* in case {_escape_markdown(case_id)}"
+        plain_msg = f"💬 New message from user in case {case_id}"
+        await _notify_admin(telegram_msg, plain_msg, settings)
     elif sender_role == "admin":
         # Send templated email to user that admin sent a message
         hub_url = settings.hub_url

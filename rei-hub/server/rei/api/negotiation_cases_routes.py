@@ -243,7 +243,6 @@ async def trigger_research(
 
     Superadmin only.
     Set case status to "researching"
-    TODO: Background task: call contact_research.py
     Return {"detail": "Research started"}
     """
     # Authorization check: superadmin only

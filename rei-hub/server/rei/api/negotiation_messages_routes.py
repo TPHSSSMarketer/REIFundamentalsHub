@@ -110,8 +110,6 @@ async def send_message(
     sender_id = current user ID
     sender_role = "admin" if user.is_superadmin else "user"
 
-    TODO: Call notify_new_message() to notify other party
-
     Returns created message dict.
     """
     # Verify case exists and user has access

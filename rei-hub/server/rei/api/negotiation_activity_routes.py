@@ -104,9 +104,6 @@ async def create_activity(
     - attachments stored as JSON
     - created_by="admin"
 
-    TODO: Call negotiation_summary.py to generate user_summary via MiniMax
-    TODO: Call notify_new_activity() to notify user
-
     Returns the activity dict.
     """
     # Authorization check: superadmin only

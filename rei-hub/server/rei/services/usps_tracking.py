@@ -474,7 +474,7 @@ async def update_activity_tracking(
     - Only records with usps_tracking_number set
     - Skip records where tracking_status in final states (delivered, returned)
     - Calls track_package() for each and updates tracking fields
-    - If delivered, triggers notify_tracking_update (TODO)
+    - If delivered, triggers notify_tracking_update
     """
     from sqlalchemy import select, and_
     from rei.models.negotiation import NegotiationActivity
