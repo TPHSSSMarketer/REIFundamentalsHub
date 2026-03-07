@@ -730,6 +730,43 @@ async def ai_complete(
                     warning_pct = 75
                     _fire_usage_reminder(user_obj, 75, settings)
 
+    # ── Per-provider monthly aggregates ──
+    try:
+        from rei.models.user import AIUsageByProvider
+        current_month = datetime.utcnow().strftime("%Y-%m")
+        provider_key = resolved["provider"]
+        model_key = resolved["model"]
+
+        row = await db.execute(
+            select(AIUsageByProvider).where(
+                AIUsageByProvider.provider == provider_key,
+                AIUsageByProvider.model == model_key,
+                AIUsageByProvider.month == current_month,
+            )
+        )
+        usage_row = row.scalar_one_or_none()
+        if usage_row:
+            usage_row.total_requests += 1
+            usage_row.total_tokens += tokens_used
+            usage_row.input_tokens += input_tokens
+            usage_row.output_tokens += output_tokens
+            usage_row.cost_cents += cost_cents
+            usage_row.updated_at = datetime.utcnow()
+        else:
+            usage_row = AIUsageByProvider(
+                provider=provider_key,
+                model=model_key,
+                month=current_month,
+                total_requests=1,
+                total_tokens=tokens_used,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_cents=cost_cents,
+            )
+            db.add(usage_row)
+    except Exception:
+        logger.debug("Failed to update per-provider usage tracking", exc_info=True)
+
     await db.commit()
 
     return {

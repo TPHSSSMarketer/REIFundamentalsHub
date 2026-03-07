@@ -344,51 +344,144 @@ export default function AiProviderSettings() {
 
         {usage && (
           <>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            {/* Global totals */}
+            <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500">Total Requests</p>
+                <p className="text-xs text-slate-500">Total Requests (All Time)</p>
                 <p className="text-xl font-bold text-slate-800">
                   {usage.total_requests.toLocaleString()}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-500">Total Tokens</p>
+                <p className="text-xs text-slate-500">Total Tokens (All Time)</p>
                 <p className="text-xl font-bold text-slate-800">
                   {usage.total_tokens.toLocaleString()}
                 </p>
               </div>
             </div>
 
-            {users.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
-                      <th className="text-left px-3 py-2 font-medium text-slate-500">Email</th>
-                      <th className="text-left px-3 py-2 font-medium text-slate-500">Provider</th>
-                      <th className="text-left px-3 py-2 font-medium text-slate-500">Override</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.user_id} className="border-b border-slate-100">
-                        <td className="px-3 py-2 text-slate-700">{u.email}</td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {PROVIDER_FRIENDLY_NAME[u.effective_provider] || u.effective_provider}
-                        </td>
-                        <td className="px-3 py-2">
-                          {u.ai_override_enabled ? (
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                              Yes
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">No</span>
-                          )}
-                        </td>
+            {/* Per-provider breakdown — Current Month */}
+            <div className="mb-5">
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                By Provider — {(usage as any).current_month || 'This Month'}
+              </h4>
+              {((usage as any).by_provider_current_month || []).length === 0 ? (
+                <p className="text-xs text-slate-400 py-3 text-center bg-slate-50 rounded-lg">
+                  No usage recorded this month yet. Stats will appear after AI requests are made.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {((usage as any).by_provider_current_month || []).map((p: any, i: number) => {
+                    const provMeta = PROVIDERS.find(pr => pr.id === p.provider)
+                    return (
+                      <div key={i} className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${provMeta?.iconBg || 'bg-gray-100'} ${provMeta?.iconColor || 'text-gray-600'}`}>
+                          {provMeta?.icon || p.provider.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800">
+                            {PROVIDER_FRIENDLY_NAME[p.provider] || p.provider}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">{p.model}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-slate-800">
+                            {p.requests.toLocaleString()} <span className="text-[10px] font-normal text-slate-400">req</span>
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {p.tokens.toLocaleString()} tokens
+                            {p.cost_cents > 0 && <> · ${(p.cost_cents / 100).toFixed(2)}</>}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Per-provider breakdown — All Time */}
+            {((usage as any).by_provider_all_time || []).length > 0 && (
+              <div className="mb-5">
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                  By Provider — All Time
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="text-left px-3 py-2 font-medium text-slate-500">Provider</th>
+                        <th className="text-right px-3 py-2 font-medium text-slate-500">Requests</th>
+                        <th className="text-right px-3 py-2 font-medium text-slate-500">Tokens</th>
+                        <th className="text-right px-3 py-2 font-medium text-slate-500">Cost</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {((usage as any).by_provider_all_time || []).map((p: any, i: number) => (
+                        <tr key={i} className="border-b border-slate-100">
+                          <td className="px-3 py-2 text-slate-700 font-medium">
+                            {PROVIDER_FRIENDLY_NAME[p.provider] || p.provider}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600">
+                            {p.requests.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600">
+                            {p.tokens.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600">
+                            {p.cost_cents > 0 ? `$${(p.cost_cents / 100).toFixed(2)}` : 'Free'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Billing cycle note */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5">
+              <p className="text-xs text-blue-800">
+                <span className="font-semibold">Billing cycle:</span> Each user's monthly allowance resets on their signup anniversary date (not the 1st of the month). NVIDIA models (Kimi, DeepSeek, MiniMax) are free-tier — only Anthropic Claude incurs token costs.
+              </p>
+            </div>
+
+            {/* Per-user table */}
+            {users.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                  Per User
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="text-left px-3 py-2 font-medium text-slate-500">Email</th>
+                        <th className="text-left px-3 py-2 font-medium text-slate-500">Provider</th>
+                        <th className="text-left px-3 py-2 font-medium text-slate-500">Override</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.user_id} className="border-b border-slate-100">
+                          <td className="px-3 py-2 text-slate-700">{u.email}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {PROVIDER_FRIENDLY_NAME[u.effective_provider] || u.effective_provider}
+                          </td>
+                          <td className="px-3 py-2">
+                            {u.ai_override_enabled ? (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                                Yes
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400">No</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>

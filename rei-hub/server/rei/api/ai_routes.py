@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import AI_PLAN_ALLOWANCES, Settings, get_settings
 from rei.models.crm import ContentImage, CrmContact, CrmDeal, DealFile
-from rei.models.user import AIProviderConfig, User
+from rei.models.user import AIProviderConfig, AIUsageByProvider, User
 from rei.services.ai_service import (
     PROVIDER_CONFIGS,
     ai_complete,
@@ -255,10 +255,58 @@ async def get_admin_usage(
     # Sort by tokens descending so heaviest users are at the top
     per_user.sort(key=lambda x: x["tokens"], reverse=True)
 
+    # Per-provider breakdown (current month + all-time)
+    current_month = datetime.utcnow().strftime("%Y-%m")
+    prov_result = await db.execute(
+        select(AIUsageByProvider).order_by(
+            AIUsageByProvider.month.desc(),
+            AIUsageByProvider.total_requests.desc(),
+        )
+    )
+    all_provider_rows = prov_result.scalars().all()
+
+    by_provider_current = []
+    by_provider_all_time: dict[str, dict] = {}
+
+    for row in all_provider_rows:
+        # Aggregate all-time totals per provider
+        key = row.provider
+        if key not in by_provider_all_time:
+            by_provider_all_time[key] = {
+                "provider": row.provider,
+                "requests": 0,
+                "tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_cents": 0,
+            }
+        by_provider_all_time[key]["requests"] += row.total_requests
+        by_provider_all_time[key]["tokens"] += row.total_tokens
+        by_provider_all_time[key]["input_tokens"] += row.input_tokens
+        by_provider_all_time[key]["output_tokens"] += row.output_tokens
+        by_provider_all_time[key]["cost_cents"] += row.cost_cents
+
+        # Current month detail
+        if row.month == current_month:
+            by_provider_current.append({
+                "provider": row.provider,
+                "model": row.model,
+                "month": row.month,
+                "requests": row.total_requests,
+                "tokens": row.total_tokens,
+                "input_tokens": row.input_tokens,
+                "output_tokens": row.output_tokens,
+                "cost_cents": row.cost_cents,
+            })
+
     return {
         "total_requests": config.total_requests,
         "total_tokens": config.total_tokens,
         "per_user": per_user,
+        "by_provider_current_month": by_provider_current,
+        "by_provider_all_time": list(by_provider_all_time.values()),
+        "current_month": current_month,
+        "billing_note": "User billing cycles reset on each user's signup anniversary date.",
     }
 
 

@@ -102,6 +102,24 @@ export interface AdminStats {
   canceled: number
   mrr_cents: number
   by_plan: Record<string, number>
+  // Credit & usage metrics
+  total_credits_balance_cents?: number
+  total_ai_cost_cents?: number
+  total_ai_requests?: number
+  total_ai_tokens?: number
+  total_phone_minutes?: number
+  total_phone_sms?: number
+  total_sms_received?: number
+  total_fax_sent?: number
+  total_fax_received?: number
+  total_fax_cost?: number
+  total_emails_sent?: number
+  // Revenue from credit purchases
+  total_credit_revenue_cents?: number
+  total_credits_purchased_cents?: number
+  // AI by provider
+  ai_by_provider?: { provider: string; model: string; requests: number; tokens: number; cost_cents: number }[]
+  current_month?: string
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

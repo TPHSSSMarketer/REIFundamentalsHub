@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_db
 from rei.config import PLANS
 from rei.middleware.admin_gate import require_admin
-from rei.models.user import User
+from rei.models.user import AIUsageByProvider, FaxLog, PhoneCredit, SmsMessage, User
 
 logger = logging.getLogger(__name__)
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -244,6 +244,91 @@ async def admin_stats(
                 base = plan_data["monthly_price_cents"]
             mrr_cents += base
 
+    # ── Credit & Revenue aggregates ──────────────────────────────
+    # Total phone credits balance across all users
+    credits_q = select(func.coalesce(func.sum(User.phone_credits_cents), 0))
+    total_credits_balance_cents = (await db.execute(credits_q)).scalar() or 0
+
+    # Total AI cost (current billing period) across all users
+    ai_cost_q = select(func.coalesce(func.sum(User.ai_cost_cents), 0))
+    total_ai_cost_cents = (await db.execute(ai_cost_q)).scalar() or 0
+
+    # Total AI requests & tokens (all time)
+    ai_req_q = select(func.coalesce(func.sum(User.ai_total_requests), 0))
+    total_ai_requests = (await db.execute(ai_req_q)).scalar() or 0
+    ai_tok_q = select(func.coalesce(func.sum(User.ai_total_tokens), 0))
+    total_ai_tokens = (await db.execute(ai_tok_q)).scalar() or 0
+
+    # Phone usage totals
+    phone_min_q = select(func.coalesce(func.sum(User.phone_minutes_used), 0))
+    total_phone_minutes = (await db.execute(phone_min_q)).scalar() or 0
+    phone_sms_q = select(func.coalesce(func.sum(User.phone_sms_used), 0))
+    total_phone_sms = (await db.execute(phone_sms_q)).scalar() or 0
+
+    # SMS received (inbound) — queried from SmsMessage table
+    sms_recv_q = (
+        select(func.count())
+        .select_from(SmsMessage)
+        .where(SmsMessage.direction == "inbound")
+    )
+    total_sms_received = (await db.execute(sms_recv_q)).scalar() or 0
+
+    # Fax sent (outbound) and received (inbound) — from FaxLog table
+    fax_sent_q = (
+        select(func.count())
+        .select_from(FaxLog)
+        .where(FaxLog.direction == "outbound")
+    )
+    total_fax_sent = (await db.execute(fax_sent_q)).scalar() or 0
+
+    fax_recv_q = (
+        select(func.count())
+        .select_from(FaxLog)
+        .where(FaxLog.direction == "inbound")
+    )
+    total_fax_received = (await db.execute(fax_recv_q)).scalar() or 0
+
+    # Fax cost (total pages × per-page pricing from FaxLog.cost)
+    fax_cost_q = select(
+        func.coalesce(func.sum(FaxLog.cost), 0.0)
+    )
+    total_fax_cost = float((await db.execute(fax_cost_q)).scalar() or 0)
+
+    # Email usage totals
+    email_q = select(func.coalesce(func.sum(User.email_credits_used), 0))
+    total_emails_sent = (await db.execute(email_q)).scalar() or 0
+
+    # Credit purchase revenue (money brought in from users buying credits)
+    credit_revenue_q = select(
+        func.coalesce(func.sum(PhoneCredit.amount_paid_cents), 0)
+    )
+    total_credit_revenue_cents = (await db.execute(credit_revenue_q)).scalar() or 0
+
+    # Total credits purchased (value given to users)
+    credit_purchased_q = select(
+        func.coalesce(func.sum(PhoneCredit.credits_cents), 0)
+    )
+    total_credits_purchased_cents = (await db.execute(credit_purchased_q)).scalar() or 0
+
+    # Per-provider AI usage (current month)
+    current_month = datetime.utcnow().strftime("%Y-%m")
+    prov_q = (
+        select(AIUsageByProvider)
+        .where(AIUsageByProvider.month == current_month)
+        .order_by(AIUsageByProvider.total_requests.desc())
+    )
+    prov_rows = (await db.execute(prov_q)).scalars().all()
+    ai_by_provider = [
+        {
+            "provider": r.provider,
+            "model": r.model,
+            "requests": r.total_requests,
+            "tokens": r.total_tokens,
+            "cost_cents": r.cost_cents,
+        }
+        for r in prov_rows
+    ]
+
     return {
         "total_subscribers": total_subscribers,
         "active": active,
@@ -252,4 +337,22 @@ async def admin_stats(
         "canceled": canceled,
         "by_plan": by_plan,
         "mrr_cents": mrr_cents,
+        # Credit & usage metrics
+        "total_credits_balance_cents": total_credits_balance_cents,
+        "total_ai_cost_cents": total_ai_cost_cents,
+        "total_ai_requests": total_ai_requests,
+        "total_ai_tokens": total_ai_tokens,
+        "total_phone_minutes": total_phone_minutes,
+        "total_phone_sms": total_phone_sms,
+        "total_sms_received": total_sms_received,
+        "total_fax_sent": total_fax_sent,
+        "total_fax_received": total_fax_received,
+        "total_fax_cost": total_fax_cost,
+        "total_emails_sent": total_emails_sent,
+        # Revenue from credit purchases
+        "total_credit_revenue_cents": total_credit_revenue_cents,
+        "total_credits_purchased_cents": total_credits_purchased_cents,
+        # AI by provider this month
+        "ai_by_provider": ai_by_provider,
+        "current_month": current_month,
     }

@@ -53,6 +53,18 @@ const PLAN_BAR_COLORS: Record<string, string> = {
   team: 'bg-green-500',
 }
 
+const AI_PROVIDER_NAME: Record<string, string> = {
+  anthropic: 'Anthropic Claude',
+  nvidia_kimi: 'Kimi 2.5',
+  nvidia_kimi_thinking: 'Kimi K2 Thinking',
+  nvidia_deepseek_r1: 'DeepSeek R1',
+  nvidia_minimax: 'MiniMax 2.5',
+}
+
+function fmtDollars(cents: number): string {
+  return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 const TABS = ['Overview', 'Subscribers', 'AI Providers', 'Credentials', 'Email Templates', 'HUD Markets', 'Loan Servicing', 'Bank Negotiation', 'Audit Log', 'Tools'] as const
 type Tab = (typeof TABS)[number]
 
@@ -747,6 +759,107 @@ export default function AdminPage() {
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* Credits & Revenue */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
+            <p className="text-sm font-semibold text-slate-800">Credits & Revenue</p>
+
+            {/* Revenue row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-xs text-green-600 font-medium">Credit Revenue (All Time)</p>
+                <p className="text-xl font-bold text-green-700">{fmtDollars(stats.total_credit_revenue_cents || 0)}</p>
+                <p className="text-[10px] text-green-500 mt-0.5">Money brought in from credit purchases</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-600 font-medium">Credits Purchased</p>
+                <p className="text-xl font-bold text-blue-700">{fmtDollars(stats.total_credits_purchased_cents || 0)}</p>
+                <p className="text-[10px] text-blue-500 mt-0.5">Total credit value given to users</p>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <p className="text-xs text-slate-500 font-medium">Credits Balance (All Users)</p>
+                <p className="text-xl font-bold text-slate-800">{fmtDollars(stats.total_credits_balance_cents || 0)}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Outstanding credits remaining</p>
+              </div>
+            </div>
+
+            {/* Usage row */}
+            <div>
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Usage Totals</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">AI Requests</p>
+                  <p className="text-lg font-bold text-slate-800">{(stats.total_ai_requests || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">AI Cost (This Cycle)</p>
+                  <p className="text-lg font-bold text-slate-800">{fmtDollars(stats.total_ai_cost_cents || 0)}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Phone Minutes</p>
+                  <p className="text-lg font-bold text-slate-800">{(stats.total_phone_minutes || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Emails Sent</p>
+                  <p className="text-lg font-bold text-slate-800">{(stats.total_emails_sent || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* SMS & Fax breakdown */}
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mt-4 mb-2">SMS & Fax</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">SMS Sent</p>
+                  <p className="text-lg font-bold text-slate-800">{(stats.total_phone_sms || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-600">SMS Received</p>
+                  <p className="text-lg font-bold text-amber-700">{(stats.total_sms_received || 0).toLocaleString()}</p>
+                  <p className="text-[10px] text-amber-500">You pay for these</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Faxes Sent</p>
+                  <p className="text-lg font-bold text-slate-800">{(stats.total_fax_sent || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-600">Faxes Received</p>
+                  <p className="text-lg font-bold text-amber-700">{(stats.total_fax_received || 0).toLocaleString()}</p>
+                  <p className="text-[10px] text-amber-500">You pay for these</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Fax Cost (All Time)</p>
+                  <p className="text-lg font-bold text-slate-800">{fmtDollars(Math.round((stats.total_fax_cost || 0) * 100))}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI by Provider this month */}
+            {(stats.ai_by_provider || []).length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                  AI by Provider — {stats.current_month || 'This Month'}
+                </p>
+                <div className="space-y-2">
+                  {(stats.ai_by_provider || []).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{AI_PROVIDER_NAME[p.provider] || p.provider}</p>
+                        <p className="text-[10px] text-slate-400">{p.model}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-slate-800">{p.requests.toLocaleString()} <span className="text-[10px] font-normal text-slate-400">req</span></p>
+                        <p className="text-[10px] text-slate-500">
+                          {p.tokens.toLocaleString()} tokens
+                          {p.cost_cents > 0 && <> · {fmtDollars(p.cost_cents)}</>}
+                          {p.cost_cents === 0 && <> · Free</>}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

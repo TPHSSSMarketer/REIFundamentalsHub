@@ -1005,6 +1005,29 @@ class AIProviderConfig(Base):
         DateTime, default=datetime.utcnow)
 
 
+class AIUsageByProvider(Base):
+    """Monthly per-provider usage aggregates.
+
+    One row per (provider, model, month) combination.  Updated on every
+    ai_complete() call so the SuperAdmin dashboard can show a breakdown
+    of which AI providers are being used and how much.
+    """
+    __tablename__ = "ai_usage_by_provider"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    provider: Mapped[str] = mapped_column(String)      # e.g. "anthropic", "nvidia_kimi"
+    model: Mapped[str] = mapped_column(String)          # e.g. "claude-sonnet-4-6"
+    month: Mapped[str] = mapped_column(String)          # "YYYY-MM" format
+    total_requests: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_cents: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
 # ═══════════════════════════════════════════════════════════════
 # Loan Servicing models
 # ═══════════════════════════════════════════════════════════════
