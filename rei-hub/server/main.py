@@ -17,6 +17,7 @@ from rei.services.security import check_rate_limit, rl_ip_key
 
 from rei.api.admin_routes import admin_router
 from rei.api.ai_routes import ai_router
+from rei.api.content_hub_routes import content_hub_router
 from rei.api.analytics_routes import router as analytics_router
 from rei.api.audit_routes import audit_router
 from rei.api.auth_routes import auth_router
@@ -399,6 +400,7 @@ app.include_router(underwriting_router, prefix="/api")
 app.include_router(property_router, prefix="/api")
 app.include_router(email_template_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
+app.include_router(content_hub_router, prefix="/api")
 
 
 @app.get("/health")

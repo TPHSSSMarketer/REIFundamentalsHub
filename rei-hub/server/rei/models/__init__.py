@@ -27,7 +27,10 @@ from rei.models.user import (
 from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
 from rei.models.credentials import ProviderCredentials
-from rei.models.crm import CrmContact, CrmDeal, CrmPortfolioProperty
+from rei.models.crm import (
+    CrmContact, CrmDeal, CrmPortfolioProperty, ContentImage,
+    ContentEntry, ContentPublishRecord, ContentEmbedding,
+)
 from rei.models.conversation_flow import (
     Persona,
     ConversationFlow,
@@ -90,4 +93,8 @@ __all__ = [
     "AdminSkill",
     "AdminScheduledTask",
     "AdminEmailTemplate",
+    "ContentImage",
+    "ContentEntry",
+    "ContentPublishRecord",
+    "ContentEmbedding",
 ]

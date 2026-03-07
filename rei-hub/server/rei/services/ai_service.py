@@ -125,6 +125,14 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "underwriting":  ("nvidia_kimi_thinking", None),
     # Math validation — DeepSeek R1 (independent recalculation of deal numbers)
     "math_validation": ("nvidia_deepseek_r1", None),
+    # Content generation — Claude Sonnet for creative writing waterfall
+    "content": ("anthropic", "claude-sonnet-4-6"),
+    # Document Intelligence — Claude Sonnet with Vision for document analysis
+    "document_analysis": ("anthropic", "claude-sonnet-4-6"),
+    # Property Photo Analysis — Claude Sonnet with Vision
+    "property_photos": ("anthropic", "claude-sonnet-4-6"),
+    # Image prompt generation — Haiku (cheap + fast for writing SD prompts)
+    "image_prompt": ("anthropic", "claude-haiku-4-5-20251001"),
 }
 
 
@@ -185,8 +193,20 @@ async def _call_anthropic(
     api_key: str,
     max_tokens: int,
     temperature: float,
+    images: list[dict] | None = None,
 ) -> dict:
-    """Call the Anthropic Messages API."""
+    """Call the Anthropic Messages API.
+
+    Args:
+        messages: Standard role/content message list.
+        model: Anthropic model identifier.
+        api_key: API key.
+        max_tokens: Max output tokens.
+        temperature: Sampling temperature.
+        images: Optional list of vision images. Each dict:
+            { "base64": str, "media_type": "image/jpeg"|"image/png"|"image/webp"|"image/gif" }
+            Images are appended to the last user message as content blocks.
+    """
     # Convert messages: Anthropic expects role/content, system goes separately
     system_text = ""
     api_messages = []
@@ -195,6 +215,29 @@ async def _call_anthropic(
             system_text = msg.get("content", "")
         else:
             api_messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # If images are provided, convert the last user message to multi-content format
+    # (Anthropic Vision API requires content blocks: text + image_url/base64)
+    if images and api_messages:
+        # Find the last user message
+        for i in range(len(api_messages) - 1, -1, -1):
+            if api_messages[i]["role"] == "user":
+                text_content = api_messages[i]["content"]
+                content_blocks = []
+                # Add each image as a content block
+                for img in images:
+                    content_blocks.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": img.get("media_type", "image/jpeg"),
+                            "data": img["base64"],
+                        },
+                    })
+                # Add the text after the images
+                content_blocks.append({"type": "text", "text": text_content})
+                api_messages[i]["content"] = content_blocks
+                break
 
     body: dict = {
         "model": model,
@@ -210,7 +253,10 @@ async def _call_anthropic(
         "content-type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # Vision requests can take longer — increase timeout
+    timeout = 120.0 if images else 60.0
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             "https://api.anthropic.com/v1/messages",
             headers=headers,
@@ -292,6 +338,61 @@ async def _call_nvidia(
     if reasoning_content:
         result["reasoning_content"] = reasoning_content
     return result
+
+
+# ── NVIDIA Stable Diffusion Image Generation ─────────────────────────────
+
+PLATFORM_DIMENSIONS: dict[str, tuple[int, int]] = {
+    "facebook":       (1024, 576),   # Landscape
+    "instagram":      (1024, 1024),  # Square
+    "linkedin":       (1024, 576),   # Landscape
+    "youtube_thumb":  (1024, 576),   # Landscape
+    "blog":           (1024, 576),   # Landscape
+    "youtube_short":  (576, 1024),   # Portrait
+}
+
+
+async def _call_nvidia_image(
+    prompt: str,
+    width: int,
+    height: int,
+    api_key: str,
+    steps: int = 30,
+    cfg_scale: float = 7.0,
+) -> str:
+    """Call NVIDIA NIM Stable Diffusion 3 Medium to generate an image.
+
+    Returns base64-encoded PNG string.
+    """
+    await _nvidia_limiter.acquire()
+
+    url = "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3-medium"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    body = {
+        "prompt": prompt,
+        "height": height,
+        "width": width,
+        "steps": steps,
+        "cfg_scale": cfg_scale,
+    }
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        resp = await client.post(url, headers=headers, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+
+    # NVIDIA returns { "artifacts": [{ "base64": "...", "seed": ... }] }
+    # or { "image": "base64..." } depending on the model version
+    if "artifacts" in data and data["artifacts"]:
+        return data["artifacts"][0]["base64"]
+    elif "image" in data:
+        return data["image"]
+    else:
+        raise ValueError(f"Unexpected NVIDIA image response format: {list(data.keys())}")
 
 
 # ── Billing-cycle helpers ─────────────────────────────────────────────────
@@ -465,8 +566,14 @@ async def ai_complete(
     max_tokens: int = 2000,
     temperature: float = 0.3,
     use_own_keys: bool = False,
+    images: list[dict] | None = None,
 ) -> dict:
     """Main AI completion function — resolves provider and calls the API.
+
+    Args:
+        images: Optional list of vision images for Claude Vision.
+            Each dict: { "base64": str, "media_type": str }
+            Only supported with Anthropic provider.
 
     Returns: { content, provider, model, tokens_used }
     """
@@ -490,6 +597,7 @@ async def ai_complete(
                 resolved["api_key"],
                 max_tokens,
                 temperature,
+                images=images,
             )
         else:
             result = await _call_nvidia(
@@ -1082,3 +1190,720 @@ Return ONLY the JSON object, nothing else."""
             "outcome": "unknown",
             "summary": f"Analysis error: {str(e)}",
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# ContentHub AI — Content Waterfall Generation & URL Scraping
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def generate_content_waterfall(
+    source_text: str,
+    topic: str,
+    user_id: Optional[int],
+    db: AsyncSession,
+    settings: Settings,
+) -> dict:
+    """Generate a content waterfall — one source piece → 6 platform-specific versions.
+
+    Uses Claude Sonnet for creative writing quality. The waterfall strategy follows
+    the OpenClaw content methodology: transform a single core idea into optimized
+    content for Facebook, Instagram, LinkedIn, YouTube (script + short), and blog.
+
+    Returns: {
+        content: { facebook, instagram, linkedin, youtube_script, youtube_short, blog_post },
+        topic: str,
+        model: str,
+    }
+    """
+    system_prompt = """You are an expert real estate content strategist and copywriter.
+Your job is to transform source content into platform-optimized pieces for a real estate investor's brand.
+
+VOICE & STYLE GUIDELINES:
+- Write as a knowledgeable, approachable real estate investor sharing valuable insights
+- Use conversational yet professional language — not corporate jargon
+- Include specific, actionable advice where possible
+- Adapt tone to each platform's audience expectations
+- Never use generic filler — every sentence should add value
+
+PLATFORM REQUIREMENTS:
+1. FACEBOOK: 150-300 words. Engaging, story-driven. Start with a hook question or bold statement.
+   Include a call-to-action. Use line breaks for readability. Add 2-3 relevant hashtags at the end.
+
+2. INSTAGRAM: 100-200 words. Visual-first thinking — describe what image to pair it with.
+   Use emoji sparingly but strategically. Include 15-20 hashtags in a separate block at the end.
+   Start with a strong hook line.
+
+3. LINKEDIN: 200-400 words. Professional and insightful. Share lessons learned, market analysis,
+   or investment strategies. Position the author as a thought leader. End with a discussion question.
+   Use 3-5 relevant hashtags.
+
+4. YOUTUBE_SCRIPT: 800-1200 words. Full video script with:
+   - Hook (first 15 seconds — grab attention immediately)
+   - Intro (who you are, what they'll learn)
+   - Main content broken into 3-5 key points with transitions
+   - Outro with call-to-action (subscribe, comment, check links)
+   Format with [SECTION] headers and (camera direction) notes.
+
+5. YOUTUBE_SHORT: 100-150 words. 60-second vertical video script.
+   Punchy, fast-paced. One key insight or tip. Strong hook in first 3 seconds.
+   End with "Follow for more" type CTA.
+
+6. BLOG_POST: 600-1000 words. SEO-friendly with a clear H1 title, H2 subheadings,
+   an introduction, 3-5 main sections, and a conclusion with CTA.
+   Include natural keyword usage. Write in clean HTML (h1, h2, p, ul/li tags only).
+
+CRITICAL: Return your response as a valid JSON object with exactly these keys:
+facebook, instagram, linkedin, youtube_script, youtube_short, blog_post
+
+Each value must be a string containing the content for that platform.
+Return ONLY the JSON object — no markdown fences, no explanation."""
+
+    user_message = f"TOPIC: {topic}\n\nSOURCE CONTENT:\n{source_text}"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    result = await ai_complete(
+        messages=messages,
+        user_id=user_id,
+        db=db,
+        settings=settings,
+        task_type="content",
+        max_tokens=6000,
+        temperature=0.7,
+    )
+
+    # Parse the JSON response from Claude
+    response_text = result.get("content", "").strip()
+
+    # Clean markdown fences if present
+    if "```json" in response_text:
+        response_text = response_text.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in response_text:
+        response_text = response_text.split("```", 1)[1].split("```", 1)[0]
+
+    try:
+        content = json.loads(response_text.strip())
+    except json.JSONDecodeError:
+        logger.warning("Content waterfall JSON parse failed, attempting recovery")
+        # Try to find the JSON object in the response
+        start = response_text.find("{")
+        end = response_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                content = json.loads(response_text[start:end])
+            except json.JSONDecodeError:
+                content = {
+                    "facebook": response_text,
+                    "instagram": "",
+                    "linkedin": "",
+                    "youtube_script": "",
+                    "youtube_short": "",
+                    "blog_post": "",
+                }
+        else:
+            content = {
+                "facebook": response_text,
+                "instagram": "",
+                "linkedin": "",
+                "youtube_script": "",
+                "youtube_short": "",
+                "blog_post": "",
+            }
+
+    # Ensure all expected keys exist
+    for key in ("facebook", "instagram", "linkedin", "youtube_script", "youtube_short", "blog_post"):
+        if key not in content:
+            content[key] = ""
+
+    # Humanize all generated content — remove AI writing patterns and em dashes
+    try:
+        from rei.services.admin_humanizer_service import humanize_text
+
+        for key in content:
+            if content[key]:
+                content[key] = humanize_text(content[key])
+    except Exception as exc:
+        logger.warning("Humanizer post-processing failed (non-fatal): %s", exc)
+
+    return {
+        "content": content,
+        "topic": topic,
+        "model": result.get("model", ""),
+        "cost_cents": result.get("cost_cents", 0),
+    }
+
+
+async def scrape_url_content(url: str) -> dict:
+    """Scrape a URL and extract clean text content using BeautifulSoup.
+
+    No AI is needed for this step — just fetch and parse HTML.
+    Returns: { text, url, char_count }
+    """
+    from bs4 import BeautifulSoup
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; REIFundamentalsHub/1.0)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        html = resp.text
+
+    soup = BeautifulSoup(html, "lxml")
+
+    # Remove script, style, nav, footer, header elements
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+        tag.decompose()
+
+    # Try to find the main article content first
+    article = soup.find("article") or soup.find("main") or soup.find("div", class_="content")
+    if article:
+        text = article.get_text(separator="\n", strip=True)
+    else:
+        text = soup.get_text(separator="\n", strip=True)
+
+    # Clean up excessive whitespace
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    clean_text = "\n".join(lines)
+
+    # Truncate to ~10K chars to keep prompts reasonable
+    if len(clean_text) > 10000:
+        clean_text = clean_text[:10000] + "\n\n[Content truncated...]"
+
+    return {
+        "text": clean_text,
+        "url": str(url),
+        "char_count": len(clean_text),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Document Intelligence — AI-powered document analysis
+# ═══════════════════════════════════════════════════════════════════════
+
+# Category-specific prompts for document analysis
+_DOC_CATEGORY_PROMPTS = {
+    "title": """You are a real estate title expert analyzing a title report/commitment.
+Extract and organize:
+- Property legal description and address
+- Current owner(s) of record
+- All liens, encumbrances, and exceptions (mortgages, tax liens, judgments, easements)
+- Any title defects or clouds on title
+- Requirements/conditions to clear title
+- Vesting information
+- Tax status and amounts owed
+Flag any RED FLAGS that could delay or prevent closing.""",
+
+    "inspection": """You are a certified home inspector reviewing an inspection report.
+Extract and organize:
+- Overall property condition assessment (grade A-F)
+- Major structural issues (foundation, roof, framing)
+- Mechanical systems status (HVAC, plumbing, electrical)
+- Safety hazards (mold, asbestos, lead paint, radon)
+- Estimated repair costs for each issue (provide ranges)
+- Items needing immediate attention vs. future maintenance
+- Code violations if any
+Prioritize issues by severity and cost impact.""",
+
+    "appraisal": """You are a real estate appraiser reviewing an appraisal report.
+Extract and organize:
+- Appraised value and effective date
+- Property details (sq ft, beds, baths, lot size, year built)
+- Comparable sales used (address, sale price, adjustments)
+- Market conditions assessment
+- Any special conditions or assumptions
+- Value reconciliation approach
+Flag any concerns about the valuation methodology.""",
+
+    "contract": """You are a real estate attorney reviewing a purchase/sale contract.
+Extract and organize:
+- Buyer and seller names/entities
+- Property address and legal description
+- Purchase price and earnest money amount
+- Contingencies (inspection, financing, appraisal) and their deadlines
+- Closing date and possession terms
+- Special conditions or addenda
+- Who pays what closing costs
+- Default and remedy provisions
+Flag any unusual terms, missing protections, or potential risks.""",
+
+    "insurance": """You are an insurance specialist reviewing a property insurance document.
+Extract and organize:
+- Policy type and coverage amounts
+- Premium amounts (annual/monthly)
+- Deductibles
+- What is covered and excluded
+- Named insured and loss payee
+- Policy term dates
+- Any special endorsements or riders
+Flag any gaps in coverage for an investment property.""",
+
+    "general": """You are a real estate document analyst.
+Analyze this document and extract all relevant information for a real estate investor.
+Organize your findings into clear sections with:
+- Document type and purpose
+- Key parties involved
+- Important dates and deadlines
+- Financial figures
+- Terms and conditions
+- Action items or requirements
+- Any red flags or concerns""",
+}
+
+
+async def analyze_document(
+    file_content_b64: str,
+    file_type: str,
+    document_category: str,
+    user_id: Optional[int],
+    db: AsyncSession,
+    settings: Settings,
+) -> dict:
+    """Analyze a document using Claude Vision (images) or text extraction (PDFs).
+
+    Args:
+        file_content_b64: Base64-encoded file content
+        file_type: MIME type (image/jpeg, application/pdf, etc.)
+        document_category: Category for prompt selection (title, inspection, etc.)
+        user_id: User making the request
+        db: Database session
+        settings: App settings
+
+    Returns: {
+        summary: str,
+        key_issues: [{ issue, severity, detail }],
+        extracted_data: { ... },
+        risk_flags: [str],
+        recommendation: str,
+    }
+    """
+    category_prompt = _DOC_CATEGORY_PROMPTS.get(
+        document_category, _DOC_CATEGORY_PROMPTS["general"]
+    )
+
+    system_prompt = f"""{category_prompt}
+
+RESPONSE FORMAT — Return a valid JSON object with exactly these fields:
+{{
+    "summary": "<2-3 paragraph summary of the document>",
+    "key_issues": [
+        {{ "issue": "<issue title>", "severity": "<high|medium|low>", "detail": "<explanation>" }}
+    ],
+    "extracted_data": {{
+        "<relevant field>": "<value>",
+        ...
+    }},
+    "risk_flags": ["<risk 1>", "<risk 2>"],
+    "recommendation": "<overall recommendation for the investor>"
+}}
+
+Return ONLY the JSON object — no markdown fences, no explanation."""
+
+    images = None
+    user_message = "Analyze this document thoroughly."
+
+    # For PDFs: try text extraction first, fall back to image if too short
+    if "pdf" in file_type.lower():
+        try:
+            import io
+            from pypdf import PdfReader
+
+            pdf_bytes = base64.b64decode(file_content_b64)
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            text_pages = []
+            for page in reader.pages:
+                text_pages.append(page.extract_text() or "")
+            full_text = "\n\n".join(text_pages)
+
+            if len(full_text.strip()) > 100:
+                # Good text extraction — use text mode
+                user_message = f"Analyze this document:\n\n{full_text[:15000]}"
+            else:
+                # Poor extraction (scanned PDF) — would need OCR, skip vision for now
+                user_message = (
+                    "This appears to be a scanned PDF with no extractable text. "
+                    "Please note that image-based analysis of PDFs is not yet supported. "
+                    "Try uploading individual page images instead."
+                )
+        except ImportError:
+            logger.warning("pypdf not installed — cannot extract PDF text")
+            user_message = "PDF text extraction is not available. Please upload as images."
+        except Exception as exc:
+            logger.warning("PDF text extraction failed: %s", exc)
+            user_message = f"Failed to read PDF: {str(exc)[:200]}"
+    elif file_type.startswith("image/"):
+        # Image documents (photos of contracts, scanned pages, etc.)
+        images = [{"base64": file_content_b64, "media_type": file_type}]
+        user_message = "Analyze this document image thoroughly."
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    result = await ai_complete(
+        messages=messages,
+        user_id=user_id,
+        db=db,
+        settings=settings,
+        task_type="document_analysis",
+        max_tokens=4000,
+        temperature=0.2,
+        images=images,
+    )
+
+    # Parse the response
+    response_text = result.get("content", "").strip()
+    if "```json" in response_text:
+        response_text = response_text.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in response_text:
+        response_text = response_text.split("```", 1)[1].split("```", 1)[0]
+
+    try:
+        analysis = json.loads(response_text.strip())
+    except json.JSONDecodeError:
+        start = response_text.find("{")
+        end = response_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                analysis = json.loads(response_text[start:end])
+            except json.JSONDecodeError:
+                analysis = {
+                    "summary": response_text,
+                    "key_issues": [],
+                    "extracted_data": {},
+                    "risk_flags": [],
+                    "recommendation": "Unable to parse structured analysis.",
+                }
+        else:
+            analysis = {
+                "summary": response_text,
+                "key_issues": [],
+                "extracted_data": {},
+                "risk_flags": [],
+                "recommendation": "Unable to parse structured analysis.",
+            }
+
+    # Ensure all expected keys
+    for key in ("summary", "key_issues", "extracted_data", "risk_flags", "recommendation"):
+        if key not in analysis:
+            analysis[key] = [] if key in ("key_issues", "risk_flags") else ("" if key != "extracted_data" else {})
+
+    analysis["model"] = result.get("model", "")
+    analysis["cost_cents"] = result.get("cost_cents", 0)
+    return analysis
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Property Photo AI Analysis — Claude Vision
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def analyze_property_photos(
+    photos: list[dict],
+    property_address: str,
+    user_id: Optional[int],
+    db: AsyncSession,
+    settings: Settings,
+) -> dict:
+    """Analyze property photos using Claude Vision for condition assessment.
+
+    Args:
+        photos: List of { "base64": str, "media_type": str, "category": str }
+            Up to 12 photos per call.
+        property_address: Address for context.
+        user_id: User making the request.
+        db: Database session.
+        settings: App settings.
+
+    Returns: {
+        per_photo: [{ category, condition_grade, issues[], repair_cost_range }],
+        summary: { overall_grade, total_estimated_repairs, condition_description, key_concerns[] },
+    }
+    """
+    system_prompt = """You are an experienced real estate property inspector and contractor.
+Analyze the provided property photos and assess the condition of each area shown.
+
+For EACH photo, provide:
+- category: What area of the property this shows (e.g., "front exterior", "kitchen", "bathroom")
+- condition_grade: Letter grade A through F (A=excellent, B=good, C=fair, D=poor, F=severe issues)
+- issues: List of specific issues you can see (empty list if none)
+- repair_cost_range: Estimated repair cost as "$X - $Y" or "$0" if no repairs needed
+
+Then provide an OVERALL SUMMARY of the entire property.
+
+RESPONSE FORMAT — Return a valid JSON object:
+{
+    "per_photo": [
+        {
+            "photo_index": 0,
+            "category": "<area of property>",
+            "condition_grade": "<A|B|C|D|F>",
+            "issues": ["<issue 1>", "<issue 2>"],
+            "repair_cost_range": "<$X - $Y>"
+        }
+    ],
+    "summary": {
+        "overall_grade": "<A|B|C|D|F>",
+        "total_estimated_repairs": <number in dollars>,
+        "condition_description": "<2-3 sentence overall description>",
+        "key_concerns": ["<concern 1>", "<concern 2>"]
+    }
+}
+
+Return ONLY the JSON object — no markdown fences, no explanation."""
+
+    # Build the image list (max 12)
+    images = []
+    photo_labels = []
+    for i, photo in enumerate(photos[:12]):
+        images.append({
+            "base64": photo["base64"],
+            "media_type": photo.get("media_type", "image/jpeg"),
+        })
+        photo_labels.append(f"Photo {i + 1}: {photo.get('category', 'unknown')}")
+
+    labels_text = "\n".join(photo_labels)
+    user_message = (
+        f"Property: {property_address}\n\n"
+        f"I'm sending {len(images)} property photos. Here are their categories:\n{labels_text}\n\n"
+        f"Please analyze each photo and provide an overall property condition assessment."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    result = await ai_complete(
+        messages=messages,
+        user_id=user_id,
+        db=db,
+        settings=settings,
+        task_type="property_photos",
+        max_tokens=4000,
+        temperature=0.2,
+        images=images,
+    )
+
+    # Parse the response
+    response_text = result.get("content", "").strip()
+    if "```json" in response_text:
+        response_text = response_text.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in response_text:
+        response_text = response_text.split("```", 1)[1].split("```", 1)[0]
+
+    try:
+        analysis = json.loads(response_text.strip())
+    except json.JSONDecodeError:
+        start = response_text.find("{")
+        end = response_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                analysis = json.loads(response_text[start:end])
+            except json.JSONDecodeError:
+                analysis = {"per_photo": [], "summary": {
+                    "overall_grade": "?",
+                    "total_estimated_repairs": 0,
+                    "condition_description": "Unable to parse photo analysis.",
+                    "key_concerns": [],
+                }}
+        else:
+            analysis = {"per_photo": [], "summary": {
+                "overall_grade": "?",
+                "total_estimated_repairs": 0,
+                "condition_description": response_text[:500],
+                "key_concerns": [],
+            }}
+
+    if "per_photo" not in analysis:
+        analysis["per_photo"] = []
+    if "summary" not in analysis:
+        analysis["summary"] = {
+            "overall_grade": "?",
+            "total_estimated_repairs": 0,
+            "condition_description": "Analysis incomplete.",
+            "key_concerns": [],
+        }
+
+    analysis["model"] = result.get("model", "")
+    analysis["cost_cents"] = result.get("cost_cents", 0)
+    return analysis
+
+
+# ── ContentHub Image Generation ───────────────────────────────────────────
+
+
+async def generate_platform_image_prompts(
+    topic: str,
+    platforms: list[str],
+    user_id: int | None,
+    db: AsyncSession,
+    settings: Settings,
+) -> dict[str, str]:
+    """Use Claude Haiku to generate optimized Stable Diffusion prompts for each platform.
+
+    Returns a dict of platform → prompt string.
+    """
+    platform_specs = []
+    for plat in platforms:
+        w, h = PLATFORM_DIMENSIONS.get(plat, (1024, 576))
+        orientation = "square" if w == h else ("landscape" if w > h else "portrait")
+        platform_specs.append(f"- {plat}: {w}x{h} ({orientation})")
+
+    specs_text = "\n".join(platform_specs)
+
+    system_prompt = (
+        "You are an expert at writing image generation prompts for Stable Diffusion. "
+        "Your prompts produce professional, photorealistic real estate marketing images. "
+        "Write prompts that are vivid, detailed, and visually compelling — suitable for "
+        "social media marketing by a real estate investor.\n\n"
+        "Rules:\n"
+        "- Each prompt must be 1-2 sentences, under 200 characters\n"
+        "- Focus on professional real estate imagery: modern homes, neighborhoods, keys, "
+        "contracts, happy homeowners, investment growth visuals\n"
+        "- Avoid text/words in images (Stable Diffusion renders text poorly)\n"
+        "- Tailor each prompt to its platform's aspect ratio and audience\n"
+        "- Instagram: eye-catching, vibrant, square composition\n"
+        "- Facebook/LinkedIn: professional, trustworthy, landscape composition\n"
+        "- YouTube: dynamic thumbnails with strong focal points\n"
+        "- Blog: editorial photography style\n"
+        "- YouTube Short: vertical composition, bold visual\n\n"
+        "Respond with valid JSON only — a dict mapping platform name to prompt string."
+    )
+
+    user_message = (
+        f"Topic: {topic}\n\n"
+        f"Generate one Stable Diffusion image prompt for each platform:\n{specs_text}\n\n"
+        f"Return JSON: {{\"facebook\": \"prompt...\", \"instagram\": \"prompt...\", ...}}"
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    result = await ai_complete(
+        messages=messages,
+        user_id=user_id,
+        db=db,
+        settings=settings,
+        task_type="image_prompt",
+        max_tokens=1000,
+        temperature=0.7,
+    )
+
+    response_text = result.get("content", "").strip()
+    # Parse JSON from response
+    if "```json" in response_text:
+        response_text = response_text.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in response_text:
+        response_text = response_text.split("```", 1)[1].split("```", 1)[0]
+
+    try:
+        prompts = json.loads(response_text.strip())
+    except json.JSONDecodeError:
+        start = response_text.find("{")
+        end = response_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                prompts = json.loads(response_text[start:end])
+            except json.JSONDecodeError:
+                prompts = {plat: f"Professional real estate investment photo about {topic}, high quality, photorealistic" for plat in platforms}
+        else:
+            prompts = {plat: f"Professional real estate investment photo about {topic}, high quality, photorealistic" for plat in platforms}
+
+    return prompts
+
+
+async def generate_platform_images(
+    topic: str,
+    platforms: list[str],
+    user_id: int,
+    db: AsyncSession,
+    settings: Settings,
+) -> dict[str, dict]:
+    """Generate images for each platform using Claude Haiku (prompts) + NVIDIA Stable Diffusion.
+
+    Returns dict: { platform: { id, url, prompt, width, height } }
+    """
+    from datetime import timedelta
+    from rei.models.crm import ContentImage
+    from rei.services.credentials_service import get_provider_credentials
+
+    # 1. Get NVIDIA API key
+    nvidia_key = ""
+    try:
+        nv_creds = await get_provider_credentials(db, "nvidia")
+        if nv_creds and nv_creds.get("nvidia_api_key"):
+            nvidia_key = nv_creds["nvidia_api_key"]
+    except Exception:
+        pass
+
+    if not nvidia_key:
+        nvidia_key = getattr(settings, "nvidia_api_key", "") or ""
+
+    if not nvidia_key:
+        raise ValueError("No NVIDIA API key configured. Add it in Admin > Credentials.")
+
+    # 2. Generate optimized prompts via Claude Haiku
+    prompts = await generate_platform_image_prompts(topic, platforms, user_id, db, settings)
+
+    # 3. Generate images for each platform
+    results: dict[str, dict] = {}
+    now = datetime.utcnow()
+    expires = now + timedelta(days=7)
+
+    for plat in platforms:
+        prompt = prompts.get(plat, f"Professional real estate photo about {topic}")
+        w, h = PLATFORM_DIMENSIONS.get(plat, (1024, 576))
+
+        try:
+            image_b64 = await _call_nvidia_image(
+                prompt=prompt,
+                width=w,
+                height=h,
+                api_key=nvidia_key,
+            )
+
+            # Store in DB
+            img = ContentImage(
+                user_id=user_id,
+                platform=plat,
+                topic=topic,
+                prompt=prompt,
+                image_b64=image_b64,
+                mime_type="image/png",
+                width=w,
+                height=h,
+                expires_at=expires,
+            )
+            db.add(img)
+            await db.flush()  # Get the ID
+
+            results[plat] = {
+                "id": img.id,
+                "prompt": prompt,
+                "width": w,
+                "height": h,
+            }
+            logger.info("Generated %s image for topic '%s' (id=%s)", plat, topic, img.id)
+
+        except Exception as exc:
+            logger.error("Failed to generate image for %s: %s", plat, exc)
+            results[plat] = {
+                "id": None,
+                "prompt": prompt,
+                "width": w,
+                "height": h,
+                "error": str(exc),
+            }
+
+    await db.commit()
+    return results

@@ -5,7 +5,8 @@
  * Chat is fully wired; remaining features will be connected in future phases.
  */
 
-import { chatWithAi, chatWithAiAndContact, extractContactData } from './aiApi'
+import { chatWithAi, chatWithAiAndContact, extractContactData, generateContentImages, generateContentWaterfall, scrapeUrl } from './aiApi'
+import type { ContentImagesResponse } from './aiApi'
 
 export class AiServiceError extends Error {
   status: number
@@ -66,6 +67,7 @@ export type ContentWaterfallResponse = {
   content: ContentWaterfallOutput
   topic: string
   model: string
+  content_entry_id?: string
 }
 
 export type ImagePromptsResponse = {
@@ -115,24 +117,30 @@ export async function aiAnalyzeDeal(
 export const helmAnalyzeDeal = aiAnalyzeDeal
 
 export async function aiGenerateWaterfall(
-  _req: ContentWaterfallRequest,
+  req: ContentWaterfallRequest,
 ): Promise<ContentWaterfallResponse> {
-  comingSoon('AI Content Generation')
+  const result = await generateContentWaterfall(req.source_text, req.topic)
+  return {
+    content: result.content as unknown as ContentWaterfallOutput,
+    topic: result.topic,
+    model: result.model,
+    content_entry_id: result.content_entry_id,
+  }
 }
 /** @deprecated Use aiGenerateWaterfall */
 export const helmGenerateWaterfall = aiGenerateWaterfall
 
 export async function aiGenerateImagePrompts(
-  _topic: string,
-  _platform: string,
-): Promise<ImagePromptsResponse> {
-  comingSoon('AI Image Prompts')
+  topic: string,
+  platforms?: string[],
+): Promise<ContentImagesResponse> {
+  return generateContentImages(topic, platforms)
 }
 /** @deprecated Use aiGenerateImagePrompts */
 export const helmGenerateImagePrompts = aiGenerateImagePrompts
 
-export async function aiScrapeUrl(_url: string): Promise<ScrapeUrlResponse> {
-  comingSoon('URL Scraping')
+export async function aiScrapeUrl(url: string): Promise<ScrapeUrlResponse> {
+  return scrapeUrl(url)
 }
 /** @deprecated Use aiScrapeUrl */
 export const helmScrapeUrl = aiScrapeUrl

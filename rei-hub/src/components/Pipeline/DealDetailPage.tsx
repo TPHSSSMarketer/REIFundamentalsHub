@@ -47,6 +47,7 @@ import { getAuthHeader } from '@/services/auth'
 import { getNegotiationsForDeal } from '@/services/bankNegotiationApi'
 import { getTemplates, generateContractFromDeal } from '@/services/documentsApi'
 import { createPortfolioProperty } from '@/services/crmApi'
+import { analyzeDocument, analyzePropertyPhotos, type DocumentAnalysis, type PhotoAnalysisResult } from '@/services/aiApi'
 import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
 import DealAnalyzer from './DealAnalyzer'
@@ -176,6 +177,15 @@ export default function DealDetailPage() {
 
   // Add Task Modal
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
+
+  // AI Document Analysis
+  const [analyzingFile, setAnalyzingFile] = useState<string | null>(null)
+  const [docAnalysis, setDocAnalysis] = useState<Record<string, DocumentAnalysis>>({})
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null)
+
+  // AI Photo Analysis
+  const [analyzingPhotos, setAnalyzingPhotos] = useState(false)
+  const [photoAnalysis, setPhotoAnalysis] = useState<PhotoAnalysisResult | null>(null)
 
   // Deal Analyzer preferences
   const [analyzerPreferences, setAnalyzerPreferences] = useState<any>(null)
@@ -1662,7 +1672,73 @@ export default function DealDetailPage() {
               {/* ── Photos Tab ────────────────────────── */}
               {activeTab === 'photos' && (
                 <div className="space-y-6">
-                  <h3 className="text-base font-semibold text-slate-900">Property Photos</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold text-slate-900">Property Photos</h3>
+                    {photos.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          if (!id) return
+                          setAnalyzingPhotos(true)
+                          try {
+                            const result = await analyzePropertyPhotos(id)
+                            setPhotoAnalysis(result)
+                            toast.success('Photo analysis complete!')
+                          } catch (err: any) {
+                            toast.error(err.message || 'Photo analysis failed')
+                          } finally {
+                            setAnalyzingPhotos(false)
+                          }
+                        }}
+                        disabled={analyzingPhotos}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {analyzingPhotos ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        {analyzingPhotos ? 'Analyzing...' : 'Analyze All Photos'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* AI Photo Analysis Summary */}
+                  {photoAnalysis && photoAnalysis.summary && (
+                    <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={cn(
+                          'w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white',
+                          photoAnalysis.summary.overall_grade === 'A' ? 'bg-green-500' :
+                          photoAnalysis.summary.overall_grade === 'B' ? 'bg-blue-500' :
+                          photoAnalysis.summary.overall_grade === 'C' ? 'bg-yellow-500' :
+                          photoAnalysis.summary.overall_grade === 'D' ? 'bg-orange-500' :
+                          'bg-red-500'
+                        )}>
+                          {photoAnalysis.summary.overall_grade}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Overall Property Condition</p>
+                          <p className="text-xs text-slate-600">
+                            Estimated Repairs: {typeof photoAnalysis.summary.total_estimated_repairs === 'number'
+                              ? formatCurrency(photoAnalysis.summary.total_estimated_repairs)
+                              : photoAnalysis.summary.total_estimated_repairs}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-700 mb-2">{photoAnalysis.summary.condition_description}</p>
+                      {photoAnalysis.summary.key_concerns?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-slate-600 mb-1">Key Concerns:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {photoAnalysis.summary.key_concerns.map((concern, i) => (
+                              <span key={i} className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">{concern}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {filesLoading ? (
                     <div className="flex items-center justify-center h-24">
                       <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
@@ -1708,6 +1784,27 @@ export default function DealDetailPage() {
                                       </button>
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-1 truncate">{photo.fileName}</p>
+                                    {/* Per-photo AI analysis badge */}
+                                    {photoAnalysis?.per_photo && (() => {
+                                      const photoIdx = photos.indexOf(photo)
+                                      const pa = photoAnalysis.per_photo.find(p => p.photo_index === photoIdx)
+                                      if (!pa) return null
+                                      return (
+                                        <div className="mt-1 flex items-center gap-1.5">
+                                          <span className={cn(
+                                            'px-1.5 py-0.5 text-[10px] font-bold rounded',
+                                            pa.condition_grade === 'A' ? 'bg-green-100 text-green-700' :
+                                            pa.condition_grade === 'B' ? 'bg-blue-100 text-blue-700' :
+                                            pa.condition_grade === 'C' ? 'bg-yellow-100 text-yellow-700' :
+                                            pa.condition_grade === 'D' ? 'bg-orange-100 text-orange-700' :
+                                            'bg-red-100 text-red-700'
+                                          )}>
+                                            {pa.condition_grade}
+                                          </span>
+                                          <span className="text-[10px] text-slate-500">{pa.repair_cost_range}</span>
+                                        </div>
+                                      )
+                                    })()}
                                   </div>
                                 ))}
                               </div>
@@ -1793,22 +1890,109 @@ export default function DealDetailPage() {
                             {catDocs.length > 0 && (
                               <div className="divide-y divide-slate-100">
                                 {catDocs.map(doc => (
-                                  <div key={doc.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                                      <div className="min-w-0">
-                                        <p className="text-sm text-slate-700 truncate">{doc.fileName}</p>
-                                        <p className="text-xs text-slate-400">
-                                          {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : ''} &middot; {doc.createdAt ? formatDate(doc.createdAt) : ''}
-                                        </p>
+                                  <div key={doc.id} className="px-4 py-2.5 hover:bg-slate-50">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                                        <div className="min-w-0">
+                                          <p className="text-sm text-slate-700 truncate">{doc.fileName}</p>
+                                          <p className="text-xs text-slate-400">
+                                            {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : ''} &middot; {doc.createdAt ? formatDate(doc.createdAt) : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={async () => {
+                                            if (!id) return
+                                            setAnalyzingFile(doc.id)
+                                            try {
+                                              const result = await analyzeDocument(doc.id, id, cat.id)
+                                              setDocAnalysis(prev => ({ ...prev, [doc.id]: result }))
+                                              setExpandedAnalysis(doc.id)
+                                              toast.success('Document analysis complete!')
+                                            } catch (err: any) {
+                                              toast.error(err.message || 'Analysis failed')
+                                            } finally {
+                                              setAnalyzingFile(null)
+                                            }
+                                          }}
+                                          disabled={analyzingFile === doc.id}
+                                          className="p-1.5 rounded hover:bg-amber-50 transition-colors"
+                                          title="Analyze with AI"
+                                        >
+                                          {analyzingFile === doc.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                                          ) : (
+                                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() => handleFileDelete(doc.id)}
+                                          className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                        </button>
                                       </div>
                                     </div>
-                                    <button
-                                      onClick={() => handleFileDelete(doc.id)}
-                                      className="p-1.5 rounded hover:bg-red-50 transition-colors"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                    </button>
+                                    {/* AI Analysis Results */}
+                                    {docAnalysis[doc.id] && (
+                                      <div className="mt-2">
+                                        <button
+                                          onClick={() => setExpandedAnalysis(expandedAnalysis === doc.id ? null : doc.id)}
+                                          className="flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700"
+                                        >
+                                          <Sparkles className="w-3 h-3" />
+                                          AI Analysis
+                                          {expandedAnalysis === doc.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                        </button>
+                                        {expandedAnalysis === doc.id && (
+                                          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm space-y-3">
+                                            <div>
+                                              <p className="font-medium text-slate-800 mb-1">Summary</p>
+                                              <p className="text-slate-600 text-xs leading-relaxed">{docAnalysis[doc.id].summary}</p>
+                                            </div>
+                                            {docAnalysis[doc.id].key_issues?.length > 0 && (
+                                              <div>
+                                                <p className="font-medium text-slate-800 mb-1">Key Issues</p>
+                                                <div className="space-y-1.5">
+                                                  {docAnalysis[doc.id].key_issues.map((issue, i) => (
+                                                    <div key={i} className="flex items-start gap-2">
+                                                      <span className={cn(
+                                                        'px-1.5 py-0.5 text-[10px] font-bold rounded shrink-0 mt-0.5',
+                                                        issue.severity === 'high' ? 'bg-red-100 text-red-700' :
+                                                        issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-green-100 text-green-700'
+                                                      )}>
+                                                        {issue.severity.toUpperCase()}
+                                                      </span>
+                                                      <div>
+                                                        <p className="text-xs font-medium text-slate-700">{issue.issue}</p>
+                                                        <p className="text-xs text-slate-500">{issue.detail}</p>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                            {docAnalysis[doc.id].risk_flags?.length > 0 && (
+                                              <div>
+                                                <p className="font-medium text-slate-800 mb-1">Risk Flags</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                  {docAnalysis[doc.id].risk_flags.map((flag, i) => (
+                                                    <span key={i} className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">{flag}</span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                            <div>
+                                              <p className="font-medium text-slate-800 mb-1">Recommendation</p>
+                                              <p className="text-slate-600 text-xs">{docAnalysis[doc.id].recommendation}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>

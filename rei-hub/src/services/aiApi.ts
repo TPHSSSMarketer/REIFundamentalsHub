@@ -260,6 +260,188 @@ export async function chatWithAiAndContact(
   )
 }
 
+// ── ContentHub AI endpoints ──────────────────────────────────────────
+
+export async function generateContentWaterfall(
+  sourceText: string,
+  topic?: string,
+): Promise<{ content: Record<string, string>; topic: string; model: string; content_entry_id?: string }> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/content/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ source_text: sourceText, topic: topic ?? 'Real Estate Investing' }),
+        credentials: 'include',
+      }).then((res) => handleResponse(res)),
+    {
+      content: {
+        facebook: 'Demo: Facebook post content would appear here.',
+        instagram: 'Demo: Instagram caption would appear here.',
+        linkedin: 'Demo: LinkedIn post would appear here.',
+        youtube_script: 'Demo: YouTube script would appear here.',
+        youtube_short: 'Demo: YouTube Short script would appear here.',
+        blog_post: '<h1>Demo Blog Post</h1><p>Blog content would appear here.</p>',
+      },
+      topic: topic ?? 'Real Estate Investing',
+      model: 'demo',
+    }
+  )
+}
+
+export async function scrapeUrl(
+  url: string,
+): Promise<{ text: string; url: string; char_count: number }> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/content/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ url }),
+        credentials: 'include',
+      }).then((res) => handleResponse(res)),
+    {
+      text: 'Demo: Scraped content from the URL would appear here.',
+      url,
+      char_count: 50,
+    }
+  )
+}
+
+// ── ContentHub Image Generation endpoints ────────────────────────────
+
+export interface ContentImageResult {
+  id: string | null
+  prompt: string
+  width: number
+  height: number
+  url?: string
+  error?: string
+}
+
+export interface ContentImagesResponse {
+  images: Record<string, ContentImageResult>
+  topic: string
+}
+
+export async function generateContentImages(
+  topic: string,
+  platforms: string[] = ['facebook', 'instagram', 'linkedin', 'youtube_thumb', 'blog', 'youtube_short'],
+): Promise<ContentImagesResponse> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/content/generate-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ topic, platforms }),
+        credentials: 'include',
+      }).then((res) => handleResponse<ContentImagesResponse>(res)),
+    {
+      images: Object.fromEntries(
+        platforms.map((p) => [
+          p,
+          {
+            id: null,
+            prompt: `Demo: Image prompt for ${p} would appear here.`,
+            width: 1024,
+            height: p === 'instagram' ? 1024 : p === 'youtube_short' ? 1024 : 576,
+            error: 'Demo mode — connect to generate real images.',
+          },
+        ]),
+      ),
+      topic,
+    }
+  )
+}
+
+/** Build the full public URL for a content image */
+export function getContentImageUrl(imageId: string): string {
+  return `${BASE_URL}/api/ai/content/image/${imageId}`
+}
+
+// ── Document Intelligence endpoints ─────────────────────────────────
+
+export interface DocumentAnalysis {
+  summary: string
+  key_issues: Array<{ issue: string; severity: string; detail: string }>
+  extracted_data: Record<string, string>
+  risk_flags: string[]
+  recommendation: string
+  model: string
+  cost_cents: number
+}
+
+export async function analyzeDocument(
+  fileId: string,
+  dealId: string,
+  category: string = 'general',
+): Promise<DocumentAnalysis> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/documents/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ file_id: fileId, deal_id: dealId, category }),
+        credentials: 'include',
+      }).then((res) => handleResponse<DocumentAnalysis>(res)),
+    {
+      summary: 'Demo: Document analysis would appear here.',
+      key_issues: [],
+      extracted_data: {},
+      risk_flags: [],
+      recommendation: 'Demo mode — connect to see real analysis.',
+      model: 'demo',
+      cost_cents: 0,
+    }
+  )
+}
+
+// ── Photo Analysis endpoints ────────────────────────────────────────
+
+export interface PhotoAnalysisResult {
+  per_photo: Array<{
+    photo_index: number
+    category: string
+    condition_grade: string
+    issues: string[]
+    repair_cost_range: string
+  }>
+  summary: {
+    overall_grade: string
+    total_estimated_repairs: number
+    condition_description: string
+    key_concerns: string[]
+  }
+  model: string
+  cost_cents: number
+}
+
+export async function analyzePropertyPhotos(
+  dealId: string,
+  photoIds: string[] = [],
+): Promise<PhotoAnalysisResult> {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/ai/photos/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ deal_id: dealId, photo_ids: photoIds }),
+        credentials: 'include',
+      }).then((res) => handleResponse<PhotoAnalysisResult>(res)),
+    {
+      per_photo: [],
+      summary: {
+        overall_grade: '?',
+        total_estimated_repairs: 0,
+        condition_description: 'Demo mode — connect to see real analysis.',
+        key_concerns: [],
+      },
+      model: 'demo',
+      cost_cents: 0,
+    }
+  )
+}
+
 // ── Admin endpoints ─────────────────────────────────────────────────
 
 export async function getAdminAiConfig(): Promise<AiAdminConfig> {

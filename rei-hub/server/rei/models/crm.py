@@ -261,6 +261,10 @@ class CrmDeal(Base):
     # ── AI Underwriting ──
     underwriting_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)
 
+    # ── AI Photo Analysis (overall property condition) ──
+    property_condition_grade: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # A-F
+    estimated_total_repairs: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+
     # ── Geocoding ──
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -352,6 +356,13 @@ class DealFile(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Transaction phase: buying, selling, holding (for document organization)
     transaction_phase: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+
+    # AI Document Intelligence — stores analysis results as JSON
+    analysis_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    analysis_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # pending/completed/failed
+    # AI Photo Analysis — per-photo condition assessment
+    photo_analysis_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -379,6 +390,104 @@ class DealBuyerMatch(Base):
 
 
 # ── Market Zip Codes (SuperAdmin managed) ─────────────────
+
+
+class ContentImage(Base):
+    """Stores AI-generated images for ContentHub — serves via public URL for social media APIs."""
+    __tablename__ = "content_images"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    platform: Mapped[str] = mapped_column(String, nullable=False)  # facebook, instagram, linkedin, youtube_thumb, blog, youtube_short
+    topic: Mapped[str] = mapped_column(String, nullable=False, default="")
+    prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")  # image generation prompt used
+    image_b64: Mapped[str] = mapped_column(Text, nullable=False)  # base64-encoded PNG
+    mime_type: Mapped[str] = mapped_column(String, nullable=False, default="image/png")
+    width: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+    height: Mapped[int] = mapped_column(Integer, nullable=False, default=1024)
+
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # 7 days from creation
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ContentEntry(Base):
+    """Stores all ContentHub source articles, generated waterfall content, and inspiration.
+
+    Has its OWN embedding system (ContentEmbedding) — separate from Voice AI RAG.
+    """
+    __tablename__ = "content_entries"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Classification
+    content_type: Mapped[str] = mapped_column(String, nullable=False)  # source_article, waterfall, inspiration
+    platform: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # facebook, instagram, etc.
+
+    # Source info
+    source_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Content
+    topic: Mapped[str] = mapped_column(String, nullable=False, default="")
+    content_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Full waterfall JSON
+
+    # Tags & categorization
+    tags_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")  # JSON array
+
+    # Performance tracking
+    rating: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # worked, flopped, pending
+    performance_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    engagement_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ContentPublishRecord(Base):
+    """Tracks when and where content was published to social platforms."""
+    __tablename__ = "content_publish_records"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    content_entry_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+    platform: Mapped[str] = mapped_column(String, nullable=False)
+    platform_post_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="success")  # success, pending, failed
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Engagement metrics (updated later)
+    likes: Mapped[int] = mapped_column(Integer, default=0)
+    comments: Mapped[int] = mapped_column(Integer, default=0)
+    shares: Mapped[int] = mapped_column(Integer, default=0)
+    views: Mapped[int] = mapped_column(Integer, default=0)
+
+    published_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ContentEmbedding(Base):
+    """Vector embeddings for ContentHub semantic search — SEPARATE from Voice AI RAG."""
+    __tablename__ = "content_embeddings"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    content_entry_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    embedding: Mapped[str] = mapped_column(Text, nullable=False)  # JSON list of 384 floats
+    model_name: Mapped[str] = mapped_column(String, default="all-MiniLM-L6-v2")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class MarketZipCode(Base):

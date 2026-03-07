@@ -1,18 +1,21 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Link, Globe, Sparkles, Copy, Check, RefreshCw, BookOpen, Image, Upload, ExternalLink, Loader2, ChevronDown, Share2 } from 'lucide-react'
-import DOMPurify from 'dompurify'
+import { Link, Globe, Sparkles, Copy, Check, BookOpen, Image, Upload, ExternalLink, Loader2, ChevronDown, Share2, RefreshCw, X as XIcon, Eye } from 'lucide-react'
 import { toast } from 'sonner'
-import { aiGenerateWaterfall, aiGenerateImagePrompts, aiScrapeUrl, aiSaveContentToCloud, AiServiceError, ContentWaterfallOutput } from '@/services/aiService'
+import { aiGenerateWaterfall, aiScrapeUrl, AiServiceError, ContentWaterfallOutput } from '@/services/aiService'
+import { generateContentImages, getContentImageUrl, type ContentImageResult } from '@/services/aiApi'
+import { recordPublish } from '@/services/contentHubApi'
 import PublishHistory, { PublishEntry } from './PublishHistory'
+import ContentLibrary from './ContentLibrary'
 import { getAllSocialStatuses, publishToSocial, type SocialPlatform, type AllSocialStatuses } from '@/services/socialMediaApi'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
-interface SavedContent {
-  id: string
-  topic: string
-  generatedAt: string
-  content: ContentWaterfallOutput
+/** Publish confirmation state — shown in a modal before actually publishing */
+interface PublishConfirmState {
+  target: 'wordpress' | SocialPlatform
+  platformLabel: string
+  content: string
+  imageUrl?: string
 }
 
 const PLATFORMS: { key: PlatformKey; label: string; emoji: string }[] = [
@@ -34,12 +37,13 @@ export default function ContentHub() {
   const [waterfall, setWaterfall] = useState<ContentWaterfallOutput | null>(null)
   const [activeTab, setActiveTab] = useState<PlatformKey>('facebook')
   const [copiedTab, setCopiedTab] = useState<PlatformKey | null>(null)
-  const [imagePrompts, setImagePrompts] = useState<string[]>([])
+  const [generatedImages, setGeneratedImages] = useState<Record<string, ContentImageResult>>({})
   const [isGeneratingImages, setIsGeneratingImages] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  const [library, setLibrary] = useState<SavedContent[]>(
-    JSON.parse(localStorage.getItem('content_library') || '[]')
-  )
+  const [contentEntryId, setContentEntryId] = useState<string | null>(null)
+  const [editedWaterfall, setEditedWaterfall] = useState<ContentWaterfallOutput | null>(null)
+  const [regeneratingPlatform, setRegeneratingPlatform] = useState<string | null>(null)
+  const [publishConfirm, setPublishConfirm] = useState<PublishConfirmState | null>(null)
   const [publishHistory, setPublishHistory] = useState<PublishEntry[]>([])
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [socialStatuses, setSocialStatuses] = useState<AllSocialStatuses | null>(null)
@@ -77,14 +81,18 @@ export default function ContentHub() {
     }
     setIsGenerating(true)
     setWaterfall(null)
-    setImagePrompts([])
+    setEditedWaterfall(null)
+    setGeneratedImages({})
+    setContentEntryId(null)
     try {
       const result = await aiGenerateWaterfall({
         source_text: sourceText,
         topic: topic || sourceText.slice(0, 60),
       })
       setWaterfall(result.content)
+      setEditedWaterfall({ ...result.content })
       setActiveTab('facebook')
+      if (result.content_entry_id) setContentEntryId(result.content_entry_id)
 
       // Append entries to publish history
       const platformTypeMap: Record<PlatformKey, PublishEntry['type']> = {
@@ -117,11 +125,11 @@ export default function ContentHub() {
   }, [sourceMode, sourceText, topic])
 
   const handleCopy = useCallback(async (key: PlatformKey) => {
-    if (!waterfall) return
-    await navigator.clipboard.writeText(waterfall[key])
+    if (!editedWaterfall) return
+    await navigator.clipboard.writeText(editedWaterfall[key])
     setCopiedTab(key)
     setTimeout(() => setCopiedTab(null), 2000)
-  }, [waterfall])
+  }, [editedWaterfall])
 
   const handleGenerateImages = useCallback(async () => {
     if (!waterfall || !topic) {
@@ -129,48 +137,47 @@ export default function ContentHub() {
       return
     }
     setIsGeneratingImages(true)
-    setImagePrompts([])
-    const platformMap: Record<PlatformKey, string> = {
-      facebook: 'facebook',
-      instagram: 'instagram',
-      linkedin: 'linkedin',
-      youtube_script: 'youtube_thumbnail',
-      youtube_short: 'youtube_thumbnail',
-      blog_post: 'facebook',
-    }
-    const imagePlatform = platformMap[activeTab]
+    setGeneratedImages({})
     try {
-      const result = await aiGenerateImagePrompts(topic || 'real estate investing', imagePlatform)
-      setImagePrompts(result.prompts)
-    } catch (err) {
-      if (err instanceof AiServiceError && err.status === 503) {
-        toast.error('Image prompt generation is coming soon. Check back later.')
-      } else if (err instanceof AiServiceError && err.status === 403) {
-        toast.error('Image prompts are being upgraded. Check back soon.')
+      const result = await generateContentImages(topic || 'real estate investing')
+      setGeneratedImages(result.images || {})
+      const successCount = Object.values(result.images || {}).filter((img) => img.id).length
+      if (successCount > 0) {
+        toast.success(`Generated ${successCount} platform images!`)
       } else {
-        toast.error('Image prompt generation failed.')
+        toast.error('No images were generated. Check your NVIDIA API key in Admin > Credentials.')
+      }
+    } catch (err) {
+      if (err instanceof AiServiceError && err.status === 403) {
+        toast.error('AI credit limit reached. Upgrade your plan for more.')
+      } else {
+        toast.error('Image generation failed. Please try again.')
       }
     } finally {
       setIsGeneratingImages(false)
     }
-  }, [waterfall, topic, activeTab])
+  }, [waterfall, topic])
 
-  const handleSaveToLibrary = useCallback(async () => {
-    if (!waterfall) return
-    const newItem: SavedContent = {
-      id: Date.now().toString(),
-      topic: topic || 'Untitled',
-      generatedAt: new Date().toISOString(),
-      content: waterfall,
+  const handleRegenerateImage = useCallback(async (platform: string) => {
+    if (!topic) return
+    setRegeneratingPlatform(platform)
+    try {
+      const result = await generateContentImages(topic, [platform])
+      if (result.images?.[platform]) {
+        setGeneratedImages((prev) => ({ ...prev, [platform]: result.images[platform] }))
+        toast.success(`Regenerated ${platform.replace(/_/g, ' ')} image!`)
+      } else {
+        toast.error(`Failed to regenerate ${platform} image.`)
+      }
+    } catch {
+      toast.error('Image regeneration failed. Please try again.')
+    } finally {
+      setRegeneratingPlatform(null)
     }
-    const updated = [newItem, ...library]
-    setLibrary(updated)
-    localStorage.setItem('content_library', JSON.stringify(updated))
-    toast.success('Saved to library.')
-  }, [waterfall, topic, library])
+  }, [topic])
 
   const handlePublishToWordPress = useCallback(async () => {
-    if (!waterfall) return
+    if (!editedWaterfall) return
     const wpUrl = localStorage.getItem('wp_url')
     const wpUsername = localStorage.getItem('wp_username')
     const wpAppPassword = localStorage.getItem('wp_app_password')
@@ -189,7 +196,7 @@ export default function ContentHub() {
         },
         body: JSON.stringify({
           title: topic || 'New Post',
-          content: waterfall.blog_post,
+          content: editedWaterfall.blog_post,
           status: 'draft',
         }),
       })
@@ -203,37 +210,82 @@ export default function ContentHub() {
     } finally {
       setIsPublishing(false)
     }
-  }, [waterfall, topic])
+  }, [editedWaterfall, topic])
 
-  const handlePublishToSocial = useCallback(async (platform: SocialPlatform) => {
-    if (!waterfall) return
+  // Resolve content + image for a given social platform (used by confirmation + actual publish)
+  const resolvePublishData = useCallback((platform: SocialPlatform) => {
+    if (!editedWaterfall) return { content: '', imageUrl: undefined as string | undefined }
+    const map: Record<PlatformKey, string> = {
+      facebook: editedWaterfall.facebook,
+      instagram: editedWaterfall.instagram,
+      linkedin: editedWaterfall.linkedin,
+      youtube_script: editedWaterfall.youtube_script,
+      youtube_short: editedWaterfall.youtube_short,
+      blog_post: editedWaterfall.blog_post,
+    }
+    let content = ''
+    if (platform === 'facebook') content = map.facebook
+    else if (platform === 'linkedin') content = map.linkedin
+    else if (platform === 'x') content = map[activeTab].slice(0, 280)
+    else if (platform === 'instagram') content = map.instagram
+
+    const imgMapping: Record<SocialPlatform, string> = { facebook: 'facebook', instagram: 'instagram', linkedin: 'linkedin', x: 'facebook' }
+    const imgKey = imgMapping[platform] || platform
+    const imgData = generatedImages[imgKey]
+    const imageUrl = imgData?.id ? getContentImageUrl(imgData.id) : undefined
+    return { content, imageUrl }
+  }, [editedWaterfall, activeTab, generatedImages])
+
+  // Show confirmation modal instead of publishing directly
+  const handleRequestPublish = useCallback((target: 'wordpress' | SocialPlatform) => {
     setPublishMenuOpen(false)
-    setSocialPublishing(platform)
+    if (target === 'wordpress') {
+      if (!editedWaterfall) return
+      setPublishConfirm({
+        target: 'wordpress',
+        platformLabel: 'WordPress (Draft)',
+        content: editedWaterfall.blog_post,
+        imageUrl: undefined,
+      })
+    } else {
+      const { content, imageUrl } = resolvePublishData(target)
+      const name = target === 'x' ? 'X (Twitter)' : target.charAt(0).toUpperCase() + target.slice(1)
+      setPublishConfirm({ target, platformLabel: name, content, imageUrl })
+    }
+  }, [editedWaterfall, resolvePublishData])
 
-    // Map the active ContentHub tab to the matching social content
-    const platformContentMap: Record<PlatformKey, string> = {
-      facebook: waterfall.facebook,
-      instagram: waterfall.instagram,
-      linkedin: waterfall.linkedin,
-      youtube_script: waterfall.youtube_script,
-      youtube_short: waterfall.youtube_short,
-      blog_post: waterfall.blog_post,
+  // Actually publish after user confirms
+  const handleConfirmedPublish = useCallback(async () => {
+    if (!publishConfirm || !editedWaterfall) return
+    const { target } = publishConfirm
+
+    if (target === 'wordpress') {
+      setPublishConfirm(null)
+      handlePublishToWordPress()
+      return
     }
 
-    // Pick the best content for the target social platform
-    let content = ''
-    if (platform === 'facebook') content = platformContentMap.facebook
-    else if (platform === 'linkedin') content = platformContentMap.linkedin
-    else if (platform === 'x') {
-      // X has a 280-char limit — use the active tab but truncate
-      content = platformContentMap[activeTab].slice(0, 280)
-    } else if (platform === 'instagram') content = platformContentMap.instagram
+    // Social publish
+    const platform = target as SocialPlatform
+    setSocialPublishing(platform)
+    setPublishConfirm(null)
+    const { content, imageUrl } = resolvePublishData(platform)
 
     try {
-      const result = await publishToSocial(platform, content)
+      const result = await publishToSocial(platform, content, imageUrl)
       if (result.success) {
         const name = platform === 'x' ? 'X' : platform.charAt(0).toUpperCase() + platform.slice(1)
         toast.success(`Published to ${name}!`)
+        if (contentEntryId) {
+          try {
+            await recordPublish({
+              content_entry_id: contentEntryId,
+              platform,
+              platform_post_id: result.post_id || undefined,
+              status: 'success',
+            })
+          } catch { /* non-critical */ }
+        }
       } else {
         toast.error(result.error || `Failed to publish to ${platform}`)
       }
@@ -242,7 +294,7 @@ export default function ContentHub() {
     } finally {
       setSocialPublishing(null)
     }
-  }, [waterfall, activeTab])
+  }, [publishConfirm, editedWaterfall, resolvePublishData, contentEntryId, handlePublishToWordPress])
 
   return (
     <div className="space-y-6">
@@ -265,7 +317,7 @@ export default function ContentHub() {
           className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
         >
           <BookOpen className="w-4 h-4" />
-          Library ({library.length})
+          Library
         </button>
       </div>
 
@@ -365,55 +417,60 @@ export default function ContentHub() {
       </div>
 
       {/* Waterfall Output Section */}
-      {waterfall && (
+      {editedWaterfall && (
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex gap-1 border-b border-slate-200 mb-4 overflow-x-auto">
-            {PLATFORMS.map((p) => (
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-1 border-b border-slate-200 overflow-x-auto flex-1">
+              {PLATFORMS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setActiveTab(p.key)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition-colors ${
+                    activeTab === p.key
+                      ? 'border-b-2 border-primary-500 text-primary-600 font-medium'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  <span>{p.emoji}</span>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-green-600 font-medium">Editable - tweak before publishing</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">
+                {editedWaterfall[activeTab].length} chars
+              </span>
               <button
-                key={p.key}
-                onClick={() => setActiveTab(p.key)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap transition-colors ${
-                  activeTab === p.key
-                    ? 'border-b-2 border-primary-500 text-primary-600 font-medium'
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
+                onClick={() => {
+                  navigator.clipboard.writeText(editedWaterfall[activeTab])
+                  setCopiedField('waterfall')
+                  setTimeout(() => setCopiedField(null), 1500)
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                <span>{p.emoji}</span>
-                {p.label}
+                {copiedField === 'waterfall' ? (
+                  <Check className="w-4 h-4 text-green-500" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
               </button>
-            ))}
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 mb-1">
-            <span className="text-xs text-slate-400">
-              {waterfall[activeTab].length} chars
-            </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(waterfall[activeTab])
-                setCopiedField('waterfall')
-                setTimeout(() => setCopiedField(null), 1500)
-              }}
-              className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              {copiedField === 'waterfall' ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-
-          <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
-            {activeTab === 'blog_post' ? (
-              <div
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(waterfall[activeTab]) }}
-                className="prose prose-sm max-w-none"
-              />
-            ) : (
-              <pre className="whitespace-pre-wrap text-sm text-slate-700">{waterfall[activeTab]}</pre>
-            )}
-          </div>
+          <textarea
+            rows={10}
+            value={editedWaterfall[activeTab]}
+            onChange={(e) =>
+              setEditedWaterfall((prev) =>
+                prev ? { ...prev, [activeTab]: e.target.value } : prev
+              )
+            }
+            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-slate-700 resize-y min-h-[200px] font-sans"
+          />
 
           <div className="flex gap-2 flex-wrap mt-4">
             <button
@@ -429,14 +486,7 @@ export default function ContentHub() {
               className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
             >
               {isGeneratingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
-              Image Prompts
-            </button>
-            <button
-              onClick={handleSaveToLibrary}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              Save to Library
+              Generate Images
             </button>
             {/* Publish Dropdown */}
             <div className="relative">
@@ -458,7 +508,7 @@ export default function ContentHub() {
                 <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
                   {/* WordPress */}
                   <button
-                    onClick={() => { setPublishMenuOpen(false); handlePublishToWordPress() }}
+                    onClick={() => handleRequestPublish('wordpress')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <ExternalLink className="w-4 h-4 text-slate-500" />
@@ -469,7 +519,7 @@ export default function ContentHub() {
 
                   {/* Facebook */}
                   <button
-                    onClick={() => handlePublishToSocial('facebook')}
+                    onClick={() => handleRequestPublish('facebook')}
                     disabled={!socialStatuses?.facebook.connected}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -484,7 +534,7 @@ export default function ContentHub() {
 
                   {/* LinkedIn */}
                   <button
-                    onClick={() => handlePublishToSocial('linkedin')}
+                    onClick={() => handleRequestPublish('linkedin')}
                     disabled={!socialStatuses?.linkedin.connected}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -499,7 +549,7 @@ export default function ContentHub() {
 
                   {/* X (Twitter) */}
                   <button
-                    onClick={() => handlePublishToSocial('x')}
+                    onClick={() => handleRequestPublish('x')}
                     disabled={!socialStatuses?.x.connected}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -514,7 +564,7 @@ export default function ContentHub() {
 
                   {/* Instagram */}
                   <button
-                    onClick={() => handlePublishToSocial('instagram')}
+                    onClick={() => handleRequestPublish('instagram')}
                     disabled={!socialStatuses?.instagram.connected}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -545,37 +595,65 @@ export default function ContentHub() {
         </div>
       )}
 
-      {/* Image Prompts Section */}
-      {imagePrompts.length > 0 && (
+      {/* Generated Images Section */}
+      {Object.keys(generatedImages).length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">
-            Image Prompts for {PLATFORMS.find((p) => p.key === activeTab)?.label}
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <Image className="w-5 h-5 text-primary-500" />
+            Generated Images
           </h2>
-          <div className="space-y-3">
-            {imagePrompts.map((prompt, i) => (
-              <div key={i} className="bg-slate-50 rounded-lg p-3 flex justify-between items-start gap-3">
-                <p className="text-sm text-slate-700">
-                  <span className="font-medium text-slate-800">{i + 1}.</span> {prompt}
-                </p>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-slate-400">{prompt.length} chars</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(prompt)
-                      setCopiedField(`prompt-${i}`)
-                      setTimeout(() => setCopiedField(null), 1500)
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    {copiedField === `prompt-${i}` ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Object.entries(generatedImages).map(([platform, imgData]) => {
+              const platLabel = platform.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+              return (
+                <div key={platform} className="bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                  {imgData.id ? (
+                    <img
+                      src={getContentImageUrl(imgData.id)}
+                      alt={`${platLabel} image`}
+                      className="w-full object-cover"
+                      style={{ aspectRatio: `${imgData.width}/${imgData.height}` }}
+                    />
+                  ) : (
+                    <div
+                      className="w-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs"
+                      style={{ aspectRatio: `${imgData.width}/${imgData.height}` }}
+                    >
+                      {imgData.error || 'No image'}
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-slate-700">{platLabel}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{imgData.width}x{imgData.height}</p>
+                      </div>
+                      <button
+                        onClick={() => handleRegenerateImage(platform)}
+                        disabled={regeneratingPlatform === platform}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors disabled:opacity-50"
+                        title="Regenerate this image"
+                      >
+                        {regeneratingPlatform === platform ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3 h-3" />
+                        )}
+                        Redo
+                      </button>
+                    </div>
+                    {imgData.prompt && (
+                      <details className="mt-1">
+                        <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
+                          Prompt
+                        </summary>
+                        <p className="text-xs text-slate-500 mt-1">{imgData.prompt}</p>
+                      </details>
                     )}
-                  </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -586,35 +664,74 @@ export default function ContentHub() {
         onClear={() => setPublishHistory([])}
       />
 
-      {/* Content Library Section */}
-      {library.length > 0 && (
-        <div id="content-library" className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-slate-800">Content Library</h2>
-            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">
-              {library.length} saved
-            </span>
-          </div>
-          <div className="space-y-3">
-            {library.slice(0, 10).map((item) => (
-              <div key={item.id} className="bg-slate-50 rounded-lg p-3 flex justify-between items-start">
-                <div>
-                  <p className="font-medium text-slate-800 text-sm">{item.topic}</p>
-                  <p className="text-xs text-slate-500">{new Date(item.generatedAt).toLocaleDateString()}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setWaterfall(item.content)
-                    setTopic(item.topic)
-                    setActiveTab('facebook')
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Load
-                </button>
+      {/* Content Library — database-backed with semantic search */}
+      <ContentLibrary />
+
+      {/* ── Publish Confirmation Modal ── */}
+      {publishConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-primary-500" />
+                <h3 className="text-lg font-semibold text-slate-800">Review Before Publishing</h3>
               </div>
-            ))}
+              <button
+                onClick={() => setPublishConfirm(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Publishing to</span>
+                <p className="text-sm font-semibold text-slate-800 mt-1">{publishConfirm.platformLabel}</p>
+              </div>
+
+              <div>
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Content preview</span>
+                <div className="mt-1 bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{publishConfirm.content}</p>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{publishConfirm.content.length} characters</p>
+              </div>
+
+              {publishConfirm.imageUrl && (
+                <div>
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Image</span>
+                  <img
+                    src={publishConfirm.imageUrl}
+                    alt="Publish preview"
+                    className="mt-1 rounded-lg max-h-40 object-cover border border-slate-200"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={() => setPublishConfirm(null)}
+                className="flex-1 px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmedPublish}
+                disabled={isPublishing || socialPublishing !== null}
+                className="flex-1 px-4 py-2 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                {(isPublishing || socialPublishing) ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Publishing...
+                  </span>
+                ) : (
+                  'Confirm Publish'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

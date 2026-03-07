@@ -74,6 +74,22 @@ AI_PATTERNS: list[tuple[str, str, str]] = [
     (r"\bNevertheless,\s*", "Still, ", "style"),
     (r"\bConsequently,\s*", "So, ", "style"),
     (r"\bSubsequently,\s*", "Then, ", "style"),
+
+    # ── Em dash & special characters ──
+    (r"\s*—\s*", " - ", "punctuation"),
+    (r"\s*–\s*", " - ", "punctuation"),  # en dash too
+
+    # ── Content marketing fluff ──
+    (r"\bcomprehensive guide\b", "guide", "content"),
+    (r"\bin this article,?\s*", "", "content"),
+    (r"\bkey takeaways?\b", "takeaways", "content"),
+    (r"\blet's dive in[.!]*\s*", "", "content"),
+    (r"\bwithout further ado[,.]?\s*", "", "content"),
+    (r"\bin conclusion,?\s*", "", "content"),
+    (r"\bas mentioned (?:earlier|above|before),?\s*", "", "content"),
+    (r"\bit's no secret that\s*", "", "content"),
+    (r"\bthe bottom line is\s*", "", "content"),
+    (r"\bwhether you're a (?:beginner|seasoned|experienced)\s+\w+\s+or\s+(?:a\s+)?(?:beginner|seasoned|experienced)\s+\w+,?\s*", "", "content"),
 ]
 
 

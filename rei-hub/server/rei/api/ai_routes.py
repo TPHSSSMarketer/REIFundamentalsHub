@@ -2,29 +2,37 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import time
 from datetime import datetime
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.config import AI_PLAN_ALLOWANCES, Settings, get_settings
-from rei.models.crm import CrmContact
+from rei.models.crm import ContentImage, CrmContact, CrmDeal, DealFile
 from rei.models.user import AIProviderConfig, User
 from rei.services.ai_service import (
     PROVIDER_CONFIGS,
     ai_complete,
     ai_research,
+    analyze_document,
+    analyze_property_photos,
     decrypt_api_key,
     encrypt_api_key,
     extract_conversation_data_with_db,
+    generate_content_waterfall,
+    generate_platform_images,
     get_user_knowledge,
     mask_api_key,
+    scrape_url_content,
 )
 from rei.services.rag_service import rebuild_all_embeddings, retrieve_relevant_knowledge
 
@@ -90,6 +98,33 @@ class ResearchRequest(BaseModel):
 class ExtractContactRequest(BaseModel):
     contact_id: str
     messages: list[ChatMessage]
+
+
+class ContentGenerateRequest(BaseModel):
+    source_text: str
+    topic: Optional[str] = "Real Estate Investing"
+    tags: list[str] = []
+
+
+class ContentScrapeRequest(BaseModel):
+    url: str
+    tags: list[str] = []
+
+
+class DocumentAnalyzeRequest(BaseModel):
+    file_id: str
+    deal_id: str
+    category: Optional[str] = "general"  # title, inspection, appraisal, contract, insurance, general
+
+
+class PhotoAnalyzeRequest(BaseModel):
+    deal_id: str
+    photo_ids: list[str] = []  # Empty = analyze all photos for the deal
+
+
+class ContentImageRequest(BaseModel):
+    topic: str
+    platforms: list[str] = ["facebook", "instagram", "linkedin", "youtube_thumb", "blog", "youtube_short"]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -735,3 +770,423 @@ async def seed_knowledge(
         "personas_created": personas_created,
         "entries_embedded": entries_embedded,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CONTENTHUB AI ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@ai_router.post("/content/generate")
+async def generate_content(
+    body: ContentGenerateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a content waterfall — one source piece → 6 platform-specific versions.
+
+    Takes source text and an optional topic, returns content optimized for:
+    Facebook, Instagram, LinkedIn, YouTube script, YouTube Short, and blog post.
+    """
+    settings = _settings()
+
+    if not body.source_text or len(body.source_text.strip()) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide at least 20 characters of source content to generate from.",
+        )
+
+    # Check AI usage limit (same pattern as /chat)
+    allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
+    allowance_cents = allowance["monthly_allowance_cents"]
+    has_own_key = user.ai_override_enabled and bool(
+        getattr(user, "ai_own_anthropic_key", None)
+        or getattr(user, "ai_own_nvidia_key", None)
+    )
+    over_allowance = (user.ai_cost_cents or 0) >= allowance_cents
+    if over_allowance and (user.phone_credits_cents or 0) <= 0 and not has_own_key:
+        raise HTTPException(
+            status_code=429,
+            detail="You've used all your AI credits this month. Buy more credits or add your own API keys.",
+        )
+
+    uid = workspace_user_id(user)
+    result = await generate_content_waterfall(
+        source_text=body.source_text,
+        topic=body.topic or "Real Estate Investing",
+        user_id=uid,
+        db=db,
+        settings=settings,
+    )
+
+    # Auto-save to ContentHub database + embed for semantic search
+    content_entry_id = None
+    try:
+        from rei.services.content_hub_service import save_waterfall_content
+        content_entry_id = await save_waterfall_content(
+            user_id=uid,
+            topic=body.topic or body.source_text[:60],
+            waterfall_output=result.get("content", {}),
+            source_article_id=None,
+            tags=body.tags,
+            db=db,
+        )
+        logger.info("Auto-saved waterfall to content DB (id=%s)", content_entry_id)
+    except Exception as exc:
+        logger.warning("Failed to auto-save waterfall: %s", exc)
+
+    if content_entry_id:
+        result["content_entry_id"] = content_entry_id
+    return result
+
+
+@ai_router.post("/content/scrape")
+async def scrape_content(
+    body: ContentScrapeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Scrape a URL and extract clean text content for use as source material.
+
+    No AI credits are consumed — this just fetches and parses HTML.
+    """
+    if not body.url or not body.url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a valid URL starting with http:// or https://",
+        )
+
+    uid = workspace_user_id(user)
+    try:
+        result = await scrape_url_content(body.url)
+
+        # Auto-save source article to ContentHub database + embed
+        source_entry_id = None
+        try:
+            from rei.services.content_hub_service import save_source_article
+            source_entry_id = await save_source_article(
+                user_id=uid,
+                source_url=body.url,
+                source_text=result.get("text", ""),
+                topic=body.url.split("/")[-1].replace("-", " ")[:80] or body.url,
+                tags=body.tags or ["source"],
+                db=db,
+            )
+            logger.info("Auto-saved source article to content DB (id=%s)", source_entry_id)
+        except Exception as exc2:
+            logger.warning("Failed to auto-save source article: %s", exc2)
+
+        if source_entry_id:
+            result["content_entry_id"] = source_entry_id
+        return result
+
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not fetch the URL (status {exc.response.status_code}). Please check the URL and try again.",
+        )
+    except Exception as exc:
+        logger.warning("URL scrape failed: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not fetch the URL: {str(exc)[:200]}",
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CONTENT IMAGE GENERATION ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@ai_router.post("/content/generate-images")
+async def generate_content_images(
+    body: ContentImageRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate platform-specific images using Claude Haiku (prompts) + NVIDIA Stable Diffusion.
+
+    Consumes AI credits for the Haiku prompt generation (image generation via NVIDIA is free).
+    """
+    settings = _settings()
+    uid = workspace_user_id(user)
+
+    if not body.topic or not body.topic.strip():
+        raise HTTPException(status_code=400, detail="Topic is required.")
+
+    # Check AI credit limit
+    user_obj = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+    if not user_obj:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        results = await generate_platform_images(
+            topic=body.topic.strip(),
+            platforms=body.platforms,
+            user_id=uid,
+            db=db,
+            settings=settings,
+        )
+
+        # Build response with public URLs
+        base_url = settings.server_url if hasattr(settings, "server_url") else ""
+        images_out = {}
+        for plat, data in results.items():
+            entry = {
+                "id": data.get("id"),
+                "prompt": data.get("prompt", ""),
+                "width": data.get("width", 0),
+                "height": data.get("height", 0),
+            }
+            if data.get("id"):
+                entry["url"] = f"/api/ai/content/image/{data['id']}"
+            if data.get("error"):
+                entry["error"] = data["error"]
+            images_out[plat] = entry
+
+        return {"images": images_out, "topic": body.topic.strip()}
+
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("Image generation failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Image generation failed: {str(exc)[:200]}",
+        )
+
+
+@ai_router.get("/content/image/{image_id}")
+async def serve_content_image(
+    image_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve a generated image by ID — PUBLIC endpoint (no auth).
+
+    Social media APIs (Facebook, Instagram) need to fetch images from a public URL.
+    Images expire after 7 days and return 404 after expiry.
+    """
+    result = await db.execute(
+        select(ContentImage).where(
+            ContentImage.id == image_id,
+            ContentImage.is_deleted.is_(False),
+        )
+    )
+    img = result.scalar_one_or_none()
+
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Check expiry
+    if img.expires_at and img.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=404, detail="Image has expired")
+
+    # Decode and serve
+    try:
+        image_bytes = base64.b64decode(img.image_b64)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decode image")
+
+    return Response(
+        content=image_bytes,
+        media_type=img.mime_type or "image/png",
+        headers={
+            "Cache-Control": "public, max-age=604800",  # 7 days
+            "Content-Disposition": f"inline; filename=content-{img.platform}.png",
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# DOCUMENT INTELLIGENCE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@ai_router.post("/documents/analyze")
+async def analyze_doc(
+    body: DocumentAnalyzeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze a document (title report, inspection, contract, etc.) using AI.
+
+    Looks up the file from the database, runs AI analysis, and stores results
+    back on the DealFile record.
+    """
+    settings = _settings()
+    uid = workspace_user_id(user)
+
+    # Look up the file
+    result_q = await db.execute(
+        select(DealFile).where(
+            DealFile.id == body.file_id,
+            DealFile.user_id == uid,
+            DealFile.deal_id == body.deal_id,
+        )
+    )
+    file_record = result_q.scalar_one_or_none()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Check AI usage limit
+    allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
+    allowance_cents = allowance["monthly_allowance_cents"]
+    has_own_key = user.ai_override_enabled and bool(
+        getattr(user, "ai_own_anthropic_key", None)
+        or getattr(user, "ai_own_nvidia_key", None)
+    )
+    over_allowance = (user.ai_cost_cents or 0) >= allowance_cents
+    if over_allowance and (user.phone_credits_cents or 0) <= 0 and not has_own_key:
+        raise HTTPException(
+            status_code=429,
+            detail="You've used all your AI credits this month.",
+        )
+
+    # Mark as pending
+    file_record.analysis_status = "pending"
+    await db.commit()
+
+    try:
+        analysis = await analyze_document(
+            file_content_b64=file_record.file_content,
+            file_type=file_record.mime_type or "application/octet-stream",
+            document_category=body.category or "general",
+            user_id=uid,
+            db=db,
+            settings=settings,
+        )
+
+        # Store results on the file record
+        import json as _json
+        file_record.analysis_json = _json.dumps(analysis)
+        file_record.analysis_status = "completed"
+        await db.commit()
+
+        return analysis
+
+    except Exception as exc:
+        logger.exception("Document analysis failed")
+        file_record.analysis_status = "failed"
+        await db.commit()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document analysis failed: {str(exc)[:200]}",
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PROPERTY PHOTO ANALYSIS ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@ai_router.post("/photos/analyze")
+async def analyze_photos(
+    body: PhotoAnalyzeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze property photos using Claude Vision for condition assessment.
+
+    If photo_ids is empty, analyzes all photos for the deal.
+    Returns per-photo grades and an overall property condition summary.
+    Also updates the deal's property_condition_grade and estimated_total_repairs.
+    """
+    settings = _settings()
+    uid = workspace_user_id(user)
+
+    # Look up the deal
+    deal_q = await db.execute(
+        select(CrmDeal).where(
+            CrmDeal.id == body.deal_id,
+            CrmDeal.user_id == uid,
+            CrmDeal.is_deleted == False,
+        )
+    )
+    deal = deal_q.scalar_one_or_none()
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+
+    # Get photos — either specific IDs or all for the deal
+    if body.photo_ids:
+        photos_q = await db.execute(
+            select(DealFile).where(
+                DealFile.deal_id == body.deal_id,
+                DealFile.user_id == uid,
+                DealFile.file_type == "photo",
+                DealFile.id.in_(body.photo_ids),
+            )
+        )
+    else:
+        photos_q = await db.execute(
+            select(DealFile).where(
+                DealFile.deal_id == body.deal_id,
+                DealFile.user_id == uid,
+                DealFile.file_type == "photo",
+            )
+        )
+    photo_records = photos_q.scalars().all()
+
+    if not photo_records:
+        raise HTTPException(status_code=404, detail="No photos found for this deal")
+
+    # Check AI usage limit
+    allowance = AI_PLAN_ALLOWANCES.get(user.plan, AI_PLAN_ALLOWANCES["starter"])
+    allowance_cents = allowance["monthly_allowance_cents"]
+    has_own_key = user.ai_override_enabled and bool(
+        getattr(user, "ai_own_anthropic_key", None)
+        or getattr(user, "ai_own_nvidia_key", None)
+    )
+    over_allowance = (user.ai_cost_cents or 0) >= allowance_cents
+    if over_allowance and (user.phone_credits_cents or 0) <= 0 and not has_own_key:
+        raise HTTPException(
+            status_code=429,
+            detail="You've used all your AI credits this month.",
+        )
+
+    # Build the photos list for the analysis function
+    photos_data = []
+    photo_id_map = []  # Track which DealFile each photo came from
+    for pr in photo_records[:12]:  # Max 12 photos
+        photos_data.append({
+            "base64": pr.file_content,
+            "media_type": pr.mime_type or "image/jpeg",
+            "category": pr.category or "miscellaneous",
+        })
+        photo_id_map.append(pr)
+
+    try:
+        analysis = await analyze_property_photos(
+            photos=photos_data,
+            property_address=deal.address or "Unknown",
+            user_id=uid,
+            db=db,
+            settings=settings,
+        )
+
+        # Store per-photo results on each DealFile
+        import json as _json
+        per_photo = analysis.get("per_photo", [])
+        for i, photo_result in enumerate(per_photo):
+            if i < len(photo_id_map):
+                photo_id_map[i].photo_analysis_json = _json.dumps(photo_result)
+
+        # Update deal with overall condition
+        summary = analysis.get("summary", {})
+        if summary.get("overall_grade"):
+            deal.property_condition_grade = summary["overall_grade"]
+        if summary.get("total_estimated_repairs"):
+            try:
+                deal.estimated_total_repairs = float(summary["total_estimated_repairs"])
+            except (ValueError, TypeError):
+                pass
+
+        await db.commit()
+
+        return analysis
+
+    except Exception as exc:
+        logger.exception("Photo analysis failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Photo analysis failed: {str(exc)[:200]}",
+        )

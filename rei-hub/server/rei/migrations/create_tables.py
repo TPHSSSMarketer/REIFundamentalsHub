@@ -172,6 +172,12 @@ _COLUMN_MIGRATIONS = [
     ("users", "ai_own_anthropic_key", "VARCHAR"),
     ("users", "ai_own_nvidia_key", "VARCHAR"),
     ("users", "ai_own_openai_key", "VARCHAR"),
+    # ── AI Document Intelligence & Photo Analysis ──
+    ("deal_files", "analysis_json", "TEXT"),
+    ("deal_files", "analysis_status", "VARCHAR"),
+    ("deal_files", "photo_analysis_json", "TEXT"),
+    ("crm_deals", "property_condition_grade", "VARCHAR"),
+    ("crm_deals", "estimated_total_repairs", "REAL"),
 ]
 
 
