@@ -13,6 +13,7 @@ import {
   deleteContact,
   updateDealStage as apiUpdateDealStage,
 } from '@/services/crmApi'
+import { getTasks as apiGetTasks } from '@/services/calendarApi'
 import { mockPipelines } from '@/data/mockData'
 import type { Contact, Deal } from '@/types'
 import { toast } from 'sonner'
@@ -184,79 +185,10 @@ export function usePipelines() {
 
 // ============ TASKS HOOKS ============
 
-const TASKS_KEY = 'rei_tasks'
-
-function getDemoTasks() {
-  const stored = localStorage.getItem(TASKS_KEY)
-  if (stored) return { tasks: JSON.parse(stored) }
-
-  const now = new Date()
-  const today = now.toISOString().slice(0, 10)
-  const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
-  const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10)
-
-  const tasks = [
-    {
-      id: 'task-1',
-      title: 'Call seller for 123 Main St',
-      description: 'Follow up on counter offer',
-      status: 'pending',
-      priority: 'high',
-      due_date: today,
-      due_time: '10:00 AM',
-      completed: false,
-      created_at: yesterday,
-    },
-    {
-      id: 'task-2',
-      title: 'Schedule property inspection',
-      description: '456 Oak Ave — inspector availability',
-      status: 'pending',
-      priority: 'high',
-      due_date: today,
-      due_time: '2:00 PM',
-      completed: false,
-      created_at: yesterday,
-    },
-    {
-      id: 'task-3',
-      title: 'Review title report',
-      description: '789 Pine Rd — title company sent docs',
-      status: 'pending',
-      priority: 'medium',
-      due_date: tomorrow,
-      completed: false,
-      created_at: today,
-    },
-    {
-      id: 'task-4',
-      title: 'Send offer to listing agent',
-      description: 'New lead on Elm Street property',
-      status: 'pending',
-      priority: 'medium',
-      due_date: tomorrow,
-      completed: false,
-      created_at: today,
-    },
-    {
-      id: 'task-5',
-      title: 'Run comps for Oak Ave deal',
-      description: 'MLS comps within 0.5 mile radius',
-      status: 'completed',
-      priority: 'low',
-      due_date: yesterday,
-      completed: true,
-      created_at: yesterday,
-    },
-  ]
-  localStorage.setItem(TASKS_KEY, JSON.stringify(tasks))
-  return { tasks }
-}
-
 export function useTasks() {
   return useQuery({
     queryKey: ['tasks'],
-    queryFn: async () => getDemoTasks(),
+    queryFn: async () => apiGetTasks(),
   })
 }
 

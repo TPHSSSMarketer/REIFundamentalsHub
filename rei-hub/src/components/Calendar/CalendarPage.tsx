@@ -156,6 +156,19 @@ export default function CalendarPage() {
   useEffect(() => {
     setLoading(true)
     Promise.all([loadEvents(), loadTasks(), loadProfile()]).finally(() => setLoading(false))
+
+    // Handle Google OAuth redirect callback (?google=connected or ?google=error)
+    const params = new URLSearchParams(window.location.search)
+    const googleStatus = params.get('google')
+    if (googleStatus === 'connected') {
+      // Clean the URL and reload profile to show connected status
+      window.history.replaceState({}, '', '/calendar')
+      loadProfile()
+    } else if (googleStatus === 'error') {
+      const reason = params.get('reason') || 'unknown'
+      console.error('Google Calendar connection failed:', reason)
+      window.history.replaceState({}, '', '/calendar')
+    }
   }, [loadEvents, loadTasks, loadProfile])
 
   // ── Handlers ────────────────────────────────────────────────

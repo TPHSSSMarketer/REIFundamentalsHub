@@ -8,8 +8,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -629,7 +629,7 @@ async def google_callback(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Exchange Google auth code and save tokens."""
+    """Exchange Google auth code and save tokens (JSON POST variant)."""
     resolved = await _resolve_google_calendar_settings(db)
     try:
         tokens = await google_exchange_code(body.code, resolved)
@@ -641,6 +641,49 @@ async def google_callback(
     user.google_calendar_sync = True
     await db.commit()
     return {"connected": True}
+
+
+@calendar_router.get("/google/callback")
+async def google_callback_redirect(
+    request: Request,
+    code: str = Query(None),
+    error: str = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle GET redirect from Google OAuth consent screen.
+
+    Google redirects here with ?code=xxx after the user approves.
+    We exchange the code for tokens, save them, and redirect the
+    user's browser back to the Calendar page.
+    """
+    calendar_url = f"{settings.hub_url}/calendar"
+
+    if error:
+        logger.warning("Google OAuth returned error: %s", error)
+        return RedirectResponse(f"{calendar_url}?google=error&reason={error}")
+
+    if not code:
+        return RedirectResponse(f"{calendar_url}?google=error&reason=no_code")
+
+    # Resolve the logged-in user from the session cookie
+    try:
+        user = await get_current_user(request, db)
+    except Exception:
+        logger.warning("Google callback: no authenticated session")
+        return RedirectResponse(f"{calendar_url}?google=error&reason=not_logged_in")
+
+    resolved = await _resolve_google_calendar_settings(db)
+    try:
+        tokens = await google_exchange_code(code, resolved)
+    except Exception:
+        logger.exception("Google token exchange failed (GET callback)")
+        return RedirectResponse(f"{calendar_url}?google=error&reason=token_exchange_failed")
+
+    user.google_calendar_token = json.dumps(tokens)
+    user.google_calendar_sync = True
+    await db.commit()
+
+    return RedirectResponse(f"{calendar_url}?google=connected")
 
 
 @calendar_router.post("/google/sync")
