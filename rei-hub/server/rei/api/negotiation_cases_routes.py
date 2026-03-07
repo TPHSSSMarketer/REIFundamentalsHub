@@ -90,7 +90,7 @@ def _activity_to_dict(a: NegotiationActivity, is_admin: bool = False) -> dict:
 # ── Endpoints ─────────────────────────────────────────────────────────
 
 
-@negotiation_cases_router.get("/")
+@negotiation_cases_router.get("")
 async def list_cases(
     status: Optional[str] = Query(None),
     service_type: Optional[str] = Query(None),

@@ -75,7 +75,7 @@ def _request_to_dict(r: NegotiationRequest) -> dict:
 # ── Endpoints ───────────────────────────────────────────────
 
 
-@negotiation_requests_router.post("/", status_code=status.HTTP_201_CREATED)
+@negotiation_requests_router.post("", status_code=status.HTTP_201_CREATED)
 async def submit_negotiation_request(
     body: SubmitNegotiationRequestBody,
     background_tasks: BackgroundTasks,
@@ -135,7 +135,7 @@ async def submit_negotiation_request(
     return _request_to_dict(request)
 
 
-@negotiation_requests_router.get("/")
+@negotiation_requests_router.get("")
 async def list_negotiation_requests(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
