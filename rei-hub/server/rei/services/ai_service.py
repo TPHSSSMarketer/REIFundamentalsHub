@@ -97,8 +97,8 @@ PROVIDER_CONFIGS = {
     },
     "nvidia_deepseek_r1": {
         "base_url": "https://integrate.api.nvidia.com",
-        "models": ["deepseek-ai/deepseek-r1"],
-        "default_model": "deepseek-ai/deepseek-r1",
+        "models": ["deepseek-ai/deepseek-r1-0528"],
+        "default_model": "deepseek-ai/deepseek-r1-0528",
         "display_name": "DeepSeek R1",
         "role": "Math Validation",
     },

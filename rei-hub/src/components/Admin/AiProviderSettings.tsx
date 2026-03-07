@@ -55,7 +55,7 @@ const PROVIDERS = [
     icon: 'D',
     iconBg: 'bg-red-100',
     iconColor: 'text-red-700',
-    models: ['deepseek-ai/deepseek-r1'],
+    models: ['deepseek-ai/deepseek-r1-0528'],
     keyField: 'nvidia' as const,
     role: 'Math Validation',
     description: 'Independent math verification for underwriting calculations',

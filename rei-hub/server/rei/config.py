@@ -300,7 +300,7 @@ AI_TOKEN_PRICING: dict[str, dict[str, float]] = {
     "moonshotai/kimi-k2.5":                     {"input_per_1m": 0.00, "output_per_1m": 0.00},
     "moonshotai/kimi-k2.5-instruct":            {"input_per_1m": 0.00, "output_per_1m": 0.00},
     "moonshotai/kimi-k2-thinking":              {"input_per_1m": 0.00, "output_per_1m": 0.00},
-    "deepseek-ai/deepseek-r1":                  {"input_per_1m": 0.00, "output_per_1m": 0.00},
+    "deepseek-ai/deepseek-r1-0528":              {"input_per_1m": 0.00, "output_per_1m": 0.00},
     "minimaxai/minimax-m2.5":                   {"input_per_1m": 0.00, "output_per_1m": 0.00},
     "minimax/minimax-text-01":                  {"input_per_1m": 0.00, "output_per_1m": 0.00},
 }
