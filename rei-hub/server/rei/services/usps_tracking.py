@@ -8,7 +8,7 @@ Authentication uses OAuth 2.0 Client Credentials flow:
   → Bearer token (valid ~8 hours, cached in-memory)
 
 Tracking endpoint:
-  POST https://apis.usps.com/api/v3/tracking
+  POST https://apis.usps.com/tracking/v3r2/tracking
   Body: [{ "trackingNumber": "..." }]
 """
 
@@ -88,7 +88,7 @@ async def track_package(
     try:
         token = await _get_access_token(client_id, client_secret, base_url)
 
-        tracking_url = f"{base_url}/api/v3/tracking"
+        tracking_url = f"{base_url}/tracking/v3r2/tracking"
         payload = [{"trackingNumber": tracking_number}]
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -194,7 +194,7 @@ async def track_multiple(
     try:
         token = await _get_access_token(client_id, client_secret, base_url)
 
-        tracking_url = f"{base_url}/api/v3/tracking"
+        tracking_url = f"{base_url}/tracking/v3r2/tracking"
         payload = [{"trackingNumber": tn} for tn in numbers]
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -289,20 +289,23 @@ async def get_usps_credentials(
 
 async def update_correspondence_tracking(
     correspondence_id: str,
-    db,
+    async_db,
     settings,
-    async_db=None,
 ) -> Optional[dict]:
     """Update a single correspondence record with latest USPS status.
 
     Called by background processor and bank negotiation routes.
-    If async_db is provided, credentials are read from SuperAdmin DB.
+    Uses async_db (AsyncSession) for both credential lookup and record updates.
     """
+    from sqlalchemy import select
     from rei.models.user import NegotiationCorrespondence
 
-    corr = db.query(NegotiationCorrespondence).filter_by(
-        id=correspondence_id
-    ).first()
+    result_row = await async_db.execute(
+        select(NegotiationCorrespondence).where(
+            NegotiationCorrespondence.id == correspondence_id
+        )
+    )
+    corr = result_row.scalar_one_or_none()
     if not corr:
         return None
     if not corr.usps_tracking_number:
@@ -347,7 +350,7 @@ async def update_correspondence_tracking(
         corr.usps_signature_date = result.get("signature_date")
         corr.status = "delivered"
 
-    db.commit()
+    await async_db.commit()
     return result
 
 

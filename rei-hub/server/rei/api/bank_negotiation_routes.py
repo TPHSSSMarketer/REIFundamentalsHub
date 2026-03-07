@@ -1297,12 +1297,8 @@ async def update_single_tracking(
 
     tracking_result = None
     if corr.send_method == "certified_mail" and corr.usps_tracking_number:
-        # Use run_sync to call the sync DB-based updater
-        tracking_result = await db.run_sync(
-            lambda sync_session: None  # placeholder
-        )
         tracking_result = await update_correspondence_tracking(
-            corr.id, db.sync_session, settings, async_db=db
+            corr.id, db, settings
         )
     elif corr.send_method == "fax" and corr.twilio_fax_sid:
         tracking_result = await update_fax_status(
@@ -1353,7 +1349,7 @@ async def refresh_all_tracking(
         try:
             if corr.usps_tracking_number:
                 await update_correspondence_tracking(
-                    corr.id, db.sync_session, settings, async_db=db
+                    corr.id, db, settings
                 )
                 updated += 1
             if corr.twilio_fax_sid:
