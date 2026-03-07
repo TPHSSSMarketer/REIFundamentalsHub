@@ -1651,6 +1651,23 @@ class NegotiationFollowUp(Base):
         DateTime, default=datetime.utcnow)
 
 
+class NegotiationNote(Base):
+    """Individual timestamped note for a bank negotiation."""
+    __tablename__ = "negotiation_notes"
+
+    id: Mapped[str] = mapped_column(String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()))
+    negotiation_id: Mapped[str] = mapped_column(
+        ForeignKey("bank_negotiations.id"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"))
+
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Voice AI Models — AIAgent, KnowledgeEntry, ConversationLog
 # ═══════════════════════════════════════════════════════════════════════

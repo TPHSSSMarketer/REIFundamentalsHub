@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 import {
   getNegotiationsByProperty, createNegotiation, getRecipients, getCorrespondence,
   sendToAll, refreshRecipient, updateRecipient, refreshAllTracking, getDocuments, createDocument,
+  getNotes, createNote, deleteNote,
 } from '../../../services/bankNegotiationApi'
 
 interface Props {
@@ -106,6 +107,8 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
     our_offer: '', target_outcome: '', land_trust_id: '', notes: '',
   })
   const [creating, setCreating] = useState(false)
+  const [notes, setNotes] = useState<any[]>([])
+  const [newNote, setNewNote] = useState('')
   const propertyRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const initializedRef = useRef(false)
 
@@ -149,6 +152,7 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
     try { const r = await getRecipients(neg.id) as any; setRecipients(Array.isArray(r) ? r : r.recipients || []) } catch { setRecipients([]) }
     try { const c = await getCorrespondence(neg.id) as any; setCorrespondence(Array.isArray(c) ? c : c.correspondence || []) } catch { setCorrespondence([]) }
     try { const d = await getDocuments(neg.id) as any; setDocuments(Array.isArray(d) ? d : d.documents || []) } catch { setDocuments([]) }
+    try { const n = await getNotes(neg.id) as any; setNotes(Array.isArray(n) ? n : []) } catch { setNotes([]) }
   }
 
   async function handleCreate(e: FormEvent) {
@@ -212,6 +216,24 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
       setNewDocName(''); setNewDocType('hardship_letter'); setNewDocNotes(''); setShowUploadForm(false)
       await loadDocuments()
     } catch { showToastMsg('Failed to create document') }
+  }
+
+  async function handleAddNote() {
+    if (!selectedNeg || !newNote.trim()) return
+    try {
+      await createNote(selectedNeg.id, newNote.trim())
+      setNewNote('')
+      const n = await getNotes(selectedNeg.id) as any
+      setNotes(Array.isArray(n) ? n : [])
+    } catch { showToastMsg('Failed to add note') }
+  }
+
+  async function handleDeleteNote(noteId: string) {
+    if (!selectedNeg) return
+    try {
+      await deleteNote(selectedNeg.id, noteId)
+      setNotes(prev => prev.filter((n: any) => n.id !== noteId))
+    } catch { showToastMsg('Failed to delete note') }
   }
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000) }
@@ -492,6 +514,44 @@ export default function NegotiationsTab({ isSuperAdmin: _isSuperAdmin, preSelect
                         {doc.sent_date && <p>Sent: {new Date(doc.sent_date).toLocaleDateString()}</p>}
                         {doc.notes && <p className="text-slate-500 italic">{doc.notes}</p>}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-2">Notes</h4>
+              <div className="flex gap-2 mb-3">
+                <input
+                  placeholder="Add a note..."
+                  value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newNote.trim()) handleAddNote() }}
+                  className="flex-1 border border-slate-300 rounded px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1B3A6B]"
+                />
+                <button
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim()}
+                  className="px-3 py-1.5 text-xs bg-[#1B3A6B] text-white rounded hover:opacity-90 disabled:opacity-50"
+                >Add</button>
+              </div>
+              {notes.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2 text-center">No notes yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {notes.map((note: any) => (
+                    <div key={note.id} className="border border-slate-200 rounded-lg p-3 group">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-slate-700 flex-1">{note.content}</p>
+                        <button
+                          onClick={() => handleDeleteNote(note.id)}
+                          className="text-xs text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          title="Delete note"
+                        >&times;</button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">{note.created_at ? new Date(note.created_at).toLocaleString() : ''}</p>
                     </div>
                   ))}
                 </div>

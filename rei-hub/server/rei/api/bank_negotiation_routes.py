@@ -20,6 +20,7 @@ from rei.models.user import (
     NegotiationCorrespondence,
     NegotiationDocument,
     NegotiationFollowUp,
+    NegotiationNote,
     NegotiationRecipient,
     Task,
     User,
@@ -127,6 +128,10 @@ class SendCorrespondence(BaseModel):
 
 class FollowUpComplete(BaseModel):
     completed_notes: Optional[str] = None
+
+
+class NoteCreate(BaseModel):
+    content: str
 
 
 # ---------------------------------------------------------------------------
@@ -824,18 +829,50 @@ async def update_negotiation(
 @router.get("/{neg_id}/recipients")
 async def list_recipients(
     neg_id: str,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user_with_banking),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return all 4 recipients with full contact profiles."""
-    await _get_negotiation_or_404(neg_id, user, db)
+    """Return all 4 recipients with full contact profiles.
+
+    If no recipient records exist yet (e.g. negotiation was created before
+    the placeholder-on-create logic), we auto-create the 4 placeholders
+    and kick off AI research in the background.
+    """
+    negotiation = await _get_negotiation_or_404(neg_id, user, db)
 
     result = await db.execute(
         select(NegotiationRecipient).where(
             NegotiationRecipient.negotiation_id == neg_id
         )
     )
-    recipients = result.scalars().all()
+    recipients = list(result.scalars().all())
+
+    # Auto-backfill: create placeholders if none exist
+    if len(recipients) == 0:
+        from rei.services.contact_research import RECIPIENT_TYPES as _RT
+
+        for rtype, rconfig in _RT.items():
+            placeholder = NegotiationRecipient(
+                negotiation_id=neg_id,
+                user_id=workspace_user_id(user),
+                recipient_type=rtype,
+                title=rconfig["title"],
+                ai_researched=False,
+                ai_confidence=None,
+            )
+            db.add(placeholder)
+            recipients.append(placeholder)
+        await db.commit()
+
+        # Trigger AI research for these new placeholders
+        background_tasks.add_task(
+            _bg_research_bank_contacts,
+            negotiation.bank_name,
+            negotiation.property_state or "",
+            neg_id,
+            workspace_user_id(user),
+        )
 
     return [format_recipient_for_display(r) for r in recipients]
 
@@ -1769,4 +1806,87 @@ def _serialize_followup(f: NegotiationFollowUp) -> dict:
         ),
         "completed_notes": f.completed_notes,
         "created_at": f.created_at.isoformat() if f.created_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# NOTE ENDPOINTS
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{neg_id}/notes")
+async def list_notes(
+    neg_id: str,
+    user: User = Depends(get_current_user_with_banking),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all notes for a negotiation, newest first."""
+    await _get_negotiation_or_404(neg_id, user, db)
+
+    result = await db.execute(
+        select(NegotiationNote)
+        .where(NegotiationNote.negotiation_id == neg_id)
+        .order_by(NegotiationNote.created_at.desc())
+    )
+    notes = result.scalars().all()
+    return [_serialize_note(n) for n in notes]
+
+
+@router.post("/{neg_id}/notes", status_code=201)
+async def create_note(
+    neg_id: str,
+    body: NoteCreate,
+    user: User = Depends(get_current_user_with_banking),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a new timestamped note to a negotiation."""
+    await _get_negotiation_or_404(neg_id, user, db)
+
+    content = sanitize_text(body.content)
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="Note content is required.")
+
+    note = NegotiationNote(
+        negotiation_id=neg_id,
+        user_id=workspace_user_id(user),
+        content=content.strip(),
+    )
+    db.add(note)
+    await db.commit()
+    await db.refresh(note)
+
+    return _serialize_note(note)
+
+
+@router.delete("/{neg_id}/notes/{note_id}")
+async def delete_note(
+    neg_id: str,
+    note_id: str,
+    user: User = Depends(get_current_user_with_banking),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a specific note."""
+    await _get_negotiation_or_404(neg_id, user, db)
+
+    result = await db.execute(
+        select(NegotiationNote).where(
+            NegotiationNote.id == note_id,
+            NegotiationNote.negotiation_id == neg_id,
+        )
+    )
+    note = result.scalar_one_or_none()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    await db.delete(note)
+    await db.commit()
+    return {"ok": True}
+
+
+def _serialize_note(n: NegotiationNote) -> dict:
+    return {
+        "id": n.id,
+        "negotiation_id": n.negotiation_id,
+        "content": n.content,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
     }

@@ -366,3 +366,41 @@ export async function enableBankNegotiation(userId: string) {
     { user_id: userId, feature_enabled: true, timestamp: new Date().toISOString() }
   )
 }
+
+// ── Notes ──────────────────────────────────────────────────────
+
+export async function getNotes(negId: string) {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/negotiations/${negId}/notes`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      }).then((res) => handleResponse(res, 'Failed to fetch notes')),
+    []
+  )
+}
+
+export async function createNote(negId: string, content: string) {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/negotiations/${negId}/notes`, {
+        method: 'POST',
+        headers: headers(),
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      }).then((res) => handleResponse(res, 'Failed to create note')),
+    { id: `note-${Date.now()}`, content, created_at: new Date().toISOString() }
+  )
+}
+
+export async function deleteNote(negId: string, noteId: string) {
+  return withDemoFallback(
+    () =>
+      fetch(`${BASE_URL}/api/negotiations/${negId}/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        credentials: 'include',
+      }).then((res) => handleResponse(res, 'Failed to delete note')),
+    { ok: true }
+  )
+}
