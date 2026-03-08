@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +92,7 @@ def _activity_to_dict(a: NegotiationActivity, is_admin: bool = False) -> dict:
 async def create_activity(
     case_id: str,
     body: CreateActivityBody,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -140,33 +141,50 @@ async def create_activity(
     await db.commit()
     await db.refresh(activity)
 
-    # Generate AI-sanitized user summary
-    try:
-        from rei.services.negotiation_summary import generate_user_summary
-        user_summary = await generate_user_summary(body.adminNote, case.service_type)
-        if user_summary:
-            activity.user_summary = user_summary
-            await db.commit()
-    except Exception as e:
-        logger.warning("Failed to generate user summary: %s", e)
+    # Return immediately — AI summary + notifications happen in background
+    result = _activity_to_dict(activity, is_admin=True)
 
-    # Notify user of new activity
-    try:
-        from rei.services.negotiation_notifications import notify_new_activity
-        from rei.config import get_settings
-        # Get user email from case owner
-        owner = await db.get(User, case.user_id)
-        await notify_new_activity(
-            case_id=str(case.id),
-            user_summary=activity.user_summary or body.adminNote[:100],
-            user_email=owner.email if owner else "",
-            settings=get_settings(),
-            user_id=case.user_id,
-        )
-    except Exception as e:
-        logger.warning("Failed to send activity notification: %s", e)
+    async def _post_activity_tasks(activity_id: str, admin_note: str, service_type: str, case_user_id: int):
+        """Generate AI summary and send notifications without blocking the response."""
+        try:
+            from rei.database import async_session_factory
+            from rei.services.negotiation_summary import generate_user_summary
+            from rei.services.negotiation_notifications import notify_new_activity
+            from rei.config import get_settings
 
-    return _activity_to_dict(activity, is_admin=True)
+            async with async_session_factory() as bg_db:
+                # Generate AI-sanitized user summary
+                try:
+                    user_summary = await generate_user_summary(admin_note, service_type)
+                    if user_summary:
+                        act = await bg_db.get(NegotiationActivity, activity_id)
+                        if act:
+                            act.user_summary = user_summary
+                            await bg_db.commit()
+                except Exception as e:
+                    logger.warning("Failed to generate user summary: %s", e)
+
+                # Notify user of new activity
+                try:
+                    owner = await bg_db.get(User, case_user_id)
+                    await notify_new_activity(
+                        case_id=str(case_id),
+                        user_summary=user_summary if 'user_summary' in dir() and user_summary else admin_note[:100],
+                        user_email=owner.email if owner else "",
+                        settings=get_settings(),
+                        user_id=case_user_id,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to send activity notification: %s", e)
+        except Exception as e:
+            logger.error("Background activity tasks failed: %s", e)
+
+    background_tasks.add_task(
+        _post_activity_tasks,
+        str(activity.id), body.adminNote, case.service_type, case.user_id
+    )
+
+    return result
 
 
 @negotiation_activity_router.get("/cases/{case_id}/activities")

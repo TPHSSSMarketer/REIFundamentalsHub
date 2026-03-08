@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
-from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage
+from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage, NegotiationRecipient
 from rei.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -266,11 +266,12 @@ async def trigger_research(
     # Trigger contact research as a background task
     async def _run_research(case_id_: str, deal_id_: str, user_id_: int):
         try:
+            import json as _json
             from rei.services.contact_research import research_bank_contacts
             from rei.config import get_settings
             from rei.database import async_session_factory
             from rei.models.crm import CrmDeal
-            from rei.models.negotiation import DealLien
+            from rei.models.negotiation import DealLien, NegotiationRecipient, NegotiationActivity
 
             async with async_session_factory() as bg_db:
                 # Get deal to find property state
@@ -284,7 +285,7 @@ async def trigger_research(
                 lien = lien_result.scalar_one_or_none()
                 bank_name = lien.lien_holder if lien else "Unknown"
 
-                await research_bank_contacts(
+                results = await research_bank_contacts(
                     bank_name=bank_name,
                     state=state or "",
                     negotiation_id=case_id_,
@@ -292,9 +293,100 @@ async def trigger_research(
                     db=bg_db,
                     settings=get_settings(),
                 )
+
+                # Delete existing recipients for this case (re-research replaces old data)
+                old = await bg_db.execute(
+                    select(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id_)
+                )
+                for r in old.scalars().all():
+                    await bg_db.delete(r)
+
+                # Save each recipient to the database
+                for r in results:
+                    recipient = NegotiationRecipient(
+                        case_id=case_id_,
+                        recipient_type=r.get("recipient_type", ""),
+                        name=r.get("name"),
+                        title=r.get("title"),
+                        mailing_address=r.get("mailing_address"),
+                        mailing_city=r.get("mailing_city"),
+                        mailing_state=r.get("mailing_state"),
+                        mailing_zip=r.get("mailing_zip"),
+                        phone=r.get("phone"),
+                        fax=r.get("fax"),
+                        email=r.get("email"),
+                        confidence=r.get("confidence"),
+                        sources_json=_json.dumps(r.get("sources", [])),
+                    )
+                    bg_db.add(recipient)
+
+                # Log an activity for the research completion
+                activity = NegotiationActivity(
+                    case_id=case_id_,
+                    activity_type="ai_research",
+                    admin_note=f"AI research completed for {bank_name}. Found {len(results)} recipient contacts.",
+                    user_summary="Contact research has been completed for your case.",
+                    created_by="ai",
+                )
+                bg_db.add(activity)
+
+                # Update case status to in_progress now that research is done
+                case_obj = await bg_db.get(NegotiationCase, case_id_)
+                if case_obj:
+                    case_obj.status = "in_progress"
+                    from datetime import datetime as _dt
+                    case_obj.updated_at = _dt.utcnow()
+
+                await bg_db.commit()
+                logger.info("Research completed and saved for case %s: %d recipients", case_id_, len(results))
+
         except Exception as e:
             logger.error("Background contact research failed for case %s: %s", case_id_, e)
 
     background_tasks.add_task(_run_research, str(case.id), str(case.deal_id), user.id)
 
     return {"detail": "Research started"}
+
+
+@negotiation_cases_router.get("/{case_id}/recipients")
+async def list_recipients(
+    case_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List AI-researched recipients for a negotiation case.
+
+    Superadmin only.
+    Returns list of recipient dicts with contact info.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationRecipient)
+        .where(NegotiationRecipient.case_id == case_id)
+        .order_by(NegotiationRecipient.created_at.asc())
+    )
+    recipients = result.scalars().all()
+
+    return [
+        {
+            "id": r.id,
+            "caseId": r.case_id,
+            "recipientType": r.recipient_type,
+            "name": r.name,
+            "title": r.title,
+            "mailingAddress": r.mailing_address,
+            "mailingCity": r.mailing_city,
+            "mailingState": r.mailing_state,
+            "mailingZip": r.mailing_zip,
+            "phone": r.phone,
+            "fax": r.fax,
+            "email": r.email,
+            "confidence": r.confidence,
+            "sources": json.loads(r.sources_json) if r.sources_json else [],
+            "createdAt": r.created_at.isoformat() if r.created_at else None,
+            "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in recipients
+    ]

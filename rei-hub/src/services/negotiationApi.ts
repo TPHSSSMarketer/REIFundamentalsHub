@@ -12,6 +12,7 @@ import type {
   NegotiationCase,
   NegotiationActivity,
   NegotiationMessage,
+  NegotiationRecipient,
 } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -186,6 +187,13 @@ export async function triggerResearch(caseId: string): Promise<{ detail: string 
     credentials: 'include',
   })
   return handleResponse(res, 'Failed to start research')
+}
+
+export async function listRecipients(caseId: string): Promise<NegotiationRecipient[]> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/recipients`, {
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to load recipients')
 }
 
 

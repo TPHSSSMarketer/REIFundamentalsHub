@@ -590,3 +590,22 @@ export interface NegotiationMessage {
   readAt?: string
   createdAt: string
 }
+
+export interface NegotiationRecipient {
+  id: string
+  caseId: string
+  recipientType: 'ceo' | 'general_counsel' | 'registered_agent' | 'respa_address'
+  name?: string
+  title?: string
+  mailingAddress?: string
+  mailingCity?: string
+  mailingState?: string
+  mailingZip?: string
+  phone?: string
+  fax?: string
+  email?: string
+  confidence?: 'high' | 'medium' | 'low'
+  sources?: string[]
+  createdAt?: string
+  updatedAt?: string
+}

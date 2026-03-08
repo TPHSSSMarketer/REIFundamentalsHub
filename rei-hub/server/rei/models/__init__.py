@@ -26,6 +26,7 @@ from rei.models.negotiation import (
     NegotiationCase,
     NegotiationActivity,
     NegotiationMessage,
+    NegotiationRecipient,
 )
 from rei.models.loan import LoanAccount
 from rei.models.audit import AuditLog
@@ -70,6 +71,7 @@ __all__ = [
     "NegotiationCase",
     "NegotiationActivity",
     "NegotiationMessage",
+    "NegotiationRecipient",
     "AIUsageByProvider",
     "AuditLog",
     "ProviderCredentials",

@@ -8,12 +8,20 @@ import {
   Clock,
   AlertCircle,
   ChevronDown,
+  User,
+  Building2,
+  Scale,
+  MapPin,
+  Phone,
+  Mail,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   NegotiationCase,
   NegotiationActivity,
   NegotiationMessage,
+  NegotiationRecipient,
 } from '@/types'
 import {
   getCase,
@@ -22,6 +30,7 @@ import {
   listMessages,
   sendMessage,
   triggerResearch,
+  listRecipients,
 } from '@/services/negotiationApi'
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -428,6 +437,105 @@ function ChatThread({
 
 /* ── Quick Actions Sidebar ──────────────────────────────────────── */
 
+// ── Recipient Type Config ────────────────────────────────────────────
+const RECIPIENT_CONFIG: Record<string, { label: string; icon: typeof User; color: string; bg: string }> = {
+  ceo: { label: 'CEO', icon: User, color: 'text-blue-700', bg: 'bg-blue-50' },
+  general_counsel: { label: 'General Counsel', icon: Scale, color: 'text-purple-700', bg: 'bg-purple-50' },
+  registered_agent: { label: 'Registered Agent', icon: Building2, color: 'text-amber-700', bg: 'bg-amber-50' },
+  respa_address: { label: 'RESPA Address', icon: MapPin, color: 'text-green-700', bg: 'bg-green-50' },
+}
+
+function ConfidenceDot({ level }: { level?: string }) {
+  const color = level === 'high' ? 'bg-green-500' : level === 'medium' ? 'bg-yellow-500' : 'bg-red-500'
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+      <span className={`w-2 h-2 rounded-full ${color}`} />
+      {level || 'unknown'}
+    </span>
+  )
+}
+
+function RecipientCard({ recipient }: { recipient: NegotiationRecipient }) {
+  const config = RECIPIENT_CONFIG[recipient.recipientType] || RECIPIENT_CONFIG.ceo
+  const Icon = config.icon
+  const fullAddress = [recipient.mailingAddress, recipient.mailingCity, recipient.mailingState, recipient.mailingZip]
+    .filter(Boolean).join(', ')
+
+  return (
+    <div className={`${config.bg} border border-slate-200 rounded-lg p-4 space-y-2`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${config.color}`} />
+          <span className={`text-sm font-semibold ${config.color}`}>{config.label}</span>
+        </div>
+        <ConfidenceDot level={recipient.confidence} />
+      </div>
+
+      {recipient.name && (
+        <p className="text-sm font-medium text-slate-900">{recipient.name}</p>
+      )}
+      {recipient.title && (
+        <p className="text-xs text-slate-500">{recipient.title}</p>
+      )}
+
+      {fullAddress && (
+        <p className="text-xs text-slate-600">{fullAddress}</p>
+      )}
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+        {recipient.phone && (
+          <span className="flex items-center gap-1 text-xs text-slate-600">
+            <Phone className="w-3 h-3" /> {recipient.phone}
+          </span>
+        )}
+        {recipient.fax && (
+          <span className="flex items-center gap-1 text-xs text-slate-600">
+            <File className="w-3 h-3" /> Fax: {recipient.fax}
+          </span>
+        )}
+        {recipient.email && (
+          <span className="flex items-center gap-1 text-xs text-slate-600">
+            <Mail className="w-3 h-3" /> {recipient.email}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ResearchResults({
+  recipients,
+  onRerunResearch,
+  loading,
+}: {
+  recipients: NegotiationRecipient[]
+  onRerunResearch: () => void
+  loading: boolean
+}) {
+  if (recipients.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-slate-900">Research Results</h3>
+        <button
+          onClick={onRerunResearch}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 transition"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Re-run Research
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {recipients.map((r) => (
+          <RecipientCard key={r.id} recipient={r} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function QuickActions({
   caseItem,
   onStatusChange,
@@ -484,16 +592,16 @@ function QuickActions({
       {/* Priority Selector */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">Priority</label>
-        <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5">
           {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
             <button
               key={p}
               onClick={() => handlePriorityChange(p)}
               disabled={loading}
-              className={`w-full px-3 py-2 text-sm rounded-lg font-medium transition ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap ${
                 caseItem.priority === p
-                  ? `${getPriorityBadgeColor(p)}`
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? `${getPriorityBadgeColor(p)} ring-2 ring-offset-1 ring-current`
+                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
               }`}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -505,16 +613,16 @@ function QuickActions({
       {/* Status Buttons */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-        <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5">
           {(['intake', 'researching', 'in_progress', 'awaiting_response', 'resolved', 'closed'] as const).map((s) => (
             <button
               key={s}
               onClick={() => handleStatusChange(s)}
               disabled={loading}
-              className={`w-full px-3 py-2 text-sm rounded-lg font-medium transition ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap ${
                 caseItem.status === s
-                  ? `${getStatusBadgeColor(s)}`
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? `${getStatusBadgeColor(s)} ring-2 ring-offset-1 ring-current`
+                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
               }`}
             >
               {s.replace('_', ' ').charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}
@@ -548,8 +656,10 @@ export default function AdminCaseWorkspace({
   const [caseData, setCaseData] = useState<NegotiationCase | null>(null)
   const [activities, setActivities] = useState<NegotiationActivity[]>([])
   const [messages, setMessages] = useState<NegotiationMessage[]>([])
+  const [recipients, setRecipients] = useState<NegotiationRecipient[]>([])
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [researchLoading, setResearchLoading] = useState(false)
   const [currentUserId] = useState(1) // Placeholder - would come from auth context
 
   // Load case data
@@ -561,8 +671,12 @@ export default function AdminCaseWorkspace({
         setActivities(data.activities)
         setUnreadMessages(data.unreadMessages)
 
-        const msgs = await listMessages(caseId)
+        const [msgs, recs] = await Promise.all([
+          listMessages(caseId),
+          listRecipients(caseId),
+        ])
         setMessages(msgs)
+        setRecipients(recs)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to load case')
       } finally {
@@ -626,8 +740,22 @@ export default function AdminCaseWorkspace({
 
   async function handleStartResearch() {
     try {
+      setResearchLoading(true)
       await triggerResearch(caseId)
+      // Poll for research results (background task takes a few seconds)
+      setTimeout(async () => {
+        try {
+          const recs = await listRecipients(caseId)
+          setRecipients(recs)
+          // Reload case data to get updated status + activity
+          const data = await getCase(caseId)
+          setCaseData(data.case)
+          setActivities(data.activities)
+        } catch { /* will be picked up on next manual refresh */ }
+        setResearchLoading(false)
+      }, 15000) // Check after 15 seconds
     } catch (err) {
+      setResearchLoading(false)
       throw err
     }
   }
@@ -656,6 +784,13 @@ export default function AdminCaseWorkspace({
           </div>
         </div>
       </div>
+
+      {/* Research Results */}
+      <ResearchResults
+        recipients={recipients}
+        onRerunResearch={handleStartResearch}
+        loading={researchLoading}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}

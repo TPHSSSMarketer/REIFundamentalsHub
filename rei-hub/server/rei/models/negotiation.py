@@ -231,3 +231,40 @@ class NegotiationMessage(Base):
 
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ── Negotiation Recipient (AI Research Results) ────────────────────
+
+
+class NegotiationRecipient(Base):
+    """Stores AI-researched contact info for a negotiation case.
+
+    Each case can have up to 4 recipients:
+    - ceo: Chief Executive Officer
+    - general_counsel: General Counsel / Chief Legal Officer
+    - registered_agent: Registered Agent (service of process)
+    - respa_address: RESPA Designated Address (QWR / loss mitigation)
+    """
+    __tablename__ = "negotiation_recipients"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    case_id: Mapped[str] = mapped_column(String, ForeignKey("negotiation_cases.id"), nullable=False)
+
+    recipient_type: Mapped[str] = mapped_column(String, nullable=False)
+    # ceo, general_counsel, registered_agent, respa_address
+
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fax: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    confidence: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # high, medium, low
+    sources_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
