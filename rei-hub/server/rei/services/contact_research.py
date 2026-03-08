@@ -178,6 +178,7 @@ async def _research_one_recipient(
 
     messages = [{"role": "user", "content": prompt}]
 
+    # Try primary provider (nvidia_kimi for research), then fallback to Anthropic
     ai_result = await ai_complete(
         messages=messages,
         user_id=user_id,
@@ -200,6 +201,41 @@ async def _research_one_recipient(
         or tokens_used == 0
     )
 
+    # FALLBACK: If primary provider failed, retry with Anthropic Claude
+    if is_error:
+        logger.warning(
+            "Primary AI failed for %s [%s/%s]: %s — trying Anthropic fallback",
+            recipient_type, provider_used, model_used, raw_content[:200],
+        )
+        try:
+            ai_result = await ai_complete(
+                messages=messages,
+                user_id=user_id,
+                db=db,
+                settings=settings,
+                task_type="general",  # routes to Anthropic Claude Sonnet
+                max_tokens=2000,
+                temperature=0.2,
+            )
+            raw_content = ai_result.get("content", "") or ""
+            provider_used = ai_result.get("provider", "unknown")
+            model_used = ai_result.get("model", "unknown")
+            tokens_used = ai_result.get("tokens_used", 0)
+
+            is_error = (
+                raw_content.startswith("No AI provider")
+                or raw_content.startswith("AI provider error")
+                or tokens_used == 0
+            )
+
+            if not is_error:
+                logger.info(
+                    "Anthropic fallback SUCCEEDED for %s [%s/%s]: tokens=%d",
+                    recipient_type, provider_used, model_used, tokens_used,
+                )
+        except Exception as fallback_err:
+            logger.error("Anthropic fallback also failed for %s: %s", recipient_type, fallback_err)
+
     logger.info(
         "AI research for %s [%s/%s]: tokens=%d, is_error=%s, preview=%s",
         recipient_type, provider_used, model_used,
@@ -208,7 +244,7 @@ async def _research_one_recipient(
 
     if is_error:
         logger.error(
-            "AI research FAILED for %s: provider=%s, model=%s, response=%s",
+            "AI research FAILED for %s (all providers): provider=%s, model=%s, response=%s",
             recipient_type, provider_used, model_used, raw_content[:500],
         )
 

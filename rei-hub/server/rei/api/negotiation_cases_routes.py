@@ -9,7 +9,7 @@ from typing import Optional
 
 import base64
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -290,17 +290,18 @@ async def update_case(
 @negotiation_cases_router.post("/{case_id}/research")
 async def trigger_research(
     case_id: str,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger AI contact research.
+    """Trigger AI contact research — runs synchronously using request DB session.
 
     Superadmin only.
-    Set case status to "researching"
-    Return {"detail": "Research started"}
+    Researches all 4 recipients, saves results, logs activity, updates status.
+    Returns full results so the frontend can display them immediately.
     """
-    # Authorization check: superadmin only
+    import json as _json
+    from rei.services.contact_research import research_bank_contacts
+
     if not user.is_superadmin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
@@ -308,182 +309,142 @@ async def trigger_research(
         select(NegotiationCase).where(NegotiationCase.id == case_id)
     )
     case = result.scalar_one_or_none()
-
     if not case:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
 
+    # Set status to researching
     case.status = "researching"
     case.updated_at = datetime.utcnow()
-
-    db.add(case)
     await db.commit()
 
-    # Trigger contact research as a background task
-    async def _run_research(case_id_: str, deal_id_: str, user_id_: int):
+    try:
+        # Get deal + lien info (same session that works for diagnostic test)
+        deal = await db.get(CrmDeal, case.deal_id) if case.deal_id else None
+        state = deal.state if deal else ""
+
+        lien_result = await db.execute(
+            select(DealLien).where(DealLien.deal_id == case.deal_id).limit(1)
+        )
+        lien = lien_result.scalar_one_or_none()
+        bank_name = lien.lien_holder if lien else "Unknown"
+
+        logger.info("=== Starting AI research for case %s, bank=%s, state=%s ===", case_id, bank_name, state)
+
+        # Run research synchronously using the request DB session (same path as diagnostic test)
+        results = await research_bank_contacts(
+            bank_name=bank_name,
+            state=state or "",
+            negotiation_id=str(case.id),
+            user_id=user.id,
+            db=db,
+            settings=get_settings(),
+        )
+
+        logger.info("Research: got %d results", len(results))
+
+        # Delete existing recipients for this case (re-research replaces old data)
+        old = await db.execute(
+            select(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id)
+        )
+        for r in old.scalars().all():
+            await db.delete(r)
+
+        # Save each recipient to the database
+        valid_count = 0
+        debug_snippets = []
+        for r in results:
+            has_data = any(r.get(k) for k in ["name", "mailing_address", "phone", "email"])
+            if has_data:
+                valid_count += 1
+
+            if r.get("parse_error"):
+                raw = r.get("_raw_preview", "n/a")
+                prov = r.get("_provider", "?")
+                mdl = r.get("_model", "?")
+                toks = r.get("_tokens", 0)
+                debug_snippets.append(
+                    f"{r.get('recipient_type','?')}: PARSE_ERROR "
+                    f"[{prov}/{mdl} toks={toks}] raw='{raw[:80]}'"
+                )
+            elif not has_data:
+                debug_snippets.append(f"{r.get('recipient_type','?')}: ALL_NULL")
+
+            recipient = NegotiationRecipient(
+                case_id=str(case.id),
+                recipient_type=r.get("recipient_type", ""),
+                name=r.get("name"),
+                title=r.get("title"),
+                mailing_address=r.get("mailing_address"),
+                mailing_city=r.get("mailing_city"),
+                mailing_state=r.get("mailing_state"),
+                mailing_zip=r.get("mailing_zip"),
+                phone=r.get("phone"),
+                fax=r.get("fax"),
+                email=r.get("email"),
+                confidence=r.get("confidence"),
+                sources_json=_json.dumps(r.get("sources", [])),
+            )
+            db.add(recipient)
+
+        # Log an activity for the research completion
+        if valid_count > 0:
+            note = f"AI research completed for {bank_name}. Found {valid_count} of 4 recipient contacts with usable data."
+            summary = "Contact research has been completed for your case."
+        else:
+            debug_info = "; ".join(debug_snippets) if debug_snippets else "no debug info"
+            note = (
+                f"AI research for {bank_name} returned no usable contact data. "
+                f"Results: {len(results)} returned, 0 with data. "
+                f"Debug: {debug_info}. "
+                "Check Admin → AI Provider Settings and server logs."
+            )
+            summary = "Contact research completed but could not find contact information. Our team will follow up."
+
+        activity = NegotiationActivity(
+            case_id=str(case.id),
+            activity_type="ai_research",
+            admin_note=note,
+            user_summary=summary,
+            created_by="ai",
+        )
+        db.add(activity)
+
+        # Update case status to in_progress
+        case.status = "in_progress"
+        case.updated_at = datetime.utcnow()
+        await db.commit()
+
+        logger.info("Research completed for case %s: %d of 4 recipients had data", case_id, valid_count)
+
+        return {
+            "detail": f"Research completed. {valid_count} of 4 contacts found.",
+            "valid_count": valid_count,
+            "total": len(results),
+        }
+
+    except Exception as e:
+        logger.error("Contact research failed for case %s: %s", case_id, e)
+        # Reset status and log error
         try:
-            import json as _json
-            from rei.services.contact_research import research_bank_contacts
-            from rei.config import get_settings
-            from rei.database import async_session_factory
-            from rei.models.crm import CrmDeal
-            from rei.models.negotiation import DealLien, NegotiationRecipient, NegotiationActivity
+            case.status = "intake"
+            case.updated_at = datetime.utcnow()
 
-            logger.info("=== Starting AI research for case %s, deal %s ===", case_id_, deal_id_)
+            err_activity = NegotiationActivity(
+                case_id=str(case.id),
+                activity_type="ai_research",
+                admin_note=f"AI research failed: {str(e)[:300]}",
+                user_summary="Contact research encountered an issue and will be retried.",
+                created_by="system",
+            )
+            db.add(err_activity)
+            await db.commit()
+        except Exception as inner_err:
+            logger.error("Failed to log research error: %s", inner_err)
 
-            async with async_session_factory() as bg_db:
-                # Get deal to find property state
-                deal = await bg_db.get(CrmDeal, deal_id_)
-                state = deal.state if deal else ""
-                logger.info("Research: deal found=%s, state=%s", bool(deal), state)
-
-                # Get first lien holder name for research
-                lien_result = await bg_db.execute(
-                    select(DealLien).where(DealLien.deal_id == deal_id_).limit(1)
-                )
-                lien = lien_result.scalar_one_or_none()
-                bank_name = lien.lien_holder if lien else "Unknown"
-                logger.info("Research: bank_name=%s", bank_name)
-
-                # Verify credentials are accessible from background task
-                try:
-                    from rei.services.credentials_service import get_provider_credentials
-                    nv_creds = await get_provider_credentials(bg_db, "nvidia")
-                    has_nvidia = bool(nv_creds and nv_creds.get("nvidia_api_key"))
-                    anth_creds = await get_provider_credentials(bg_db, "anthropic")
-                    has_anthropic = bool(anth_creds and anth_creds.get("anthropic_api_key"))
-                    logger.info("Research: nvidia_key=%s, anthropic_key=%s", has_nvidia, has_anthropic)
-                except Exception as cred_err:
-                    logger.error("Research: credential check failed: %s", cred_err)
-
-                results = await research_bank_contacts(
-                    bank_name=bank_name,
-                    state=state or "",
-                    negotiation_id=case_id_,
-                    user_id=user_id_,
-                    db=bg_db,
-                    settings=get_settings(),
-                )
-
-                logger.info("Research: got %d results", len(results))
-
-                # Log raw results for debugging
-                for i, r in enumerate(results):
-                    rtype = r.get("recipient_type", "?")
-                    has_name = bool(r.get("name"))
-                    has_addr = bool(r.get("mailing_address"))
-                    parse_err = r.get("parse_error", False)
-                    logger.info(
-                        "Research result[%d] type=%s name=%s addr=%s parse_error=%s",
-                        i, rtype, has_name, has_addr, parse_err,
-                    )
-
-                # Delete existing recipients for this case (re-research replaces old data)
-                old = await bg_db.execute(
-                    select(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id_)
-                )
-                for r in old.scalars().all():
-                    await bg_db.delete(r)
-
-                # Save each recipient to the database — only save ones with real data
-                valid_count = 0
-                debug_snippets = []
-                for r in results:
-                    # Check if this result has any real data (not all nulls from parse error)
-                    has_data = any(r.get(k) for k in ["name", "mailing_address", "phone", "email"])
-                    if has_data:
-                        valid_count += 1
-
-                    if r.get("parse_error"):
-                        raw = r.get("_raw_preview", "n/a")
-                        prov = r.get("_provider", "?")
-                        mdl = r.get("_model", "?")
-                        toks = r.get("_tokens", 0)
-                        debug_snippets.append(
-                            f"{r.get('recipient_type','?')}: PARSE_ERROR "
-                            f"[{prov}/{mdl} toks={toks}] raw='{raw[:80]}'"
-                        )
-                    elif not has_data:
-                        debug_snippets.append(f"{r.get('recipient_type','?')}: ALL_NULL")
-
-                    recipient = NegotiationRecipient(
-                        case_id=case_id_,
-                        recipient_type=r.get("recipient_type", ""),
-                        name=r.get("name"),
-                        title=r.get("title"),
-                        mailing_address=r.get("mailing_address"),
-                        mailing_city=r.get("mailing_city"),
-                        mailing_state=r.get("mailing_state"),
-                        mailing_zip=r.get("mailing_zip"),
-                        phone=r.get("phone"),
-                        fax=r.get("fax"),
-                        email=r.get("email"),
-                        confidence=r.get("confidence"),
-                        sources_json=_json.dumps(r.get("sources", [])),
-                    )
-                    bg_db.add(recipient)
-
-                # Log an activity for the research completion
-                if valid_count > 0:
-                    note = f"AI research completed for {bank_name}. Found {valid_count} of 4 recipient contacts with usable data."
-                    summary = "Contact research has been completed for your case."
-                else:
-                    debug_info = "; ".join(debug_snippets) if debug_snippets else "no debug info"
-                    note = (
-                        f"AI research for {bank_name} returned no usable contact data. "
-                        f"Results: {len(results)} returned, 0 with data. "
-                        f"Debug: {debug_info}. "
-                        "Check Admin → AI Provider Settings and server logs."
-                    )
-                    summary = "Contact research completed but could not find contact information. Our team will follow up."
-
-                activity = NegotiationActivity(
-                    case_id=case_id_,
-                    activity_type="ai_research",
-                    admin_note=note,
-                    user_summary=summary,
-                    created_by="ai",
-                )
-                bg_db.add(activity)
-
-                # Update case status to in_progress now that research is done
-                case_obj = await bg_db.get(NegotiationCase, case_id_)
-                if case_obj:
-                    case_obj.status = "in_progress"
-                    from datetime import datetime as _dt
-                    case_obj.updated_at = _dt.utcnow()
-
-                await bg_db.commit()
-                logger.info("Research completed and saved for case %s: %d recipients", case_id_, len(results))
-
-        except Exception as e:
-            logger.error("Background contact research failed for case %s: %s", case_id_, e)
-            # Reset case status and log error activity so admin knows what happened
-            try:
-                from rei.database import async_session_factory as _asf
-                from rei.models.negotiation import NegotiationActivity as _NA, NegotiationCase as _NC
-
-                async with _asf() as err_db:
-                    err_case = await err_db.get(_NC, case_id_)
-                    if err_case:
-                        err_case.status = "intake"
-                        from datetime import datetime as _dt2
-                        err_case.updated_at = _dt2.utcnow()
-
-                    err_activity = _NA(
-                        case_id=case_id_,
-                        activity_type="ai_research",
-                        admin_note=f"AI research failed: {str(e)[:200]}",
-                        user_summary="Contact research encountered an issue and will be retried.",
-                        created_by="system",
-                    )
-                    err_db.add(err_activity)
-                    await err_db.commit()
-            except Exception as inner_err:
-                logger.error("Failed to log research error activity: %s", inner_err)
-
-    background_tasks.add_task(_run_research, str(case.id), str(case.deal_id), user.id)
-
-    return {"detail": "Research started"}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Research failed: {str(e)[:200]}",
+        )
 
 
 @negotiation_cases_router.post("/{case_id}/research-test")

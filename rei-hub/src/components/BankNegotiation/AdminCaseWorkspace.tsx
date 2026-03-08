@@ -1270,49 +1270,37 @@ export default function AdminCaseWorkspace({
   async function handleStartResearch() {
     try {
       setResearchLoading(true)
-      await triggerResearch(caseId)
-      toast.success('AI research started — checking for results...')
+      toast.info('Running AI research — this may take 30-60 seconds...')
 
-      // Poll every 5 seconds for up to 60 seconds
-      let attempts = 0
-      const maxAttempts = 12
-      const pollInterval = setInterval(async () => {
-        attempts++
-        try {
-          const recs = await listRecipients(caseId)
-          if (recs.length > 0 || attempts >= maxAttempts) {
-            clearInterval(pollInterval)
-            setRecipients(recs)
-            // Reload case data to get updated status + activity
-            const data = await getCase(caseId)
-            setCaseData(data.case)
-            setActivities(data.activities)
-            if (data.deal) setDealInfo(data.deal)
-            if (data.liens) setLiensInfo(data.liens)
-            setResearchLoading(false)
-            if (recs.length > 0) {
-              toast.success(`Research complete — found ${recs.length} contacts`)
-            } else {
-              toast.info('Research may still be processing. Refresh to check.')
-            }
-          }
-        } catch {
-          if (attempts >= maxAttempts) {
-            clearInterval(pollInterval)
-            setResearchLoading(false)
-            // Reload case to see any error activity
-            try {
-              const data = await getCase(caseId)
-              setCaseData(data.case)
-              setActivities(data.activities)
-            } catch { /* ignore */ }
-            toast.info('Research may still be processing. Check back shortly.')
-          }
-        }
-      }, 5000)
+      // Research now runs synchronously — the server does all the work and returns results
+      const result = await triggerResearch(caseId)
+      const validCount = (result as Record<string, unknown>)?.valid_count ?? 0
+
+      // Reload all data now that research is complete
+      const recs = await listRecipients(caseId)
+      setRecipients(recs)
+
+      const data = await getCase(caseId)
+      setCaseData(data.case)
+      setActivities(data.activities)
+      if (data.deal) setDealInfo(data.deal)
+      if (data.liens) setLiensInfo(data.liens)
+
+      if (validCount > 0) {
+        toast.success(`Research complete — found ${validCount} of 4 contacts`)
+      } else {
+        toast.warning('Research completed but could not find contact data. Check the activity journal for details.')
+      }
     } catch (err) {
+      // Reload case data to see error activity
+      try {
+        const data = await getCase(caseId)
+        setCaseData(data.case)
+        setActivities(data.activities)
+      } catch { /* ignore */ }
+      toast.error(err instanceof Error ? err.message : 'Research failed')
+    } finally {
       setResearchLoading(false)
-      throw err
     }
   }
 
