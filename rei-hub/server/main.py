@@ -6,13 +6,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
-
-from rei.services.security import check_rate_limit, rl_ip_key
 
 from rei.api.admin_routes import admin_router
 from rei.api.ai_routes import ai_router
@@ -277,86 +275,24 @@ app = FastAPI(
 #
 # In code, we add them innermost-first:
 
+# ── Middleware stack — ALL pure ASGI (no BaseHTTPMiddleware) ───────
+#
+# Every middleware is a pure ASGI class that wraps the `send` callable
+# directly. This avoids the known Starlette BaseHTTPMiddleware bug where
+# Response objects can bypass outer middleware's send wrappers.
+#
+# Order (innermost → outermost):
+#   CSRF → RateLimit → SecurityHeaders → CORS
+#
+# In code we add innermost first:
+
 from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
+from rei.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+from rei.middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
+
 app.add_middleware(CSRFProtectionMiddleware)
-
-
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    """Apply rate limiting based on endpoint and IP address."""
-    ip = request.client.host if request.client else "unknown"
-    path = request.url.path
-    method = request.method
-
-    # Skip health check
-    if path == "/health":
-        return await call_next(request)
-
-    # Auth endpoints: 5 requests/minute per IP
-    if path.startswith("/api/auth/") and method in ["POST"]:
-        if not check_rate_limit(rl_ip_key(ip, "auth"), max_requests=5, window_seconds=60):
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Too many authentication attempts. Please try again in 1 minute."},
-            )
-
-    # AI endpoints: 20 requests/minute per IP
-    if path.startswith("/api/ai/") and method in ["POST"]:
-        if not check_rate_limit(rl_ip_key(ip, "ai"), max_requests=20, window_seconds=60):
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Too many AI requests. Please try again in 1 minute."},
-            )
-
-    # Lead form submissions: 10 per minute per IP (also rate-limited in the route)
-    if path.endswith("/submit") and "/sites/" in path and method == "POST":
-        if not check_rate_limit(rl_ip_key(ip, "lead_submit"), max_requests=10, window_seconds=60):
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Too many submissions. Please try again later."},
-            )
-
-    # General rate limit: 100 requests/minute per IP
-    if not check_rate_limit(rl_ip_key(ip, "general"), max_requests=100, window_seconds=60):
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded. Please try again in 1 minute."},
-        )
-
-    response = await call_next(request)
-    return response
-
-
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    response = await call_next(request)
-    path = request.url.path
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = (
-        "geolocation=(), microphone=(), camera=()"
-    )
-    # HSTS — enforce HTTPS for 1 year with subdomains + preload
-    if settings.environment != "development":
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
-    # CSP — API server returns JSON, so lock down resources tightly
-    if not path.startswith("/sites/") and "/sites/" not in path:
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; frame-ancestors 'none'"
-        )
-    # Public lead capture sites should be embeddable; API routes should not
-    if path.startswith("/sites/") or "/sites/" in path:
-        response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    else:
-        response.headers["X-Frame-Options"] = "DENY"
-    return response
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ── CORS — Pure-ASGI implementation (outermost middleware) ─────────
