@@ -20,37 +20,39 @@ logger = logging.getLogger(__name__)
 
 RECIPIENT_TYPES = {
     "ceo": {
-        "title": "Chief Executive Officer",
-        "search_terms": [
-            "CEO",
-            "Chief Executive Officer",
-            "President",
-        ],
+        "title": "Chief Executive Officer / Chairman",
+        "search_hint": (
+            "Look for the CEO, Chairman, or President of the company. "
+            "Check the company's investor relations page, SEC filings, "
+            "and corporate leadership page for the current executive."
+        ),
     },
     "general_counsel": {
-        "title": "General Counsel",
-        "search_terms": [
-            "General Counsel",
-            "Chief Legal Officer",
-            "Office of General Counsel",
-        ],
+        "title": "General Counsel / Chief Legal Officer",
+        "search_hint": (
+            "Look for the General Counsel, Chief Legal Officer, Senior Vice President "
+            "of Legal, or head of the legal department. Check SEC filings (DEF 14A proxy "
+            "statements), the company's leadership page, and LinkedIn."
+        ),
     },
     "registered_agent": {
-        "title": "Registered Agent",
-        "search_terms": [
-            "registered agent",
-            "statutory agent",
-            "agent for service of process",
-        ],
+        "title": "Registered Agent (Service of Process)",
+        "search_hint": (
+            "Look up the registered agent through SEC EDGAR filings (search for the "
+            "company's 10-K or annual report which lists the registered agent). Also "
+            "check the Secretary of State business entity database for the state where "
+            "the company is incorporated (usually Delaware for large banks)."
+        ),
     },
     "respa_address": {
-        "title": "RESPA Designated Address",
-        "search_terms": [
-            "qualified written request",
-            "QWR address",
-            "RESPA notice address",
-            "loss mitigation address",
-        ],
+        "title": "RESPA Designated Address (QWR / Loss Mitigation)",
+        "search_hint": (
+            "Look for the bank's designated address for Qualified Written Requests (QWR), "
+            "Notices of Error, and loss mitigation correspondence under RESPA/Regulation X. "
+            "This is typically found on the bank's website under 'Mortgage Help', 'Loss "
+            "Mitigation', or 'Customer Service' sections, or on monthly mortgage statements. "
+            "It may be a specific P.O. Box or department address different from headquarters."
+        ),
     },
 }
 
@@ -126,41 +128,36 @@ async def _research_one_recipient(
 ) -> dict:
     """Internal helper — research one recipient type via AI."""
     title = config["title"]
+    search_hint = config.get("search_hint", "")
 
-    state_hint = ""
-    if recipient_type == "registered_agent":
-        state_hint = (
-            f"\nFor registered agent: search the {state} "
-            "Secretary of State database."
-        )
-    elif recipient_type == "respa_address":
-        state_hint = (
-            "\nFor RESPA address: look for their designated QWR or "
-            "loss mitigation address on their website or monthly "
-            "mortgage statements."
-        )
+    state_ctx = f" The property is in {state}." if state else ""
 
     prompt = (
-        f"Research the following contact information for "
-        f"{bank_name} (mortgage servicer/bank):\n\n"
+        f"You are a real estate paralegal assistant. Research the following "
+        f"contact information for {bank_name} (mortgage servicer/bank).{state_ctx}\n\n"
         f"Recipient: {title}\n\n"
-        "Find and return in JSON format:\n"
+        f"Research guidance: {search_hint}\n\n"
+        "Return your findings as a single JSON object with these exact keys:\n"
+        "```json\n"
         "{\n"
         '  "name": "Full name or department name",\n'
-        '  "title": "Exact title",\n'
+        '  "title": "Exact title or role",\n'
         '  "mailing_address": "Street address",\n'
         '  "mailing_city": "City",\n'
-        '  "mailing_state": "2-letter state",\n'
+        '  "mailing_state": "2-letter state code",\n'
         '  "mailing_zip": "ZIP code",\n'
         '  "phone": "Phone number with area code",\n'
-        '  "fax": "Fax number with area code",\n'
-        '  "email": "Email address or department email",\n'
-        '  "confidence": "high/medium/low",\n'
-        '  "sources": ["source1", "source2"]\n'
+        '  "fax": "Fax number or null",\n'
+        '  "email": "Email address or null",\n'
+        '  "confidence": "high or medium or low",\n'
+        '  "sources": ["Source 1 description", "Source 2 description"]\n'
         "}\n"
-        f"{state_hint}\n\n"
-        "If a field is unknown, use null.\n"
-        "Return ONLY the JSON object."
+        "```\n\n"
+        "Rules:\n"
+        "- Use null for any field you cannot determine.\n"
+        "- Do NOT include any text before or after the JSON.\n"
+        "- Do NOT wrap in markdown code fences.\n"
+        "- Return ONLY the raw JSON object, nothing else."
     )
 
     messages = [{"role": "user", "content": prompt}]
@@ -206,23 +203,52 @@ async def _research_one_recipient(
 
 
 def _parse_json_response(text: str) -> dict:
-    """Extract and parse JSON from an AI response string."""
+    """Extract and parse JSON from an AI response string.
+
+    Handles common AI response quirks:
+    - Direct JSON
+    - JSON wrapped in markdown code fences (```json ... ```)
+    - JSON buried in explanatory text
+    - Thinking tags (<think>...</think>) before JSON
+    """
+    import re
+
+    if not text or not text.strip():
+        logger.warning("Empty AI response — cannot parse")
+        return _empty_result()
+
+    # Strip thinking tags (e.g., <think>...</think>) that some models prepend
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
     # Try direct parse first
     try:
-        return json.loads(text)
+        return json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
         pass
 
-    # Try to find JSON object in the response
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
+    # Try to extract JSON from markdown code fence (```json ... ``` or ``` ... ```)
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+    if fence_match:
         try:
-            return json.loads(text[start : end + 1])
+            return json.loads(fence_match.group(1))
         except (json.JSONDecodeError, TypeError):
             pass
 
-    logger.warning("Could not parse JSON from AI response: %s", text[:200])
+    # Try to find JSON object in the response (first { to last })
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(cleaned[start : end + 1])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    logger.warning("Could not parse JSON from AI response (len=%d): %s", len(text), text[:500])
+    return _empty_result()
+
+
+def _empty_result() -> dict:
+    """Return an empty recipient result with parse_error flag."""
     return {
         "name": None,
         "title": None,

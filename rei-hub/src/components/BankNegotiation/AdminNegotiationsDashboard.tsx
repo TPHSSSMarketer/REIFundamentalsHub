@@ -5,6 +5,8 @@ import {
   AlertCircle,
   XCircle,
   ChevronDown,
+  Inbox,
+  FileText,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { NegotiationRequest, NegotiationCase } from '@/types'
@@ -17,22 +19,58 @@ import {
 } from '@/services/negotiationApi'
 import AdminCaseWorkspace from './AdminCaseWorkspace'
 
-/* ── Type Definitions ────────────────────────────────────────────── */
-
-type Tab = 'incoming' | 'active'
-
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
+const EST_TZ = 'America/New_York'
+
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString('en-US', {
+    timeZone: EST_TZ,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
 }
 
+// Unified row type — either a request or a case
+type UnifiedRow =
+  | { kind: 'request'; data: NegotiationRequest }
+  | { kind: 'case'; data: NegotiationCase }
+
+function getUnifiedStatus(row: UnifiedRow): string {
+  if (row.kind === 'request') {
+    return row.data.status === 'info_requested' ? 'info_requested' : 'pending'
+  }
+  return row.data.status
+}
+
+function getUnifiedDate(row: UnifiedRow): string {
+  return row.data.createdAt
+}
+
+function getUnifiedAddress(row: UnifiedRow): string {
+  if (row.kind === 'request') return row.data.propertyAddress || 'Unknown Address'
+  return row.data.propertyAddress || 'Unknown Address'
+}
+
+// All possible statuses in pipeline order
+const ALL_STATUSES = [
+  'pending',
+  'info_requested',
+  'intake',
+  'researching',
+  'in_progress',
+  'awaiting_response',
+  'resolved',
+  'closed',
+] as const
+
 function getStatusBadgeColor(status: string): string {
   switch (status) {
+    case 'pending':
+      return 'bg-amber-100 text-amber-700'
+    case 'info_requested':
+      return 'bg-sky-100 text-sky-700'
     case 'intake':
       return 'bg-blue-100 text-blue-700'
     case 'researching':
@@ -47,6 +85,20 @@ function getStatusBadgeColor(status: string): string {
       return 'bg-slate-100 text-slate-700'
     default:
       return 'bg-slate-100 text-slate-600'
+  }
+}
+
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'pending': return 'Pending Request'
+    case 'info_requested': return 'Info Requested'
+    case 'intake': return 'Intake'
+    case 'researching': return 'Researching'
+    case 'in_progress': return 'In Progress'
+    case 'awaiting_response': return 'Awaiting Response'
+    case 'resolved': return 'Resolved'
+    case 'closed': return 'Closed'
+    default: return status.replace('_', ' ')
   }
 }
 
@@ -138,119 +190,9 @@ function InfoRequestModal({
   )
 }
 
-/* ── Incoming Request Card ──────────────────────────────────────── */
-
-function IncomingRequestCard({
-  request,
-  onAction,
-}: {
-  request: NegotiationRequest
-  onAction: (action: 'accept' | 'info' | 'decline', requestId: string) => void
-}) {
-  const isInfoRequested = request.status === 'info_requested'
-
-  return (
-    <div className={`bg-white rounded-lg border p-5 space-y-4 ${isInfoRequested ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <h4 className="font-semibold text-slate-900">
-            {request.propertyAddress || 'Unknown Address'}
-          </h4>
-          <p className="text-sm text-slate-500">
-            {request.propertyCity}, {request.propertyState}
-          </p>
-        </div>
-        {isInfoRequested && (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700">
-            <Clock className="w-3 h-3" />
-            Awaiting User Response
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {request.serviceTypes?.map((type) => (
-          <ServiceTypeBadge key={type} serviceType={type} />
-        ))}
-      </div>
-
-      <div className="text-sm text-slate-600 space-y-1">
-        <p>
-          <span className="font-medium">User:</span> #{request.userId}
-        </p>
-        <p>
-          <span className="font-medium">Submitted:</span> {formatDate(request.createdAt)}
-        </p>
-      </div>
-
-      {request.message && (
-        <div className="bg-slate-50 rounded p-3 text-sm text-slate-700">
-          <p className="font-medium mb-1">Message:</p>
-          <p>{request.message}</p>
-        </div>
-      )}
-
-      <div className="flex gap-2 justify-between">
-        <button
-          onClick={() => onAction('decline', request.id)}
-          className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg font-medium text-sm hover:bg-red-200 transition"
-        >
-          <XCircle className="w-4 h-4 inline mr-2" />
-          Decline
-        </button>
-        <button
-          onClick={() => onAction('info', request.id)}
-          className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium text-sm hover:bg-blue-200 transition"
-        >
-          <AlertCircle className="w-4 h-4 inline mr-2" />
-          Info
-        </button>
-        <button
-          onClick={() => onAction('accept', request.id)}
-          className="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg font-medium text-sm hover:bg-green-200 transition"
-        >
-          <CheckCircle className="w-4 h-4 inline mr-2" />
-          Accept
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/* ── Active Case Row ────────────────────────────────────────────── */
-
-function ActiveCaseRow({
-  case: caseItem,
-  onSelect,
-}: {
-  case: NegotiationCase
-  onSelect: (caseId: string) => void
-}) {
-  return (
-    <tr className="border-b border-slate-200 hover:bg-slate-50 cursor-pointer" onClick={() => onSelect(caseItem.id)}>
-      <td className="px-4 py-3 text-slate-900 font-medium">{caseItem.propertyAddress || 'Unknown'}</td>
-      <td className="px-4 py-3">
-        <ServiceTypeBadge serviceType={caseItem.serviceType} />
-      </td>
-      <td className="px-4 py-3">
-        <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded ${getStatusBadgeColor(caseItem.status)}`}>
-          {caseItem.status.replace('_', ' ')}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded ${getPriorityBadgeColor(caseItem.priority)}`}>
-          {caseItem.priority}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-slate-500">{formatDate(caseItem.createdAt)}</td>
-    </tr>
-  )
-}
-
 /* ── Main Dashboard Component ────────────────────────────────────── */
 
 export default function AdminNegotiationsDashboard() {
-  const [tab, setTab] = useState<Tab>('incoming')
   const [requests, setRequests] = useState<NegotiationRequest[]>([])
   const [cases, setCases] = useState<NegotiationCase[]>([])
   const [loading, setLoading] = useState(true)
@@ -279,13 +221,19 @@ export default function AdminNegotiationsDashboard() {
     loadData()
   }, [])
 
-  // Handle actions
+  // Handle request actions
   async function handleAction(action: 'accept' | 'info' | 'decline', requestId: string) {
     try {
       if (action === 'accept') {
         await acceptRequest(requestId)
-        toast.success('Request accepted')
-        setRequests(requests.filter((r) => r.id !== requestId))
+        toast.success('Request accepted — case created')
+        // Reload everything to get the new case
+        const [reqData, caseData] = await Promise.all([
+          listNegotiationRequests(),
+          listCases(),
+        ])
+        setRequests(reqData)
+        setCases(caseData)
       } else if (action === 'decline') {
         if (!window.confirm('Decline this request?')) return
         await declineRequest(requestId)
@@ -302,22 +250,50 @@ export default function AdminNegotiationsDashboard() {
   async function handleInfoSubmit(message: string) {
     if (!infoModal) return
     try {
-      const updated = await requestMoreInfo(infoModal.requestId, message)
+      await requestMoreInfo(infoModal.requestId, message)
       toast.success('Information request sent')
-      // Update the request in-place with new status instead of removing it
-      setRequests(requests.map((r) => r.id === infoModal.requestId ? { ...r, status: 'info_requested' as const } : r))
+      setRequests(requests.map((r) =>
+        r.id === infoModal.requestId ? { ...r, status: 'info_requested' as const } : r
+      ))
       setInfoModal(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send request')
     }
   }
 
-  // Filter cases
-  const filteredCases = cases.filter((c) => {
-    if (statusFilter !== 'all' && c.status !== statusFilter) return false
-    if (serviceTypeFilter !== 'all' && c.serviceType !== serviceTypeFilter) return false
+  // Build unified rows — requests + cases in one stream
+  const unifiedRows: UnifiedRow[] = [
+    ...requests
+      .filter((r) => r.status === 'pending' || r.status === 'info_requested')
+      .map((r): UnifiedRow => ({ kind: 'request', data: r })),
+    ...cases.map((c): UnifiedRow => ({ kind: 'case', data: c })),
+  ]
+
+  // Apply filters
+  const filteredRows = unifiedRows.filter((row) => {
+    const status = getUnifiedStatus(row)
+    if (statusFilter !== 'all' && status !== statusFilter) return false
+    if (serviceTypeFilter !== 'all') {
+      if (row.kind === 'request') {
+        if (!row.data.serviceTypes?.includes(serviceTypeFilter)) return false
+      } else {
+        if (row.data.serviceType !== serviceTypeFilter) return false
+      }
+    }
     return true
   })
+
+  // Sort: newest first
+  filteredRows.sort((a, b) => {
+    return new Date(getUnifiedDate(b)).getTime() - new Date(getUnifiedDate(a)).getTime()
+  })
+
+  // Count by status for filter badges
+  const statusCounts: Record<string, number> = {}
+  for (const row of unifiedRows) {
+    const s = getUnifiedStatus(row)
+    statusCounts[s] = (statusCounts[s] || 0) + 1
+  }
 
   // If a case is selected, show workspace
   if (selectedCaseId) {
@@ -334,41 +310,62 @@ export default function AdminNegotiationsDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Negotiations</h1>
-        <p className="text-slate-600">Manage client negotiation requests and active cases</p>
+        <p className="text-slate-600">
+          {unifiedRows.length} total &middot;{' '}
+          {statusCounts['pending'] || 0} pending &middot;{' '}
+          {(statusCounts['in_progress'] || 0) + (statusCounts['researching'] || 0) + (statusCounts['intake'] || 0)} active
+        </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200">
-        <button
-          onClick={() => setTab('incoming')}
-          className={`px-4 py-3 font-medium text-sm border-b-2 transition ${
-            tab === 'incoming'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Incoming Requests
-          {requests.filter(r => r.status === 'pending' || r.status === 'info_requested').length > 0 && (
-            <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-              {requests.filter(r => r.status === 'pending' || r.status === 'info_requested').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('active')}
-          className={`px-4 py-3 font-medium text-sm border-b-2 transition ${
-            tab === 'active'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Active Cases
-          {cases.length > 0 && (
-            <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-              {cases.length}
-            </span>
-          )}
-        </button>
+      {/* Filters — status pills + service type dropdown */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex-1">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All ({unifiedRows.length})
+            </button>
+            {ALL_STATUSES.map((s) => {
+              const count = statusCounts[s] || 0
+              if (count === 0) return null
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
+                    statusFilter === s
+                      ? `${getStatusBadgeColor(s)} ring-2 ring-offset-1 ring-current`
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {getStatusLabel(s)} ({count})
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="w-40">
+          <div className="relative">
+            <select
+              value={serviceTypeFilter}
+              onChange={(e) => setServiceTypeFilter(e.target.value)}
+              className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs appearance-none bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Types</option>
+              <option value="bank">Bank</option>
+              <option value="county_tax">County Tax</option>
+              <option value="other_lien">Other Lien</option>
+            </select>
+            <ChevronDown className="absolute right-2 top-1.5 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       {/* Loading state */}
@@ -379,104 +376,139 @@ export default function AdminNegotiationsDashboard() {
         </div>
       )}
 
-      {/* Incoming Requests Tab — only show pending + info_requested */}
-      {!loading && tab === 'incoming' && (() => {
-        const incoming = requests.filter(r => r.status === 'pending' || r.status === 'info_requested')
-        return (
-        <div className="space-y-4">
-          {incoming.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 rounded-lg">
-              <CheckCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-slate-600">No incoming requests</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {incoming.map((request) => (
-                <IncomingRequestCard
-                  key={request.id}
-                  request={request}
-                  onAction={handleAction}
-                />
-              ))}
-            </div>
-          )}
+      {/* Unified stream */}
+      {!loading && filteredRows.length === 0 && (
+        <div className="text-center py-12 bg-slate-50 rounded-lg">
+          <Inbox className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+          <p className="text-slate-600">
+            {statusFilter === 'all' ? 'No negotiations yet' : `No negotiations with status "${getStatusLabel(statusFilter)}"`}
+          </p>
         </div>
-        )
-      })()}
+      )}
 
-      {/* Active Cases Tab */}
-      {!loading && tab === 'active' && (
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex gap-4">
-            <div className="flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm appearance-none bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="intake">Intake</option>
-                  <option value="researching">Researching</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="awaiting_response">Awaiting Response</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-2.5 w-5 h-5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
+      {!loading && filteredRows.length > 0 && (
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Property</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Type</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Priority</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Date</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => {
+                const status = getUnifiedStatus(row)
+                const isRequest = row.kind === 'request'
 
-            <div className="flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Service Type</label>
-              <div className="relative">
-                <select
-                  value={serviceTypeFilter}
-                  onChange={(e) => setServiceTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm appearance-none bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Types</option>
-                  <option value="bank">Bank</option>
-                  <option value="county_tax">County Tax</option>
-                  <option value="other_lien">Other Lien</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-2.5 w-5 h-5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-          </div>
+                return (
+                  <tr
+                    key={isRequest ? `req-${row.data.id}` : `case-${row.data.id}`}
+                    className={`border-b border-slate-100 transition ${
+                      isRequest
+                        ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                        : 'hover:bg-slate-50 cursor-pointer'
+                    }`}
+                    onClick={() => {
+                      if (!isRequest) setSelectedCaseId(row.data.id)
+                    }}
+                  >
+                    {/* Property */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {isRequest ? (
+                          <Inbox className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        )}
+                        <div>
+                          <span className="text-slate-900 font-medium text-sm">
+                            {getUnifiedAddress(row)}
+                          </span>
+                          {isRequest && row.data.propertyCity && (
+                            <p className="text-xs text-slate-500">
+                              {row.data.propertyCity}, {row.data.propertyState}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
 
-          {/* Cases Table */}
-          {filteredCases.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 rounded-lg">
-              <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-slate-600">No cases matching filters</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Property Address</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Service Type</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Priority</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Created</th>
+                    {/* Service Type */}
+                    <td className="px-4 py-3">
+                      {isRequest ? (
+                        <div className="flex flex-wrap gap-1">
+                          {row.data.serviceTypes?.map((t: string) => (
+                            <ServiceTypeBadge key={t} serviceType={t} />
+                          ))}
+                        </div>
+                      ) : (
+                        <ServiceTypeBadge serviceType={(row.data as NegotiationCase).serviceType} />
+                      )}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-3">
+                      <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded ${getStatusBadgeColor(status)}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </td>
+
+                    {/* Priority */}
+                    <td className="px-4 py-3">
+                      {isRequest ? (
+                        <span className="text-xs text-slate-400">—</span>
+                      ) : (
+                        <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded ${getPriorityBadgeColor((row.data as NegotiationCase).priority)}`}>
+                          {(row.data as NegotiationCase).priority}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Date */}
+                    <td className="px-4 py-3 text-sm text-slate-500">
+                      {formatDate(getUnifiedDate(row))}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3">
+                      {isRequest && (
+                        <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleAction('accept', row.data.id)}
+                            title="Accept"
+                            className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 transition"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleAction('info', row.data.id)}
+                            title="Request Info"
+                            className="p-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleAction('decline', row.data.id)}
+                            title="Decline"
+                            className="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                      {!isRequest && (
+                        <span className="text-xs text-blue-600 font-medium">Open →</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredCases.map((caseItem) => (
-                    <ActiveCaseRow
-                      key={caseItem.id}
-                      case={caseItem}
-                      onSelect={setSelectedCaseId}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
