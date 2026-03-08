@@ -291,6 +291,67 @@ async def request_more_info(
     return _request_to_dict(req)
 
 
+class RespondToInfoRequestBody(BaseModel):
+    """User responds to an info_requested negotiation request."""
+    message: str
+
+
+@negotiation_requests_router.patch("/{request_id}/respond")
+async def respond_to_info_request(
+    request_id: str,
+    body: RespondToInfoRequestBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """User responds to an info_requested negotiation request.
+
+    Updates the request message with the response and sets status back to pending.
+    """
+    uid = workspace_user_id(user)
+
+    result = await db.execute(
+        select(NegotiationRequest).where(
+            NegotiationRequest.id == request_id,
+            NegotiationRequest.user_id == uid,
+        )
+    )
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    if req.status != "info_requested":
+        raise HTTPException(status_code=400, detail="Request is not awaiting information")
+
+    # Append response to existing message
+    existing = req.message or ""
+    separator = "\n\n--- Response ---\n" if existing else ""
+    req.message = existing + separator + body.message
+    req.status = "pending"
+    req.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(req)
+
+    # Notify admin of the response
+    try:
+        from rei.services.negotiation_notifications import notify_new_request
+        from rei.config import get_settings
+        await notify_new_request(
+            request_data={
+                "property_address": req.property_address or "Unknown",
+                "service_types_json": json.loads(req.service_types_json) if req.service_types_json else [],
+                "deal_id": str(req.deal_id),
+            },
+            user_email=user.email,
+            user_name=user.full_name or user.email,
+            settings=get_settings(),
+        )
+    except Exception as e:
+        logger.warning("Failed to send info-response notification: %s", e)
+
+    return _request_to_dict(req)
+
+
 @negotiation_requests_router.patch("/{request_id}/decline")
 async def decline_negotiation_request(
     request_id: str,

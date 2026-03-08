@@ -28,6 +28,7 @@ import {
   listMessages,
   sendMessage,
   markMessageRead,
+  respondToInfoRequest,
 } from '@/services/negotiationApi'
 
 interface DealNegotiationsTabProps {
@@ -39,36 +40,176 @@ interface DealNegotiationsTabProps {
 function RequestStatusBanner({ status }: { status: string }) {
   let bgColor = 'bg-slate-100'
   let textColor = 'text-slate-700'
+  let borderColor = 'border-slate-200'
   let icon = AlertCircle
   let message = 'Unknown status'
 
   if (status === 'pending') {
     bgColor = 'bg-yellow-50'
     textColor = 'text-yellow-700'
+    borderColor = 'border-yellow-200'
     icon = Clock
     message = 'Your negotiation request is pending review'
   } else if (status === 'info_requested') {
     bgColor = 'bg-blue-50'
     textColor = 'text-blue-700'
+    borderColor = 'border-blue-200'
     icon = AlertCircle
-    message = 'More information requested'
+    message = 'The negotiator needs more information from you — please respond below'
   } else if (status === 'accepted') {
     bgColor = 'bg-green-50'
     textColor = 'text-green-700'
+    borderColor = 'border-green-200'
     icon = CheckCircle2
     message = 'Request accepted — cases are active'
   } else if (status === 'declined') {
     bgColor = 'bg-red-50'
     textColor = 'text-red-700'
+    borderColor = 'border-red-200'
     icon = AlertTriangle
     message = 'Request was declined'
   }
 
   const Icon = icon
   return (
-    <div className={`${bgColor} border border-current border-opacity-20 rounded-lg p-4 flex items-center gap-3 mb-6`}>
+    <div className={`${bgColor} border ${borderColor} rounded-lg p-4 flex items-center gap-3`}>
       <Icon className={`w-5 h-5 ${textColor} flex-shrink-0`} />
       <p className={`text-sm font-medium ${textColor}`}>{message}</p>
+    </div>
+  )
+}
+
+// ── Request Details Card ─────────────────────────────────────────────────
+
+function RequestDetailsCard({ request }: { request: NegotiationRequest }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
+      <h4 className="text-sm font-semibold text-slate-900">Request Details</h4>
+
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <span className="text-slate-500">Property:</span>
+          <p className="font-medium text-slate-900">
+            {request.propertyAddress || 'N/A'}
+            {request.propertyCity && `, ${request.propertyCity}`}
+            {request.propertyState && `, ${request.propertyState}`}
+          </p>
+        </div>
+        <div>
+          <span className="text-slate-500">Submitted:</span>
+          <p className="font-medium text-slate-900">{formatDate(request.createdAt)}</p>
+        </div>
+      </div>
+
+      {/* Service Types */}
+      <div>
+        <span className="text-sm text-slate-500">Service Types:</span>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {request.serviceTypes?.map((type) => {
+            const label =
+              type === 'bank' || type.toLowerCase().includes('mortgage')
+                ? 'Bank/Mortgage'
+                : type === 'county_tax' || type.toLowerCase().includes('tax')
+                  ? 'County Tax'
+                  : type
+            const colors =
+              type === 'bank' || type.toLowerCase().includes('mortgage')
+                ? 'bg-blue-100 text-blue-700'
+                : type === 'county_tax' || type.toLowerCase().includes('tax')
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-amber-100 text-amber-700'
+            return (
+              <span
+                key={type}
+                className={`inline-block px-2.5 py-1 text-xs font-semibold rounded ${colors}`}
+              >
+                {label}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Liens count */}
+      {request.lienIds && request.lienIds.length > 0 && (
+        <div className="text-sm">
+          <span className="text-slate-500">Liens submitted:</span>{' '}
+          <span className="font-medium text-slate-900">{request.lienIds.length}</span>
+        </div>
+      )}
+
+      {/* Message history */}
+      {request.message && (
+        <div className="bg-slate-50 rounded-lg p-3">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Message History</span>
+          <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">{request.message}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Info Response Form ──────────────────────────────────────────────────
+
+function InfoResponseForm({
+  requestId,
+  onResponseSent,
+}: {
+  requestId: string
+  onResponseSent: (updated: NegotiationRequest) => void
+}) {
+  const [response, setResponse] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function handleSubmit() {
+    if (!response.trim()) {
+      toast.error('Please enter your response')
+      return
+    }
+    setSending(true)
+    try {
+      const updated = await respondToInfoRequest(requestId, response)
+      toast.success('Response sent — your request is back under review')
+      setResponse('')
+      onResponseSent(updated)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send response')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <AlertCircle className="w-5 h-5 text-blue-600" />
+        <h4 className="text-sm font-semibold text-blue-900">Respond to Information Request</h4>
+      </div>
+      <p className="text-sm text-blue-700">
+        The negotiator needs additional information before proceeding. Please provide the
+        requested details below.
+      </p>
+      <textarea
+        value={response}
+        onChange={(e) => setResponse(e.target.value)}
+        placeholder="Type your response here..."
+        rows={4}
+        className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+      <div className="flex justify-end">
+        <button
+          onClick={handleSubmit}
+          disabled={sending || !response.trim()}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+        >
+          {sending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          Send Response
+        </button>
+      </div>
     </div>
   )
 }
@@ -130,22 +271,21 @@ function CaseStepper({ status }: { status: string }) {
 
 // ── Service Type Badge ───────────────────────────────────────────────────
 
-function getServiceTypeBadge(serviceType: string): { bg: string; text: string } {
-  const type = serviceType.toLowerCase()
-  if (type === 'bank' || type.includes('mortgage')) {
-    return { bg: 'bg-blue-100', text: 'text-blue-700' }
-  }
-  if (type === 'county_tax' || type.includes('tax')) {
-    return { bg: 'bg-green-100', text: 'text-green-700' }
-  }
-  return { bg: 'bg-amber-100', text: 'text-amber-700' }
-}
-
 function ServiceTypeBadge({ serviceType }: { serviceType: string }) {
-  const { bg, text } = getServiceTypeBadge(serviceType)
-  const label = serviceType === 'bank' ? 'Bank/Mortgage'
-    : serviceType === 'county_tax' ? 'County Tax'
-    : 'Other Lien'
+  const type = serviceType.toLowerCase()
+  let bg = 'bg-amber-100'
+  let text = 'text-amber-700'
+  let label = 'Other Lien'
+
+  if (type === 'bank' || type.includes('mortgage')) {
+    bg = 'bg-blue-100'
+    text = 'text-blue-700'
+    label = 'Bank/Mortgage'
+  } else if (type === 'county_tax' || type.includes('tax')) {
+    bg = 'bg-green-100'
+    text = 'text-green-700'
+    label = 'County Tax'
+  }
 
   return (
     <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded ${bg} ${text}`}>
@@ -550,6 +690,17 @@ export default function DealNegotiationsTab({ dealId }: DealNegotiationsTabProps
     <div className="p-6 space-y-6">
       {/* Status Banner */}
       <RequestStatusBanner status={request.status} />
+
+      {/* Request Details (always shown) */}
+      <RequestDetailsCard request={request} />
+
+      {/* Response Form (shown when info_requested) */}
+      {request.status === 'info_requested' && (
+        <InfoResponseForm
+          requestId={request.id}
+          onResponseSent={(updated) => setRequest(updated)}
+        />
+      )}
 
       {/* Active Cases */}
       {request.status === 'accepted' && cases.length > 0 && (

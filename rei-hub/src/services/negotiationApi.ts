@@ -120,6 +120,16 @@ export async function requestMoreInfo(requestId: string, message?: string): Prom
   return handleResponse(res, 'Failed to request info')
 }
 
+export async function respondToInfoRequest(requestId: string, message: string): Promise<NegotiationRequest> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/requests/${requestId}/respond`, {
+    method: 'PATCH',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify({ message }),
+  })
+  return handleResponse(res, 'Failed to send response')
+}
+
 export async function declineRequest(requestId: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/negotiations/requests/${requestId}/decline`, {
     method: 'PATCH',

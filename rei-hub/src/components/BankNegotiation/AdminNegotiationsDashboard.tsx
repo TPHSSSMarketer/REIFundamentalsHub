@@ -147,15 +147,25 @@ function IncomingRequestCard({
   request: NegotiationRequest
   onAction: (action: 'accept' | 'info' | 'decline', requestId: string) => void
 }) {
+  const isInfoRequested = request.status === 'info_requested'
+
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
-      <div>
-        <h4 className="font-semibold text-slate-900">
-          {request.propertyAddress || 'Unknown Address'}
-        </h4>
-        <p className="text-sm text-slate-500">
-          {request.propertyCity}, {request.propertyState}
-        </p>
+    <div className={`bg-white rounded-lg border p-5 space-y-4 ${isInfoRequested ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <h4 className="font-semibold text-slate-900">
+            {request.propertyAddress || 'Unknown Address'}
+          </h4>
+          <p className="text-sm text-slate-500">
+            {request.propertyCity}, {request.propertyState}
+          </p>
+        </div>
+        {isInfoRequested && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700">
+            <Clock className="w-3 h-3" />
+            Awaiting User Response
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -292,9 +302,10 @@ export default function AdminNegotiationsDashboard() {
   async function handleInfoSubmit(message: string) {
     if (!infoModal) return
     try {
-      await requestMoreInfo(infoModal.requestId, message)
+      const updated = await requestMoreInfo(infoModal.requestId, message)
       toast.success('Information request sent')
-      setRequests(requests.filter((r) => r.id !== infoModal.requestId))
+      // Update the request in-place with new status instead of removing it
+      setRequests(requests.map((r) => r.id === infoModal.requestId ? { ...r, status: 'info_requested' as const } : r))
       setInfoModal(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send request')
