@@ -364,12 +364,23 @@ async def security_headers_middleware(request: Request, call_next):
 # Every response (including 429s from rate_limit, 403s from CSRF, etc.)
 # flows through CORS and gets Access-Control-Allow-Origin headers.
 if settings.environment == "development":
-    _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
+    _cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    _cors_origin_regex: str | None = None
 else:
-    _cors_origins = [settings.hub_url]
+    # Normalise hub_url and build list
+    _hub = settings.hub_url.rstrip("/")
+    _cors_origins = [_hub]
+    if "hub." in _hub:
+        _cors_origins.append(_hub.replace("hub.", ""))
+    # Also allow ANY subdomain of reifundamentalshub.com via regex
+    _cors_origin_regex = r"https://.*\.?reifundamentalshub\.com"
+
+logger.info("CORS allowed origins: %s  regex: %s", _cors_origins, _cors_origin_regex if settings.environment != "development" else "N/A")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex if settings.environment != "development" else None,
     allow_credentials=True,  # Required for HttpOnly cookie auth
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
@@ -434,6 +445,16 @@ app.include_router(user_preferences_router, prefix="/api")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/debug/cors")
+async def debug_cors():
+    """Temporary endpoint — shows CORS config. Remove after debugging."""
+    return {
+        "hub_url_raw": settings.hub_url,
+        "cors_origins": _cors_origins,
+        "environment": settings.environment,
+    }
 
 
 if __name__ == "__main__":
