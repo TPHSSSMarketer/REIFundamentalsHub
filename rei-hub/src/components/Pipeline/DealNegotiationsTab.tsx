@@ -12,6 +12,7 @@ import {
   Clock,
   AlertTriangle,
   Loader2,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/utils/helpers'
@@ -633,34 +634,44 @@ export default function DealNegotiationsTab({ dealId }: DealNegotiationsTabProps
   const [request, setRequest] = useState<NegotiationRequest | null>(null)
   const [cases, setCases] = useState<NegotiationCase[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        // Fetch negotiation requests for this deal
-        const requests = await listNegotiationRequests()
-        const dealRequest = requests.find((r) => r.dealId === dealId)
+  // Reusable data loader — used on mount, polling, and manual refresh
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    else setRefreshing(true)
+    try {
+      const requests = await listNegotiationRequests()
+      const dealRequest = requests.find((r) => r.dealId === dealId)
 
-        if (dealRequest) {
-          setRequest(dealRequest)
+      if (dealRequest) {
+        setRequest(dealRequest)
 
-          // If request is accepted, load cases
-          if (dealRequest.status === 'accepted') {
-            const allCases = await listCases()
-            const dealCases = allCases.filter((c) => c.dealId === dealId)
-            setCases(dealCases)
-          }
+        // If request is accepted, load cases
+        if (dealRequest.status === 'accepted') {
+          const allCases = await listCases()
+          const dealCases = allCases.filter((c) => c.dealId === dealId)
+          setCases(dealCases)
         }
-      } catch (err) {
-        toast.error('Failed to load negotiation data')
-      } finally {
-        setLoading(false)
       }
+    } catch (err) {
+      if (!silent) toast.error('Failed to load negotiation data')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-
-    loadData()
   }, [dealId])
+
+  // Initial load
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // Poll every 30 seconds for updates (silent — no loading spinner)
+  useEffect(() => {
+    const interval = setInterval(() => loadData(true), 30000)
+    return () => clearInterval(interval)
+  }, [loadData])
 
   if (loading) {
     return (
@@ -688,8 +699,20 @@ export default function DealNegotiationsTab({ dealId }: DealNegotiationsTabProps
 
   return (
     <div className="p-6 space-y-6">
-      {/* Status Banner */}
-      <RequestStatusBanner status={request.status} />
+      {/* Status Banner + Refresh */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <RequestStatusBanner status={request.status} />
+        </div>
+        <button
+          onClick={() => loadData(true)}
+          disabled={refreshing}
+          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+          title="Check for updates"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
       {/* Request Details (always shown) */}
       <RequestDetailsCard request={request} />

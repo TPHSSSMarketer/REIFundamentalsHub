@@ -132,17 +132,17 @@ const DOC_CATEGORIES = [
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
-  { id: 'expenditures', label: 'Expenditures', icon: Receipt },
-  { id: 'documents', label: 'Documents', icon: FolderOpen },
+  { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
   { id: 'photos', label: 'Photos', icon: Camera },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
+  { id: 'negotiations', label: 'Negotiations', icon: HeartHandshake },
+  { id: 'underwriting', label: 'AI Underwriting', icon: Sparkles },
+  { id: 'checklist', label: 'Contracts & Checklist', icon: ClipboardList },
+  { id: 'expenditures', label: 'Expenditures', icon: Receipt },
+  { id: 'pof', label: 'Proof of Funds', icon: Shield },
   { id: 'files', label: 'Files', icon: FileText },
   { id: 'matches', label: 'Matched Buyers', icon: Users },
-  { id: 'checklist', label: 'Contracts & Checklist', icon: ClipboardList },
-  { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
-  { id: 'underwriting', label: 'AI Underwriting', icon: Sparkles },
-  { id: 'pof', label: 'Proof of Funds', icon: Shield },
-  { id: 'notes', label: 'Notes', icon: StickyNote },
-  { id: 'negotiations', label: 'Negotiations', icon: HeartHandshake },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -1087,30 +1087,20 @@ export default function DealDetailPage() {
         <div className="lg:col-span-3">
           {/* Tab Bar */}
           <div className="bg-white rounded-xl border border-slate-200">
-            <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-hide">
+            <div className="flex flex-wrap gap-1.5 p-3 border-b border-slate-200">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 md:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 min-h-[44px]',
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap min-h-[32px]',
                     activeTab === id
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                      ? 'bg-blue-100 text-blue-700 ring-2 ring-offset-1 ring-blue-400'
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                   )}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{label}</span>
-                  <span className="sm:hidden">{
-                    id === 'overview' ? 'Info' :
-                    id === 'expenditures' ? 'Costs' :
-                    id === 'photos' ? 'Pics' :
-                    id === 'files' ? 'Files' :
-                    id === 'matches' ? 'Match' :
-                    id === 'checklist' ? 'Check' :
-                    id === 'analyzer' ? 'Calc' :
-                    id === 'pof' ? 'POF' : 'Notes'
-                  }</span>
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
                 </button>
               ))}
             </div>

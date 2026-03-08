@@ -348,9 +348,9 @@ export default function AdminNegotiationsDashboard() {
           }`}
         >
           Incoming Requests
-          {requests.length > 0 && (
+          {requests.filter(r => r.status === 'pending' || r.status === 'info_requested').length > 0 && (
             <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-              {requests.length}
+              {requests.filter(r => r.status === 'pending' || r.status === 'info_requested').length}
             </span>
           )}
         </button>
@@ -379,17 +379,19 @@ export default function AdminNegotiationsDashboard() {
         </div>
       )}
 
-      {/* Incoming Requests Tab */}
-      {!loading && tab === 'incoming' && (
+      {/* Incoming Requests Tab — only show pending + info_requested */}
+      {!loading && tab === 'incoming' && (() => {
+        const incoming = requests.filter(r => r.status === 'pending' || r.status === 'info_requested')
+        return (
         <div className="space-y-4">
-          {requests.length === 0 ? (
+          {incoming.length === 0 ? (
             <div className="text-center py-12 bg-slate-50 rounded-lg">
               <CheckCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
               <p className="text-slate-600">No incoming requests</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {requests.map((request) => (
+              {incoming.map((request) => (
                 <IncomingRequestCard
                   key={request.id}
                   request={request}
@@ -399,7 +401,8 @@ export default function AdminNegotiationsDashboard() {
             </div>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Active Cases Tab */}
       {!loading && tab === 'active' && (
