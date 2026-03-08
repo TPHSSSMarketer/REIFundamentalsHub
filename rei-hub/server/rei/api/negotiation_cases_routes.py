@@ -394,7 +394,14 @@ async def trigger_research(
                         valid_count += 1
 
                     if r.get("parse_error"):
-                        debug_snippets.append(f"{r.get('recipient_type','?')}: PARSE_ERROR")
+                        raw = r.get("_raw_preview", "n/a")
+                        prov = r.get("_provider", "?")
+                        mdl = r.get("_model", "?")
+                        toks = r.get("_tokens", 0)
+                        debug_snippets.append(
+                            f"{r.get('recipient_type','?')}: PARSE_ERROR "
+                            f"[{prov}/{mdl} toks={toks}] raw='{raw[:80]}'"
+                        )
                     elif not has_data:
                         debug_snippets.append(f"{r.get('recipient_type','?')}: ALL_NULL")
 

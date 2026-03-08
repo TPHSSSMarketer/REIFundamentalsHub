@@ -73,18 +73,34 @@ async def research_bank_contacts(
     Returns list of 4 recipient dicts with contact details.
     Uses NVIDIA AI-Q for research via ai_service.
     """
+    import asyncio
+
     results: list[dict] = []
 
-    for recipient_type, config in RECIPIENT_TYPES.items():
-        result = await _research_one_recipient(
-            bank_name=bank_name,
-            state=state,
-            recipient_type=recipient_type,
-            config=config,
-            user_id=user_id,
-            db=db,
-            settings=settings,
-        )
+    for i, (recipient_type, config) in enumerate(RECIPIENT_TYPES.items()):
+        # Small delay between API calls to avoid rate limiting
+        if i > 0:
+            await asyncio.sleep(2)
+
+        try:
+            result = await _research_one_recipient(
+                bank_name=bank_name,
+                state=state,
+                recipient_type=recipient_type,
+                config=config,
+                user_id=user_id,
+                db=db,
+                settings=settings,
+            )
+        except Exception as exc:
+            logger.error("Research call failed for %s: %s", recipient_type, exc)
+            result = _empty_result()
+            result["recipient_type"] = recipient_type
+            result["_raw_preview"] = f"EXCEPTION: {str(exc)[:150]}"
+            result["_provider"] = "error"
+            result["_model"] = "error"
+            result["_tokens"] = 0
+
         results.append(result)
 
     return results
@@ -198,6 +214,12 @@ async def _research_one_recipient(
 
     parsed = _parse_json_response(raw_content)
     parsed["recipient_type"] = recipient_type
+
+    # Attach debug metadata so callers can see what the AI actually returned
+    parsed["_raw_preview"] = raw_content[:200] if raw_content else "(empty)"
+    parsed["_provider"] = provider_used
+    parsed["_model"] = model_used
+    parsed["_tokens"] = tokens_used
 
     return parsed
 
