@@ -316,20 +316,29 @@ async def create_tables() -> None:
     # (negotiation_id, ai_researched, ai_confidence, etc.). The model now uses
     # case_id, confidence, sources_json. Since no real data exists yet (all
     # research attempts failed), drop and let create_all rebuild it correctly.
-    _TABLES_TO_REBUILD = ["negotiation_recipients"]
-    async with engine.begin() as conn:
-        for tbl in _TABLES_TO_REBUILD:
+    #
+    # IMPORTANT: PostgreSQL aborts the entire transaction after a query error,
+    # so we must use SEPARATE transactions for the check vs the drop.
+    _TABLES_TO_REBUILD = {"negotiation_recipients": "case_id"}
+    for tbl, required_col in _TABLES_TO_REBUILD.items():
+        needs_rebuild = False
+        # Step 1: Check if column exists (separate transaction)
+        try:
+            async with engine.begin() as check_conn:
+                await check_conn.execute(text(f"SELECT {required_col} FROM {tbl} LIMIT 0"))
+            logger.info("Table %s already has column %s — skipping rebuild", tbl, required_col)
+        except Exception:
+            needs_rebuild = True
+            logger.info("Table %s missing column %s — will drop and recreate", tbl, required_col)
+
+        # Step 2: Drop old table (separate transaction)
+        if needs_rebuild:
             try:
-                # Check if the table needs rebuilding by testing for the new column
-                await conn.execute(text(f"SELECT case_id FROM {tbl} LIMIT 0"))
-                logger.info("Table %s already has correct schema — skipping rebuild", tbl)
-            except Exception:
-                # Column doesn't exist — drop and recreate
-                try:
-                    await conn.execute(text(f"DROP TABLE IF EXISTS {tbl}"))
-                    logger.info("Dropped table %s for schema rebuild", tbl)
-                except Exception as drop_err:
-                    logger.warning("Could not drop %s: %s", tbl, drop_err)
+                async with engine.begin() as drop_conn:
+                    await drop_conn.execute(text(f"DROP TABLE IF EXISTS {tbl} CASCADE"))
+                logger.info("Dropped table %s for schema rebuild", tbl)
+            except Exception as drop_err:
+                logger.warning("Could not drop %s: %s", tbl, drop_err)
 
     try:
         async with engine.begin() as conn:
