@@ -76,6 +76,22 @@ def generate_csrf_token() -> str:
 # ── Cookie helpers ────────────────────────────────────────────────
 
 
+def _resolve_cookie_domain() -> str | None:
+    """Determine the cookie domain for cross-subdomain auth.
+
+    In production, cookies must be set with domain=.reifundamentalshub.com
+    so that JavaScript on hub.reifundamentalshub.com can read the csrf_token
+    cookie set by api.reifundamentalshub.com. Without this, CSRF validation
+    fails on every POST request because getCSRFHeaders() returns {}.
+    """
+    _s = get_settings()
+    if _s.cookie_domain:
+        return _s.cookie_domain
+    if _s.environment != "development":
+        return ".reifundamentalshub.com"
+    return None
+
+
 def set_auth_cookies(
     response: Response,
     access_token: str,
@@ -84,7 +100,7 @@ def set_auth_cookies(
 ) -> None:
     """Set HttpOnly access_token + refresh_token cookies, plus a readable CSRF cookie."""
     _s = get_settings()
-    domain = _s.cookie_domain or None
+    domain = _resolve_cookie_domain()
 
     # Access token — short-lived, HttpOnly (JS cannot read)
     response.set_cookie(
@@ -126,7 +142,7 @@ def set_auth_cookies(
 def clear_auth_cookies(response: Response) -> None:
     """Delete all auth cookies (for logout)."""
     _s = get_settings()
-    domain = _s.cookie_domain or None
+    domain = _resolve_cookie_domain()
 
     for key in ("access_token", "refresh_token", "csrf_token"):
         response.delete_cookie(
