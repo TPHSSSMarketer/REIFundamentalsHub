@@ -437,6 +437,103 @@ function ChatThread({
 
 /* ── Quick Actions Sidebar ──────────────────────────────────────── */
 
+// ── Property & Lien Info Card ────────────────────────────────────────
+
+function PropertyInfoCard({
+  deal,
+  liens,
+}: {
+  deal: Record<string, unknown> | null
+  liens: Record<string, unknown>[]
+}) {
+  if (!deal && liens.length === 0) return null
+
+  const fmt = (v: unknown) => {
+    if (v == null) return '—'
+    if (typeof v === 'number') return `$${v.toLocaleString()}`
+    return String(v)
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+      <h3 className="font-semibold text-slate-900">Property & Lien Details</h3>
+
+      {deal && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div>
+            <span className="text-slate-500 text-xs block">Address</span>
+            <span className="font-medium text-slate-900">
+              {[deal.address, deal.city, deal.state, deal.zip].filter(Boolean).join(', ')}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">Property Type</span>
+            <span className="font-medium text-slate-900">{fmt(deal.propertyType)}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">Bed / Bath</span>
+            <span className="font-medium text-slate-900">{deal.bedrooms ?? 0} bd / {deal.bathrooms ?? 0} ba</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">Sq Ft</span>
+            <span className="font-medium text-slate-900">{deal.sqft ? Number(deal.sqft).toLocaleString() : '—'}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">List Price</span>
+            <span className="font-medium text-slate-900">{fmt(deal.listPrice)}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">Purchase Price</span>
+            <span className="font-medium text-green-700">{fmt(deal.purchasePrice)}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">ARV</span>
+            <span className="font-medium text-blue-700">{fmt(deal.arv)}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 text-xs block">Rehab Estimate</span>
+            <span className="font-medium text-orange-700">{fmt(deal.rehabEstimate)}</span>
+          </div>
+        </div>
+      )}
+
+      {liens.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-slate-700">Liens & Encumbrances ({liens.length})</h4>
+          <div className="divide-y divide-slate-100">
+            {liens.map((lien, i) => (
+              <div key={String(lien.id) || i} className="py-2 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                <div>
+                  <span className="text-xs text-slate-500 block">{String(lien.lienType || 'Lien')}</span>
+                  <span className="font-medium text-slate-900">{String(lien.lienHolder || 'Unknown')}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-500 block">Balance</span>
+                  <span className="font-medium text-slate-900">{fmt(lien.balance)}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-500 block">Monthly</span>
+                  <span className="font-medium text-slate-900">{fmt(lien.monthlyPayment)}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-500 block">Rate</span>
+                  <span className="font-medium text-slate-900">{lien.interestRate != null ? `${lien.interestRate}%` : '—'}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-500 block">Status</span>
+                  <span className={`font-medium ${lien.status === 'delinquent' ? 'text-red-600' : lien.status === 'current' ? 'text-green-600' : 'text-slate-900'}`}>
+                    {String(lien.status || '—')}{lien.monthsBehind ? ` (${lien.monthsBehind}mo behind)` : ''}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Recipient Type Config ────────────────────────────────────────────
 const RECIPIENT_CONFIG: Record<string, { label: string; icon: typeof User; color: string; bg: string }> = {
   ceo: { label: 'CEO', icon: User, color: 'text-blue-700', bg: 'bg-blue-50' },
@@ -657,6 +754,8 @@ export default function AdminCaseWorkspace({
   const [activities, setActivities] = useState<NegotiationActivity[]>([])
   const [messages, setMessages] = useState<NegotiationMessage[]>([])
   const [recipients, setRecipients] = useState<NegotiationRecipient[]>([])
+  const [dealInfo, setDealInfo] = useState<Record<string, unknown> | null>(null)
+  const [liensInfo, setLiensInfo] = useState<Record<string, unknown>[]>([])
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [loading, setLoading] = useState(true)
   const [researchLoading, setResearchLoading] = useState(false)
@@ -670,13 +769,19 @@ export default function AdminCaseWorkspace({
         setCaseData(data.case)
         setActivities(data.activities)
         setUnreadMessages(data.unreadMessages)
+        if (data.deal) setDealInfo(data.deal)
+        if (data.liens) setLiensInfo(data.liens)
 
-        const [msgs, recs] = await Promise.all([
-          listMessages(caseId),
-          listRecipients(caseId),
-        ])
+        const msgs = await listMessages(caseId)
         setMessages(msgs)
-        setRecipients(recs)
+
+        // Recipients are optional (only exist after AI research has been run)
+        try {
+          const recs = await listRecipients(caseId)
+          setRecipients(recs)
+        } catch {
+          // Silently ignore — no recipients yet is normal
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to load case')
       } finally {
@@ -742,18 +847,45 @@ export default function AdminCaseWorkspace({
     try {
       setResearchLoading(true)
       await triggerResearch(caseId)
-      // Poll for research results (background task takes a few seconds)
-      setTimeout(async () => {
+      toast.success('AI research started — checking for results...')
+
+      // Poll every 5 seconds for up to 60 seconds
+      let attempts = 0
+      const maxAttempts = 12
+      const pollInterval = setInterval(async () => {
+        attempts++
         try {
           const recs = await listRecipients(caseId)
-          setRecipients(recs)
-          // Reload case data to get updated status + activity
-          const data = await getCase(caseId)
-          setCaseData(data.case)
-          setActivities(data.activities)
-        } catch { /* will be picked up on next manual refresh */ }
-        setResearchLoading(false)
-      }, 15000) // Check after 15 seconds
+          if (recs.length > 0 || attempts >= maxAttempts) {
+            clearInterval(pollInterval)
+            setRecipients(recs)
+            // Reload case data to get updated status + activity
+            const data = await getCase(caseId)
+            setCaseData(data.case)
+            setActivities(data.activities)
+            if (data.deal) setDealInfo(data.deal)
+            if (data.liens) setLiensInfo(data.liens)
+            setResearchLoading(false)
+            if (recs.length > 0) {
+              toast.success(`Research complete — found ${recs.length} contacts`)
+            } else {
+              toast.info('Research may still be processing. Refresh to check.')
+            }
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            clearInterval(pollInterval)
+            setResearchLoading(false)
+            // Reload case to see any error activity
+            try {
+              const data = await getCase(caseId)
+              setCaseData(data.case)
+              setActivities(data.activities)
+            } catch { /* ignore */ }
+            toast.info('Research may still be processing. Check back shortly.')
+          }
+        }
+      }, 5000)
     } catch (err) {
       setResearchLoading(false)
       throw err
@@ -784,6 +916,9 @@ export default function AdminCaseWorkspace({
           </div>
         </div>
       </div>
+
+      {/* Property & Lien Info */}
+      <PropertyInfoCard deal={dealInfo} liens={liensInfo} />
 
       {/* Research Results */}
       <ResearchResults

@@ -652,7 +652,7 @@ export default function DealDetailPage() {
           {/* Stage Selector */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5">
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Stage</h3>
-            <div className="flex flex-nowrap md:flex-wrap gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            <div className="flex flex-wrap gap-1.5">
               {stages.map((stage) => {
                 const cfg = STAGE_CONFIG[stage.id] || STAGE_CONFIG[stage.name?.toLowerCase().replace(/\s+/g, '_')] || { label: stage.name, color: 'text-slate-700', bg: 'bg-slate-100' }
                 const isActive = deal.stage === stage.id
@@ -661,7 +661,7 @@ export default function DealDetailPage() {
                     key={stage.id}
                     onClick={() => handleStageChange(stage.id)}
                     className={cn(
-                      'px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap shrink-0 min-h-[32px]',
+                      'px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap min-h-[32px]',
                       isActive
                         ? `${cfg.bg} ${cfg.color} ring-2 ring-offset-1 ring-current`
                         : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'

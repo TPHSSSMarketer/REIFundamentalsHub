@@ -13,7 +13,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
-from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage, NegotiationRecipient
+from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage, NegotiationRecipient, DealLien
+from rei.models.crm import CrmDeal
 from rei.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -167,10 +168,50 @@ async def get_case(
     )
     unread_count = unread_count_result.scalar() or 0
 
+    # Fetch deal details for context
+    deal_dict = None
+    liens_list = []
+    if case.deal_id:
+        deal_obj = await db.get(CrmDeal, case.deal_id)
+        if deal_obj:
+            deal_dict = {
+                "id": deal_obj.id,
+                "address": deal_obj.address,
+                "city": deal_obj.city,
+                "state": deal_obj.state,
+                "zip": deal_obj.zip_code if hasattr(deal_obj, "zip_code") else None,
+                "propertyType": deal_obj.property_type if hasattr(deal_obj, "property_type") else None,
+                "bedrooms": deal_obj.bedrooms if hasattr(deal_obj, "bedrooms") else None,
+                "bathrooms": deal_obj.bathrooms if hasattr(deal_obj, "bathrooms") else None,
+                "sqft": deal_obj.sqft if hasattr(deal_obj, "sqft") else None,
+                "listPrice": deal_obj.list_price if hasattr(deal_obj, "list_price") else None,
+                "purchasePrice": deal_obj.purchase_price if hasattr(deal_obj, "purchase_price") else None,
+                "arv": deal_obj.arv if hasattr(deal_obj, "arv") else None,
+                "rehabEstimate": deal_obj.rehab_estimate if hasattr(deal_obj, "rehab_estimate") else None,
+                "monthlyRent": deal_obj.monthly_rent if hasattr(deal_obj, "monthly_rent") else None,
+            }
+
+        liens_result = await db.execute(
+            select(DealLien).where(DealLien.deal_id == case.deal_id).order_by(DealLien.created_at.asc())
+        )
+        for lien in liens_result.scalars().all():
+            liens_list.append({
+                "id": lien.id,
+                "lienType": lien.lien_type,
+                "lienHolder": lien.lien_holder,
+                "balance": lien.balance,
+                "monthlyPayment": lien.monthly_payment,
+                "interestRate": lien.interest_rate,
+                "status": lien.status,
+                "monthsBehind": lien.months_behind if hasattr(lien, "months_behind") else None,
+            })
+
     return {
         "case": _case_to_dict(case),
         "activities": [_activity_to_dict(a, is_admin=user.is_superadmin) for a in activities],
         "unreadMessageCount": unread_count,
+        "deal": deal_dict,
+        "liens": liens_list,
     }
 
 
@@ -342,6 +383,29 @@ async def trigger_research(
 
         except Exception as e:
             logger.error("Background contact research failed for case %s: %s", case_id_, e)
+            # Reset case status and log error activity so admin knows what happened
+            try:
+                from rei.database import async_session_factory as _asf
+                from rei.models.negotiation import NegotiationActivity as _NA, NegotiationCase as _NC
+
+                async with _asf() as err_db:
+                    err_case = await err_db.get(_NC, case_id_)
+                    if err_case:
+                        err_case.status = "intake"
+                        from datetime import datetime as _dt2
+                        err_case.updated_at = _dt2.utcnow()
+
+                    err_activity = _NA(
+                        case_id=case_id_,
+                        activity_type="ai_research",
+                        admin_note=f"AI research failed: {str(e)[:200]}",
+                        user_summary="Contact research encountered an issue and will be retried.",
+                        created_by="system",
+                    )
+                    err_db.add(err_activity)
+                    await err_db.commit()
+            except Exception as inner_err:
+                logger.error("Failed to log research error activity: %s", inner_err)
 
     background_tasks.add_task(_run_research, str(case.id), str(case.deal_id), user.id)
 
