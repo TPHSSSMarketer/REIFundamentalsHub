@@ -316,10 +316,13 @@ async def trigger_research(
             from rei.models.crm import CrmDeal
             from rei.models.negotiation import DealLien, NegotiationRecipient, NegotiationActivity
 
+            logger.info("=== Starting AI research for case %s, deal %s ===", case_id_, deal_id_)
+
             async with async_session_factory() as bg_db:
                 # Get deal to find property state
                 deal = await bg_db.get(CrmDeal, deal_id_)
                 state = deal.state if deal else ""
+                logger.info("Research: deal found=%s, state=%s", bool(deal), state)
 
                 # Get first lien holder name for research
                 lien_result = await bg_db.execute(
@@ -327,6 +330,18 @@ async def trigger_research(
                 )
                 lien = lien_result.scalar_one_or_none()
                 bank_name = lien.lien_holder if lien else "Unknown"
+                logger.info("Research: bank_name=%s", bank_name)
+
+                # Verify credentials are accessible from background task
+                try:
+                    from rei.services.credentials_service import get_provider_credentials
+                    nv_creds = await get_provider_credentials(bg_db, "nvidia")
+                    has_nvidia = bool(nv_creds and nv_creds.get("nvidia_api_key"))
+                    anth_creds = await get_provider_credentials(bg_db, "anthropic")
+                    has_anthropic = bool(anth_creds and anth_creds.get("anthropic_api_key"))
+                    logger.info("Research: nvidia_key=%s, anthropic_key=%s", has_nvidia, has_anthropic)
+                except Exception as cred_err:
+                    logger.error("Research: credential check failed: %s", cred_err)
 
                 results = await research_bank_contacts(
                     bank_name=bank_name,
@@ -337,6 +352,19 @@ async def trigger_research(
                     settings=get_settings(),
                 )
 
+                logger.info("Research: got %d results", len(results))
+
+                # Log raw results for debugging
+                for i, r in enumerate(results):
+                    rtype = r.get("recipient_type", "?")
+                    has_name = bool(r.get("name"))
+                    has_addr = bool(r.get("mailing_address"))
+                    parse_err = r.get("parse_error", False)
+                    logger.info(
+                        "Research result[%d] type=%s name=%s addr=%s parse_error=%s",
+                        i, rtype, has_name, has_addr, parse_err,
+                    )
+
                 # Delete existing recipients for this case (re-research replaces old data)
                 old = await bg_db.execute(
                     select(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id_)
@@ -344,8 +372,20 @@ async def trigger_research(
                 for r in old.scalars().all():
                     await bg_db.delete(r)
 
-                # Save each recipient to the database
+                # Save each recipient to the database — only save ones with real data
+                valid_count = 0
+                debug_snippets = []
                 for r in results:
+                    # Check if this result has any real data (not all nulls from parse error)
+                    has_data = any(r.get(k) for k in ["name", "mailing_address", "phone", "email"])
+                    if has_data:
+                        valid_count += 1
+
+                    if r.get("parse_error"):
+                        debug_snippets.append(f"{r.get('recipient_type','?')}: PARSE_ERROR")
+                    elif not has_data:
+                        debug_snippets.append(f"{r.get('recipient_type','?')}: ALL_NULL")
+
                     recipient = NegotiationRecipient(
                         case_id=case_id_,
                         recipient_type=r.get("recipient_type", ""),
@@ -364,11 +404,24 @@ async def trigger_research(
                     bg_db.add(recipient)
 
                 # Log an activity for the research completion
+                if valid_count > 0:
+                    note = f"AI research completed for {bank_name}. Found {valid_count} of 4 recipient contacts with usable data."
+                    summary = "Contact research has been completed for your case."
+                else:
+                    debug_info = "; ".join(debug_snippets) if debug_snippets else "no debug info"
+                    note = (
+                        f"AI research for {bank_name} returned no usable contact data. "
+                        f"Results: {len(results)} returned, 0 with data. "
+                        f"Debug: {debug_info}. "
+                        "Check Admin → AI Provider Settings and server logs."
+                    )
+                    summary = "Contact research completed but could not find contact information. Our team will follow up."
+
                 activity = NegotiationActivity(
                     case_id=case_id_,
                     activity_type="ai_research",
-                    admin_note=f"AI research completed for {bank_name}. Found {len(results)} recipient contacts.",
-                    user_summary="Contact research has been completed for your case.",
+                    admin_note=note,
+                    user_summary=summary,
                     created_by="ai",
                 )
                 bg_db.add(activity)
@@ -412,6 +465,87 @@ async def trigger_research(
     background_tasks.add_task(_run_research, str(case.id), str(case.deal_id), user.id)
 
     return {"detail": "Research started"}
+
+
+@negotiation_cases_router.post("/{case_id}/research-test")
+async def test_research(
+    case_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Synchronous diagnostic endpoint — runs ONE recipient research inline.
+
+    Superadmin only. Does NOT save results to DB or change case status.
+    Returns the raw AI response so admin can see exactly what's happening.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationCase).where(NegotiationCase.id == case_id)
+    )
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    from rei.config import get_settings
+
+    # Get deal + lien info
+    deal = await db.get(CrmDeal, case.deal_id) if case.deal_id else None
+    state = deal.state if deal else ""
+
+    lien_result = await db.execute(
+        select(DealLien).where(DealLien.deal_id == case.deal_id).limit(1)
+    )
+    lien = lien_result.scalar_one_or_none()
+    bank_name = lien.lien_holder if lien else "Unknown"
+
+    # Check credentials
+    cred_info = {}
+    try:
+        from rei.services.credentials_service import get_provider_credentials
+        nv_creds = await get_provider_credentials(db, "nvidia")
+        has_nvidia = bool(nv_creds and nv_creds.get("nvidia_api_key"))
+        anth_creds = await get_provider_credentials(db, "anthropic")
+        has_anthropic = bool(anth_creds and anth_creds.get("anthropic_api_key"))
+        cred_info = {"nvidia_key_found": has_nvidia, "anthropic_key_found": has_anthropic}
+    except Exception as e:
+        cred_info = {"credential_error": str(e)}
+
+    # Run ONE recipient research (CEO) synchronously
+    try:
+        from rei.services.contact_research import _research_one_recipient, RECIPIENT_TYPES
+        settings = get_settings()
+
+        raw_result = await _research_one_recipient(
+            bank_name=bank_name,
+            state=state or "",
+            recipient_type="ceo",
+            config=RECIPIENT_TYPES["ceo"],
+            user_id=user.id,
+            db=db,
+            settings=settings,
+        )
+
+        return {
+            "status": "ok",
+            "bank_name": bank_name,
+            "state": state,
+            "credentials": cred_info,
+            "raw_result": raw_result,
+            "has_real_data": any(raw_result.get(k) for k in ["name", "mailing_address", "phone", "email"]),
+            "parse_error": raw_result.get("parse_error", False),
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "bank_name": bank_name,
+            "state": state,
+            "credentials": cred_info,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
 
 
 @negotiation_cases_router.get("/{case_id}/recipients")

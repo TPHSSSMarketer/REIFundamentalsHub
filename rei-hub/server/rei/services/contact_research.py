@@ -175,7 +175,31 @@ async def _research_one_recipient(
         temperature=0.2,
     )
 
-    parsed = _parse_json_response(ai_result.get("content", ""))
+    raw_content = ai_result.get("content", "")
+    provider_used = ai_result.get("provider", "unknown")
+    model_used = ai_result.get("model", "unknown")
+    tokens_used = ai_result.get("tokens_used", 0)
+
+    # Detect if the AI returned an error message instead of JSON
+    is_error = (
+        raw_content.startswith("No AI provider")
+        or raw_content.startswith("AI provider error")
+        or tokens_used == 0
+    )
+
+    logger.info(
+        "AI research for %s [%s/%s]: tokens=%d, is_error=%s, preview=%s",
+        recipient_type, provider_used, model_used,
+        tokens_used, is_error, raw_content[:300] if raw_content else "(empty)",
+    )
+
+    if is_error:
+        logger.error(
+            "AI research FAILED for %s: provider=%s, model=%s, response=%s",
+            recipient_type, provider_used, model_used, raw_content[:500],
+        )
+
+    parsed = _parse_json_response(raw_content)
     parsed["recipient_type"] = recipient_type
 
     return parsed

@@ -50,12 +50,12 @@ const PROVIDERS = [
     description: 'Step-by-step reasoning for deal underwriting and financial analysis',
   },
   {
-    id: 'nvidia_deepseek_r1',
-    name: 'DeepSeek R1',
+    id: 'nvidia_deepseek',
+    name: 'DeepSeek V3.2',
     icon: 'D',
     iconBg: 'bg-red-100',
     iconColor: 'text-red-700',
-    models: ['deepseek-ai/deepseek-r1-0528'],
+    models: ['deepseek-ai/deepseek-v3.2'],
     keyField: 'nvidia' as const,
     role: 'Math Validation',
     description: 'Independent math verification for underwriting calculations',
@@ -78,7 +78,7 @@ const PROVIDER_FRIENDLY_NAME: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   nvidia_kimi: 'Kimi 2.5',
   nvidia_kimi_thinking: 'Kimi K2 Thinking',
-  nvidia_deepseek_r1: 'DeepSeek R1',
+  nvidia_deepseek: 'DeepSeek V3.2',
   nvidia_minimax: 'MiniMax 2.5',
 }
 

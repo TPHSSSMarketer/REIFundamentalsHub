@@ -41,13 +41,17 @@ import {
   listCaseFiles,
   getCaseFile,
   uploadCaseFile,
+  testResearch,
 } from '@/services/negotiationApi'
 import type { CaseFile } from '@/services/negotiationApi'
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
+const EST_TZ = 'America/New_York'
+
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString('en-US', {
+    timeZone: EST_TZ,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -55,7 +59,8 @@ function formatDate(iso: string): string {
 }
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString('en-US', {
+    timeZone: EST_TZ,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -496,11 +501,11 @@ function PropertyInfoCard({
   }
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
-      <h3 className="font-semibold text-slate-900">Property & Lien Details</h3>
+    <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+      <h3 className="font-semibold text-slate-900 text-sm">Property & Lien Details</h3>
 
       {deal && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
           <div>
             <span className="text-slate-500 text-xs block">Address</span>
             <span className="font-medium text-slate-900">
@@ -539,11 +544,11 @@ function PropertyInfoCard({
       )}
 
       {liens.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-slate-700">Liens & Encumbrances ({liens.length})</h4>
+        <div className="space-y-1">
+          <h4 className="text-xs font-medium text-slate-700">Liens & Encumbrances ({liens.length})</h4>
           <div className="divide-y divide-slate-100">
             {liens.map((lien, i) => (
-              <div key={String(lien.id) || i} className="py-2 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+              <div key={String(lien.id) || i} className="py-1.5 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                 <div>
                   <span className="text-xs text-slate-500 block">{String(lien.lienType || 'Lien')}</span>
                   <span className="font-medium text-slate-900">{String(lien.lienHolder || 'Unknown')}</span>
@@ -645,31 +650,58 @@ function ResearchResults({
   recipients,
   onRerunResearch,
   loading,
+  caseStatus,
 }: {
   recipients: NegotiationRecipient[]
   onRerunResearch: () => void
   loading: boolean
+  caseStatus?: string
 }) {
-  if (recipients.length === 0) return null
+  // Filter out empty recipients (all null fields = failed parse)
+  const validRecipients = recipients.filter(
+    r => r.name || r.mailingAddress || r.phone || r.email
+  )
+
+  // Show section if: we have results, research is loading, or case was researched but got nothing
+  const showSection = validRecipients.length > 0 || loading || caseStatus === 'researching'
+  if (!showSection && recipients.length === 0) return null
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-slate-900">Research Results</h3>
+        <h3 className="font-semibold text-slate-900 text-sm">Address Cards</h3>
         <button
           onClick={onRerunResearch}
           disabled={loading}
           className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-800 transition"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Re-run Research
+          {loading ? 'Researching...' : 'Re-run'}
         </button>
       </div>
-      <div className="grid grid-cols-1 gap-3">
-        {recipients.map((r) => (
-          <RecipientCard key={r.id} recipient={r} />
-        ))}
-      </div>
+
+      {loading && validRecipients.length === 0 && (
+        <div className="text-center py-4">
+          <Zap className="w-5 h-5 text-purple-400 mx-auto mb-2 animate-pulse" />
+          <p className="text-xs text-slate-500">AI is researching contacts...</p>
+        </div>
+      )}
+
+      {!loading && recipients.length > 0 && validRecipients.length === 0 && (
+        <div className="text-center py-4">
+          <AlertCircle className="w-5 h-5 text-orange-400 mx-auto mb-2" />
+          <p className="text-xs text-slate-600">Research ran but returned no usable contacts.</p>
+          <p className="text-xs text-slate-500 mt-1">Check that an AI provider key is configured in Admin → AI Provider Settings, then click Re-run.</p>
+        </div>
+      )}
+
+      {validRecipients.length > 0 && (
+        <div className="grid grid-cols-1 gap-3">
+          {validRecipients.map((r) => (
+            <RecipientCard key={r.id} recipient={r} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -693,10 +725,18 @@ function CaseFilesSection({
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploadCategory, setUploadCategory] = useState('other')
   const [uploadNotes, setUploadNotes] = useState('')
+  const [activeFolder, setActiveFolder] = useState<'all' | 'negotiations' | 'documents' | 'photos'>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const docFiles = files.filter(f => f.fileType === 'document')
+  const negotiationCategories = ['authorization', 'correspondence', 'legal', 'other']
+  const negotiationFiles = files.filter(f => f.adminOnly || negotiationCategories.includes(f.category))
+  const docFiles = files.filter(f => f.fileType === 'document' && !f.adminOnly)
   const photoFiles = files.filter(f => f.fileType === 'photo')
+
+  const filteredFiles = activeFolder === 'all' ? files
+    : activeFolder === 'negotiations' ? negotiationFiles
+    : activeFolder === 'documents' ? docFiles
+    : photoFiles
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFile = e.target.files?.[0]
@@ -852,59 +892,56 @@ function CaseFilesSection({
         </div>
       </div>
 
+      {/* Folder Tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {([
+          { key: 'all', label: 'All', count: files.length },
+          { key: 'negotiations', label: 'Negotiations', count: negotiationFiles.length },
+          { key: 'documents', label: 'Documents', count: docFiles.length },
+          { key: 'photos', label: 'Photos', count: photoFiles.length },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveFolder(tab.key)}
+            className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+              activeFolder === tab.key
+                ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400'
+                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+
       {uploadFormBlock}
 
-      {/* Documents */}
-      {docFiles.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Documents ({docFiles.length})</h4>
-          <div className="space-y-1">
-            {docFiles.map(f => (
-              <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-50 group">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm">{fileIcon(f.mimeType)}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{f.fileName}</p>
-                    <p className="text-xs text-slate-500">{categoryLabel(f.category)}{f.fileSize ? ` · ${(f.fileSize / 1024).toFixed(0)}KB` : ''}</p>
-                  </div>
+      {/* File List */}
+      {filteredFiles.length === 0 ? (
+        <p className="text-slate-500 text-sm text-center py-4">No files in this folder</p>
+      ) : (
+        <div className="space-y-1">
+          {filteredFiles.map(f => (
+            <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-50 group">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm">{fileIcon(f.mimeType)}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">
+                    {f.fileName}
+                    {f.adminOnly && <span className="ml-1.5 text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded">Admin Only</span>}
+                  </p>
+                  <p className="text-xs text-slate-500">{categoryLabel(f.category)}{f.fileSize ? ` · ${(f.fileSize / 1024).toFixed(0)}KB` : ''}</p>
                 </div>
-                <button
-                  onClick={() => handleViewFile(f.id)}
-                  disabled={loadingFile}
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
-                >
-                  <Eye className="w-3 h-3" /> View
-                </button>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Photos */}
-      {photoFiles.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Photos ({photoFiles.length})</h4>
-          <div className="space-y-1">
-            {photoFiles.map(f => (
-              <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-50 group">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm">🖼️</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{f.fileName}</p>
-                    <p className="text-xs text-slate-500">{categoryLabel(f.category)}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleViewFile(f.id)}
-                  disabled={loadingFile}
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
-                >
-                  <Eye className="w-3 h-3" /> View
-                </button>
-              </div>
-            ))}
-          </div>
+              <button
+                onClick={() => handleViewFile(f.id)}
+                disabled={loadingFile}
+                className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
+              >
+                <Eye className="w-3 h-3" /> View
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -959,11 +996,13 @@ function QuickActions({
   onStatusChange,
   onPriorityChange,
   onStartResearch,
+  onTestResearch,
 }: {
   caseItem: NegotiationCase
   onStatusChange: (status: string) => Promise<void>
   onPriorityChange: (priority: string) => Promise<void>
   onStartResearch: () => Promise<void>
+  onTestResearch: () => Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -1049,15 +1088,24 @@ function QuickActions({
         </div>
       </div>
 
-      {/* Research Button */}
-      <button
-        onClick={handleResearch}
-        disabled={loading}
-        className="w-full px-4 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
-      >
-        <Zap className="w-4 h-4" />
-        Start AI Research
-      </button>
+      {/* Research Buttons */}
+      <div className="space-y-2">
+        <button
+          onClick={handleResearch}
+          disabled={loading}
+          className="w-full px-4 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Zap className="w-4 h-4" />
+          Start AI Research
+        </button>
+        <button
+          onClick={async () => { setLoading(true); try { await onTestResearch() } finally { setLoading(false) } }}
+          disabled={loading}
+          className="w-full px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          🔍 Test Research (Diagnostic)
+        </button>
+      </div>
     </div>
   )
 }
@@ -1199,6 +1247,25 @@ export default function AdminCaseWorkspace({
     }
   }
 
+  async function handleTestResearch() {
+    try {
+      toast.info('Running diagnostic research test...')
+      const result = await testResearch(caseId)
+      if (result.status === 'error') {
+        toast.error(`Research test failed: ${result.error}`)
+      } else if (result.has_real_data) {
+        toast.success(`Research test OK! Found data for CEO. Provider credentials working.`)
+      } else {
+        toast.error(`Research returned no data. Parse error: ${result.parse_error}. Check AI Provider Settings.`)
+      }
+      // Log full result to console for debugging
+      console.log('Research diagnostic result:', JSON.stringify(result, null, 2))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(`Diagnostic failed: ${msg}`)
+    }
+  }
+
   async function handleStartResearch() {
     try {
       setResearchLoading(true)
@@ -1249,7 +1316,7 @@ export default function AdminCaseWorkspace({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
@@ -1273,19 +1340,26 @@ export default function AdminCaseWorkspace({
         </div>
       </div>
 
-      {/* Property & Lien Info */}
-      <PropertyInfoCard deal={dealInfo} liens={liensInfo} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Case Files */}
-          <CaseFilesSection
-            caseId={caseId}
-            files={caseFiles}
-            onRefresh={handleRefreshFiles}
+      {/* Property & Lien Details + Quick Actions — side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <PropertyInfoCard deal={dealInfo} liens={liensInfo} />
+        </div>
+        <div>
+          <QuickActions
+            caseItem={caseData}
+            onStatusChange={handleStatusChange}
+            onPriorityChange={handlePriorityChange}
+            onStartResearch={handleStartResearch}
+            onTestResearch={handleTestResearch}
           />
+        </div>
+      </div>
 
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left Column — Activity Journal + Case Files */}
+        <div className="lg:col-span-2 space-y-4">
           {/* Activity Journal */}
           <ActivityJournal
             activities={activities}
@@ -1293,6 +1367,16 @@ export default function AdminCaseWorkspace({
             onCheckTracking={handleCheckTracking}
           />
 
+          {/* Case Files */}
+          <CaseFilesSection
+            caseId={caseId}
+            files={caseFiles}
+            onRefresh={handleRefreshFiles}
+          />
+        </div>
+
+        {/* Right Column — Messages + Address Cards */}
+        <div className="space-y-4">
           {/* Chat Thread */}
           <ChatThread
             messages={messages}
@@ -1300,22 +1384,13 @@ export default function AdminCaseWorkspace({
             userId={currentUserId}
             onSendMessage={handleSendMessage}
           />
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <QuickActions
-            caseItem={caseData}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onStartResearch={handleStartResearch}
-          />
 
           {/* Research Results (address cards) */}
           <ResearchResults
             recipients={recipients}
             onRerunResearch={handleStartResearch}
             loading={researchLoading}
+            caseStatus={caseData.status}
           />
         </div>
       </div>

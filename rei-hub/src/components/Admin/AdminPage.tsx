@@ -58,7 +58,7 @@ const AI_PROVIDER_NAME: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   nvidia_kimi: 'Kimi 2.5',
   nvidia_kimi_thinking: 'Kimi K2 Thinking',
-  nvidia_deepseek_r1: 'DeepSeek R1',
+  nvidia_deepseek: 'DeepSeek V3.2',
   nvidia_minimax: 'MiniMax 2.5',
 }
 

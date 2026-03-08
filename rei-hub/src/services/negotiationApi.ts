@@ -191,6 +191,15 @@ export async function triggerResearch(caseId: string): Promise<{ detail: string 
   return handleResponse(res, 'Failed to start research')
 }
 
+export async function testResearch(caseId: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/research-test`, {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to test research')
+}
+
 export async function listRecipients(caseId: string): Promise<NegotiationRecipient[]> {
   const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/recipients`, {
     credentials: 'include',

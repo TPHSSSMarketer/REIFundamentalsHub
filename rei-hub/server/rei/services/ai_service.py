@@ -95,11 +95,11 @@ PROVIDER_CONFIGS = {
         "display_name": "MiniMax 2.5",
         "role": "Fast Summaries",
     },
-    "nvidia_deepseek_r1": {
+    "nvidia_deepseek": {
         "base_url": "https://integrate.api.nvidia.com",
-        "models": ["deepseek-ai/deepseek-r1-0528"],
-        "default_model": "deepseek-ai/deepseek-r1-0528",
-        "display_name": "DeepSeek R1",
+        "models": ["deepseek-ai/deepseek-v3.2"],
+        "default_model": "deepseek-ai/deepseek-v3.2",
+        "display_name": "DeepSeek V3.2",
         "role": "Math Validation",
     },
 }
@@ -125,7 +125,7 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     # Underwriting — Kimi K2 Thinking (step-by-step reasoning for deal analysis)
     "underwriting":  ("nvidia_kimi_thinking", None),
     # Math validation — DeepSeek R1 (independent recalculation of deal numbers)
-    "math_validation": ("nvidia_deepseek_r1", None),
+    "math_validation": ("nvidia_deepseek", None),
     # Content generation — Claude Sonnet for creative writing waterfall
     "content": ("anthropic", "claude-sonnet-4-6"),
     # Document Intelligence — Claude Sonnet with Vision for document analysis
@@ -514,7 +514,7 @@ async def _resolve_provider(
             ("anthropic", anthropic_key),
             ("nvidia_kimi", nvidia_key),
             ("nvidia_kimi_thinking", nvidia_key),
-            ("nvidia_deepseek_r1", nvidia_key),
+            ("nvidia_deepseek", nvidia_key),
             ("nvidia_minimax", nvidia_key),
         ]
         for fb_provider, fb_key in fallback_chain:
