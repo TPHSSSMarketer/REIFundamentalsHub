@@ -7,7 +7,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 
 from datetime import datetime, timedelta
 
@@ -360,28 +359,35 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-# CORS — MUST be added LAST so it's the absolute outermost middleware.
-# Every response (including 429s from rate_limit, 403s from CSRF, etc.)
-# flows through CORS and gets Access-Control-Allow-Origin headers.
+# ── CORS — Pure-ASGI implementation (outermost middleware) ─────────
+#
+# We use our own pure-ASGI CORS middleware instead of Starlette's
+# CORSMiddleware because Starlette's version has known edge cases where
+# responses from @app.middleware("http") or BaseHTTPMiddleware bypass
+# its send wrapper, resulting in responses with NO CORS headers.
+#
+# Our implementation wraps the raw `send` callable so CORS headers are
+# injected into EVERY http.response.start — guaranteed.
+
+from rei.middleware.cors import CORSMiddleware as PureASGICORS  # noqa: E402
+
 if settings.environment == "development":
     _cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
     _cors_origin_regex: str | None = None
 else:
-    # Normalise hub_url and build list
     _hub = settings.hub_url.rstrip("/")
     _cors_origins = [_hub]
-    if "hub." in _hub:
-        _cors_origins.append(_hub.replace("hub.", ""))
     # Also allow ANY subdomain of reifundamentalshub.com via regex
-    _cors_origin_regex = r"https://.*\.?reifundamentalshub\.com"
+    _cors_origin_regex = r"https://([a-z0-9-]+\.)?reifundamentalshub\.com"
 
 logger.info("CORS allowed origins: %s  regex: %s", _cors_origins, _cors_origin_regex if settings.environment != "development" else "N/A")
 
+# Pure-ASGI middleware — must be added LAST (Starlette LIFO = outermost)
 app.add_middleware(
-    CORSMiddleware,
+    PureASGICORS,
     allow_origins=_cors_origins,
     allow_origin_regex=_cors_origin_regex if settings.environment != "development" else None,
-    allow_credentials=True,  # Required for HttpOnly cookie auth
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
