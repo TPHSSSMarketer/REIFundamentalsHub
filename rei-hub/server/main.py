@@ -266,28 +266,20 @@ app = FastAPI(
     openapi_url=_openapi_url,
 )
 
-# CSRF protection — validates double-submit cookie on state-changing requests
-# IMPORTANT: CSRF must be added BEFORE CORS, because Starlette processes
-# middleware in LIFO order (last added = outermost). We need CORS to be the
-# outermost layer so that even CSRF 403 rejections include CORS headers —
-# otherwise the browser sees a CORS error ("Failed to fetch") instead of the
-# real 403 error message.
+# ── Middleware stack (Starlette LIFO: last added = outermost) ────────
+#
+# We need CORS to be the absolute outermost middleware so that EVERY
+# response (including 403 CSRF rejections, 429 rate-limit, security
+# headers) gets CORS headers. Without this, the browser blocks cross-
+# origin responses and shows "Failed to fetch" instead of the real error.
+#
+# Execution order (outermost → innermost):
+#   CORS → security_headers → rate_limit → CSRF → routes
+#
+# In code, we add them innermost-first:
+
 from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
 app.add_middleware(CSRFProtectionMiddleware)
-
-# CORS — allow hub frontend with credentials for HttpOnly cookie auth
-# Added LAST so it becomes the outermost middleware layer.
-if settings.environment == "development":
-    _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
-else:
-    _cors_origins = [settings.hub_url]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,  # Required for HttpOnly cookie auth
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
-)
 
 
 @app.middleware("http")
@@ -366,6 +358,22 @@ async def security_headers_middleware(request: Request, call_next):
     else:
         response.headers["X-Frame-Options"] = "DENY"
     return response
+
+
+# CORS — MUST be added LAST so it's the absolute outermost middleware.
+# Every response (including 429s from rate_limit, 403s from CSRF, etc.)
+# flows through CORS and gets Access-Control-Allow-Origin headers.
+if settings.environment == "development":
+    _cors_origins = ["http://localhost:5173", "http://localhost:3000"]
+else:
+    _cors_origins = [settings.hub_url]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,  # Required for HttpOnly cookie auth
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+)
 
 
 # Routes
