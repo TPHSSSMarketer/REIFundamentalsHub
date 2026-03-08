@@ -20,6 +20,7 @@ import {
   Download,
   Eye,
   FolderOpen,
+  Upload,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -39,6 +40,7 @@ import {
   checkTrackingNow,
   listCaseFiles,
   getCaseFile,
+  uploadCaseFile,
 } from '@/services/negotiationApi'
 import type { CaseFile } from '@/services/negotiationApi'
 
@@ -663,7 +665,7 @@ function ResearchResults({
           Re-run Research
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         {recipients.map((r) => (
           <RecipientCard key={r.id} recipient={r} />
         ))}
@@ -687,9 +689,34 @@ function CaseFilesSection({
     id: string; fileName: string; mimeType?: string; fileContent: string
   } | null>(null)
   const [loadingFile, setLoadingFile] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [showUploadForm, setShowUploadForm] = useState(false)
+  const [uploadCategory, setUploadCategory] = useState('other')
+  const [uploadNotes, setUploadNotes] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const docFiles = files.filter(f => f.fileType === 'document')
   const photoFiles = files.filter(f => f.fileType === 'photo')
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFile = e.target.files?.[0]
+    if (!selectedFile) return
+
+    setUploading(true)
+    try {
+      await uploadCaseFile(caseId, selectedFile, uploadCategory, uploadNotes || undefined)
+      toast.success(`Uploaded: ${selectedFile.name}`)
+      setShowUploadForm(false)
+      setUploadCategory('other')
+      setUploadNotes('')
+      onRefresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   async function handleViewFile(fileId: string) {
     setLoadingFile(true)
@@ -721,6 +748,66 @@ function CaseFilesSection({
     return '📎'
   }
 
+  const uploadFormBlock = (
+    <>
+      {showUploadForm && (
+        <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Category</label>
+              <select
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white"
+              >
+                <option value="other">Other</option>
+                <option value="contract">Contract</option>
+                <option value="title">Title</option>
+                <option value="inspection">Inspection</option>
+                <option value="appraisal">Appraisal</option>
+                <option value="insurance">Insurance</option>
+                <option value="disclosure">Disclosure</option>
+                <option value="authorization">Authorization to Release</option>
+                <option value="correspondence">Correspondence</option>
+                <option value="legal">Legal</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Notes (optional)</label>
+              <input
+                type="text"
+                value={uploadNotes}
+                onChange={(e) => setUploadNotes(e.target.value)}
+                placeholder="Brief description..."
+                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg cursor-pointer hover:bg-blue-700 transition">
+              <Upload className="w-4 h-4" />
+              {uploading ? 'Uploading...' : 'Choose File'}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+            <button
+              onClick={() => setShowUploadForm(false)}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">Files uploaded here are hidden from the subscriber (admin only).</p>
+        </div>
+      )}
+    </>
+  )
+
   if (files.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-slate-200 p-5">
@@ -728,11 +815,20 @@ function CaseFilesSection({
           <h3 className="font-semibold text-slate-900 flex items-center gap-2">
             <FolderOpen className="w-4 h-4" /> Case Files
           </h3>
-          <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowUploadForm(!showUploadForm)}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition"
+            >
+              <Upload className="w-3.5 h-3.5" /> Upload
+            </button>
+            <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <p className="text-slate-500 text-sm text-center py-4">No files uploaded for this deal yet</p>
+        {uploadFormBlock}
+        {!showUploadForm && <p className="text-slate-500 text-sm text-center py-4">No files uploaded for this deal yet</p>}
       </div>
     )
   }
@@ -743,10 +839,20 @@ function CaseFilesSection({
         <h3 className="font-semibold text-slate-900 flex items-center gap-2">
           <FolderOpen className="w-4 h-4" /> Case Files ({files.length})
         </h3>
-        <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowUploadForm(!showUploadForm)}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition"
+          >
+            <Upload className="w-3.5 h-3.5" /> Upload
+          </button>
+          <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
+
+      {uploadFormBlock}
 
       {/* Documents */}
       {docFiles.length > 0 && (
@@ -1170,23 +1276,16 @@ export default function AdminCaseWorkspace({
       {/* Property & Lien Info */}
       <PropertyInfoCard deal={dealInfo} liens={liensInfo} />
 
-      {/* Research Results */}
-      <ResearchResults
-        recipients={recipients}
-        onRerunResearch={handleStartResearch}
-        loading={researchLoading}
-      />
-
-      {/* Case Files */}
-      <CaseFilesSection
-        caseId={caseId}
-        files={caseFiles}
-        onRefresh={handleRefreshFiles}
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Case Files */}
+          <CaseFilesSection
+            caseId={caseId}
+            files={caseFiles}
+            onRefresh={handleRefreshFiles}
+          />
+
           {/* Activity Journal */}
           <ActivityJournal
             activities={activities}
@@ -1204,12 +1303,19 @@ export default function AdminCaseWorkspace({
         </div>
 
         {/* Sidebar */}
-        <div>
+        <div className="space-y-6">
           <QuickActions
             caseItem={caseData}
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
             onStartResearch={handleStartResearch}
+          />
+
+          {/* Research Results (address cards) */}
+          <ResearchResults
+            recipients={recipients}
+            onRerunResearch={handleStartResearch}
+            loading={researchLoading}
           />
         </div>
       </div>

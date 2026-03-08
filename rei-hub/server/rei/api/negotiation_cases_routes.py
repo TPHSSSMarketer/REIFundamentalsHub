@@ -7,7 +7,9 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+import base64
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -555,4 +557,73 @@ async def get_case_file(
         "thumbnail": file.thumbnail,
         "notes": file.notes,
         "createdAt": file.created_at.isoformat() if file.created_at else None,
+    }
+
+
+@negotiation_cases_router.post("/{case_id}/files", status_code=status.HTTP_201_CREATED)
+async def upload_case_file(
+    case_id: str,
+    file: UploadFile = File(...),
+    category: str = Form(default="other"),
+    notes: Optional[str] = Form(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a file to a negotiation case (superadmin only).
+
+    Files uploaded here are automatically marked admin_only=True
+    so the subscriber cannot see them. They are stored as base64
+    in the deal_files table under the case owner's user_id.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationCase).where(NegotiationCase.id == case_id)
+    )
+    case = result.scalar_one_or_none()
+
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    if not case.deal_id:
+        raise HTTPException(status_code=400, detail="Case has no associated deal")
+
+    # Read file content
+    file_bytes = await file.read()
+    file_b64 = base64.b64encode(file_bytes).decode("utf-8")
+
+    # Determine file_type based on mime
+    mime = file.content_type or "application/octet-stream"
+    file_type = "photo" if mime.startswith("image/") else "document"
+
+    new_file = DealFile(
+        user_id=case.user_id,  # Store under the case owner
+        deal_id=case.deal_id,
+        file_type=file_type,
+        category=category,
+        file_name=file.filename or "untitled",
+        mime_type=mime,
+        file_size=len(file_bytes),
+        file_content=file_b64,
+        notes=notes,
+        admin_only=True,  # Hidden from subscriber
+    )
+
+    db.add(new_file)
+    await db.commit()
+    await db.refresh(new_file)
+
+    return {
+        "id": new_file.id,
+        "dealId": new_file.deal_id,
+        "fileType": new_file.file_type,
+        "category": new_file.category,
+        "fileName": new_file.file_name,
+        "mimeType": new_file.mime_type,
+        "fileSize": new_file.file_size,
+        "notes": new_file.notes,
+        "adminOnly": new_file.admin_only,
+        "hasThumbnail": False,
+        "createdAt": new_file.created_at.isoformat() if new_file.created_at else None,
     }

@@ -323,6 +323,26 @@ export async function listCaseFiles(caseId: string): Promise<CaseFile[]> {
   return handleResponse(res, 'Failed to load case files')
 }
 
+export async function uploadCaseFile(
+  caseId: string,
+  file: File,
+  category: string = 'other',
+  notes?: string,
+): Promise<CaseFile> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('category', category)
+  if (notes) formData.append('notes', notes)
+
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/files`, {
+    method: 'POST',
+    headers: getCSRFHeaders(), // No Content-Type — browser sets multipart boundary
+    credentials: 'include',
+    body: formData,
+  })
+  return handleResponse(res, 'Failed to upload file')
+}
+
 export async function getCaseFile(caseId: string, fileId: string): Promise<{
   id: string
   fileName: string
