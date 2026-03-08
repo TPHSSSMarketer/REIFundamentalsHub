@@ -175,7 +175,7 @@ async def _research_one_recipient(
         temperature=0.2,
     )
 
-    raw_content = ai_result.get("content", "")
+    raw_content = ai_result.get("content", "") or ""
     provider_used = ai_result.get("provider", "unknown")
     model_used = ai_result.get("model", "unknown")
     tokens_used = ai_result.get("tokens_used", 0)

@@ -41,6 +41,13 @@ class RequestMoreInfoBody(BaseModel):
 # ── Helper Functions ────────────────────────────────────────
 
 
+def _utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """Convert a naive-UTC datetime to an ISO string with 'Z' suffix."""
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 def _request_to_dict(r: NegotiationRequest) -> dict:
     """Convert NegotiationRequest to camelCase dict."""
     lien_ids = []
@@ -67,8 +74,8 @@ def _request_to_dict(r: NegotiationRequest) -> dict:
         "propertyAddress": r.property_address,
         "propertyCity": r.property_city,
         "propertyState": r.property_state,
-        "createdAt": r.created_at.isoformat() if r.created_at else None,
-        "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
+        "createdAt": _utc_iso(r.created_at),
+        "updatedAt": _utc_iso(r.updated_at),
     }
 
 
@@ -231,8 +238,8 @@ async def accept_negotiation_request(
                 "serviceType": c.service_type,
                 "status": c.status,
                 "propertyAddress": c.property_address,
-                "createdAt": c.created_at.isoformat() if c.created_at else None,
-                "updatedAt": c.updated_at.isoformat() if c.updated_at else None,
+                "createdAt": _utc_iso(c.created_at),
+                "updatedAt": _utc_iso(c.updated_at),
             }
             for c in cases
         ],

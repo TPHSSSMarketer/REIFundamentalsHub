@@ -49,6 +49,13 @@ class UpdateTrackingBody(BaseModel):
 # ── Helper functions ─────────────────────────────────────────────────
 
 
+def _utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """Convert a naive-UTC datetime to an ISO string with 'Z' suffix."""
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 def _activity_to_dict(a: NegotiationActivity, is_admin: bool = False) -> dict:
     """Convert NegotiationActivity to camelCase dict with two-note visibility system.
 
@@ -63,10 +70,10 @@ def _activity_to_dict(a: NegotiationActivity, is_admin: bool = False) -> dict:
         "activityType": a.activity_type,
         "sendMethod": a.send_method,
         "trackingStatus": a.tracking_status,
-        "uspsDeliveredDate": a.usps_delivered_date.isoformat() if a.usps_delivered_date else None,
+        "uspsDeliveredDate": _utc_iso(a.usps_delivered_date),
         "uspsSignedBy": a.usps_signed_by,
         "createdBy": a.created_by,
-        "createdAt": a.created_at.isoformat() if a.created_at else None,
+        "createdAt": _utc_iso(a.created_at),
     }
 
     if is_admin:

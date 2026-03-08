@@ -35,6 +35,18 @@ class UpdateCaseBody(BaseModel):
 # ── Helper functions ─────────────────────────────────────────────────
 
 
+def _utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """Convert a naive-UTC datetime to an ISO string with 'Z' suffix.
+
+    Python's datetime.utcnow() creates naive datetimes. When serialized
+    without a timezone indicator, JavaScript's Date() treats them as local
+    time instead of UTC, breaking timezone conversions on the frontend.
+    """
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 def _case_to_dict(c: NegotiationCase) -> dict:
     """Convert NegotiationCase to camelCase dict."""
     return {
@@ -46,10 +58,10 @@ def _case_to_dict(c: NegotiationCase) -> dict:
         "status": c.status,
         "priority": c.priority,
         "propertyAddress": c.property_address,
-        "assignedAt": c.assigned_at.isoformat() if c.assigned_at else None,
-        "resolvedAt": c.resolved_at.isoformat() if c.resolved_at else None,
-        "createdAt": c.created_at.isoformat() if c.created_at else None,
-        "updatedAt": c.updated_at.isoformat() if c.updated_at else None,
+        "assignedAt": _utc_iso(c.assigned_at),
+        "resolvedAt": _utc_iso(c.resolved_at),
+        "createdAt": _utc_iso(c.created_at),
+        "updatedAt": _utc_iso(c.updated_at),
     }
 
 
@@ -67,10 +79,10 @@ def _activity_to_dict(a: NegotiationActivity, is_admin: bool = False) -> dict:
         "activityType": a.activity_type,
         "sendMethod": a.send_method,
         "trackingStatus": a.tracking_status,
-        "uspsDeliveredDate": a.usps_delivered_date.isoformat() if a.usps_delivered_date else None,
+        "uspsDeliveredDate": _utc_iso(a.usps_delivered_date),
         "uspsSignedBy": a.usps_signed_by,
         "createdBy": a.created_by,
-        "createdAt": a.created_at.isoformat() if a.created_at else None,
+        "createdAt": _utc_iso(a.created_at),
     }
 
     if is_admin:
@@ -585,8 +597,8 @@ async def list_recipients(
             "email": r.email,
             "confidence": r.confidence,
             "sources": json.loads(r.sources_json) if r.sources_json else [],
-            "createdAt": r.created_at.isoformat() if r.created_at else None,
-            "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
+            "createdAt": _utc_iso(r.created_at),
+            "updatedAt": _utc_iso(r.updated_at),
         }
         for r in recipients
     ]
@@ -640,7 +652,7 @@ async def list_case_files(
             "transactionPhase": f.transaction_phase,
             "adminOnly": f.admin_only if hasattr(f, "admin_only") else False,
             "hasThumbnail": bool(f.thumbnail),
-            "createdAt": f.created_at.isoformat() if f.created_at else None,
+            "createdAt": _utc_iso(f.created_at),
         }
         for f in files
     ]
@@ -690,7 +702,7 @@ async def get_case_file(
         "fileContent": file.file_content,
         "thumbnail": file.thumbnail,
         "notes": file.notes,
-        "createdAt": file.created_at.isoformat() if file.created_at else None,
+        "createdAt": _utc_iso(file.created_at),
     }
 
 
@@ -759,5 +771,5 @@ async def upload_case_file(
         "notes": new_file.notes,
         "adminOnly": new_file.admin_only,
         "hasThumbnail": False,
-        "createdAt": new_file.created_at.isoformat() if new_file.created_at else None,
+        "createdAt": _utc_iso(new_file.created_at),
     }

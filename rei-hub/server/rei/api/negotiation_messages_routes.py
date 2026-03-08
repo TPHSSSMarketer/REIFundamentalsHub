@@ -30,6 +30,13 @@ class SendMessageBody(BaseModel):
 # ── Helper functions ─────────────────────────────────────────────────
 
 
+def _utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """Convert a naive-UTC datetime to an ISO string with 'Z' suffix."""
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 def _message_to_dict(m: NegotiationMessage) -> dict:
     """Convert NegotiationMessage to camelCase dict.
 
@@ -42,8 +49,8 @@ def _message_to_dict(m: NegotiationMessage) -> dict:
         "senderId": m.sender_id,
         "senderRole": m.sender_role,
         "content": m.content,
-        "readAt": m.read_at.isoformat() if m.read_at else None,
-        "createdAt": m.created_at.isoformat() if m.created_at else None,
+        "readAt": _utc_iso(m.read_at),
+        "createdAt": _utc_iso(m.created_at),
     }
 
 
