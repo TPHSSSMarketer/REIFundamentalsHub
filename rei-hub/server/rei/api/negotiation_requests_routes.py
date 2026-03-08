@@ -87,7 +87,7 @@ async def submit_negotiation_request(
 
     # Verify deal exists and belongs to user
     deal_result = await db.execute(
-        select(CrmDeal.id, CrmDeal.property_address, CrmDeal.property_city, CrmDeal.property_state).where(
+        select(CrmDeal.id, CrmDeal.address, CrmDeal.city, CrmDeal.state).where(
             CrmDeal.id == body.dealId,
             CrmDeal.user_id == uid,
             CrmDeal.is_deleted == False,
