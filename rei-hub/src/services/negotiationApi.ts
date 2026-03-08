@@ -160,6 +160,8 @@ export async function getCase(caseId: string): Promise<{
   case: NegotiationCase
   activities: NegotiationActivity[]
   unreadMessages: number
+  deal?: Record<string, unknown> | null
+  liens?: Record<string, unknown>[]
 }> {
   const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}`, {
     credentials: 'include',
@@ -268,4 +270,72 @@ export async function markMessageRead(messageId: string): Promise<NegotiationMes
     credentials: 'include',
   })
   return handleResponse(res, 'Failed to mark message as read')
+}
+
+
+// ═══════════════════════════════════════════════
+// USPS Tracking
+// ═══════════════════════════════════════════════
+
+export async function checkTrackingNow(activityId: string): Promise<{
+  activity: NegotiationActivity
+  trackingDetail: {
+    status: string
+    location?: string
+    lastEvent?: string
+    deliveredDate?: string
+    signedBy?: string
+    error?: string
+  }
+}> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/activities/${activityId}/check-tracking`, {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to check tracking')
+}
+
+
+// ═══════════════════════════════════════════════
+// Case Files (admin view of deal files)
+// ═══════════════════════════════════════════════
+
+export interface CaseFile {
+  id: string
+  dealId: string
+  fileType: string
+  category: string
+  fileName: string
+  mimeType?: string
+  fileSize?: number
+  notes?: string
+  transactionPhase?: string
+  adminOnly?: boolean
+  hasThumbnail?: boolean
+  createdAt?: string
+}
+
+export async function listCaseFiles(caseId: string): Promise<CaseFile[]> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/files`, {
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to load case files')
+}
+
+export async function getCaseFile(caseId: string, fileId: string): Promise<{
+  id: string
+  fileName: string
+  mimeType?: string
+  fileType: string
+  category: string
+  fileContent: string
+  thumbnail?: string
+  notes?: string
+  createdAt?: string
+}> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/files/${fileId}`, {
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to load file')
 }

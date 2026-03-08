@@ -15,6 +15,11 @@ import {
   Phone,
   Mail,
   RefreshCw,
+  Package,
+  FileText,
+  Download,
+  Eye,
+  FolderOpen,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -31,7 +36,11 @@ import {
   sendMessage,
   triggerResearch,
   listRecipients,
+  checkTrackingNow,
+  listCaseFiles,
+  getCaseFile,
 } from '@/services/negotiationApi'
+import type { CaseFile } from '@/services/negotiationApi'
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -103,12 +112,31 @@ function ServiceTypeBadge({ serviceType }: { serviceType: string }) {
 
 /* ── Activity Journal Section ─────────────────────────────────────── */
 
+function TrackingStatusBadge({ status }: { status?: string }) {
+  if (!status) return null
+  const colors: Record<string, string> = {
+    in_transit: 'bg-blue-100 text-blue-700',
+    delivered: 'bg-green-100 text-green-700',
+    attempted: 'bg-yellow-100 text-yellow-700',
+    returned: 'bg-red-100 text-red-700',
+    unknown: 'bg-slate-100 text-slate-600',
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${colors[status] || colors.unknown}`}>
+      <Package className="w-3 h-3" />
+      {status.replace('_', ' ')}
+    </span>
+  )
+}
+
 function ActivityJournal({
   activities,
   onAddActivity,
+  onCheckTracking,
 }: {
   activities: NegotiationActivity[]
   onAddActivity: (activity: Omit<NegotiationActivity, 'id' | 'createdBy' | 'createdAt'>) => Promise<void>
+  onCheckTracking: (activityId: string) => Promise<void>
 }) {
   const [showForm, setShowForm] = useState(false)
   const [activityType, setActivityType] = useState('Note')
@@ -179,28 +207,39 @@ function ActivityJournal({
 
               {activity.sendMethod && (
                 <div className="bg-slate-50 rounded p-3 mb-3 space-y-2 text-sm">
-                  <p>
-                    <span className="font-medium text-slate-700">Send Method:</span> {activity.sendMethod}
-                  </p>
-                  {activity.uspsTrackingNumber && (
+                  <div className="flex items-center justify-between">
                     <p>
-                      <span className="font-medium text-slate-700">Tracking:</span> {activity.uspsTrackingNumber}
+                      <span className="font-medium text-slate-700">Send Method:</span> {activity.sendMethod}
                     </p>
+                    <TrackingStatusBadge status={activity.trackingStatus} />
+                  </div>
+                  {activity.uspsTrackingNumber && (
+                    <div className="flex items-center justify-between gap-2">
+                      <p>
+                        <span className="font-medium text-slate-700">Tracking:</span>{' '}
+                        <span className="font-mono text-xs">{activity.uspsTrackingNumber}</span>
+                      </p>
+                      {activity.trackingStatus !== 'delivered' && activity.trackingStatus !== 'returned' && (
+                        <button
+                          onClick={() => onCheckTracking(activity.id)}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Check Now
+                        </button>
+                      )}
+                    </div>
                   )}
                   {activity.uspsSignatureTrackingNumber && (
                     <p>
                       <span className="font-medium text-slate-700">Signature Tracking:</span>{' '}
-                      {activity.uspsSignatureTrackingNumber}
-                    </p>
-                  )}
-                  {activity.trackingStatus && (
-                    <p>
-                      <span className="font-medium text-slate-700">Status:</span> {activity.trackingStatus}
+                      <span className="font-mono text-xs">{activity.uspsSignatureTrackingNumber}</span>
                     </p>
                   )}
                   {activity.uspsDeliveredDate && (
-                    <p>
-                      <span className="font-medium text-slate-700">Delivered:</span> {activity.uspsDeliveredDate}
+                    <p className="text-green-700">
+                      <span className="font-medium">Delivered:</span> {activity.uspsDeliveredDate}
+                      {activity.uspsSignedBy && ` — Signed by: ${activity.uspsSignedBy}`}
                     </p>
                   )}
                 </div>
@@ -472,7 +511,7 @@ function PropertyInfoCard({
           </div>
           <div>
             <span className="text-slate-500 text-xs block">Bed / Bath</span>
-            <span className="font-medium text-slate-900">{deal.bedrooms ?? 0} bd / {deal.bathrooms ?? 0} ba</span>
+            <span className="font-medium text-slate-900">{String(deal.bedrooms ?? 0)} bd / {String(deal.bathrooms ?? 0)} ba</span>
           </div>
           <div>
             <span className="text-slate-500 text-xs block">Sq Ft</span>
@@ -633,6 +672,182 @@ function ResearchResults({
   )
 }
 
+/* ── Case Files Section ───────────────────────────────────────────── */
+
+function CaseFilesSection({
+  caseId,
+  files,
+  onRefresh,
+}: {
+  caseId: string
+  files: CaseFile[]
+  onRefresh: () => void
+}) {
+  const [viewingFile, setViewingFile] = useState<{
+    id: string; fileName: string; mimeType?: string; fileContent: string
+  } | null>(null)
+  const [loadingFile, setLoadingFile] = useState(false)
+
+  const docFiles = files.filter(f => f.fileType === 'document')
+  const photoFiles = files.filter(f => f.fileType === 'photo')
+
+  async function handleViewFile(fileId: string) {
+    setLoadingFile(true)
+    try {
+      const data = await getCaseFile(caseId, fileId)
+      setViewingFile(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load file')
+    } finally {
+      setLoadingFile(false)
+    }
+  }
+
+  function handleDownload() {
+    if (!viewingFile) return
+    const link = document.createElement('a')
+    link.href = `data:${viewingFile.mimeType || 'application/octet-stream'};base64,${viewingFile.fileContent}`
+    link.download = viewingFile.fileName
+    link.click()
+  }
+
+  const categoryLabel = (cat: string) =>
+    cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+
+  const fileIcon = (mime?: string) => {
+    if (mime?.includes('pdf')) return '📄'
+    if (mime?.includes('image')) return '🖼️'
+    if (mime?.includes('word') || mime?.includes('docx')) return '📝'
+    return '📎'
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+            <FolderOpen className="w-4 h-4" /> Case Files
+          </h3>
+          <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <p className="text-slate-500 text-sm text-center py-4">No files uploaded for this deal yet</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+          <FolderOpen className="w-4 h-4" /> Case Files ({files.length})
+        </h3>
+        <button onClick={onRefresh} className="text-xs text-slate-500 hover:text-slate-700">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Documents */}
+      {docFiles.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Documents ({docFiles.length})</h4>
+          <div className="space-y-1">
+            {docFiles.map(f => (
+              <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-50 group">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm">{fileIcon(f.mimeType)}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{f.fileName}</p>
+                    <p className="text-xs text-slate-500">{categoryLabel(f.category)}{f.fileSize ? ` · ${(f.fileSize / 1024).toFixed(0)}KB` : ''}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleViewFile(f.id)}
+                  disabled={loadingFile}
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
+                >
+                  <Eye className="w-3 h-3" /> View
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Photos */}
+      {photoFiles.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Photos ({photoFiles.length})</h4>
+          <div className="space-y-1">
+            {photoFiles.map(f => (
+              <div key={f.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-50 group">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm">🖼️</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{f.fileName}</p>
+                    <p className="text-xs text-slate-500">{categoryLabel(f.category)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleViewFile(f.id)}
+                  disabled={loadingFile}
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition px-2 py-1 rounded hover:bg-blue-50"
+                >
+                  <Eye className="w-3 h-3" /> View
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* File Viewer Modal */}
+      {viewingFile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setViewingFile(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h4 className="font-semibold text-slate-900 truncate">{viewingFile.fileName}</h4>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded hover:bg-blue-50"
+                >
+                  <Download className="w-4 h-4" /> Download
+                </button>
+                <button onClick={() => setViewingFile(null)} className="text-slate-400 hover:text-slate-600 text-xl px-2">×</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {viewingFile.mimeType?.includes('image') ? (
+                <img
+                  src={`data:${viewingFile.mimeType};base64,${viewingFile.fileContent}`}
+                  alt={viewingFile.fileName}
+                  className="max-w-full h-auto mx-auto"
+                />
+              ) : viewingFile.mimeType?.includes('pdf') ? (
+                <iframe
+                  src={`data:application/pdf;base64,${viewingFile.fileContent}`}
+                  className="w-full h-[70vh]"
+                  title={viewingFile.fileName}
+                />
+              ) : (
+                <div className="text-center py-12 text-slate-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                  <p>Preview not available for this file type.</p>
+                  <button onClick={handleDownload} className="mt-3 text-blue-600 hover:text-blue-800 text-sm">
+                    Download to view
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function QuickActions({
   caseItem,
   onStatusChange,
@@ -754,6 +969,7 @@ export default function AdminCaseWorkspace({
   const [activities, setActivities] = useState<NegotiationActivity[]>([])
   const [messages, setMessages] = useState<NegotiationMessage[]>([])
   const [recipients, setRecipients] = useState<NegotiationRecipient[]>([])
+  const [caseFiles, setCaseFiles] = useState<CaseFile[]>([])
   const [dealInfo, setDealInfo] = useState<Record<string, unknown> | null>(null)
   const [liensInfo, setLiensInfo] = useState<Record<string, unknown>[]>([])
   const [unreadMessages, setUnreadMessages] = useState(0)
@@ -781,6 +997,14 @@ export default function AdminCaseWorkspace({
           setRecipients(recs)
         } catch {
           // Silently ignore — no recipients yet is normal
+        }
+
+        // Case files are optional
+        try {
+          const cf = await listCaseFiles(caseId)
+          setCaseFiles(cf)
+        } catch {
+          // Silently ignore — files endpoint may not exist yet
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to load case')
@@ -840,6 +1064,32 @@ export default function AdminCaseWorkspace({
       setMessages([...messages, newMessage])
     } catch (err) {
       throw err
+    }
+  }
+
+  async function handleCheckTracking(activityId: string) {
+    try {
+      const result = await checkTrackingNow(activityId)
+      // Update the activity in our local state
+      setActivities(prev =>
+        prev.map(a => a.id === activityId ? result.activity : a)
+      )
+      if (result.trackingDetail.error) {
+        toast.error(`Tracking: ${result.trackingDetail.error}`)
+      } else {
+        toast.success(`Tracking status: ${result.trackingDetail.status || 'checked'}`)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to check tracking')
+    }
+  }
+
+  async function handleRefreshFiles() {
+    try {
+      const cf = await listCaseFiles(caseId)
+      setCaseFiles(cf)
+    } catch {
+      // ignore
     }
   }
 
@@ -927,6 +1177,13 @@ export default function AdminCaseWorkspace({
         loading={researchLoading}
       />
 
+      {/* Case Files */}
+      <CaseFilesSection
+        caseId={caseId}
+        files={caseFiles}
+        onRefresh={handleRefreshFiles}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
@@ -934,6 +1191,7 @@ export default function AdminCaseWorkspace({
           <ActivityJournal
             activities={activities}
             onAddActivity={handleAddActivity}
+            onCheckTracking={handleCheckTracking}
           />
 
           {/* Chat Thread */}

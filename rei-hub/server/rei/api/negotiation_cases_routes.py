@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage, NegotiationRecipient, DealLien
-from rei.models.crm import CrmDeal
+from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -179,11 +179,11 @@ async def get_case(
                 "address": deal_obj.address,
                 "city": deal_obj.city,
                 "state": deal_obj.state,
-                "zip": deal_obj.zip_code if hasattr(deal_obj, "zip_code") else None,
+                "zip": deal_obj.zip if hasattr(deal_obj, "zip") else None,
                 "propertyType": deal_obj.property_type if hasattr(deal_obj, "property_type") else None,
                 "bedrooms": deal_obj.bedrooms if hasattr(deal_obj, "bedrooms") else None,
                 "bathrooms": deal_obj.bathrooms if hasattr(deal_obj, "bathrooms") else None,
-                "sqft": deal_obj.sqft if hasattr(deal_obj, "sqft") else None,
+                "sqft": deal_obj.square_footage if hasattr(deal_obj, "square_footage") else None,
                 "listPrice": deal_obj.list_price if hasattr(deal_obj, "list_price") else None,
                 "purchasePrice": deal_obj.purchase_price if hasattr(deal_obj, "purchase_price") else None,
                 "arv": deal_obj.arv if hasattr(deal_obj, "arv") else None,
@@ -317,7 +317,7 @@ async def trigger_research(
             async with async_session_factory() as bg_db:
                 # Get deal to find property state
                 deal = await bg_db.get(CrmDeal, deal_id_)
-                state = deal.property_state if deal else ""
+                state = deal.state if deal else ""
 
                 # Get first lien holder name for research
                 lien_result = await bg_db.execute(
@@ -454,3 +454,105 @@ async def list_recipients(
         }
         for r in recipients
     ]
+
+
+@negotiation_cases_router.get("/{case_id}/files")
+async def list_case_files(
+    case_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List deal files associated with a negotiation case.
+
+    Superadmin only.
+    Fetches the case's deal_id, then lists all DealFile records for that deal
+    (using the case owner's user_id, not the admin's).
+    Returns metadata only — no file content (to keep response fast).
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationCase).where(NegotiationCase.id == case_id)
+    )
+    case = result.scalar_one_or_none()
+
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    if not case.deal_id:
+        return []
+
+    # Fetch files using the case OWNER's user_id (not the admin's)
+    files_result = await db.execute(
+        select(DealFile)
+        .where(DealFile.deal_id == case.deal_id, DealFile.user_id == case.user_id)
+        .order_by(DealFile.created_at.desc())
+    )
+    files = files_result.scalars().all()
+
+    return [
+        {
+            "id": f.id,
+            "dealId": f.deal_id,
+            "fileType": f.file_type,
+            "category": f.category,
+            "fileName": f.file_name,
+            "mimeType": f.mime_type,
+            "fileSize": f.file_size,
+            "notes": f.notes,
+            "transactionPhase": f.transaction_phase,
+            "adminOnly": f.admin_only if hasattr(f, "admin_only") else False,
+            "hasThumbnail": bool(f.thumbnail),
+            "createdAt": f.created_at.isoformat() if f.created_at else None,
+        }
+        for f in files
+    ]
+
+
+@negotiation_cases_router.get("/{case_id}/files/{file_id}")
+async def get_case_file(
+    case_id: str,
+    file_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download/view a specific deal file from a negotiation case.
+
+    Superadmin only.
+    Returns file content (base64) + metadata.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationCase).where(NegotiationCase.id == case_id)
+    )
+    case = result.scalar_one_or_none()
+
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    file_result = await db.execute(
+        select(DealFile).where(
+            DealFile.id == file_id,
+            DealFile.deal_id == case.deal_id,
+            DealFile.user_id == case.user_id,
+        )
+    )
+    file = file_result.scalar_one_or_none()
+
+    if not file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    return {
+        "id": file.id,
+        "fileName": file.file_name,
+        "mimeType": file.mime_type,
+        "fileType": file.file_type,
+        "category": file.category,
+        "fileContent": file.file_content,
+        "thumbnail": file.thumbnail,
+        "notes": file.notes,
+        "createdAt": file.created_at.isoformat() if file.created_at else None,
+    }

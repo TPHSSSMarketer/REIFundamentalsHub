@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_current_user, get_db, workspace_user_id
 from rei.models.negotiation import NegotiationCase, NegotiationActivity
 from rei.models.user import User
+from rei.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -263,3 +264,82 @@ async def update_tracking(
     await db.refresh(activity)
 
     return _activity_to_dict(activity, is_admin=True)
+
+
+@negotiation_activity_router.post("/activities/{activity_id}/check-tracking")
+async def check_tracking_now(
+    activity_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger a USPS tracking check for a single activity (superadmin only).
+
+    Calls the USPS API immediately and updates the activity tracking fields.
+    Returns the updated activity with the latest tracking status.
+    """
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationActivity).where(NegotiationActivity.id == activity_id)
+    )
+    activity = result.scalar_one_or_none()
+
+    if not activity:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found")
+
+    if not activity.usps_tracking_number:
+        raise HTTPException(status_code=400, detail="No tracking number on this activity")
+
+    settings = get_settings()
+
+    try:
+        from rei.services.usps_tracking import track_package, get_usps_credentials
+
+        client_id, client_secret, base_url = await get_usps_credentials(
+            async_db=db, settings=settings,
+        )
+
+        if not client_id or not client_secret:
+            raise HTTPException(status_code=400, detail="USPS credentials not configured. Set them in SuperAdmin → Credentials → USPS.")
+
+        tracking_result = await track_package(
+            activity.usps_tracking_number,
+            client_id,
+            client_secret,
+            base_url,
+        )
+
+        # Update activity with tracking result
+        activity.tracking_status = tracking_result.get("status", "unknown")
+        activity.usps_last_checked = datetime.utcnow()
+        activity.usps_raw_response = json.dumps(tracking_result)
+
+        if tracking_result.get("delivered"):
+            activity.usps_delivered_date = tracking_result.get("delivered_date")
+            activity.usps_signed_by = tracking_result.get("signed_by")
+            activity.tracking_status = "delivered"
+
+        if tracking_result.get("status") == "returned":
+            activity.tracking_status = "returned"
+
+        await db.commit()
+        await db.refresh(activity)
+
+        return {
+            "activity": _activity_to_dict(activity, is_admin=True),
+            "trackingDetail": {
+                "status": tracking_result.get("status"),
+                "location": tracking_result.get("location"),
+                "lastEvent": tracking_result.get("last_event"),
+                "deliveredDate": str(tracking_result.get("delivered_date")) if tracking_result.get("delivered_date") else None,
+                "signedBy": tracking_result.get("signed_by"),
+                "error": tracking_result.get("error"),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Manual tracking check failed for activity %s: %s", activity_id, e)
+        raise HTTPException(status_code=500, detail=f"Tracking check failed: {str(e)[:200]}")
