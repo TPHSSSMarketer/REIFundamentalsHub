@@ -176,6 +176,7 @@ _COLUMN_MIGRATIONS = [
     ("deal_files", "analysis_json", "TEXT"),
     ("deal_files", "analysis_status", "VARCHAR"),
     ("deal_files", "photo_analysis_json", "TEXT"),
+    ("deal_files", "admin_only", "BOOLEAN DEFAULT FALSE"),
     ("crm_deals", "property_condition_grade", "VARCHAR"),
     ("crm_deals", "estimated_total_repairs", "REAL"),
     # ── Direct Mail — postcard front image storage ──

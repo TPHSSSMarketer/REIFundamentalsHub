@@ -574,12 +574,16 @@ async def list_recipients(
     if not user.is_superadmin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
-    result = await db.execute(
-        select(NegotiationRecipient)
-        .where(NegotiationRecipient.case_id == case_id)
-        .order_by(NegotiationRecipient.created_at.asc())
-    )
-    recipients = result.scalars().all()
+    try:
+        result = await db.execute(
+            select(NegotiationRecipient)
+            .where(NegotiationRecipient.case_id == case_id)
+            .order_by(NegotiationRecipient.created_at.asc())
+        )
+        recipients = result.scalars().all()
+    except Exception as e:
+        logger.error("Failed to query recipients for case %s: %s", case_id, e)
+        return []
 
     return [
         {
@@ -632,30 +636,38 @@ async def list_case_files(
         return []
 
     # Fetch files using the case OWNER's user_id (not the admin's)
-    files_result = await db.execute(
-        select(DealFile)
-        .where(DealFile.deal_id == case.deal_id, DealFile.user_id == case.user_id)
-        .order_by(DealFile.created_at.desc())
-    )
-    files = files_result.scalars().all()
+    try:
+        files_result = await db.execute(
+            select(DealFile)
+            .where(DealFile.deal_id == case.deal_id, DealFile.user_id == case.user_id)
+            .order_by(DealFile.created_at.desc())
+        )
+        files = files_result.scalars().all()
+    except Exception as e:
+        logger.error("Failed to query files for case %s: %s", case_id, e)
+        return []
 
-    return [
-        {
-            "id": f.id,
-            "dealId": f.deal_id,
-            "fileType": f.file_type,
-            "category": f.category,
-            "fileName": f.file_name,
-            "mimeType": f.mime_type,
-            "fileSize": f.file_size,
-            "notes": f.notes,
-            "transactionPhase": f.transaction_phase,
-            "adminOnly": f.admin_only if hasattr(f, "admin_only") else False,
-            "hasThumbnail": bool(f.thumbnail),
-            "createdAt": _utc_iso(f.created_at),
-        }
-        for f in files
-    ]
+    result_list = []
+    for f in files:
+        try:
+            result_list.append({
+                "id": f.id,
+                "dealId": f.deal_id,
+                "fileType": f.file_type,
+                "category": f.category,
+                "fileName": f.file_name,
+                "mimeType": f.mime_type,
+                "fileSize": f.file_size,
+                "notes": f.notes,
+                "transactionPhase": f.transaction_phase,
+                "adminOnly": getattr(f, "admin_only", False),
+                "hasThumbnail": bool(getattr(f, "thumbnail", None)),
+                "createdAt": _utc_iso(f.created_at),
+            })
+        except Exception as e:
+            logger.error("Failed to serialize file %s: %s", getattr(f, "id", "?"), e)
+
+    return result_list
 
 
 @negotiation_cases_router.get("/{case_id}/files/{file_id}")
