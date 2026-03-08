@@ -15,6 +15,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rei.api.deps import get_current_user, get_db, workspace_user_id
+from rei.config import get_settings
 from rei.models.negotiation import NegotiationCase, NegotiationActivity, NegotiationMessage, NegotiationRecipient, DealLien
 from rei.models.crm import CrmDeal, DealFile
 from rei.models.user import User
