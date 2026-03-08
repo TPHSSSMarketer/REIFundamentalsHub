@@ -289,6 +289,13 @@ _COLUMN_MIGRATIONS = [
     ("users", "trial_reminder_sent", "BOOLEAN DEFAULT FALSE"),
     ("users", "onboarding_completed", "BOOLEAN DEFAULT FALSE"),
     ("users", "onboarding_step", "INTEGER DEFAULT 0"),
+    # ── User: Notification channel preferences ──
+    ("users", "telegram_enabled", "BOOLEAN DEFAULT FALSE"),
+    ("users", "telegram_chat_id", "VARCHAR"),
+    ("users", "whatsapp_enabled", "BOOLEAN DEFAULT FALSE"),
+    ("users", "whatsapp_phone_number", "VARCHAR"),
+    ("users", "slack_enabled", "BOOLEAN DEFAULT FALSE"),
+    ("users", "slack_webhook_url", "VARCHAR"),
 ]
 
 
