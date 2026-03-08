@@ -534,3 +534,29 @@ export function getProviderCategories(): string[] {
   Object.values(PROVIDER_META).forEach((m) => cats.add(m.category))
   return Array.from(cats)
 }
+
+// ── Password Reset ──────────────────────────────────────────────────────
+
+export async function resetUserPassword(
+  userId: number,
+  newPassword: string,
+): Promise<{ message: string; user_id: number }> {
+  const res = await fetch(
+    `${BASE_URL}/api/superadmin/users/${userId}/reset-password`,
+    {
+      method: 'POST',
+      headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_password: newPassword }),
+      credentials: 'include',
+    },
+  )
+
+  if (res.status === 403) {
+    throw new Error('SuperAdmin access required.')
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? 'Failed to reset password')
+  }
+  return res.json()
+}

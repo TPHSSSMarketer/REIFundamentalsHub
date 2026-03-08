@@ -18,11 +18,54 @@ from rei.middleware.superadmin_gate import require_superadmin
 from rei.models.credentials import KNOWN_PROVIDERS
 from rei.models.crm import MarketZipCode
 from rei.models.user import User
+from rei.api.auth import hash_password
 from rei.services import credentials_service
 
 logger = logging.getLogger(__name__)
 
 superadmin_router = APIRouter(prefix="/superadmin", tags=["superadmin"])
+
+
+# ── Password Reset ──────────────────────────────────────────────────────
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+
+@superadmin_router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: int,
+    body: ResetPasswordRequest,
+    admin: User = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset a user's password (SuperAdmin only).
+
+    Sets the hashed password directly — the user can log in
+    with the new password immediately.
+    """
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters.",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+
+    logger.info(
+        "SuperAdmin %s reset password for user %s (%s)",
+        admin.email,
+        user.id,
+        user.email,
+    )
+    return {"message": f"Password reset for {user.email}.", "user_id": user.id}
 
 
 # ── Bootstrap — one-time SuperAdmin promotion ────────────────────────────

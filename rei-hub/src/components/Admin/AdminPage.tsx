@@ -7,6 +7,7 @@ import {
   XCircle,
   DollarSign,
   X,
+  KeyRound,
 } from 'lucide-react'
 import {
   getStats,
@@ -16,6 +17,7 @@ import {
   type AdminStats,
   type Subscriber,
 } from '@/services/adminApi'
+import { resetUserPassword } from '@/services/superadminApi'
 import AiProviderSettings from './AiProviderSettings'
 import SuperAdminCredentials from './SuperAdminCredentials'
 import EmailTemplateEditor from './EmailTemplateEditor'
@@ -137,6 +139,26 @@ function EditModal({
   const [loanServicing, setLoanServicing] = useState(subscriber.loan_servicing_enabled ?? false)
   const [bankNegotiation, setBankNegotiation] = useState(subscriber.bank_negotiation_enabled ?? false)
   const [saving, setSaving] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [resettingPw, setResettingPw] = useState(false)
+
+  async function handleResetPassword() {
+    if (!newPassword || newPassword.length < 8) {
+      onSaved('Password must be at least 8 characters')
+      return
+    }
+    if (!window.confirm(`Reset password for ${subscriber.email}?`)) return
+    setResettingPw(true)
+    try {
+      await resetUserPassword(subscriber.user_id, newPassword)
+      setNewPassword('')
+      onSaved(`Password reset for ${subscriber.email}`)
+    } catch (err) {
+      onSaved(err instanceof Error ? err.message : 'Failed to reset password')
+    } finally {
+      setResettingPw(false)
+    }
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -277,6 +299,32 @@ function EditModal({
             <input type="checkbox" checked={bankNegotiation} onChange={e => setBankNegotiation(e.target.checked)} className="rounded border-slate-300" />
             <span className="text-sm text-slate-600">Bank Negotiation</span>
           </label>
+        </div>
+
+        {/* Password Reset */}
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <p className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+            <KeyRound className="w-4 h-4" /> Reset Password
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min 8 chars)"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <button
+              onClick={handleResetPassword}
+              disabled={resettingPw || !newPassword}
+              className="px-3 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+            >
+              {resettingPw && (
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              )}
+              Reset
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 flex items-center justify-between">

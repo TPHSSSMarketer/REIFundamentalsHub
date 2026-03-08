@@ -39,13 +39,9 @@ import HelpTicketsPage from './components/HelpTickets/HelpTicketsPage'
 import FlowBuilder from './components/FlowBuilder/FlowBuilder'
 import FlowEditor from './components/FlowBuilder/FlowEditor'
 import AdminAssistantPage from './components/AdminAssistant/AdminAssistantPage'
+import PrivacyPolicyPage from './components/Legal/PrivacyPolicyPage'
+import TermsPage from './components/Legal/TermsPage'
 import { isAuthenticated } from './services/auth'
-
-/** Redirect component — sends user to an external URL */
-function ExternalRedirect({ to }: { to: string }) {
-  window.location.href = to
-  return null
-}
 
 function BillingCompletePage() {
   const navigate = useNavigate()
@@ -127,8 +123,8 @@ function App() {
         <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
         <Route path="/proof-of-funds/verify/:requestToken" element={<BuyerVerifyPage />} />
         <Route path="/pay" element={<PaymentPortalPage />} />
-        <Route path="/privacy" element={<ExternalRedirect to="https://reifundamentalshub.com/privacy.html" />} />
-        <Route path="/terms" element={<ExternalRedirect to="https://reifundamentalshub.com/terms.html" />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route
           path="/billing/complete"
           element={
