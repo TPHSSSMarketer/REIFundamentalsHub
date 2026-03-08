@@ -311,6 +311,26 @@ async def create_tables() -> None:
     # so that create_all() can sort tables without errors.
     _fix_circular_fk_deps()
 
+    # ── Schema fixes: drop & recreate tables whose columns changed ──
+    # negotiation_recipients was originally created with different column names
+    # (negotiation_id, ai_researched, ai_confidence, etc.). The model now uses
+    # case_id, confidence, sources_json. Since no real data exists yet (all
+    # research attempts failed), drop and let create_all rebuild it correctly.
+    _TABLES_TO_REBUILD = ["negotiation_recipients"]
+    async with engine.begin() as conn:
+        for tbl in _TABLES_TO_REBUILD:
+            try:
+                # Check if the table needs rebuilding by testing for the new column
+                await conn.execute(text(f"SELECT case_id FROM {tbl} LIMIT 0"))
+                logger.info("Table %s already has correct schema — skipping rebuild", tbl)
+            except Exception:
+                # Column doesn't exist — drop and recreate
+                try:
+                    await conn.execute(text(f"DROP TABLE IF EXISTS {tbl}"))
+                    logger.info("Dropped table %s for schema rebuild", tbl)
+                except Exception as drop_err:
+                    logger.warning("Could not drop %s: %s", tbl, drop_err)
+
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

@@ -265,8 +265,6 @@ def format_recipient_for_display(recipient) -> dict:
         "phone": recipient.phone,
         "fax": recipient.fax,
         "email": recipient.email,
-        "ai_researched": recipient.ai_researched,
-        "ai_confidence": recipient.ai_confidence,
-        "manually_verified": recipient.manually_verified,
-        "ai_sources": json.loads(recipient.ai_sources or "[]"),
+        "confidence": recipient.confidence,
+        "sources": json.loads(recipient.sources_json or "[]"),
     }
