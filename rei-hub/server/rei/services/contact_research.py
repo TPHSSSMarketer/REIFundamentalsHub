@@ -194,14 +194,16 @@ async def _research_one_recipient(
     model_used = ai_result.get("model", "unknown")
     tokens_used = ai_result.get("tokens_used", 0)
 
-    # Detect if the AI returned an error message instead of JSON
+    # Detect if the AI returned an error or empty/unparseable response
     is_error = (
         raw_content.startswith("No AI provider")
         or raw_content.startswith("AI provider error")
         or tokens_used == 0
+        or not raw_content.strip()          # empty response
+        or "{" not in raw_content           # no JSON at all
     )
 
-    # FALLBACK: If primary provider failed, retry with Anthropic Claude
+    # FALLBACK: If primary provider failed or returned garbage, retry with Anthropic
     if is_error:
         logger.warning(
             "Primary AI failed for %s [%s/%s]: %s — trying Anthropic fallback",
@@ -226,6 +228,8 @@ async def _research_one_recipient(
                 raw_content.startswith("No AI provider")
                 or raw_content.startswith("AI provider error")
                 or tokens_used == 0
+                or not raw_content.strip()
+                or "{" not in raw_content
             )
 
             if not is_error:
