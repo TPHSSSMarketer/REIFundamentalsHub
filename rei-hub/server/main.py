@@ -263,70 +263,26 @@ app = FastAPI(
     openapi_url=_openapi_url,
 )
 
-# ── Middleware stack (Starlette LIFO: last added = outermost) ────────
-#
-# We need CORS to be the absolute outermost middleware so that EVERY
-# response (including 403 CSRF rejections, 429 rate-limit, security
-# headers) gets CORS headers. Without this, the browser blocks cross-
-# origin responses and shows "Failed to fetch" instead of the real error.
-#
-# Execution order (outermost → innermost):
-#   CORS → security_headers → rate_limit → CSRF → routes
-#
-# In code, we add them innermost-first:
-
 # ── Middleware stack — ALL pure ASGI (no BaseHTTPMiddleware) ───────
 #
-# Every middleware is a pure ASGI class that wraps the `send` callable
-# directly. This avoids the known Starlette BaseHTTPMiddleware bug where
-# Response objects can bypass outer middleware's send wrappers.
+# IMPORTANT: Starlette's add_middleware uses reversed() internally,
+# so the FIRST add_middleware call becomes the OUTERMOST middleware.
+# We add them outermost-first: SecurityHeaders → RateLimit → CSRF.
 #
-# Order (innermost → outermost):
-#   CSRF → RateLimit → SecurityHeaders → CORS
-#
-# In code we add innermost first:
+# CORS is NOT added via add_middleware — it's manually wrapped around
+# the entire app at the bottom of this file to GUARANTEE it is the
+# absolute outermost layer. This ensures every response (including
+# 403 CSRF rejections, 429 rate limits) gets CORS headers.
 
 from rei.middleware.csrf import CSRFProtectionMiddleware  # noqa: E402
 from rei.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
 from rei.middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
 
-app.add_middleware(CSRFProtectionMiddleware)
-app.add_middleware(RateLimitMiddleware)
+# Added first → outermost among these three
 app.add_middleware(SecurityHeadersMiddleware)
-
-
-# ── CORS — Pure-ASGI implementation (outermost middleware) ─────────
-#
-# We use our own pure-ASGI CORS middleware instead of Starlette's
-# CORSMiddleware because Starlette's version has known edge cases where
-# responses from @app.middleware("http") or BaseHTTPMiddleware bypass
-# its send wrapper, resulting in responses with NO CORS headers.
-#
-# Our implementation wraps the raw `send` callable so CORS headers are
-# injected into EVERY http.response.start — guaranteed.
-
-from rei.middleware.cors import CORSMiddleware as PureASGICORS  # noqa: E402
-
-if settings.environment == "development":
-    _cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
-    _cors_origin_regex: str | None = None
-else:
-    _hub = settings.hub_url.rstrip("/")
-    _cors_origins = [_hub]
-    # Also allow ANY subdomain of reifundamentalshub.com via regex
-    _cors_origin_regex = r"https://([a-z0-9-]+\.)?reifundamentalshub\.com"
-
-logger.info("CORS allowed origins: %s  regex: %s", _cors_origins, _cors_origin_regex if settings.environment != "development" else "N/A")
-
-# Pure-ASGI middleware — must be added LAST (Starlette LIFO = outermost)
-app.add_middleware(
-    PureASGICORS,
-    allow_origins=_cors_origins,
-    allow_origin_regex=_cors_origin_regex if settings.environment != "development" else None,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
-)
+app.add_middleware(RateLimitMiddleware)
+# Added last → innermost (closest to routes)
+app.add_middleware(CSRFProtectionMiddleware)
 
 
 # Routes
@@ -389,17 +345,38 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/debug/cors")
-async def debug_cors():
-    """Temporary endpoint — shows CORS config. Remove after debugging."""
-    return {
-        "hub_url_raw": settings.hub_url,
-        "cors_origins": _cors_origins,
-        "environment": settings.environment,
-    }
-
-
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
+
+# ── CORS — manually wrapped AFTER all routes & middleware ──────────
+#
+# We wrap the entire app at module level so CORS is the absolute
+# outermost layer. This guarantees EVERY response gets CORS headers,
+# including 403 CSRF rejections, 429 rate limits, and 500 errors.
+#
+# This approach is immune to Starlette's add_middleware ordering
+# quirks because it operates outside the Starlette middleware stack.
+
+from rei.middleware.cors import CORSMiddleware as PureASGICORS  # noqa: E402
+
+if settings.environment == "development":
+    _cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    _cors_origin_regex: str | None = None
+else:
+    _hub = settings.hub_url.rstrip("/")
+    _cors_origins = [_hub]
+    _cors_origin_regex = r"https://([a-z0-9-]+\.)?reifundamentalshub\.com"
+
+logger.info("CORS allowed origins: %s  regex: %s", _cors_origins, _cors_origin_regex if settings.environment != "development" else "N/A")
+
+app = PureASGICORS(
+    app,
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex if settings.environment != "development" else None,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+)

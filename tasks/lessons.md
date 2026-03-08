@@ -6,17 +6,11 @@
 
 **Rule:** Every time you add a new column to ANY existing model (especially `User`), you MUST also add a corresponding entry to `_COLUMN_MIGRATIONS` in `create_tables.py`. The format is `("table_name", "column_name", "SQL_TYPE DEFAULT value")`. Without this, existing deployed databases won't have the column and all queries against that table will fail.
 
-## 2026-03-07: CORSMiddleware MUST be the absolute outermost middleware
+## 2026-03-07: Starlette add_middleware ordering is REVERSED — do NOT rely on it for CORS
 
-**Mistake:** CORS was added via `add_middleware(CORSMiddleware)` before `@app.middleware("http")` decorators. Since `@app.middleware("http")` internally calls `add_middleware(BaseHTTPMiddleware)`, those decorators were added AFTER CORS in Starlette's middleware list. Starlette's LIFO order means last-added = outermost, so the BaseHTTPMiddleware wrappers (rate_limit, security_headers) ended up OUTSIDE of CORSMiddleware. Responses from those outer middlewares had no CORS headers, causing "Failed to fetch" in the browser.
+**Mistake:** Assumed "last `add_middleware()` call = outermost middleware" (LIFO). This is WRONG. Starlette's `build_middleware_stack()` uses `reversed()` on the middleware list, so the FIRST `add_middleware()` call becomes the OUTERMOST middleware, and the LAST call becomes INNERMOST. CORS was added last, making it innermost — CSRF rejected requests with 403 before they ever reached CORS, so no CORS headers were added and the browser showed "Failed to fetch."
 
-**Rule:** In `main.py`, the `app.add_middleware(CORSMiddleware, ...)` call MUST be the very last middleware registration — after ALL `add_middleware()` calls AND after ALL `@app.middleware("http")` decorators. The order in code should be: CSRF → @app.middleware decorators → CORS (last). This ensures CORS wraps everything and every response gets `Access-Control-Allow-Origin` headers.
-
-## 2026-03-07: Starlette CORSMiddleware has edge cases — use pure ASGI for reliability
-
-**Mistake:** Even with correct ordering (CORS added last = outermost), Starlette's `CORSMiddleware` still failed to add CORS headers on some responses. This is because `CORSMiddleware` wraps the `send` callable in its `__call__`, but `BaseHTTPMiddleware`-based inner middleware and `@app.middleware("http")` decorators can construct new `Response` objects that bypass the outer middleware's send wrapper.
-
-**Rule:** For CORS in a FastAPI app with `@app.middleware("http")` decorators, use a pure-ASGI CORS middleware (`rei/middleware/cors.py`) instead of Starlette's `CORSMiddleware`. The pure-ASGI version wraps `send` at the raw ASGI level, ensuring every `http.response.start` message gets CORS headers injected — no matter how the response was produced. Also use this approach for any middleware that MUST add headers to every response (like CSRF rejections).
+**Rule:** NEVER use `add_middleware()` for CORS. Instead, manually wrap the app at module level AFTER all routes and middleware are registered: `app = PureASGICORS(app, ...)`. This guarantees CORS is the absolute outermost layer regardless of Starlette version or internal ordering quirks. The wrapped app is what uvicorn references via `main:app`.
 
 ## 2026-03-07: Python str.replace() replaces ALL occurrences, not just the first
 
