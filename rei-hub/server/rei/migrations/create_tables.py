@@ -297,6 +297,9 @@ _COLUMN_MIGRATIONS = [
     ("users", "whatsapp_phone_number", "VARCHAR"),
     ("users", "slack_enabled", "BOOLEAN DEFAULT FALSE"),
     ("users", "slack_webhook_url", "VARCHAR"),
+    # ── User: AI Assistant channel preference ──
+    ("users", "assistant_channel", "VARCHAR DEFAULT 'web'"),
+    ("users", "voice_enabled", "BOOLEAN DEFAULT FALSE"),
 ]
 
 

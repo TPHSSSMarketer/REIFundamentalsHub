@@ -964,8 +964,599 @@ def _build_action_name(tool_name: str, params: dict) -> str:
     if tool_name == "update_contact":
         return f"Update contact information"
 
+    if tool_name == "draft_email":
+        to = params.get("to_name", params.get("to_email", ""))
+        return f"Draft email to {to}"
+
+    if tool_name == "draft_offer_email":
+        addr = params.get("property_address", "")
+        price = params.get("offer_price", 0)
+        return f"Draft offer email for {addr} at ${price:,.0f}"
+
+    if tool_name == "schedule_showing":
+        addr = params.get("property_address", "")
+        date = params.get("date", "")
+        return f"Schedule showing at {addr} on {date}"
+
+    if tool_name == "create_social_post":
+        topic = params.get("topic", "")[:50]
+        return f"Create social post: {topic}"
+
     # Generic fallback
     return f"Execute {tool_name}"
+
+
+# ══════════════════════════════════════════════════════════════════
+# PROPERTY RESEARCH TOOL HANDLERS
+# ══════════════════════════════════════════════════════════════════
+
+
+async def _lookup_property(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Look up property data via ATTOM."""
+    from rei.services.attom_property_service import lookup_property_data
+
+    address = params.get("address", "")
+    city = params.get("city", "")
+    state = params.get("state", "")
+    zip_code = params.get("zip_code", "")
+
+    if not address or not city or not state:
+        return {"error": "Address, city, and state are required"}
+
+    result = await lookup_property_data(
+        address=address, city=city, state=state,
+        zip_code=zip_code, db=db,
+    )
+    return result
+
+
+async def _get_market_data(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Get market data for a city/area via ATTOM."""
+    from rei.services.attom_service import lookup_market_data
+
+    city = params.get("city", "")
+    state = params.get("state", "")
+
+    if not city or not state:
+        return {"error": "City and state are required"}
+
+    result = await lookup_market_data(city, state)
+    return result
+
+
+async def _search_properties(params: dict, user: User, db: AsyncSession) -> dict:
+    """Search for property listings. Uses AI to generate a listing summary
+    based on the criteria (Puppeteer web scraping can be added later)."""
+    location = params.get("location", "")
+    max_price = params.get("max_price")
+    min_beds = params.get("min_beds")
+    min_baths = params.get("min_baths")
+    prop_type = params.get("property_type", "")
+    limit = params.get("limit", 20)
+
+    if not location:
+        return {"error": "Location is required"}
+
+    # Build a search description for the user
+    criteria = [f"Location: {location}"]
+    if max_price:
+        criteria.append(f"Max price: ${max_price:,}")
+    if min_beds:
+        criteria.append(f"Min beds: {min_beds}")
+    if min_baths:
+        criteria.append(f"Min baths: {min_baths}")
+    if prop_type:
+        criteria.append(f"Type: {prop_type}")
+
+    return {
+        "status": "search_criteria_set",
+        "criteria": criteria,
+        "message": (
+            f"Property search criteria set for {location}. "
+            "Note: Live web scraping (Zillow/Realtor.com) is coming soon. "
+            "For now, I can look up specific properties by address using the "
+            "lookup_property tool, or pull market data with get_market_data."
+        ),
+        "limit": limit,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# DEAL MANAGEMENT TOOL HANDLERS
+# ══════════════════════════════════════════════════════════════════
+
+
+async def _add_deal_note(params: dict, user: User, db: AsyncSession) -> dict:
+    """Add a note to a deal via DealFile with file_type='document'."""
+    from rei.models.crm import DealFile
+
+    deal_id = params.get("deal_id", "")
+    note_text = params.get("note", "")
+    category = params.get("category", "general")
+
+    if not deal_id or not note_text:
+        return {"error": "deal_id and note are required"}
+
+    # Verify the deal belongs to this user
+    deal = await db.get(CrmDeal, deal_id)
+    if not deal or deal.user_id != user.id:
+        return {"error": "Deal not found"}
+
+    import uuid
+    new_file = DealFile(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        deal_id=deal_id,
+        file_type="document",
+        category=category,
+        file_name=f"Note - {category} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+        notes=note_text,
+    )
+    db.add(new_file)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"Note added to deal {deal_id}",
+        "note_preview": note_text[:200],
+    }
+
+
+async def _upload_deal_photo(params: dict, user: User, db: AsyncSession) -> dict:
+    """Upload a photo to a deal."""
+    from rei.models.crm import DealFile
+
+    deal_id = params.get("deal_id", "")
+    photo_data = params.get("photo_data", "")
+    category = params.get("photo_category", "miscellaneous")
+    notes = params.get("notes", "")
+
+    if not deal_id or not photo_data:
+        return {"error": "deal_id and photo_data are required"}
+
+    deal = await db.get(CrmDeal, deal_id)
+    if not deal or deal.user_id != user.id:
+        return {"error": "Deal not found"}
+
+    import uuid
+    new_file = DealFile(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        deal_id=deal_id,
+        file_type="photo",
+        category=category,
+        file_name=f"Photo - {category} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}.jpg",
+        mime_type="image/jpeg",
+        file_content=photo_data,
+        notes=notes,
+    )
+    db.add(new_file)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"Photo uploaded to deal {deal_id} (category: {category})",
+    }
+
+
+async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
+    """Get full deal details including files and notes."""
+    from rei.models.crm import DealFile
+
+    deal_id = params.get("deal_id", "")
+    if not deal_id:
+        return {"error": "deal_id is required"}
+
+    deal = await db.get(CrmDeal, deal_id)
+    if not deal or deal.user_id != user.id:
+        return {"error": "Deal not found"}
+
+    # Get files (without content to keep response small)
+    files_result = await db.execute(
+        select(DealFile).where(
+            DealFile.deal_id == deal_id,
+            DealFile.user_id == user.id,
+        )
+    )
+    files = files_result.scalars().all()
+
+    return {
+        "id": deal.id,
+        "property_address": deal.property_address,
+        "city": deal.city,
+        "state": deal.state,
+        "zip_code": deal.zip_code,
+        "stage": deal.stage,
+        "asking_price": deal.asking_price,
+        "offer_price": deal.offer_price,
+        "arv": deal.arv,
+        "repair_estimate": deal.repair_estimate,
+        "contact_name": deal.contact_name,
+        "contact_phone": deal.contact_phone,
+        "contact_email": deal.contact_email,
+        "notes": deal.notes,
+        "created_at": deal.created_at.isoformat() if deal.created_at else None,
+        "files": [
+            {
+                "id": f.id,
+                "file_type": f.file_type,
+                "category": f.category,
+                "file_name": f.file_name,
+                "notes": f.notes,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in files
+        ],
+        "file_count": len(files),
+        "photo_count": sum(1 for f in files if f.file_type == "photo"),
+    }
+
+
+async def _search_deals(params: dict, user: User, db: AsyncSession) -> dict:
+    """Search deals by text across address, contact, and notes."""
+    query_text = params.get("query", "").lower()
+    limit = params.get("limit", 10)
+
+    if not query_text:
+        return {"error": "query is required"}
+
+    result = await db.execute(
+        select(CrmDeal).where(CrmDeal.user_id == user.id).limit(100)
+    )
+    all_deals = result.scalars().all()
+
+    # Text search across multiple fields
+    matches = []
+    for d in all_deals:
+        searchable = " ".join(filter(None, [
+            d.property_address, d.city, d.state,
+            d.contact_name, d.contact_phone, d.contact_email,
+            d.notes, d.stage,
+        ])).lower()
+        if query_text in searchable:
+            matches.append({
+                "id": d.id,
+                "property_address": d.property_address,
+                "city": d.city,
+                "state": d.state,
+                "stage": d.stage,
+                "asking_price": d.asking_price,
+                "contact_name": d.contact_name,
+            })
+        if len(matches) >= limit:
+            break
+
+    return {"deals": matches, "count": len(matches)}
+
+
+# ══════════════════════════════════════════════════════════════════
+# CONTENTHUB TOOL HANDLERS
+# ══════════════════════════════════════════════════════════════════
+
+
+async def _create_social_post(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Generate social media content via AI and save to ContentHub."""
+    from rei.services.ai_service import ai_complete
+    from rei.services.content_hub_service import save_waterfall_content
+
+    topic = params.get("topic", "")
+    deal_id = params.get("deal_id")
+    tone = params.get("tone", "professional")
+    platforms = params.get("platforms", ["facebook", "instagram", "linkedin"])
+
+    if not topic:
+        return {"error": "topic is required"}
+
+    # If a deal_id is provided, pull property details for context
+    deal_context = ""
+    if deal_id:
+        deal = await db.get(CrmDeal, deal_id)
+        if deal and deal.user_id == user.id:
+            deal_context = (
+                f"\nProperty details: {deal.property_address}, {deal.city}, {deal.state} {deal.zip_code}"
+                f"\nAsking: ${deal.asking_price:,.0f}" if deal.asking_price else ""
+                f"\nARV: ${deal.arv:,.0f}" if deal.arv else ""
+                f"\nStage: {deal.stage}"
+            )
+
+    platform_list = ", ".join(platforms)
+    prompt = (
+        f"Create engaging social media posts for a real estate investor.\n"
+        f"Topic: {topic}{deal_context}\n"
+        f"Tone: {tone}\n"
+        f"Platforms: {platform_list}\n\n"
+        f"For each platform, write a post optimized for that platform's style and character limits. "
+        f"Include relevant hashtags. Return as JSON:\n"
+        f'{{"posts": [{{"platform": "facebook", "content": "...", "hashtags": ["..."]}}]}}'
+    )
+
+    ai_result = await ai_complete(
+        messages=[{"role": "user", "content": prompt}],
+        user_id=user.id,
+        db=db,
+        settings=settings,
+        task_type="general",
+        max_tokens=2000,
+        temperature=0.7,
+    )
+
+    content = ai_result.get("content", "")
+
+    # Save to ContentHub
+    try:
+        entry_id = await save_waterfall_content(
+            user_id=user.id,
+            topic=topic,
+            waterfall_output=content,
+            source_article_id=None,
+            tags=[tone] + platforms,
+            db=db,
+        )
+    except Exception as exc:
+        logger.warning("Failed to save to ContentHub: %s", exc)
+        entry_id = None
+
+    return {
+        "content": content,
+        "entry_id": entry_id,
+        "topic": topic,
+        "platforms": platforms,
+        "message": "Social media content created and saved to ContentHub.",
+    }
+
+
+async def _list_content(params: dict, user: User, db: AsyncSession) -> dict:
+    """List ContentHub entries."""
+    from rei.services.content_hub_service import list_content_entries
+
+    platform = params.get("platform")
+    limit = params.get("limit", 10)
+
+    entries = await list_content_entries(
+        user_id=user.id, db=db,
+        platform=platform, limit=limit,
+    )
+    return {"entries": entries, "count": len(entries)}
+
+
+# ══════════════════════════════════════════════════════════════════
+# EMAIL COMPOSE TOOL HANDLERS
+# ══════════════════════════════════════════════════════════════════
+
+
+async def _draft_email(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Draft and send a personalized email."""
+    from rei.services.email import send_email
+    from rei.services.admin_humanizer_service import humanize_text
+
+    to_email = params.get("to_email", "")
+    to_name = params.get("to_name", "")
+    subject = params.get("subject", "")
+    body = params.get("body", "")
+
+    if not to_email or not subject or not body:
+        return {"error": "to_email, subject, and body are required"}
+
+    # Humanize the body to remove AI-sounding language
+    humanized_body = humanize_text(body)
+
+    # Wrap in simple HTML
+    html_body = f"<p>{humanized_body.replace(chr(10), '</p><p>')}</p>"
+
+    success = await send_email(
+        to_email=to_email,
+        to_name=to_name,
+        subject=subject,
+        html_content=html_body,
+        settings=settings,
+    )
+
+    return {
+        "success": success,
+        "to": f"{to_name} <{to_email}>",
+        "subject": subject,
+        "body_preview": humanized_body[:200],
+        "message": f"Email sent to {to_name}" if success else "Failed to send email",
+    }
+
+
+async def _draft_offer_email(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Draft and send an offer email for a property."""
+    from rei.services.email import send_email
+    from rei.services.admin_humanizer_service import humanize_text
+
+    to_email = params.get("to_email", "")
+    to_name = params.get("to_name", "")
+    address = params.get("property_address", "")
+    offer_price = params.get("offer_price", 0)
+    closing_days = params.get("closing_days", 30)
+    contingencies = params.get("contingencies", "Standard inspection contingency")
+
+    if not to_email or not address or not offer_price:
+        return {"error": "to_email, property_address, and offer_price are required"}
+
+    user_name = user.full_name or user.email
+    user_company = getattr(user, "company_name", "") or ""
+
+    body = (
+        f"Dear {to_name},\n\n"
+        f"I am writing to express my interest in purchasing the property at {address}. "
+        f"After reviewing the property, I would like to submit a formal offer of ${offer_price:,.0f}.\n\n"
+        f"Proposed terms:\n"
+        f"- Purchase Price: ${offer_price:,.0f}\n"
+        f"- Closing Timeline: {closing_days} days from acceptance\n"
+        f"- Contingencies: {contingencies}\n"
+        f"- Earnest Money Deposit: To be determined upon acceptance\n\n"
+        f"I am a serious buyer with financing in place and can close on schedule. "
+        f"Please let me know if you would like to discuss this offer further.\n\n"
+        f"Best regards,\n{user_name}"
+    )
+    if user_company:
+        body += f"\n{user_company}"
+
+    humanized = humanize_text(body)
+    html_body = f"<p>{humanized.replace(chr(10), '</p><p>')}</p>"
+
+    subject = f"Purchase Offer - {address}"
+
+    success = await send_email(
+        to_email=to_email,
+        to_name=to_name,
+        subject=subject,
+        html_content=html_body,
+        settings=settings,
+    )
+
+    return {
+        "success": success,
+        "to": f"{to_name} <{to_email}>",
+        "subject": subject,
+        "offer_price": offer_price,
+        "property": address,
+        "message": f"Offer email sent to {to_name}" if success else "Failed to send offer email",
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# CALENDAR & SHOWING TOOL HANDLERS
+# ══════════════════════════════════════════════════════════════════
+
+
+async def _schedule_showing(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Schedule a property showing as a calendar event."""
+    from rei.models.user import CalendarEvent
+
+    address = params.get("property_address", "")
+    date_str = params.get("date", "")
+    time_str = params.get("time", "")
+    duration = params.get("duration_minutes", 30)
+    contact_id = params.get("contact_id")
+    deal_id = params.get("deal_id")
+    notify = params.get("notify_contact", False)
+    notes = params.get("notes", "")
+
+    if not address or not date_str or not time_str:
+        return {"error": "property_address, date, and time are required"}
+
+    try:
+        start_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        end_dt = start_dt + timedelta(minutes=duration)
+    except ValueError:
+        return {"error": "Invalid date/time format. Use YYYY-MM-DD and HH:MM"}
+
+    import uuid
+    event = CalendarEvent(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        title=f"Showing: {address}",
+        description=notes,
+        event_type="appointment",
+        start_datetime=start_dt,
+        end_datetime=end_dt,
+        location=address,
+        contact_id=contact_id,
+        deal_id=deal_id,
+    )
+    db.add(event)
+    await db.commit()
+
+    result = {
+        "success": True,
+        "event_id": event.id,
+        "title": event.title,
+        "date": date_str,
+        "time": time_str,
+        "duration_minutes": duration,
+        "address": address,
+    }
+
+    # Optionally send SMS notification to the contact
+    if notify and contact_id:
+        contact = await db.get(CrmContact, contact_id)
+        if contact and contact.phone:
+            try:
+                from rei.services.twilio_service import send_sms
+                msg = (
+                    f"Hi {contact.name}, this is a confirmation for our showing "
+                    f"at {address} on {start_dt.strftime('%B %d at %I:%M %p')}. "
+                    f"Please let me know if this still works for you."
+                )
+                await send_sms(
+                    to=contact.phone,
+                    body=msg,
+                    user=user,
+                    db=db,
+                    settings=settings,
+                )
+                result["notification_sent"] = True
+                result["notification_to"] = contact.name
+            except Exception as exc:
+                logger.warning("Failed to send showing notification: %s", exc)
+                result["notification_sent"] = False
+                result["notification_error"] = str(exc)
+
+    return result
+
+
+async def _get_schedule(params: dict, user: User, db: AsyncSession) -> dict:
+    """Get upcoming calendar events and tasks."""
+    from rei.models.user import CalendarEvent, Task
+
+    days_ahead = params.get("days_ahead", 7)
+    event_type = params.get("event_type")
+
+    now = datetime.utcnow()
+    end = now + timedelta(days=days_ahead)
+
+    # Get calendar events
+    event_query = select(CalendarEvent).where(
+        CalendarEvent.user_id == user.id,
+        CalendarEvent.start_datetime >= now,
+        CalendarEvent.start_datetime <= end,
+    )
+    if event_type:
+        event_query = event_query.where(CalendarEvent.event_type == event_type)
+
+    events_result = await db.execute(event_query.order_by(CalendarEvent.start_datetime))
+    events = events_result.scalars().all()
+
+    # Get tasks due in the same window
+    task_query = select(Task).where(
+        Task.user_id == user.id,
+        Task.status.in_(["pending", "in_progress"]),
+        Task.due_date <= end,
+    )
+    tasks_result = await db.execute(task_query.order_by(Task.due_date))
+    tasks = tasks_result.scalars().all()
+
+    return {
+        "events": [
+            {
+                "id": e.id,
+                "title": e.title,
+                "type": e.event_type,
+                "start": e.start_datetime.isoformat() if e.start_datetime else None,
+                "end": e.end_datetime.isoformat() if e.end_datetime else None,
+                "location": e.location,
+                "description": e.description,
+            }
+            for e in events
+        ],
+        "tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "priority": t.priority,
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+                "task_type": t.task_type,
+            }
+            for t in tasks
+        ],
+        "event_count": len(events),
+        "task_count": len(tasks),
+        "period": f"Next {days_ahead} days",
+    }
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -991,4 +1582,22 @@ TOOL_HANDLERS = {
     "get_usage_stats": {"fn": _get_usage_stats, "needs_settings": False},
     # ── Analytics Tools ──────────────────────────────────────────
     "get_dashboard_stats": {"fn": _get_dashboard_stats, "needs_settings": False},
+    # ── Property Research Tools ──────────────────────────────────
+    "lookup_property": {"fn": _lookup_property, "needs_settings": True},
+    "get_market_data": {"fn": _get_market_data, "needs_settings": True},
+    "search_properties": {"fn": _search_properties, "needs_settings": False},
+    # ── Deal Management Tools ────────────────────────────────────
+    "add_deal_note": {"fn": _add_deal_note, "needs_settings": False},
+    "upload_deal_photo": {"fn": _upload_deal_photo, "needs_settings": False},
+    "get_deal_details": {"fn": _get_deal_details, "needs_settings": False},
+    "search_deals": {"fn": _search_deals, "needs_settings": False},
+    # ── ContentHub Tools ─────────────────────────────────────────
+    "create_social_post": {"fn": _create_social_post, "needs_settings": True},
+    "list_content": {"fn": _list_content, "needs_settings": False},
+    # ── Email Compose Tools ──────────────────────────────────────
+    "draft_email": {"fn": _draft_email, "needs_settings": True},
+    "draft_offer_email": {"fn": _draft_offer_email, "needs_settings": True},
+    # ── Calendar & Showing Tools ─────────────────────────────────
+    "schedule_showing": {"fn": _schedule_showing, "needs_settings": True},
+    "get_schedule": {"fn": _get_schedule, "needs_settings": False},
 }

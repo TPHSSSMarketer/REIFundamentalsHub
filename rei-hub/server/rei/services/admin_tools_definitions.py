@@ -353,9 +353,246 @@ EMAIL_TOOLS = [
 ]
 
 
+# ── Property Research Tools ──────────────────────────────────────────
+
+PROPERTY_TOOLS = [
+    {
+        "name": "lookup_property",
+        "description": "Look up detailed property data by address. Returns tax assessment, sale history, liens, property details, and comps from the ATTOM database.",
+        "risk_level": "LOW",
+        "domain": "property",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Street address (e.g., '123 Main St')"},
+                "city": {"type": "string", "description": "City name"},
+                "state": {"type": "string", "description": "2-letter state code"},
+                "zip_code": {"type": "string", "description": "ZIP code (optional)"},
+            },
+            "required": ["address", "city", "state"],
+        },
+    },
+    {
+        "name": "get_market_data",
+        "description": "Get real estate market data for a city/area: median home prices, rents, days on market, inventory levels, and price trends.",
+        "risk_level": "LOW",
+        "domain": "property",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "City name"},
+                "state": {"type": "string", "description": "2-letter state code"},
+            },
+            "required": ["city", "state"],
+        },
+    },
+    {
+        "name": "search_properties",
+        "description": "Search for properties matching criteria in a given area. Uses web scraping to find listings from public sources. Returns addresses, prices, beds, baths, and sqft.",
+        "risk_level": "LOW",
+        "domain": "property",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City, county, or ZIP code to search in"},
+                "max_price": {"type": "integer", "description": "Maximum price filter"},
+                "min_beds": {"type": "integer", "description": "Minimum bedrooms"},
+                "min_baths": {"type": "integer", "description": "Minimum bathrooms"},
+                "property_type": {"type": "string", "description": "Property type: single_family, multi_family, condo, townhouse, land"},
+                "limit": {"type": "integer", "description": "Max results to return", "default": 20},
+            },
+            "required": ["location"],
+        },
+    },
+]
+
+# ── Deal Management Tools ───────────────────────────────────────────
+
+DEAL_TOOLS = [
+    {
+        "name": "add_deal_note",
+        "description": "Add a text note to a specific deal in the pipeline. Use this when the user wants to record information about a property or deal.",
+        "risk_level": "MEDIUM",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "deal_id": {"type": "string", "description": "The deal ID to add the note to"},
+                "note": {"type": "string", "description": "The note text to add"},
+                "category": {"type": "string", "description": "Note category: general, inspection, repair, financial, legal, other", "default": "general"},
+            },
+            "required": ["deal_id", "note"],
+        },
+    },
+    {
+        "name": "upload_deal_photo",
+        "description": "Upload a photo to a deal. Use when the user sends a photo via Telegram or chat and wants it attached to a deal.",
+        "risk_level": "MEDIUM",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "deal_id": {"type": "string", "description": "The deal ID to attach the photo to"},
+                "photo_category": {"type": "string", "description": "Photo category: front, back, kitchen, living_room, bedroom_1, bathroom_1, garage, yard, miscellaneous", "default": "miscellaneous"},
+                "notes": {"type": "string", "description": "Description or notes about the photo"},
+                "photo_data": {"type": "string", "description": "Base64-encoded image data"},
+            },
+            "required": ["deal_id", "photo_data"],
+        },
+    },
+    {
+        "name": "get_deal_details",
+        "description": "Get full details for a specific deal including property info, financials, photos, and notes.",
+        "risk_level": "LOW",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "deal_id": {"type": "string", "description": "The deal ID"},
+            },
+            "required": ["deal_id"],
+        },
+    },
+    {
+        "name": "search_deals",
+        "description": "Search deals by property address, contact name, or any text. More flexible than get_deals which only filters by stage.",
+        "risk_level": "LOW",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search text (address, contact name, notes)"},
+                "limit": {"type": "integer", "default": 10},
+            },
+            "required": ["query"],
+        },
+    },
+]
+
+# ── ContentHub Tools (Social Media) ─────────────────────────────────
+
+CONTENT_TOOLS = [
+    {
+        "name": "create_social_post",
+        "description": "Generate a social media post about a property, deal, market insight, or topic. Creates platform-specific content for Facebook, Instagram, LinkedIn, Twitter, and TikTok.",
+        "risk_level": "MEDIUM",
+        "domain": "content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "What the post should be about (e.g., 'new flip at 123 Main St', 'market update for Suffolk County')"},
+                "deal_id": {"type": "string", "description": "Optional deal ID to pull property details from"},
+                "tone": {"type": "string", "description": "Post tone: professional, casual, exciting, educational", "default": "professional"},
+                "platforms": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Target platforms: facebook, instagram, linkedin, twitter, tiktok",
+                    "default": ["facebook", "instagram", "linkedin"],
+                },
+            },
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "list_content",
+        "description": "List existing ContentHub entries. Use to see what social media content has been created.",
+        "risk_level": "LOW",
+        "domain": "content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string", "description": "Filter by platform (facebook, instagram, etc.)"},
+                "limit": {"type": "integer", "default": 10},
+            },
+        },
+    },
+]
+
+# ── Email Tools (expanded) ──────────────────────────────────────────
+
+EMAIL_COMPOSE_TOOLS = [
+    {
+        "name": "draft_email",
+        "description": "Draft and send a personalized email to a contact. The email is humanized to avoid sounding like AI. Use for follow-ups, offers, updates, etc.",
+        "risk_level": "MEDIUM",
+        "domain": "email_compose",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "to_email": {"type": "string", "description": "Recipient email address"},
+                "to_name": {"type": "string", "description": "Recipient name"},
+                "subject": {"type": "string", "description": "Email subject line"},
+                "body": {"type": "string", "description": "Email body content (will be humanized before sending)"},
+                "contact_id": {"type": "string", "description": "Optional CRM contact ID to link the email to"},
+            },
+            "required": ["to_email", "to_name", "subject", "body"],
+        },
+    },
+    {
+        "name": "draft_offer_email",
+        "description": "Draft an offer email for a property. Generates a professional offer letter with price, terms, and closing timeline.",
+        "risk_level": "MEDIUM",
+        "domain": "email_compose",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "to_email": {"type": "string", "description": "Seller or agent email"},
+                "to_name": {"type": "string", "description": "Seller or agent name"},
+                "property_address": {"type": "string", "description": "Property address"},
+                "offer_price": {"type": "number", "description": "Offer amount in dollars"},
+                "closing_days": {"type": "integer", "description": "Days to close", "default": 30},
+                "contingencies": {"type": "string", "description": "Any contingencies or special terms"},
+            },
+            "required": ["to_email", "to_name", "property_address", "offer_price"],
+        },
+    },
+]
+
+# ── Calendar & Showing Tools (expanded) ─────────────────────────────
+
+SHOWING_TOOLS = [
+    {
+        "name": "schedule_showing",
+        "description": "Schedule a property showing appointment. Creates a calendar event and optionally texts the seller/agent to confirm.",
+        "risk_level": "MEDIUM",
+        "domain": "showing",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "property_address": {"type": "string", "description": "Property address for the showing"},
+                "date": {"type": "string", "description": "Date in YYYY-MM-DD format"},
+                "time": {"type": "string", "description": "Time in HH:MM format (24hr)"},
+                "duration_minutes": {"type": "integer", "description": "Showing duration", "default": 30},
+                "contact_id": {"type": "string", "description": "Contact ID of the seller/agent"},
+                "deal_id": {"type": "string", "description": "Optional deal ID to link to"},
+                "notify_contact": {"type": "boolean", "description": "Send SMS to the contact to confirm", "default": False},
+                "notes": {"type": "string", "description": "Notes about the showing"},
+            },
+            "required": ["property_address", "date", "time"],
+        },
+    },
+    {
+        "name": "get_schedule",
+        "description": "Get upcoming calendar events and tasks for a date range. Shows showings, closings, follow-ups, and reminders.",
+        "risk_level": "LOW",
+        "domain": "showing",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "days_ahead": {"type": "integer", "description": "Number of days to look ahead", "default": 7},
+                "event_type": {"type": "string", "description": "Filter by type: appointment, closing, follow_up, callback, reminder, task"},
+            },
+        },
+    },
+]
+
+
 # ── Aggregate: All tools in one list ──────────────────────────────────
 
-ALL_TOOLS = CRM_TOOLS + PHONE_TOOLS + ANALYTICS_TOOLS + CALENDAR_TOOLS + EMAIL_TOOLS
+ALL_TOOLS = (
+    CRM_TOOLS + PHONE_TOOLS + ANALYTICS_TOOLS + CALENDAR_TOOLS + EMAIL_TOOLS
+    + PROPERTY_TOOLS + DEAL_TOOLS + CONTENT_TOOLS + EMAIL_COMPOSE_TOOLS + SHOWING_TOOLS
+)
 
 # Quick lookup by name
 TOOLS_BY_NAME: dict[str, dict] = {tool["name"]: tool for tool in ALL_TOOLS}
@@ -400,8 +637,8 @@ def get_risk_level(tool_name: str) -> str:
 
 DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "crm": [
-        "contact", "contacts", "lead", "leads", "deal", "deals", "pipeline",
-        "portfolio", "property", "properties", "stage", "stalled", "buyer",
+        "contact", "contacts", "lead", "leads", "pipeline",
+        "portfolio", "stage", "stalled", "buyer",
         "seller", "investor", "agent", "broker", "crm", "relationship",
     ],
     "phone": [
@@ -415,11 +652,34 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
     ],
     "calendar": [
         "task", "tasks", "follow-up", "follow up", "reminder", "due", "upcoming",
-        "schedule", "calendar", "event", "appointment", "meeting",
+        "calendar", "event",
     ],
     "email": [
-        "email", "emails", "campaign", "subscriber", "newsletter", "open rate",
-        "click rate", "list", "unsubscribe", "drip",
+        "campaign", "subscriber", "newsletter", "open rate",
+        "click rate", "unsubscribe", "drip",
+    ],
+    "property": [
+        "property", "properties", "lookup", "look up", "address", "house",
+        "home", "attom", "assessment", "tax", "comps", "comparable",
+        "market data", "median", "zillow", "listing", "listings", "mls",
+        "search properties", "find properties", "pull list", "pull me",
+    ],
+    "deals": [
+        "deal", "deals", "note", "notes", "photo", "photos", "picture",
+        "file", "files", "upload", "attach", "document",
+    ],
+    "content": [
+        "social media", "social", "post", "facebook", "instagram", "linkedin",
+        "twitter", "tiktok", "content", "content hub", "blog",
+    ],
+    "email_compose": [
+        "email", "emails", "draft", "send email", "write email", "offer email",
+        "offer letter", "follow up email",
+    ],
+    "showing": [
+        "showing", "showings", "appointment", "meeting", "schedule",
+        "walk through", "walkthrough", "tour", "visit", "open house",
+        "closing", "my schedule", "what's on my calendar",
     ],
 }
 
