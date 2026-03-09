@@ -191,6 +191,26 @@ export async function triggerResearch(caseId: string): Promise<{ detail: string 
   return handleResponse(res, 'Failed to start research')
 }
 
+export async function triggerAgentResearch(caseId: string): Promise<{
+  detail: string
+  valid_count?: number
+  total?: number
+  agent_stats?: Array<{
+    type: string
+    has_data: boolean
+    turns: number
+    tools: string[]
+    tokens: number
+  }>
+}> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/research-agent`, {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  })
+  return handleResponse(res, 'Failed to start agent research')
+}
+
 export async function testResearch(caseId: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/research-test`, {
     method: 'POST',

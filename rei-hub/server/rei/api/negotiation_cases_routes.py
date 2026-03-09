@@ -459,6 +459,182 @@ async def trigger_research(
         )
 
 
+@negotiation_cases_router.post("/{case_id}/research-agent")
+async def trigger_agent_research(
+    case_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger agentic AI contact research — uses tool-calling loop for deeper results.
+
+    Superadmin only.
+    Same as trigger_research but uses the agent-based approach where Kimi K2.5
+    uses tools (web search, SEC lookup, state registry, etc.) to research
+    contacts step by step rather than in a single-shot prompt.
+    """
+    import json as _json
+    from rei.services.contact_research import research_bank_contacts_agent
+
+    if not user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    result = await db.execute(
+        select(NegotiationCase).where(NegotiationCase.id == case_id)
+    )
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    # Set status to researching
+    case.status = "researching"
+    case.updated_at = datetime.utcnow()
+    await db.commit()
+
+    try:
+        # Get deal + lien info
+        deal = await db.get(CrmDeal, case.deal_id) if case.deal_id else None
+        state = deal.state if deal else ""
+
+        property_address = ""
+        if deal:
+            parts = [deal.address, deal.city, deal.state, deal.zip]
+            property_address = ", ".join(p for p in parts if p)
+
+        lien_result = await db.execute(
+            select(DealLien).where(DealLien.deal_id == case.deal_id).limit(1)
+        )
+        lien = lien_result.scalar_one_or_none()
+        bank_name = lien.lien_holder if lien else "Unknown"
+
+        logger.info(
+            "=== Starting AGENT research for case %s, bank=%s, state=%s, service=%s ===",
+            case_id, bank_name, state, case.service_type,
+        )
+
+        # Run agent-based research
+        results = await research_bank_contacts_agent(
+            bank_name=bank_name,
+            state=state or "",
+            negotiation_id=str(case.id),
+            user_id=user.id,
+            db=db,
+            settings=get_settings(),
+            property_address=property_address,
+            service_type=case.service_type,
+        )
+
+        logger.info("Agent research: got %d results", len(results))
+
+        # Delete existing recipients for this case (re-research replaces old data)
+        old = await db.execute(
+            select(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id)
+        )
+        for r in old.scalars().all():
+            await db.delete(r)
+
+        # Save each recipient to the database
+        valid_count = 0
+        agent_stats = []
+        for r in results:
+            has_data = any(r.get(k) for k in ["name", "mailing_address", "phone", "email"])
+            if has_data:
+                valid_count += 1
+
+            # Track agent metrics
+            agent_stats.append({
+                "type": r.get("recipient_type", "?"),
+                "has_data": has_data,
+                "turns": r.get("_agent_turns", 0),
+                "tools": r.get("_agent_tools", []),
+                "tokens": r.get("_tokens", 0),
+            })
+
+            recipient = NegotiationRecipient(
+                case_id=str(case.id),
+                recipient_type=r.get("recipient_type", ""),
+                name=r.get("name"),
+                title=r.get("title"),
+                mailing_address=r.get("mailing_address"),
+                mailing_city=r.get("mailing_city"),
+                mailing_state=r.get("mailing_state"),
+                mailing_zip=r.get("mailing_zip"),
+                phone=r.get("phone"),
+                fax=r.get("fax"),
+                email=r.get("email"),
+                confidence=r.get("confidence"),
+                sources_json=_json.dumps(r.get("sources", [])),
+            )
+            db.add(recipient)
+
+        # Build a detailed admin note showing agent activity
+        total_tools = sum(len(s["tools"]) for s in agent_stats)
+        total_turns = sum(s["turns"] for s in agent_stats)
+        total_tokens = sum(s["tokens"] for s in agent_stats)
+
+        if valid_count > 0:
+            note = (
+                f"AI Agent research completed for {bank_name}. "
+                f"Found {valid_count} of {len(results)} contacts with usable data. "
+                f"Agent used {total_tools} tool calls across {total_turns} turns ({total_tokens} tokens)."
+            )
+            summary = "Contact research has been completed for your case using our advanced AI agent."
+        else:
+            note = (
+                f"AI Agent research for {bank_name} returned no usable contact data. "
+                f"Agent used {total_tools} tool calls across {total_turns} turns ({total_tokens} tokens). "
+                "Check server logs for details."
+            )
+            summary = "Contact research completed but could not find contact information. Our team will follow up."
+
+        activity = NegotiationActivity(
+            case_id=str(case.id),
+            activity_type="ai_research",
+            admin_note=note,
+            user_summary=summary,
+            created_by="ai_agent",
+        )
+        db.add(activity)
+
+        case.status = "in_progress"
+        case.updated_at = datetime.utcnow()
+        await db.commit()
+
+        logger.info(
+            "Agent research completed for case %s: %d of %d contacts, %d tools, %d turns",
+            case_id, valid_count, len(results), total_tools, total_turns,
+        )
+
+        return {
+            "detail": f"Agent research completed. {valid_count} of {len(results)} contacts found.",
+            "valid_count": valid_count,
+            "total": len(results),
+            "agent_stats": agent_stats,
+        }
+
+    except Exception as e:
+        logger.error("Agent research failed for case %s: %s", case_id, e)
+        try:
+            case.status = "intake"
+            case.updated_at = datetime.utcnow()
+
+            err_activity = NegotiationActivity(
+                case_id=str(case.id),
+                activity_type="ai_research",
+                admin_note=f"AI Agent research failed: {str(e)[:300]}",
+                user_summary="Contact research encountered an issue and will be retried.",
+                created_by="system",
+            )
+            db.add(err_activity)
+            await db.commit()
+        except Exception as inner_err:
+            logger.error("Failed to log agent research error: %s", inner_err)
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Agent research failed: {str(e)[:200]}",
+        )
+
+
 @negotiation_cases_router.post("/{case_id}/research-test")
 async def test_research(
     case_id: str,

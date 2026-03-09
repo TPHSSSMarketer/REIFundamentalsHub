@@ -38,6 +38,7 @@ import {
   listMessages,
   sendMessage,
   triggerResearch,
+  triggerAgentResearch,
   listRecipients,
   checkTrackingNow,
   listCaseFiles,
@@ -1001,12 +1002,14 @@ function QuickActions({
   onStatusChange,
   onPriorityChange,
   onStartResearch,
+  onAgentResearch,
   onTestResearch,
 }: {
   caseItem: NegotiationCase
   onStatusChange: (status: string) => Promise<void>
   onPriorityChange: (priority: string) => Promise<void>
   onStartResearch: () => Promise<void>
+  onAgentResearch: () => Promise<void>
   onTestResearch: () => Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
@@ -1101,8 +1104,17 @@ function QuickActions({
           className="w-full px-4 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <Zap className="w-4 h-4" />
-          Start AI Research
+          Standard Research
         </button>
+        <button
+          onClick={async () => { setLoading(true); try { await onAgentResearch() } finally { setLoading(false) } }}
+          disabled={loading}
+          className="w-full px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Zap className="w-4 h-4" />
+          Agent Research (Deep)
+        </button>
+        <p className="text-xs text-slate-400 text-center">Agent uses tool calling for step-by-step research</p>
         <button
           onClick={async () => { setLoading(true); try { await onTestResearch() } finally { setLoading(false) } }}
           disabled={loading}
@@ -1308,6 +1320,43 @@ export default function AdminCaseWorkspace({
     }
   }
 
+  async function handleAgentResearch() {
+    try {
+      setResearchLoading(true)
+      toast.info('Running AI Agent research — this uses tool calling for deeper results and may take 2-3 minutes...')
+
+      const result = await triggerAgentResearch(caseId)
+      const validCount = (result as Record<string, unknown>)?.valid_count ?? 0
+      const agentStats = (result as Record<string, unknown>)?.agent_stats as Array<Record<string, unknown>> | undefined
+
+      // Reload all data
+      const recs = await listRecipients(caseId)
+      setRecipients(recs)
+
+      const data = await getCase(caseId)
+      setCaseData(data.case)
+      setActivities(data.activities)
+      if (data.deal) setDealInfo(data.deal)
+      if (data.liens) setLiensInfo(data.liens)
+
+      if (validCount > 0) {
+        const totalTools = agentStats?.reduce((sum, s) => sum + ((s.tools as string[])?.length || 0), 0) ?? 0
+        toast.success(`Agent research complete — found ${validCount} contacts using ${totalTools} tool calls`)
+      } else {
+        toast.warning('Agent research completed but could not find contact data. Check the activity journal for details.')
+      }
+    } catch (err) {
+      try {
+        const data = await getCase(caseId)
+        setCaseData(data.case)
+        setActivities(data.activities)
+      } catch { /* ignore */ }
+      toast.error(err instanceof Error ? err.message : 'Agent research failed')
+    } finally {
+      setResearchLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -1344,6 +1393,7 @@ export default function AdminCaseWorkspace({
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
             onStartResearch={handleStartResearch}
+            onAgentResearch={handleAgentResearch}
             onTestResearch={handleTestResearch}
           />
         </div>

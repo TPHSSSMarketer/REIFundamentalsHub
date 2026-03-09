@@ -5,6 +5,7 @@ Uses NVIDIA AI-Q (best for research tasks) via the central ai_service layer.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Optional
@@ -140,6 +141,104 @@ async def research_bank_contacts(
             result["_raw_preview"] = f"EXCEPTION: {str(exc)[:150]}"
             result["_provider"] = "error"
             result["_model"] = "error"
+            result["_tokens"] = 0
+
+        results.append(result)
+
+    return results
+
+
+async def research_bank_contacts_agent(
+    bank_name: str,
+    state: str,
+    negotiation_id: str,
+    user_id: int,
+    db: AsyncSession,
+    settings: Settings,
+    property_address: str = "",
+    service_type: str = "bank",
+    on_step=None,
+) -> list[dict]:
+    """Research recipient contact info using the agentic tool-calling loop.
+
+    This is the agent-powered alternative to research_bank_contacts().
+    Instead of single-shot AI calls, each recipient research runs through
+    an agent loop where Kimi K2.5 uses tools to search, verify, and
+    cross-reference information before returning results.
+
+    Same return format as research_bank_contacts() for drop-in compatibility.
+    """
+    from rei.services.research_agent import research_recipient_with_agent
+
+    # Resolve NVIDIA API key
+    nvidia_key = ""
+    try:
+        from rei.services.credentials_service import get_provider_credentials
+        nv_creds = await get_provider_credentials(db, "nvidia")
+        if nv_creds and nv_creds.get("nvidia_api_key"):
+            nvidia_key = nv_creds["nvidia_api_key"]
+    except Exception as exc:
+        logger.warning("Failed to get NVIDIA credentials: %s", exc)
+
+    if not nvidia_key:
+        logger.error("No NVIDIA API key available for agent research")
+        # Fall back to single-shot research
+        return await research_bank_contacts(
+            bank_name=bank_name,
+            state=state,
+            negotiation_id=negotiation_id,
+            user_id=user_id,
+            db=db,
+            settings=settings,
+            property_address=property_address,
+            service_type=service_type,
+        )
+
+    # Choose which recipients to research based on service type
+    if service_type == "county_tax":
+        types_to_research: dict = dict(TAX_RECIPIENT_TYPES)
+        logger.info("Agent research: Tax deal — researching tax authority contacts")
+    else:
+        types_to_research = dict(RECIPIENT_TYPES)
+        logger.info("Agent research: Bank deal — researching bank contacts")
+
+    results: list[dict] = []
+
+    for i, (recipient_type, config) in enumerate(types_to_research.items()):
+        # Small delay between agents to stay within rate limits
+        if i > 0:
+            await asyncio.sleep(3)
+
+        logger.info(
+            "=== Agent research for %s (%d/%d) ===",
+            recipient_type, i + 1, len(types_to_research),
+        )
+
+        try:
+            result = await research_recipient_with_agent(
+                bank_name=bank_name,
+                state=state,
+                recipient_type=recipient_type,
+                config=config,
+                api_key=nvidia_key,
+                property_address=property_address,
+                on_step=on_step,
+            )
+
+            agent_turns = result.get("_agent_turns", 0)
+            agent_tools = result.get("_agent_tools", [])
+            tokens = result.get("_tokens", 0)
+            logger.info(
+                "Agent research for %s completed: turns=%d, tools=%s, tokens=%d",
+                recipient_type, agent_turns, agent_tools, tokens,
+            )
+        except Exception as exc:
+            logger.error("Agent research failed for %s: %s", recipient_type, exc)
+            result = _empty_result()
+            result["recipient_type"] = recipient_type
+            result["_raw_preview"] = f"AGENT_EXCEPTION: {str(exc)[:150]}"
+            result["_provider"] = "nvidia_kimi_agent"
+            result["_model"] = "moonshotai/kimi-k2.5"
             result["_tokens"] = 0
 
         results.append(result)

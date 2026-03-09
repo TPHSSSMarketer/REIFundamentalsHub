@@ -341,6 +341,91 @@ async def _call_nvidia(
     return result
 
 
+async def _call_nvidia_with_tools(
+    messages: list[dict],
+    model: str,
+    api_key: str,
+    base_url: str,
+    max_tokens: int,
+    temperature: float,
+    tools: list[dict],
+    tool_choice: str = "auto",
+) -> dict:
+    """Call NVIDIA NIM endpoint with function/tool calling support.
+
+    Uses the OpenAI-compatible chat completions API with the 'tools' parameter.
+    Kimi K2.5 supports tool calling natively through the NIM API.
+
+    Args:
+        tools: List of tool definitions in OpenAI format:
+            [{"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}]
+        tool_choice: "auto" (model decides), "none", or {"type": "function", "function": {"name": "..."}}
+
+    Returns dict with:
+        - content: Text response (may be empty if tool calls are returned)
+        - tool_calls: List of tool call dicts if the model wants to call tools
+        - tokens_used, input_tokens, output_tokens: Usage stats
+    """
+    await _nvidia_limiter.acquire()
+
+    body: dict = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "tools": tools,
+    }
+    if tool_choice != "auto":
+        body["tool_choice"] = tool_choice
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "content-type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            f"{base_url}/v1/chat/completions",
+            headers=headers,
+            json=body,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    content = ""
+    tool_calls_raw: list[dict] = []
+    choices = data.get("choices", [])
+    if choices:
+        msg = choices[0].get("message", {})
+        content = msg.get("content", "") or ""
+        # Tool calls come back in the message.tool_calls array
+        if msg.get("tool_calls"):
+            tool_calls_raw = msg["tool_calls"]
+
+    usage = data.get("usage", {})
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
+    total_tokens = usage.get("total_tokens", 0) or (prompt_tokens + completion_tokens)
+
+    # Normalize tool calls to a clean format
+    tool_calls = []
+    for tc in tool_calls_raw:
+        fn = tc.get("function", {})
+        tool_calls.append({
+            "id": tc.get("id", ""),
+            "function_name": fn.get("name", ""),
+            "arguments": fn.get("arguments", "{}"),
+        })
+
+    return {
+        "content": content,
+        "tool_calls": tool_calls,
+        "tokens_used": total_tokens,
+        "input_tokens": prompt_tokens or total_tokens,
+        "output_tokens": completion_tokens or 0,
+    }
+
+
 # ── NVIDIA Stable Diffusion Image Generation ─────────────────────────────
 
 PLATFORM_DIMENSIONS: dict[str, tuple[int, int]] = {
