@@ -269,9 +269,14 @@ async def request_more_info(
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    # Update status
+    # Update status and save the admin's message so the user can see it
     req.status = "info_requested"
     req.updated_at = datetime.utcnow()
+
+    if body.message:
+        existing = req.message or ""
+        separator = "\n\n--- Admin Request ---\n" if existing else ""
+        req.message = existing + separator + body.message
 
     await db.commit()
     await db.refresh(req)
@@ -341,16 +346,13 @@ async def respond_to_info_request(
 
     # Notify admin of the response
     try:
-        from rei.services.negotiation_notifications import notify_new_request
+        from rei.services.negotiation_notifications import notify_info_response
         from rei.config import get_settings
-        await notify_new_request(
-            request_data={
-                "property_address": req.property_address or "Unknown",
-                "service_types_json": json.loads(req.service_types_json) if req.service_types_json else [],
-                "deal_id": str(req.deal_id),
-            },
-            user_email=user.email,
+        await notify_info_response(
+            property_address=req.property_address or "Unknown",
             user_name=user.full_name or user.email,
+            user_email=user.email,
+            response_text=body.message,
             settings=get_settings(),
         )
     except Exception as e:

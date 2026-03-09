@@ -237,6 +237,7 @@ export default function DealDetailPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (res.ok) {
         const files: DealFile[] = await res.json()
@@ -261,6 +262,7 @@ export default function DealDetailPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (res.ok) {
         setMatches(await res.json())
@@ -295,6 +297,7 @@ export default function DealDetailPage() {
       try {
         const res = await fetch(`${BASE_URL}/api/deals/analyzer/preferences`, {
           headers: getAuthHeader(),
+          credentials: 'include',
         })
         if (res.ok) {
           const data = await res.json()
@@ -380,6 +383,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
         body: formData,
       })
       if (!res.ok) throw new Error('Upload failed')
@@ -405,6 +409,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
         body: formData,
       })
       if (!res.ok) throw new Error('Replace failed')
@@ -438,6 +443,7 @@ export default function DealDetailPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Download failed')
       const data = await res.json()
@@ -470,6 +476,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
         body: formData,
       })
       if (!res.ok) throw new Error('Upload failed')
@@ -488,6 +495,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Delete failed')
       toast.success('File deleted')
@@ -502,6 +510,7 @@ export default function DealDetailPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/files/${fileId}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to load image')
       const data = await res.json()
@@ -521,6 +530,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}/send`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Send failed')
       toast.success('Email sent to buyer')
@@ -538,6 +548,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}/skip`, {
         method: 'PATCH',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Skip failed')
       toast.success('Buyer skipped')
@@ -554,6 +565,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/send-all`, {
         method: 'POST',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Send all failed')
       const data = await res.json()
@@ -572,6 +584,7 @@ export default function DealDetailPage() {
       const res = await fetch(`${BASE_URL}/api/crm/deals/${dealId}/matches/${matchId}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Delete failed')
       toast.success('Match removed')

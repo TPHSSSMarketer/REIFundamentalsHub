@@ -147,13 +147,15 @@ async def _send_user_telegram(message: str, chat_id: str, settings) -> bool:
     if not bot_token or not chat_id:
         return False
 
+    # NOTE: Callers already escape dynamic values with _escape_markdown().
+    # Do NOT re-escape here or bold/italic formatting will break.
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
                 json={
                     "chat_id": chat_id,
-                    "text": _escape_markdown(message),
+                    "text": message,
                     "parse_mode": "MarkdownV2",
                 },
                 timeout=10,
@@ -233,8 +235,9 @@ async def send_negotiation_telegram(
         logger.info("Telegram not configured, skipping negotiation notification")
         return False
 
-    # Escape special characters for MarkdownV2
-    escaped_message = _escape_markdown(message)
+    # NOTE: Callers (notify_new_request, notify_info_response, etc.) already
+    # escape dynamic values with _escape_markdown().  Do NOT re-escape here
+    # or MarkdownV2 formatting chars like * for bold will be corrupted.
 
     try:
         async with httpx.AsyncClient() as client:
@@ -242,7 +245,7 @@ async def send_negotiation_telegram(
                 f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
                 json={
                     "chat_id": chat_id,
-                    "text": escaped_message,
+                    "text": message,
                     "parse_mode": "MarkdownV2",
                 },
                 timeout=10,
@@ -263,6 +266,39 @@ async def send_negotiation_telegram(
 
 
 # ── User request notifications ───────────────────────────────────────
+
+
+async def notify_info_response(
+    property_address: str,
+    user_name: str,
+    user_email: str,
+    response_text: str,
+    settings: Settings,
+) -> None:
+    """Notify admin when a user responds to an info request.
+
+    Sends a clear Telegram/Slack message indicating this is a RESPONSE
+    (not a new request) and includes a preview of the user's message.
+    """
+    # Truncate long messages for the notification
+    preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
+
+    telegram_msg = (
+        f"💬 *User Responded to Info Request*\n\n"
+        f"*Property:* {_escape_markdown(property_address)}\n"
+        f"*From:* {_escape_markdown(user_name)}\n"
+        f"*Email:* {_escape_markdown(user_email)}\n\n"
+        f"*Their response:*\n{_escape_markdown(preview)}"
+    )
+
+    plain_msg = (
+        f"💬 User Responded to Info Request\n"
+        f"Property: {property_address}\n"
+        f"From: {user_name} ({user_email})\n\n"
+        f"Their response:\n{preview}"
+    )
+
+    await _notify_admin(telegram_msg, plain_msg, settings)
 
 
 async def notify_new_request(
