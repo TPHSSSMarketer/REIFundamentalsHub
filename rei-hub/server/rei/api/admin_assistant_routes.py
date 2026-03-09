@@ -251,7 +251,7 @@ async def send_message(
 # ════════════════════════════════════════════════════════════════════════════
 
 
-@admin_assistant_router.websocket("/ws/assistant/{session_id}")
+@admin_assistant_router.websocket("/ws/{session_id}")
 async def websocket_chat(websocket: WebSocket, session_id: str):
     """
     WebSocket endpoint for real-time chat.
@@ -444,7 +444,7 @@ async def reject_action_endpoint(
 # ════════════════════════════════════════════════════════════════════════════
 
 
-@admin_assistant_router.get("/trust")
+@admin_assistant_router.get("/trust-settings")
 async def get_trust_settings(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -464,8 +464,9 @@ async def get_trust_settings(
     ]
 
 
-@admin_assistant_router.put("/trust")
+@admin_assistant_router.put("/trust-settings/{action_type}")
 async def update_trust_setting(
+    action_type: str,
     body: UpdateTrustRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -479,7 +480,7 @@ async def update_trust_setting(
 
     setting = await update_trust_level(
         user_id=workspace_user_id(user),
-        action_type=body.action_type,
+        action_type=action_type,
         trust_level=body.trust_level,
         db=db,
     )
@@ -491,7 +492,7 @@ async def update_trust_setting(
     }
 
 
-@admin_assistant_router.post("/trust/auto-all")
+@admin_assistant_router.post("/trust-settings/all/set-automatic")
 async def set_all_automatic_endpoint(
     body: SetAllAutomaticRequest,
     user: User = Depends(get_current_user),
@@ -508,7 +509,7 @@ async def set_all_automatic_endpoint(
     }
 
 
-@admin_assistant_router.post("/trust/reset")
+@admin_assistant_router.post("/trust-settings/reset")
 async def reset_trust_settings(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -626,7 +627,7 @@ async def delete_skill_endpoint(
     return {"status": "deleted", "id": skill_id}
 
 
-@admin_assistant_router.post("/skills/{skill_id}/run")
+@admin_assistant_router.post("/skills/{skill_id}/execute")
 async def run_skill(
     skill_id: str,
     user: User = Depends(get_current_user),
@@ -663,7 +664,7 @@ async def run_skill(
 # ════════════════════════════════════════════════════════════════════════════
 
 
-@admin_assistant_router.get("/tasks")
+@admin_assistant_router.get("/scheduled-tasks")
 async def list_tasks(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -673,7 +674,7 @@ async def list_tasks(
     return tasks
 
 
-@admin_assistant_router.post("/tasks")
+@admin_assistant_router.post("/scheduled-tasks")
 async def create_task(
     body: CreateTaskRequest,
     user: User = Depends(get_current_user),
@@ -699,7 +700,7 @@ async def create_task(
     }
 
 
-@admin_assistant_router.put("/tasks/{task_id}")
+@admin_assistant_router.put("/scheduled-tasks/{task_id}")
 async def update_task(
     task_id: str,
     body: UpdateTaskRequest,
@@ -721,7 +722,7 @@ async def update_task(
     }
 
 
-@admin_assistant_router.delete("/tasks/{task_id}")
+@admin_assistant_router.delete("/scheduled-tasks/{task_id}")
 async def delete_task(
     task_id: str,
     user: User = Depends(get_current_user),
@@ -736,7 +737,7 @@ async def delete_task(
     return {"status": "deleted", "id": task_id}
 
 
-@admin_assistant_router.post("/tasks/{task_id}/run")
+@admin_assistant_router.post("/scheduled-tasks/{task_id}/run-now")
 async def run_task_now_endpoint(
     task_id: str,
     user: User = Depends(get_current_user),

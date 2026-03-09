@@ -11,6 +11,7 @@ import {
   Shield,
   Zap,
   AlertCircle,
+  Webhook,
 } from 'lucide-react'
 import {
   getCredentialStatuses,
@@ -20,6 +21,7 @@ import {
   type CredentialStatus,
   type TestResult,
 } from '@/services/superadminApi'
+import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 
 // ── Category display order and colors ───────────────────────────────────
@@ -95,6 +97,9 @@ export default function SuperAdminCredentials() {
   const [testResults, setTestResults] = useState<
     Record<string, TestResult>
   >({})
+  // Telegram webhook registration state
+  const [registeringWebhook, setRegisteringWebhook] = useState(false)
+  const [webhookStatus, setWebhookStatus] = useState<string | null>(null)
 
   // ── Load credentials ──────────────────────────────────────────────
 
@@ -234,6 +239,54 @@ export default function SuperAdminCredentials() {
       toast.error('Connection test failed')
     } finally {
       setTestingProvider(null)
+    }
+  }
+
+  // ── Register Telegram webhook ────────────────────────────────────
+
+  const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
+
+  const handleRegisterTelegramWebhook = async () => {
+    setRegisteringWebhook(true)
+    setWebhookStatus(null)
+    try {
+      const res = await fetch(`${BASE_URL}/api/telegram/register-webhook`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() },
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setWebhookStatus('connected')
+        toast.success(data.message || 'Telegram webhook registered successfully!')
+      } else {
+        setWebhookStatus('error')
+        toast.error(data.detail || 'Failed to register webhook')
+      }
+    } catch (err) {
+      setWebhookStatus('error')
+      toast.error('Failed to register Telegram webhook')
+    } finally {
+      setRegisteringWebhook(false)
+    }
+  }
+
+  const handleCheckTelegramWebhook = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/telegram/webhook-info`, {
+        headers: { ...getAuthHeader() },
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        setWebhookStatus('connected')
+        toast.success(`Webhook active: ${data.url}`)
+      } else {
+        setWebhookStatus(null)
+        toast.info('No webhook registered yet')
+      }
+    } catch (err) {
+      toast.error('Could not check webhook status')
     }
   }
 
@@ -503,6 +556,51 @@ export default function SuperAdminCredentials() {
                             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                           )}
                           {testResult.message}
+                        </div>
+                      )}
+
+                      {/* Telegram Webhook Registration — only for Telegram provider */}
+                      {provider.provider_name === 'telegram' && provider.configured && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Webhook className="w-4 h-4 text-orange-600" />
+                            <p className="text-sm font-semibold text-orange-800">Telegram Webhook</p>
+                            {webhookStatus === 'connected' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                <Check className="w-3 h-3" /> Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-orange-700">
+                            Register the webhook so Telegram forwards messages from subscribers to your server.
+                            This only needs to be done once (or after changing the bot token).
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleRegisterTelegramWebhook}
+                              disabled={registeringWebhook}
+                              className="px-3 py-1.5 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              {registeringWebhook ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Registering...
+                                </>
+                              ) : (
+                                <>
+                                  <Webhook className="w-3.5 h-3.5" />
+                                  Register Webhook
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCheckTelegramWebhook}
+                              className="px-3 py-1.5 border border-orange-300 text-orange-700 text-sm font-medium rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1.5"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Check Status
+                            </button>
+                          </div>
                         </div>
                       )}
 

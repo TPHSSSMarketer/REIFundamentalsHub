@@ -59,7 +59,7 @@ export async function createSession(title?: string): Promise<AdminSession> {
     return { id, title: title || 'New Conversation', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), message_count: 0 } as AdminSession
   }
   const body = title ? { title } : {}
-  return fetch(`${BASE_URL}/api/admin-assistant/sessions`, {
+  return fetch(`${BASE_URL}/api/assistant/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(body),
@@ -69,7 +69,7 @@ export async function createSession(title?: string): Promise<AdminSession> {
 
 export async function listSessions(): Promise<AdminSession[]> {
   if (isDemoMode()) return []
-  return fetch(`${BASE_URL}/api/admin-assistant/sessions`, {
+  return fetch(`${BASE_URL}/api/assistant/sessions`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminSession[]>(res))
@@ -77,7 +77,7 @@ export async function listSessions(): Promise<AdminSession[]> {
 
 export async function getSessionMessages(sessionId: string): Promise<AdminMessage[]> {
   if (isDemoMode()) return []
-  return fetch(`${BASE_URL}/api/admin-assistant/sessions/${sessionId}/messages`, {
+  return fetch(`${BASE_URL}/api/assistant/sessions/${sessionId}/messages`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminMessage[]>(res))
@@ -90,7 +90,7 @@ export async function sendMessage(
   if (isDemoMode()) {
     return { response: 'The AI Assistant is not available in Demo Mode. Please upgrade to a paid plan to use this feature.', tool_results: [], pending_actions: [], suggestions: [] }
   }
-  return fetch(`${BASE_URL}/api/admin-assistant/sessions/${sessionId}/messages`, {
+  return fetch(`${BASE_URL}/api/assistant/sessions/${sessionId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ content }),
@@ -112,7 +112,7 @@ export async function getActionLog(params?: {
   if (params?.status) searchParams.set('status', params.status)
 
   const qs = searchParams.toString()
-  return fetch(`${BASE_URL}/api/admin-assistant/actions${qs ? `?${qs}` : ''}`, {
+  return fetch(`${BASE_URL}/api/assistant/actions${qs ? `?${qs}` : ''}`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminActionLog[]>(res))
@@ -120,7 +120,7 @@ export async function getActionLog(params?: {
 
 export async function approveAction(actionId: string, message?: string): Promise<any> {
   const body = message ? { message } : {}
-  return fetch(`${BASE_URL}/api/admin-assistant/actions/${actionId}/approve`, {
+  return fetch(`${BASE_URL}/api/assistant/actions/${actionId}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(body),
@@ -130,7 +130,7 @@ export async function approveAction(actionId: string, message?: string): Promise
 
 export async function rejectAction(actionId: string, reason?: string): Promise<any> {
   const body = reason ? { reason } : {}
-  return fetch(`${BASE_URL}/api/admin-assistant/actions/${actionId}/reject`, {
+  return fetch(`${BASE_URL}/api/assistant/actions/${actionId}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(body),
@@ -142,7 +142,7 @@ export async function rejectAction(actionId: string, reason?: string): Promise<a
 
 export async function getTrustSettings(): Promise<AdminTrustSetting[]> {
   if (isDemoMode()) return []
-  return fetch(`${BASE_URL}/api/admin-assistant/trust-settings`, {
+  return fetch(`${BASE_URL}/api/assistant/trust-settings`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminTrustSetting[]>(res))
@@ -152,7 +152,7 @@ export async function updateTrustSetting(
   actionType: string,
   trustLevel: string
 ): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/trust-settings/${actionType}`, {
+  return fetch(`${BASE_URL}/api/assistant/trust-settings/${actionType}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ trust_level: trustLevel }),
@@ -161,7 +161,7 @@ export async function updateTrustSetting(
 }
 
 export async function setAllAutomatic(enabled: boolean): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/trust-settings/all/set-automatic`, {
+  return fetch(`${BASE_URL}/api/assistant/trust-settings/all/set-automatic`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify({ enabled }),
@@ -170,7 +170,7 @@ export async function setAllAutomatic(enabled: boolean): Promise<any> {
 }
 
 export async function resetTrustDefaults(): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/trust-settings/reset`, {
+  return fetch(`${BASE_URL}/api/assistant/trust-settings/reset`, {
     method: 'POST',
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -181,7 +181,7 @@ export async function resetTrustDefaults(): Promise<any> {
 
 export async function getSkillLibrary(): Promise<AdminSkill[]> {
   if (isDemoMode()) return []
-  return fetch(`${BASE_URL}/api/admin-assistant/skills`, {
+  return fetch(`${BASE_URL}/api/assistant/skills`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminSkill[]>(res))
@@ -194,7 +194,7 @@ export async function createSkill(skill: {
   action_steps: any[]
   icon?: string
 }): Promise<AdminSkill> {
-  return fetch(`${BASE_URL}/api/admin-assistant/skills`, {
+  return fetch(`${BASE_URL}/api/assistant/skills`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(skill),
@@ -203,7 +203,7 @@ export async function createSkill(skill: {
 }
 
 export async function updateSkill(skillId: string, updates: Partial<AdminSkill>): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/skills/${skillId}`, {
+  return fetch(`${BASE_URL}/api/assistant/skills/${skillId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(updates),
@@ -212,7 +212,7 @@ export async function updateSkill(skillId: string, updates: Partial<AdminSkill>)
 }
 
 export async function deleteSkill(skillId: string): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/skills/${skillId}`, {
+  return fetch(`${BASE_URL}/api/assistant/skills/${skillId}`, {
     method: 'DELETE',
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -220,7 +220,7 @@ export async function deleteSkill(skillId: string): Promise<any> {
 }
 
 export async function executeSkill(skillId: string): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/skills/${skillId}/execute`, {
+  return fetch(`${BASE_URL}/api/assistant/skills/${skillId}/execute`, {
     method: 'POST',
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -231,7 +231,7 @@ export async function executeSkill(skillId: string): Promise<any> {
 
 export async function getScheduledTasks(): Promise<AdminScheduledTask[]> {
   if (isDemoMode()) return []
-  return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks`, {
+  return fetch(`${BASE_URL}/api/assistant/scheduled-tasks`, {
     headers: { ...getAuthHeader() },
     credentials: 'include',
   }).then((res) => handleResponse<AdminScheduledTask[]>(res))
@@ -244,7 +244,7 @@ export async function createScheduledTask(task: {
   timezone?: string
   description?: string
 }): Promise<AdminScheduledTask> {
-  return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks`, {
+  return fetch(`${BASE_URL}/api/assistant/scheduled-tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(task),
@@ -256,7 +256,7 @@ export async function updateScheduledTask(
   taskId: string,
   updates: Partial<AdminScheduledTask>
 ): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks/${taskId}`, {
+  return fetch(`${BASE_URL}/api/assistant/scheduled-tasks/${taskId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     body: JSON.stringify(updates),
@@ -265,7 +265,7 @@ export async function updateScheduledTask(
 }
 
 export async function deleteScheduledTask(taskId: string): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks/${taskId}`, {
+  return fetch(`${BASE_URL}/api/assistant/scheduled-tasks/${taskId}`, {
     method: 'DELETE',
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -273,7 +273,7 @@ export async function deleteScheduledTask(taskId: string): Promise<any> {
 }
 
 export async function runTaskNow(taskId: string): Promise<any> {
-  return fetch(`${BASE_URL}/api/admin-assistant/scheduled-tasks/${taskId}/run-now`, {
+  return fetch(`${BASE_URL}/api/assistant/scheduled-tasks/${taskId}/run-now`, {
     method: 'POST',
     headers: { ...getAuthHeader() },
     credentials: 'include',
@@ -287,7 +287,7 @@ export function connectAssistantWebSocket(
   onMessage: (data: any) => void
 ): WebSocket {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${wsProtocol}//${BASE_URL.replace(/^https?:\/\//, '')}/ws/admin-assistant/${sessionId}`
+  const wsUrl = `${wsProtocol}//${BASE_URL.replace(/^https?:\/\//, '')}/api/assistant/ws/${sessionId}`
 
   const ws = new WebSocket(wsUrl)
   ws.onmessage = (event) => {
