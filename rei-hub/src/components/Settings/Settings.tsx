@@ -25,6 +25,12 @@ import {
   type SocialPlatform,
   type SocialStatusResponse,
 } from '@/services/socialMediaApi'
+import {
+  saveWordPressCredentials,
+  getWordPressCredentials,
+  deleteWordPressCredentials,
+  getWordPressStatus,
+} from '@/services/wordPressApi'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
@@ -46,10 +52,18 @@ export default function Settings() {
     setSearchParams({ tab: tabId })
   }
 
+  // WordPress state
+  const [wpUrl, setWpUrl] = useState('')
+  const [wpUsername, setWpUsername] = useState('')
+  const [wpAppPassword, setWpAppPassword] = useState('')
+  const [wpLoading, setWpLoading] = useState(true)
+  const [wpSaving, setWpSaving] = useState(false)
+  const [wpConnected, setWpConnected] = useState(false)
+
   const [settings, setSettings] = useState({
-    wpUrl: localStorage.getItem('wp_url') || '',
-    wpUsername: localStorage.getItem('wp_username') || '',
-    wpAppPassword: localStorage.getItem('wp_app_password') || '',
+    wpUrl: '',
+    wpUsername: '',
+    wpAppPassword: '',
   })
 
   // Cloud Storage state
@@ -287,6 +301,33 @@ export default function Settings() {
     }
   }, [searchParams])
 
+  // ── WordPress Credentials ─────────────────────────────────
+  useEffect(() => {
+    loadWordPressStatus()
+  }, [])
+
+  async function loadWordPressStatus() {
+    setWpLoading(true)
+    try {
+      // First check if credentials are configured
+      const status = await getWordPressStatus()
+      setWpConnected(status.configured)
+
+      // If configured, load the credentials
+      if (status.configured) {
+        const creds = await getWordPressCredentials()
+        setWpUrl(creds.wp_url)
+        setWpUsername(creds.wp_username)
+        setWpAppPassword(creds.wp_app_password)
+      }
+    } catch {
+      // WordPress not configured or error loading
+      setWpConnected(false)
+    } finally {
+      setWpLoading(false)
+    }
+  }
+
   // ── Social Media ──────────────────────────────────────────
   useEffect(() => {
     loadSocialStatuses()
@@ -498,14 +539,43 @@ export default function Settings() {
     }
   }
 
-  const handleSaveWordPress = () => {
-    localStorage.setItem('wp_url', settings.wpUrl)
-    localStorage.setItem('wp_username', settings.wpUsername)
-    localStorage.setItem('wp_app_password', settings.wpAppPassword)
-    toast.success('WordPress connection saved.')
+  const handleSaveWordPress = async () => {
+    if (!wpUrl || !wpUsername || !wpAppPassword) {
+      toast.error('Please fill in all WordPress fields.')
+      return
+    }
+
+    setWpSaving(true)
+    try {
+      await saveWordPressCredentials(wpUrl, wpUsername, wpAppPassword)
+      setWpConnected(true)
+      toast.success('WordPress connection saved securely.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save WordPress credentials'
+      toast.error(msg)
+    } finally {
+      setWpSaving(false)
+    }
   }
 
-  const wpConnected = !!(settings.wpUrl && settings.wpUsername && settings.wpAppPassword)
+  const handleDeleteWordPress = async () => {
+    if (!confirm('Delete WordPress credentials? You can reconfigure them later.')) return
+
+    setWpSaving(true)
+    try {
+      await deleteWordPressCredentials()
+      setWpUrl('')
+      setWpUsername('')
+      setWpAppPassword('')
+      setWpConnected(false)
+      toast.success('WordPress credentials deleted.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete WordPress credentials'
+      toast.error(msg)
+    } finally {
+      setWpSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -994,69 +1064,90 @@ export default function Settings() {
           Connect your WordPress site to publish blog posts directly from ContentHub.
         </p>
 
-        <div className="space-y-4">
-          {/* WordPress Site URL */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-              <Globe className="w-4 h-4" />
-              WordPress Site URL
-            </label>
-            <input
-              type="url"
-              value={settings.wpUrl}
-              onChange={(e) =>
-                setSettings({ ...settings, wpUrl: e.target.value })
-              }
-              placeholder="https://yoursite.com"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+        {wpLoading ? (
+          <div className="flex items-center justify-center h-24">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
           </div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              {/* WordPress Site URL */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                  <Globe className="w-4 h-4" />
+                  WordPress Site URL
+                </label>
+                <input
+                  type="url"
+                  value={wpUrl}
+                  onChange={(e) => setWpUrl(e.target.value)}
+                  placeholder="https://yoursite.com"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
 
-          {/* Username */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              value={settings.wpUsername}
-              onChange={(e) =>
-                setSettings({ ...settings, wpUsername: e.target.value })
-              }
-              placeholder="your-wp-username"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
+              {/* Username */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={wpUsername}
+                  onChange={(e) => setWpUsername(e.target.value)}
+                  placeholder="your-wp-username"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
 
-          {/* Application Password */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-              Application Password
-            </label>
-            <input
-              type="password"
-              value={settings.wpAppPassword}
-              onChange={(e) =>
-                setSettings({ ...settings, wpAppPassword: e.target.value })
-              }
-              placeholder="xxxx xxxx xxxx xxxx"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Generate in WordPress → Users → Your Profile → Application Passwords
-            </p>
-          </div>
-        </div>
+              {/* Application Password */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                  Application Password
+                </label>
+                <input
+                  type="password"
+                  value={wpAppPassword}
+                  onChange={(e) => setWpAppPassword(e.target.value)}
+                  placeholder="xxxx xxxx xxxx xxxx"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Generate in WordPress → Users → Your Profile → Application Passwords
+                </p>
+              </div>
+            </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-200">
-          <button
-            onClick={handleSaveWordPress}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            Save WordPress Settings
-          </button>
-        </div>
+            <div className="mt-6 pt-4 border-t border-slate-200 flex gap-2">
+              <button
+                onClick={handleSaveWordPress}
+                disabled={wpSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                {wpSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save WordPress Settings
+                  </>
+                )}
+              </button>
+              {wpConnected && (
+                <button
+                  onClick={handleDeleteWordPress}
+                  disabled={wpSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Cloud Storage */}

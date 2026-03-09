@@ -13,7 +13,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,54 @@ from rei.services.email import send_lead_notification_email
 from rei.services.security import check_rate_limit, rl_ip_key
 
 logger = logging.getLogger(__name__)
+
+
+# ── Security utilities ──────────────────────────────────────────────
+
+def sanitize_html(text: Optional[str]) -> Optional[str]:
+    """
+    Remove potentially dangerous HTML and script content from user input.
+    Strips <script> tags, event handlers (on*=), and javascript: URLs.
+    """
+    if not text:
+        return text
+
+    # Remove <script> tags and content
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Remove event handlers (on* attributes)
+    text = re.sub(r'\s*on\w+\s*=\s*["\']?[^"\'>\s]+["\']?', '', text, flags=re.IGNORECASE)
+
+    # Remove javascript: URLs
+    text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
+
+    return text
+
+
+def get_allowed_origins() -> list[str]:
+    """Get allowed CORS origins from environment or return defaults."""
+    settings = get_settings()
+    allowed_origins_str = getattr(settings, 'ALLOWED_FORM_ORIGINS', None)
+
+    if allowed_origins_str:
+        return [origin.strip() for origin in allowed_origins_str.split(',')]
+
+    # Default origins: localhost and production domain pattern
+    return [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://reifundamentals.com",
+        "https://www.reifundamentals.com",
+    ]
+
+
+def is_origin_allowed(origin: Optional[str]) -> bool:
+    """Check if the given origin is in the whitelist."""
+    if not origin:
+        return False
+
+    allowed = get_allowed_origins()
+    return origin in allowed
 
 # Authenticated routes (CRUD)
 lead_capture_router = APIRouter(prefix="/leadhub", tags=["leadhub"])
@@ -57,9 +105,54 @@ class FormSubmissionBody(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     message: Optional[str] = None
-    # Allow any additional fields
+
     class Config:
-        extra = "allow"
+        extra = "ignore"  # Silently drop unknown fields instead of allowing them
+
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if len(v) > 200:
+            raise ValueError('name must be at most 200 characters')
+        return sanitize_html(v)
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if len(v) > 320:
+            raise ValueError('email must be at most 320 characters')
+        return sanitize_html(v)
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if len(v) > 50:
+            raise ValueError('phone must be at most 50 characters')
+        return sanitize_html(v)
+
+    @field_validator('address')
+    @classmethod
+    def validate_address(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if len(v) > 500:
+            raise ValueError('address must be at most 500 characters')
+        return sanitize_html(v)
+
+    @field_validator('message')
+    @classmethod
+    def validate_message(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if len(v) > 5000:
+            raise ValueError('message must be at most 5000 characters')
+        return sanitize_html(v)
 
 
 def _generate_slug(name: str) -> str:
@@ -583,30 +676,40 @@ async def submit_form(slug: str, request: Request):
         # Send email notification to site owner (background)
         asyncio.create_task(_send_owner_notification(site, form_data))
 
+    # Validate origin and set CORS header accordingly
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    if is_origin_allowed(origin):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+
     return JSONResponse(
         status_code=200,
         content={
             "success": True,
             "message": "Thank you! We'll be in touch soon.",
         },
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers=cors_headers,
     )
 
 
 @lead_capture_public_router.options("/sites/{slug}/submit")
-async def submit_form_options(slug: str):
+async def submit_form_options(slug: str, request: Request):
     """CORS preflight for form submission."""
+    # Validate origin and set CORS header accordingly
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    if is_origin_allowed(origin):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+
     return JSONResponse(
         content={},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers=cors_headers,
     )
 
 
@@ -702,30 +805,40 @@ async def submit_form_by_company(company_slug: str, slug: str, request: Request)
         # Send email notification to site owner (background)
         asyncio.create_task(_send_owner_notification(site, form_data))
 
+    # Validate origin and set CORS header accordingly
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    if is_origin_allowed(origin):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+
     return JSONResponse(
         status_code=200,
         content={
             "success": True,
             "message": "Thank you! We'll be in touch soon.",
         },
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers=cors_headers,
     )
 
 
 @lead_capture_public_router.options("/{company_slug}/sites/{slug}/submit")
-async def submit_form_options_by_company(company_slug: str, slug: str):
+async def submit_form_options_by_company(company_slug: str, slug: str, request: Request):
     """CORS preflight for form submission via company_slug URL."""
+    # Validate origin and set CORS header accordingly
+    origin = request.headers.get("origin")
+    cors_headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    if is_origin_allowed(origin):
+        cors_headers["Access-Control-Allow-Origin"] = origin
+
     return JSONResponse(
         content={},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers=cors_headers,
     )
 
 

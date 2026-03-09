@@ -707,6 +707,7 @@ function BuyerCriteriaSection({ contactId }: { contactId: string }) {
       const resp = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', ...authHeader },
+        credentials: 'include',
         body: JSON.stringify(body),
       })
       if (resp.ok) {

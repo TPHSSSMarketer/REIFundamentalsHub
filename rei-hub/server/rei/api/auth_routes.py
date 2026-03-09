@@ -406,6 +406,14 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
 
     frontend_url = settings.hub_url + "/login"
 
+    # Rate limit: 10 OAuth callback attempts per minute per IP to prevent brute-force attacks
+    ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(rl_ip_key(ip, "google_callback"), max_requests=10, window_seconds=60):
+        return RedirectResponse(
+            url=f"{frontend_url}?google_error=rate_limit_exceeded",
+            status_code=302
+        )
+
     # ── Verify CSRF state parameter ─────────────────────────────
     state_param = request.query_params.get("state")
     state_cookie = request.cookies.get("oauth_state")
@@ -432,8 +440,8 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
             async with session.post("https://oauth2.googleapis.com/token", data=token_data) as resp:
                 if resp.status != 200:
                     error_body = await resp.text()
-                    print(f"GOOGLE TOKEN EXCHANGE FAILED: status={resp.status}, body={error_body}")
-                    print(f"GOOGLE TOKEN EXCHANGE redirect_uri={settings_local.google_login_redirect_uri}")
+                    logger.error("Google token exchange failed with status %d, response: %s", resp.status, error_body)
+                    logger.debug("Google token exchange redirect_uri: %s", settings_local.google_login_redirect_uri)
                     return RedirectResponse(url=f"{frontend_url}?google_error=code_exchange_failed", status_code=302)
                 tokens = await resp.json()
 
@@ -449,7 +457,7 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
                     return RedirectResponse(url=f"{frontend_url}?google_error=userinfo_failed", status_code=302)
                 user_info = await resp.json()
     except Exception as e:
-        print(f"GOOGLE OAUTH HTTP ERROR: {e}")
+        logger.error("Google OAuth HTTP error: %s", str(e))
         return RedirectResponse(url=f"{frontend_url}?google_error=network_error", status_code=302)
 
     google_id = user_info.get("id")
@@ -507,7 +515,7 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
                 )
                 user = result.scalar_one_or_none()
                 if user is None:
-                    print(f"GOOGLE OAUTH: IntegrityError but user not found for email={email}")
+                    logger.error("Google OAuth: IntegrityError occurred but user not found after rollback")
                     return RedirectResponse(url=f"{frontend_url}?google_error=db_error", status_code=302)
         else:
             changed = False
@@ -521,7 +529,7 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
                 await db.commit()
                 await db.refresh(user)
     except Exception as e:
-        print(f"GOOGLE OAUTH DB ERROR: {e}")
+        logger.error("Google OAuth database error: %s", str(e))
         return RedirectResponse(url=f"{frontend_url}?google_error=db_error", status_code=302)
 
     # Redirect to frontend with cookies set (no JWT in URL params!)

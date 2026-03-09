@@ -62,11 +62,13 @@ from rei.api.underwriting_routes import underwriting_router
 from rei.api.user_preferences_routes import user_preferences_router
 from rei.api.property_routes import property_router
 from rei.api.email_template_routes import email_template_router
+from rei.api.integrations_routes import integrations_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
 from rei.models.user import User
 from rei.models.lead_capture import LeadCaptureDailyStats, LeadCaptureSite, LeadSubmission  # noqa: F401
+from rei.models.user_integrations import UserWordPressIntegration  # noqa: F401
 from rei.tasks.reminder_processor import process_reminders
 from rei.tasks.sequence_processor import process_sequence_steps, reset_email_credits
 from rei.tasks.state_law_processor import process_pending_state_research
@@ -338,6 +340,7 @@ app.include_router(email_template_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(content_hub_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
+app.include_router(integrations_router, prefix="/api")
 
 
 @app.get("/health")

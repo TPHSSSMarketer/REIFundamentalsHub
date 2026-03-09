@@ -108,6 +108,32 @@ def sanitize_url(value: str) -> str:
 # ── Rate Limiting ─────────────────────────────────────────────────────────────
 
 _rate_store: dict = defaultdict(list)
+_cleanup_counter: int = 0
+_cleanup_threshold: int = 100  # Cleanup every 100 requests
+_max_store_size: int = 10000  # Max entries before aggressive cleanup
+
+
+def _cleanup_stale_entries() -> None:
+    """Remove entries from the rate store whose time windows have completely passed.
+
+    Called periodically to prevent memory leaks from accumulating old keys.
+    Thread-safe due to GIL (single-threaded Python).
+    """
+    global _rate_store
+    now = time.time()
+
+    # Find and remove keys with expired entries
+    keys_to_remove = []
+    for key, timestamps in _rate_store.items():
+        # Assume a very old window (24 hours) for cleanup
+        # Any key with no recent activity can be cleared
+        if timestamps and (now - timestamps[-1] > 86400):
+            keys_to_remove.append(key)
+
+    for key in keys_to_remove:
+        del _rate_store[key]
+
+    logger.debug(f"Rate limit cleanup: removed {len(keys_to_remove)} stale keys")
 
 
 def check_rate_limit(
@@ -115,15 +141,30 @@ def check_rate_limit(
     max_requests: int,
     window_seconds: int,
 ) -> bool:
-    """Return True if the request is within the rate limit, False if exceeded."""
+    """Return True if the request is within the rate limit, False if exceeded.
+
+    Also manages cleanup of stale entries to prevent memory leaks.
+    """
+    global _cleanup_counter
     now = time.time()
     window_start = now - window_seconds
+
+    # Filter out timestamps outside the current window
     _rate_store[key] = [
         t for t in _rate_store[key] if t > window_start
     ]
+
     if len(_rate_store[key]) >= max_requests:
         return False
+
     _rate_store[key].append(now)
+
+    # Trigger cleanup periodically
+    _cleanup_counter += 1
+    if _cleanup_counter >= _cleanup_threshold or len(_rate_store) > _max_store_size:
+        _cleanup_stale_entries()
+        _cleanup_counter = 0
+
     return True
 
 

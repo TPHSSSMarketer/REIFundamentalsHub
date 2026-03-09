@@ -7,6 +7,7 @@ import { recordPublish } from '@/services/contentHubApi'
 import PublishHistory, { PublishEntry } from './PublishHistory'
 import ContentLibrary from './ContentLibrary'
 import { getAllSocialStatuses, publishToSocial, type SocialPlatform, type AllSocialStatuses } from '@/services/socialMediaApi'
+import { getWordPressCredentials, getWordPressStatus } from '@/services/wordPressApi'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -53,6 +54,8 @@ export default function ContentHub() {
 
   useEffect(() => {
     getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
+    // Preload WordPress status to improve UX
+    getWordPressStatus().catch(() => {})
   }, [])
 
   const handleScrapeUrl = useCallback(async () => {
@@ -180,15 +183,12 @@ export default function ContentHub() {
 
   const handlePublishToWordPress = useCallback(async () => {
     if (!editedWaterfall) return
-    const wpUrl = localStorage.getItem('wp_url')
-    const wpUsername = localStorage.getItem('wp_username')
-    const wpAppPassword = localStorage.getItem('wp_app_password')
-    if (!wpUrl || !wpUsername || !wpAppPassword) {
-      toast.error('Configure WordPress in Settings first.')
-      return
-    }
     setIsPublishing(true)
     try {
+      // Fetch credentials from the server instead of localStorage
+      const credentials = await getWordPressCredentials()
+      const { wp_url: wpUrl, wp_username: wpUsername, wp_app_password: wpAppPassword } = credentials
+
       const token = btoa(wpUsername + ':' + wpAppPassword)
       const res = await fetch(wpUrl.replace(/\/$/, '') + '/wp-json/wp/v2/posts', {
         method: 'POST',
@@ -207,8 +207,13 @@ export default function ContentHub() {
       } else {
         toast.error('WordPress publish failed. Check your credentials in Settings.')
       }
-    } catch {
-      toast.error('WordPress publish failed. Check your credentials in Settings.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'WordPress publish failed'
+      if (msg.includes('not configured')) {
+        toast.error('Configure WordPress in Settings first.')
+      } else {
+        toast.error(msg + '. Check your credentials in Settings.')
+      }
     } finally {
       setIsPublishing(false)
     }

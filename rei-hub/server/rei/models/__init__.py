@@ -52,6 +52,7 @@ from rei.models.admin_assistant import (
     AdminScheduledTask,
 )
 from rei.models.email_template import AdminEmailTemplate
+from rei.models.user_integrations import UserWordPressIntegration
 
 __all__ = [
     "User",
@@ -103,4 +104,5 @@ __all__ = [
     "ContentEntry",
     "ContentPublishRecord",
     "ContentEmbedding",
+    "UserWordPressIntegration",
 ]
