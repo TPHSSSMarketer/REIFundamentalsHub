@@ -485,21 +485,30 @@ export default function AdminNegotiationsDashboard() {
 
   if (selectedRequest) {
     return (
-      <RequestDetailView
-        request={selectedRequest}
-        onBack={() => setSelectedRequestId(null)}
-        onAccept={async () => {
-          await handleAction('accept', selectedRequest.id)
-          setSelectedRequestId(null)
-        }}
-        onRequestInfo={() => {
-          setInfoModal({ requestId: selectedRequest.id })
-        }}
-        onDecline={async () => {
-          await handleAction('decline', selectedRequest.id)
-          setSelectedRequestId(null)
-        }}
-      />
+      <>
+        <RequestDetailView
+          request={selectedRequest}
+          onBack={() => setSelectedRequestId(null)}
+          onAccept={async () => {
+            await handleAction('accept', selectedRequest.id)
+            setSelectedRequestId(null)
+          }}
+          onRequestInfo={() => {
+            setInfoModal({ requestId: selectedRequest.id })
+          }}
+          onDecline={async () => {
+            await handleAction('decline', selectedRequest.id)
+            setSelectedRequestId(null)
+          }}
+        />
+        {infoModal && (
+          <InfoRequestModal
+            requestId={infoModal.requestId}
+            onClose={() => setInfoModal(null)}
+            onSubmit={handleInfoSubmit}
+          />
+        )}
+      </>
     )
   }
 
