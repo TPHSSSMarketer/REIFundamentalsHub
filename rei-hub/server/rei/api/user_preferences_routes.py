@@ -28,6 +28,8 @@ _NOTIFICATION_FIELDS = (
     "whatsapp_phone_number",
     "slack_enabled",
     "slack_webhook_url",
+    "assistant_channel",
+    "voice_enabled",
 )
 
 
@@ -38,6 +40,8 @@ class UpdateNotificationPrefsBody(BaseModel):
     whatsapp_phone_number: Optional[str] = None
     slack_enabled: Optional[bool] = None
     slack_webhook_url: Optional[str] = None
+    assistant_channel: Optional[str] = None  # "web", "telegram", "whatsapp", "slack"
+    voice_enabled: Optional[bool] = None
 
 
 def _prefs_dict(user: User) -> dict:

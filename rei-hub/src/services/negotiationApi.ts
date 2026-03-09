@@ -182,6 +182,19 @@ export async function updateCase(caseId: string, data: {
   return handleResponse(res, 'Failed to update case')
 }
 
+export async function deleteCase(caseId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}`, {
+    method: 'DELETE',
+    headers: headers(),
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    let detail = 'Failed to delete case'
+    try { const err = await res.json(); detail = err.detail || detail } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+}
+
 export async function triggerResearch(caseId: string): Promise<{ detail: string }> {
   const res = await fetch(`${BASE_URL}/api/negotiations/cases/${caseId}/research`, {
     method: 'POST',

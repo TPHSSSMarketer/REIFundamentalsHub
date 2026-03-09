@@ -23,6 +23,7 @@ import {
   Upload,
   Landmark,
   Building,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -44,6 +45,7 @@ import {
   getCaseFile,
   uploadCaseFile,
   testResearch,
+  deleteCase,
 } from '@/services/negotiationApi'
 import type { CaseFile } from '@/services/negotiationApi'
 
@@ -1010,14 +1012,17 @@ function QuickActions({
   onPriorityChange,
   onStartResearch,
   onTestResearch,
+  onDelete,
 }: {
   caseItem: NegotiationCase
   onStatusChange: (status: string) => Promise<void>
   onPriorityChange: (priority: string) => Promise<void>
   onStartResearch: () => Promise<void>
   onTestResearch: () => Promise<void>
+  onDelete: () => Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleStatusChange(status: string) {
     setLoading(true)
@@ -1118,6 +1123,52 @@ function QuickActions({
         >
           🔍 Test Research (Diagnostic)
         </button>
+      </div>
+
+      {/* Delete Case */}
+      <div className="pt-3 border-t border-slate-200">
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            disabled={loading}
+            className="w-full px-3 py-2 text-red-600 bg-red-50 rounded-lg text-xs font-medium hover:bg-red-100 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Case
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-red-600 text-center font-medium">
+              Are you sure? This will permanently delete this case and all its data.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setLoading(true)
+                  try {
+                    await onDelete()
+                    toast.success('Case deleted')
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to delete case')
+                    setConfirmDelete(false)
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                disabled={loading}
+                className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition disabled:opacity-50"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1260,6 +1311,11 @@ export default function AdminCaseWorkspace({
     }
   }
 
+  async function handleDeleteCase() {
+    await deleteCase(caseId)
+    onBack()  // Navigate back to the case list
+  }
+
   async function handleTestResearch() {
     try {
       toast.info('Running diagnostic research test...')
@@ -1353,6 +1409,7 @@ export default function AdminCaseWorkspace({
             onPriorityChange={handlePriorityChange}
             onStartResearch={handleStartResearch}
             onTestResearch={handleTestResearch}
+            onDelete={handleDeleteCase}
           />
         </div>
       </div>

@@ -958,3 +958,34 @@ async def upload_case_file(
         "hasThumbnail": False,
         "createdAt": _utc_iso(new_file.created_at),
     }
+
+
+# ── DELETE case ──────────────────────────────────────────────────────────
+
+
+@negotiation_cases_router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_case(
+    case_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a negotiation case and all related records (recipients, activities, messages)."""
+    if not user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    case = await db.get(NegotiationCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Delete related records first (recipients, activities, messages)
+    from sqlalchemy import delete
+
+    await db.execute(delete(NegotiationRecipient).where(NegotiationRecipient.case_id == case_id))
+    await db.execute(delete(NegotiationActivity).where(NegotiationActivity.case_id == case_id))
+    await db.execute(delete(NegotiationMessage).where(NegotiationMessage.case_id == case_id))
+
+    # Delete the case itself
+    await db.delete(case)
+    await db.commit()
+
+    logger.info("Deleted negotiation case %s and related records (by admin %s)", case_id, user.id)

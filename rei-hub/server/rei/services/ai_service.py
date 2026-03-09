@@ -906,6 +906,127 @@ async def ai_complete(
     }
 
 
+# ── Voice (Whisper / TTS) usage recording ─────────────────────────────────
+
+
+async def record_voice_usage(
+    user_id: int,
+    db: AsyncSession,
+    service: str,
+    duration_seconds: float = 0,
+    character_count: int = 0,
+) -> int:
+    """Record Whisper transcription or TTS usage against the user's AI allowance.
+
+    Follows the same billing logic as ai_complete():
+    - Under plan allowance → added to ai_cost_cents
+    - Over allowance + has credits → deducted from phone_credits_cents with markup
+    - Uses PHONE_PRICING rates: whisper_per_min ($0.006/min) and tts_per_1k_chars ($0.015/1K)
+
+    Args:
+        user_id: The subscriber's user ID
+        db: Active database session
+        service: "whisper" or "tts"
+        duration_seconds: Audio length in seconds (for whisper)
+        character_count: Text length in chars (for tts)
+
+    Returns:
+        cost_cents charged
+    """
+    from rei.config import PHONE_PRICING, AI_PLAN_ALLOWANCES, CREDIT_MARKUP
+
+    # Calculate raw cost
+    if service == "whisper":
+        duration_minutes = max(duration_seconds / 60.0, 0.01)  # Minimum 1 second
+        rate = PHONE_PRICING.get("whisper_per_min", 0.006)
+        cost_dollars = duration_minutes * rate
+    elif service == "tts":
+        thousands = max(character_count / 1000.0, 0.001)
+        rate = PHONE_PRICING.get("tts_per_1k_chars", 0.015)
+        cost_dollars = thousands * rate
+    else:
+        logger.warning("Unknown voice service: %s", service)
+        return 0
+
+    cost_cents = max(1, round(cost_dollars * 100))  # Minimum 1 cent
+
+    user_obj = await db.get(User, user_id)
+    if not user_obj:
+        return 0
+
+    # Track as an AI request
+    user_obj.ai_total_requests = (user_obj.ai_total_requests or 0) + 1
+    user_obj.ai_last_request_at = datetime.utcnow()
+
+    # Monthly reset check
+    now = datetime.utcnow()
+    billing_cycle_start = _current_billing_cycle_start(user_obj, now)
+    if user_obj.ai_cost_reset_at is None or user_obj.ai_cost_reset_at < billing_cycle_start:
+        user_obj.ai_cost_cents = 0
+        user_obj.ai_cost_reset_at = billing_cycle_start
+        user_obj.ai_reminder_75_sent = False
+        user_obj.ai_reminder_90_sent = False
+        user_obj.ai_reminder_95_sent = False
+
+    # Determine plan allowance
+    plan_allowance = AI_PLAN_ALLOWANCES.get(
+        getattr(user_obj, "plan", "starter"),
+        AI_PLAN_ALLOWANCES["starter"],
+    )
+    allowance_cents = plan_allowance["monthly_allowance_cents"]
+
+    # Apply cost using same logic as ai_complete
+    if allowance_cents > 0 and (user_obj.ai_cost_cents or 0) >= allowance_cents:
+        marked_up_cents = int(cost_cents * CREDIT_MARKUP)
+        user_obj.phone_credits_cents = max(
+            0, (user_obj.phone_credits_cents or 0) - marked_up_cents
+        )
+    else:
+        user_obj.ai_cost_cents = (user_obj.ai_cost_cents or 0) + cost_cents
+
+    # Per-provider aggregate
+    try:
+        from rei.models.user import AIUsageByProvider
+        current_month = datetime.utcnow().strftime("%Y-%m")
+        provider_key = f"openai_{service}"
+        model_key = "whisper-1" if service == "whisper" else "tts-1"
+
+        row = await db.execute(
+            select(AIUsageByProvider).where(
+                AIUsageByProvider.provider == provider_key,
+                AIUsageByProvider.model == model_key,
+                AIUsageByProvider.month == current_month,
+            )
+        )
+        usage_row = row.scalar_one_or_none()
+        if usage_row:
+            usage_row.total_requests += 1
+            usage_row.cost_cents += cost_cents
+            usage_row.updated_at = datetime.utcnow()
+        else:
+            usage_row = AIUsageByProvider(
+                provider=provider_key,
+                model=model_key,
+                month=current_month,
+                total_requests=1,
+                total_tokens=0,
+                input_tokens=0,
+                output_tokens=0,
+                cost_cents=cost_cents,
+            )
+            db.add(usage_row)
+    except Exception:
+        logger.debug("Failed to update voice usage per-provider tracking", exc_info=True)
+
+    await db.commit()
+
+    logger.info(
+        "Voice usage recorded: user=%s, service=%s, cost=%d cents (duration=%.1fs, chars=%d)",
+        user_id, service, cost_cents, duration_seconds, character_count,
+    )
+    return cost_cents
+
+
 # ── Knowledge Base helper ─────────────────────────────────────────────────
 
 

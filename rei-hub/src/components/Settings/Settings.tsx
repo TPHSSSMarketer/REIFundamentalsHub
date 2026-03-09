@@ -216,6 +216,8 @@ export default function Settings() {
     whatsapp_phone_number: '',
     slack_enabled: false,
     slack_webhook_url: '',
+    assistant_channel: 'web',
+    voice_enabled: false,
   })
   const [notifSaving, setNotifSaving] = useState(false)
 
@@ -277,6 +279,8 @@ export default function Settings() {
             whatsapp_phone_number: data.whatsapp_phone_number ?? '',
             slack_enabled: data.slack_enabled ?? false,
             slack_webhook_url: data.slack_webhook_url ?? '',
+            assistant_channel: data.assistant_channel ?? 'web',
+            voice_enabled: data.voice_enabled ?? false,
           })
         }
       } catch {
@@ -1721,6 +1725,74 @@ export default function Settings() {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ── AI Assistant Chat Channel ─────────────────────────────── */}
+        <div className="mt-8 pt-6 border-t border-slate-200">
+          <h3 className="text-base font-semibold text-slate-900 mb-1">AI Assistant Channel</h3>
+          <p className="text-sm text-slate-500 mb-4">
+            Choose how you want to chat with the Assistant. You can message it from your preferred platform instead of the web app.
+          </p>
+
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-slate-700">Preferred Chat Channel</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'web', label: 'Web App', desc: 'Chat in the browser' },
+                { value: 'telegram', label: 'Telegram', desc: 'Message via Telegram bot' },
+                { value: 'whatsapp', label: 'WhatsApp', desc: 'Coming soon' },
+                { value: 'slack', label: 'Slack', desc: 'Coming soon' },
+              ].map((ch) => (
+                <button
+                  key={ch.value}
+                  onClick={() => setNotifPrefs({ ...notifPrefs, assistant_channel: ch.value })}
+                  disabled={ch.value === 'whatsapp' || ch.value === 'slack'}
+                  className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                    notifPrefs.assistant_channel === ch.value
+                      ? 'bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-200'
+                      : ch.value === 'whatsapp' || ch.value === 'slack'
+                        ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block">{ch.label}</span>
+                  <span className="block text-xs font-normal mt-0.5 opacity-70">{ch.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {notifPrefs.assistant_channel === 'telegram' && !notifPrefs.telegram_chat_id && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                To use Telegram, enter your Telegram Chat ID in the Telegram section above and enable it.
+              </p>
+            )}
+          </div>
+
+          {/* Voice On/Off */}
+          <div className="mt-5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setNotifPrefs({ ...notifPrefs, voice_enabled: !notifPrefs.voice_enabled })}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  notifPrefs.voice_enabled ? 'bg-primary-500' : 'bg-slate-300'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  notifPrefs.voice_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">Voice Messages</h4>
+                <p className="text-xs text-slate-500">
+                  When enabled, the Assistant will send voice notes along with text replies.
+                  You can also send voice messages to the Assistant and it will transcribe them.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 ml-15">
+              You can also toggle this anytime by sending "Voice On" or "Voice Off" in the chat.
+            </p>
           </div>
         </div>
 

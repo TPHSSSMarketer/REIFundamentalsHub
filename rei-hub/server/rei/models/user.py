@@ -113,6 +113,12 @@ class User(Base):
     slack_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     slack_webhook_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # AI Assistant chat channel preference + voice
+    assistant_channel: Mapped[str] = mapped_column(
+        String, default="web", server_default="web"
+    )  # "web", "telegram", "whatsapp", "slack"
+    voice_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # ── Deal Analyzer Preferences ─────────────────────────────────
     analyzer_arv_multiplier: Mapped[float] = mapped_column(
         Float, default=0.70)

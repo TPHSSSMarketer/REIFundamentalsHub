@@ -302,6 +302,9 @@ PHONE_PRICING: dict[str, float] = {
     "ai_call_inbound_per_min": 0.20,   # AI answers an inbound call
     "ai_call_outbound_per_min": 0.20,  # AI makes an outbound call (campaign/callback)
     "ai_property_lookup": 0.02,        # ATTOM property data lookup (per lookup)
+    # ── OpenAI Whisper & TTS (Assistant voice messages) ──────
+    "whisper_per_min": 0.006,          # OpenAI Whisper transcription ($0.006/min)
+    "tts_per_1k_chars": 0.015,         # OpenAI TTS-1 (~$0.015 per 1K characters)
 }
 
 PHONE_PLAN_LIMITS: dict[str, dict[str, int]] = {

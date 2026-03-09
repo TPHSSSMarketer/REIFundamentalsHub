@@ -63,6 +63,7 @@ from rei.api.user_preferences_routes import user_preferences_router
 from rei.api.property_routes import property_router
 from rei.api.email_template_routes import email_template_router
 from rei.api.integrations_routes import integrations_router
+from rei.api.telegram_webhook_routes import telegram_webhook_router
 from rei.config import get_settings
 from rei.database import async_session_factory
 from rei.migrations.create_tables import create_tables
@@ -341,6 +342,7 @@ app.include_router(team_router, prefix="/api")
 app.include_router(content_hub_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
+app.include_router(telegram_webhook_router)  # No /api prefix — webhook URL is /api/telegram/webhook (built into router)
 
 
 @app.get("/health")
