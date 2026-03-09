@@ -7,6 +7,11 @@ import {
   ChevronDown,
   Inbox,
   FileText,
+  MapPin,
+  Send,
+  ArrowLeft,
+  Home,
+  MessageSquare,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { NegotiationRequest, NegotiationCase } from '@/types'
@@ -190,6 +195,173 @@ function InfoRequestModal({
   )
 }
 
+/* ── Request Detail View ─────────────────────────────────────────── */
+
+function RequestDetailView({
+  request,
+  onBack,
+  onAccept,
+  onRequestInfo,
+  onDecline,
+}: {
+  request: NegotiationRequest
+  onBack: () => void
+  onAccept: () => Promise<void>
+  onRequestInfo: () => void
+  onDecline: () => Promise<void>
+}) {
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  const handleAction = async (action: 'accept' | 'info' | 'decline') => {
+    setActionLoading(action)
+    try {
+      if (action === 'accept') await onAccept()
+      else if (action === 'info') onRequestInfo()
+      else if (action === 'decline') await onDecline()
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const serviceLabels: Record<string, string> = {
+    bank: 'Bank Negotiation',
+    county_tax: 'County Tax Negotiation',
+    other_lien: 'Other Lien Negotiation',
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-lg transition">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {request.propertyAddress || 'Unknown Address'}
+            </h1>
+            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
+              <MapPin className="w-4 h-4" />
+              <span>
+                {[request.propertyCity, request.propertyState].filter(Boolean).join(', ')}
+              </span>
+              <span className="mx-1">·</span>
+              <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded ${getStatusBadgeColor(request.status)}`}>
+                {getStatusLabel(request.status)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left Column — Request Details */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Service Types Requested */}
+          <div className="bg-white rounded-lg border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Services Requested
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {request.serviceTypes?.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700"
+                >
+                  <Home className="w-4 h-4 text-slate-400" />
+                  {serviceLabels[t] || t}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Sender's Message */}
+          {request.message && (
+            <div className="bg-white rounded-lg border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                <MessageSquare className="w-4 h-4 inline mr-1" />
+                Message from Sender
+              </h3>
+              <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 leading-relaxed">
+                {request.message}
+              </div>
+            </div>
+          )}
+
+          {/* Request Info */}
+          <div className="bg-white rounded-lg border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Request Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-slate-500 block text-xs">Request ID</span>
+                <span className="text-slate-900 font-mono text-xs">{request.id.slice(0, 8)}...</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Submitted</span>
+                <span className="text-slate-900">{formatDate(request.createdAt)}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Deal ID</span>
+                <span className="text-slate-900 font-mono text-xs">{request.dealId.slice(0, 8)}...</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">User ID</span>
+                <span className="text-slate-900">{request.userId}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column — Actions */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+              Actions
+            </h3>
+
+            <button
+              onClick={() => handleAction('accept')}
+              disabled={actionLoading !== null}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50"
+            >
+              <CheckCircle className="w-5 h-5" />
+              {actionLoading === 'accept' ? 'Accepting...' : 'Accept Request'}
+            </button>
+
+            <button
+              onClick={() => handleAction('info')}
+              disabled={actionLoading !== null}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              <Send className="w-5 h-5" />
+              {actionLoading === 'info' ? 'Opening...' : 'Request More Info'}
+            </button>
+
+            <button
+              onClick={() => handleAction('decline')}
+              disabled={actionLoading !== null}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-red-600 border border-red-300 rounded-lg font-medium hover:bg-red-50 transition disabled:opacity-50"
+            >
+              <XCircle className="w-5 h-5" />
+              {actionLoading === 'decline' ? 'Declining...' : 'Decline Request'}
+            </button>
+          </div>
+
+          {/* Status Info */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm text-amber-800">
+              <strong>Tip:</strong> Accept the request to create a case and start AI research. Use "Request More Info" to message the sender first.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main Dashboard Component ────────────────────────────────────── */
 
 export default function AdminNegotiationsDashboard() {
@@ -197,6 +369,7 @@ export default function AdminNegotiationsDashboard() {
   const [cases, setCases] = useState<NegotiationCase[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [infoModal, setInfoModal] = useState<{ requestId: string } | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('all')
@@ -305,6 +478,31 @@ export default function AdminNegotiationsDashboard() {
     )
   }
 
+  // If a request is selected, show request detail view
+  const selectedRequest = selectedRequestId
+    ? requests.find((r) => r.id === selectedRequestId)
+    : null
+
+  if (selectedRequest) {
+    return (
+      <RequestDetailView
+        request={selectedRequest}
+        onBack={() => setSelectedRequestId(null)}
+        onAccept={async () => {
+          await handleAction('accept', selectedRequest.id)
+          setSelectedRequestId(null)
+        }}
+        onRequestInfo={() => {
+          setInfoModal({ requestId: selectedRequest.id })
+        }}
+        onDecline={async () => {
+          await handleAction('decline', selectedRequest.id)
+          setSelectedRequestId(null)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -407,13 +605,17 @@ export default function AdminNegotiationsDashboard() {
                 return (
                   <tr
                     key={isRequest ? `req-${row.data.id}` : `case-${row.data.id}`}
-                    className={`border-b border-slate-100 transition ${
+                    className={`border-b border-slate-100 transition cursor-pointer ${
                       isRequest
                         ? 'bg-amber-50/40 hover:bg-amber-50/70'
-                        : 'hover:bg-slate-50 cursor-pointer'
+                        : 'hover:bg-slate-50'
                     }`}
                     onClick={() => {
-                      if (!isRequest) setSelectedCaseId(row.data.id)
+                      if (isRequest) {
+                        setSelectedRequestId(row.data.id)
+                      } else {
+                        setSelectedCaseId(row.data.id)
+                      }
                     }}
                   >
                     {/* Property */}

@@ -63,6 +63,7 @@ const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 async function fetchDealDetail(dealId: string) {
   const res = await fetch(`${BASE_URL}/api/deals/${dealId}`, {
+    credentials: 'include',
     headers: getAuthHeader(),
   })
   if (!res.ok) return null
@@ -72,6 +73,7 @@ async function fetchDealDetail(dealId: string) {
 async function addDealNote(dealId: string, content: string) {
   const res = await fetch(`${BASE_URL}/api/deals/${dealId}/notes`, {
     method: 'POST',
+    credentials: 'include',
     headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
   })
@@ -82,6 +84,7 @@ async function addDealNote(dealId: string, content: string) {
 async function deleteDealNote(dealId: string, noteId: string) {
   const res = await fetch(`${BASE_URL}/api/deals/${dealId}/notes/${noteId}`, {
     method: 'DELETE',
+    credentials: 'include',
     headers: getAuthHeader(),
   })
   if (!res.ok) throw new Error('Failed to delete note')

@@ -568,6 +568,7 @@ export default function AdminPage() {
       const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
       const res = await fetch(`${BASE_URL}/api/audit/logs${qs ? `?${qs}` : ''}`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to load audit logs')
       const data = await res.json()
@@ -593,6 +594,7 @@ export default function AdminPage() {
       if (zipSearch) params.set('search', zipSearch)
       const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes?${params}`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed to load zip codes')
       const data = await res.json()
@@ -609,6 +611,7 @@ export default function AdminPage() {
       const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
       const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/stats`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (res.ok) setZipStats(await res.json())
     } catch { /* ignore */ }
@@ -630,6 +633,7 @@ export default function AdminPage() {
       const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/upload`, {
         method: 'POST',
         headers: { ...getAuthHeader() },
+        credentials: 'include',
         body: formData,
       })
       if (!res.ok) throw new Error('Upload failed')
@@ -650,6 +654,7 @@ export default function AdminPage() {
       const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes`, {
         method: 'DELETE',
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Failed')
       setToast('All zip codes deleted')
@@ -667,6 +672,7 @@ export default function AdminPage() {
       const res = await fetch(`${BASE_URL}/api/superadmin/markets/zip-codes/lookup?zip_code=${zipLookup.trim()}`, {
         method: 'POST',
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (!res.ok) {
         setZipLookupResult('Not found — check HUD API key')
@@ -686,6 +692,7 @@ export default function AdminPage() {
       const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
       const res = await fetch(`${BASE_URL}/api/audit/logs/export`, {
         headers: { ...getAuthHeader() },
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Export failed')
       const blob = await res.blob()

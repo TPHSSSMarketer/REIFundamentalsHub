@@ -213,6 +213,7 @@ export default function Settings() {
       try {
         const res = await fetch(`${BASE_URL}/api/deals/analyzer/preferences`, {
           headers: getAuthHeader(),
+          credentials: 'include',
         })
         if (res.ok) {
           const data = await res.json()
@@ -251,6 +252,7 @@ export default function Settings() {
       try {
         const res = await fetch(`${BASE_URL}/api/user/notifications/preferences`, {
           headers: getAuthHeader(),
+          credentials: 'include',
         })
         if (res.ok) {
           const data = await res.json()
@@ -466,6 +468,7 @@ export default function Settings() {
       const res = await fetch(`${BASE_URL}/api/deals/analyzer/preferences`, {
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('Failed to save')
@@ -483,6 +486,7 @@ export default function Settings() {
       const res = await fetch(`${BASE_URL}/api/user/notifications/preferences`, {
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(notifPrefs),
       })
       if (!res.ok) throw new Error('Failed to save')

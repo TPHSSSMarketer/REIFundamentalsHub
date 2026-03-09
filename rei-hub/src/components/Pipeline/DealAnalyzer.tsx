@@ -545,6 +545,7 @@ export default function DealAnalyzer({ dealId, preferences, dealData }: DealAnal
       const res = await fetch(`${BASE_URL}/api/deals/${dealId}`, {
         method: 'PATCH',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ analyzer_data: JSON.stringify(analysisData) }),
       })
 

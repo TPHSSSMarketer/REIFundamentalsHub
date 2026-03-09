@@ -4,6 +4,7 @@
 import type { Contact, Deal, PortfolioProperty } from '@/types'
 import { mockContacts, mockDeals } from '@/data/mockData'
 import { getAuthHeader } from '@/services/auth'
+import { apiFetchWithAuth } from '@/services/fetchWithAuth'
 
 // ── Configuration ─────────────────────────────────────────
 
@@ -34,21 +35,7 @@ async function withDemoFallback<T>(apiFn: () => Promise<T>, demoData: T): Promis
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeader(),
-      ...(options.headers || {}),
-    },
-  })
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`)
-  }
-  // DELETE endpoints may return 204
-  if (res.status === 204) return undefined as T
-  return res.json()
+  return apiFetchWithAuth<T>(path, options)
 }
 
 // ── Demo Portfolio Data ────────────────────────────────────

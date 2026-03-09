@@ -3,20 +3,30 @@
  */
 
 import { getToken } from './auth'
+import { fetchWithAuth } from './fetchWithAuth'
 
 const BASE = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
 
 async function authFetch(path: string, init: RequestInit = {}) {
-  const token = getToken()
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> ?? {}),
   }
+  const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
   // Don't set Content-Type for FormData (browser sets boundary automatically)
-  if (!(init.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json'
+  if (init.body instanceof FormData) {
+    // FormData uploads: use raw fetchWithAuth (returns Response)
+    const res = await fetchWithAuth(path, { ...init, headers })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`API ${res.status}: ${body}`)
+    }
+    return res.json()
   }
-  const res = await fetch(`${BASE}${path}`, { ...init, headers })
+
+  // JSON requests: use fetchWithAuth with auto-retry on 401
+  if (!headers['Content-Type']) headers['Content-Type'] = 'application/json'
+  const res = await fetchWithAuth(path, { ...init, headers })
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)

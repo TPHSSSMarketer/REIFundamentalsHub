@@ -37,6 +37,7 @@ export async function getSocialAuthUrl(
   const response = await fetch(`${BASE_URL}/api/social/${platform}/auth-url`, {
     method: 'GET',
     headers: getAuthHeader(),
+    credentials: 'include',
   });
   if (!response.ok) {
     throw new Error(`Failed to get auth URL for ${platform}`);
@@ -58,6 +59,7 @@ export async function submitSocialCallback(
       'Content-Type': 'application/json',
       ...getAuthHeader(),
     },
+    credentials: 'include',
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -73,6 +75,7 @@ export async function getSocialStatus(
   const response = await fetch(`${BASE_URL}/api/social/${platform}/status`, {
     method: 'GET',
     headers: getAuthHeader(),
+    credentials: 'include',
   });
   if (!response.ok) {
     throw new Error(`Failed to get status for ${platform}`);
@@ -87,6 +90,7 @@ export async function disconnectSocial(
   const response = await fetch(`${BASE_URL}/api/social/${platform}/disconnect`, {
     method: 'POST',
     headers: getAuthHeader(),
+    credentials: 'include',
   });
   if (!response.ok) {
     throw new Error(`Failed to disconnect ${platform}`);
@@ -110,6 +114,7 @@ export async function publishToSocial(
       'Content-Type': 'application/json',
       ...getAuthHeader(),
     },
+    credentials: 'include',
     body: JSON.stringify(body),
   });
   if (!response.ok) {

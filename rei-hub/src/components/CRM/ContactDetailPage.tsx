@@ -121,6 +121,7 @@ export default function ContactDetailPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/contacts/${contactId}`, {
         headers: getAuthHeader(),
+        credentials: 'include',
       })
       if (res.ok) {
         const data = await res.json()
@@ -161,6 +162,7 @@ export default function ContactDetailPage() {
       const res = await fetch(`${BASE_URL}/api/contacts/${contactId}/notes`, {
         method: 'POST',
         headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ content: newNote }),
       })
       if (res.ok) {
@@ -181,6 +183,7 @@ export default function ContactDetailPage() {
         await fetch(`${BASE_URL}/api/contacts/${contactId}/notes/${noteId}`, {
           method: 'DELETE',
           headers: getAuthHeader(),
+          credentials: 'include',
         })
         await loadBackendData()
       } catch {
@@ -657,6 +660,7 @@ function BuyerCriteriaSection({ contactId }: { contactId: string }) {
       const authHeader = await getAuthHeader()
       const resp = await fetch(`${BASE_URL}/api/crm/buyer-criteria/${contactId}`, {
         headers: { ...authHeader },
+        credentials: 'include',
       })
       if (resp.ok) {
         const data = await resp.json()
