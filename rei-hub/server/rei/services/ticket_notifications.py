@@ -11,8 +11,8 @@ HOW IT WORKS (in plain English):
 - If either notification fails, the ticket is still created (notifications are best-effort)
 
 TELEGRAM SETUP:
-- The bot token is stored in Settings (telegram_bot_token)
-- The chat ID is stored in Settings (telegram_chat_id)
+- The bot token and chat ID are stored in the encrypted credentials DB
+  (SuperAdmin → Telegram settings)
 - To find your chat_id: message the bot, then visit
   https://api.telegram.org/bot<TOKEN>/getUpdates
   and look for the chat.id in the response
@@ -126,13 +126,28 @@ async def send_ticket_telegram(
     Send a Telegram message about a new help ticket.
 
     The message goes to the platform owner's Telegram chat
-    via the configured bot.
+    via the configured bot.  Reads bot_token and chat_id from
+    the encrypted credentials DB (SuperAdmin → Telegram).
     """
-    bot_token = getattr(settings, "telegram_bot_token", "") or ""
-    chat_id = getattr(settings, "telegram_chat_id", "") or ""
+    from rei.database import async_session_factory
+    from rei.services.credentials_service import get_provider_credentials
+
+    try:
+        async with async_session_factory() as db:
+            creds = await get_provider_credentials(db, "telegram")
+    except Exception as e:
+        logger.error("Failed to read Telegram credentials from DB: %s", e)
+        return False
+
+    if not creds:
+        logger.info("Telegram credentials not found, skipping ticket notification")
+        return False
+
+    bot_token = creds.get("telegram_bot_token", "")
+    chat_id = creds.get("telegram_chat_id", "")
 
     if not bot_token or not chat_id:
-        logger.info("Telegram not configured, skipping notification")
+        logger.info("Telegram not configured (missing token or chat_id), skipping notification")
         return False
 
     # Build a clean Telegram message with emoji indicators

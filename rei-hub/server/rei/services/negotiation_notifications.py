@@ -61,12 +61,12 @@ async def _notify_admin(
         plain_message: Plain text message for WhatsApp and Slack.
         settings: App settings (used for Telegram bot token/chat ID).
     """
-    # Telegram (uses settings, not encrypted credentials)
-    await send_negotiation_telegram(telegram_message, settings)
-
-    # WhatsApp + Slack (use encrypted credentials from DB)
+    # All channels use encrypted credentials from DB
     try:
         async with await _get_db() as db:
+            # Telegram (reads bot_token + chat_id from encrypted credentials)
+            await send_negotiation_telegram(telegram_message, db)
+
             # WhatsApp via Twilio
             try:
                 from rei.services.whatsapp_service import send_whatsapp_message
@@ -81,7 +81,7 @@ async def _notify_admin(
             except Exception as e:
                 logger.debug("Slack notification skipped: %s", e)
     except Exception as e:
-        logger.warning("Could not open DB session for WhatsApp/Slack: %s", e)
+        logger.warning("Could not open DB session for notifications: %s", e)
 
 
 # ── Multi-channel user notification ──────────────────────────────────
@@ -103,7 +103,6 @@ async def _notify_user(
         telegram_msg: MarkdownV2-formatted message for Telegram.
         plain_msg: Plain text message for WhatsApp and Slack.
     """
-    from rei.config import get_settings
     from rei.models.user import User
     from sqlalchemy import select
 
@@ -115,12 +114,10 @@ async def _notify_user(
                 logger.warning("User %s not found for notification", user_id)
                 return
 
-            settings = get_settings()
-
-            # Telegram — reuse admin bot token, send to user's chat_id
+            # Telegram — reuse admin bot token from DB, send to user's chat_id
             if user.telegram_enabled and user.telegram_chat_id:
                 try:
-                    await _send_user_telegram(telegram_msg, user.telegram_chat_id, settings)
+                    await _send_user_telegram(telegram_msg, user.telegram_chat_id, db)
                 except Exception as e:
                     logger.debug("User Telegram notification failed for user %s: %s", user_id, e)
 
@@ -141,9 +138,12 @@ async def _notify_user(
         logger.warning("Could not send user notifications for user %s: %s", user_id, e)
 
 
-async def _send_user_telegram(message: str, chat_id: str, settings) -> bool:
-    """Send a Telegram message to a user using the admin bot token."""
-    bot_token = getattr(settings, "telegram_bot_token", "") or ""
+async def _send_user_telegram(message: str, chat_id: str, db) -> bool:
+    """Send a Telegram message to a user using the admin bot token from DB."""
+    from rei.services.credentials_service import get_provider_credentials
+
+    creds = await get_provider_credentials(db, "telegram")
+    bot_token = (creds or {}).get("telegram_bot_token", "")
     if not bot_token or not chat_id:
         return False
 
@@ -220,19 +220,27 @@ async def _send_user_slack(message: str, webhook_url: str) -> bool:
 
 async def send_negotiation_telegram(
     message: str,
-    settings: Settings,
+    db,
 ) -> bool:
     """
     Send a Telegram message to the admin chat about a negotiation event.
 
-    Uses the same bot setup as ticket_notifications.py.
+    Reads bot_token and chat_id from the encrypted credentials DB
+    (SuperAdmin → Telegram settings).
     Message is sent with MarkdownV2 parse mode.
     """
-    bot_token = getattr(settings, "telegram_bot_token", "") or ""
-    chat_id = getattr(settings, "telegram_chat_id", "") or ""
+    from rei.services.credentials_service import get_provider_credentials
+
+    creds = await get_provider_credentials(db, "telegram")
+    if not creds:
+        logger.info("Telegram credentials not found, skipping negotiation notification")
+        return False
+
+    bot_token = creds.get("telegram_bot_token", "")
+    chat_id = creds.get("telegram_chat_id", "")
 
     if not bot_token or not chat_id:
-        logger.info("Telegram not configured, skipping negotiation notification")
+        logger.info("Telegram not configured (missing token or chat_id), skipping notification")
         return False
 
     # NOTE: Callers (notify_new_request, notify_info_response, etc.) already
