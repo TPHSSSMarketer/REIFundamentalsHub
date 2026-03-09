@@ -402,7 +402,7 @@ export default function AssistantHub() {
           <div className="p-6"><ListsSubscribersTab /></div>
         )}
         {activeGroup === 'email' && activeSubTab === 'campaigns' && (
-          <div className="p-6"><EmailCampaignsTab provider={emailProvider} /></div>
+          <div className="p-6"><EmailCampaignsTab /></div>
         )}
         {activeGroup === 'email' && activeSubTab === 'sequences' && (
           <div className="p-6"><SequencesTab /></div>

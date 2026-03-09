@@ -146,7 +146,7 @@ export default function Markets() {
   async function handleGeocodeAll() {
     setGeocoding(true)
     try {
-      const result = await batchGeocodeMarkets()
+      const result = await batchGeocodeMarkets() as { geocoded: number; total: number }
       toast.success(`Geocoded ${result.geocoded} of ${result.total} markets`)
       loadMarkets()
     } catch (err: any) {

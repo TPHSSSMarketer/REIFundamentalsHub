@@ -56,7 +56,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export async function createSession(title?: string): Promise<AdminSession> {
   if (isDemoMode()) {
     const id = `demo-${Date.now()}`
-    return { id, title: title || 'New Conversation', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), message_count: 0 } as AdminSession
+    return { id, user_id: 0, title: title || 'New Conversation', is_active: true, created_at: new Date().toISOString(), last_message_at: new Date().toISOString(), message_count: 0 } as AdminSession
   }
   const body = title ? { title } : {}
   return fetch(`${BASE_URL}/api/assistant/sessions`, {

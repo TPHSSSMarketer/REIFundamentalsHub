@@ -342,7 +342,7 @@ export async function generateContentImages(
         platforms.map((p) => [
           p,
           {
-            id: null,
+            id: null as string | null,
             prompt: `Demo: Image prompt for ${p} would appear here.`,
             width: 1024,
             height: p === 'instagram' ? 1024 : p === 'youtube_short' ? 1024 : 576,

@@ -1342,7 +1342,7 @@ export default function AdminCaseWorkspace({
 
       // Research now runs synchronously — the server does all the work and returns results
       const result = await triggerResearch(caseId)
-      const validCount = (result as Record<string, unknown>)?.valid_count ?? 0
+      const validCount = Number((result as Record<string, unknown>)?.valid_count ?? 0)
 
       // Reload all data now that research is complete
       const recs = await listRecipients(caseId)

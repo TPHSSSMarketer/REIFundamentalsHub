@@ -75,8 +75,8 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 
 function GoogleMapView({ pins, height, className, zoom }: PropertyMapProps & { apiKey: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([])
+  const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
 
   const initMap = useCallback(() => {
     if (!containerRef.current || !(window as any).google?.maps) return
@@ -212,7 +212,7 @@ const MARKER_ICONS = {
   default: defaultIcon,
 }
 
-function FitBounds({ pins }: { pins: MapPin[] }) {
+function FitBounds({ pins }: { pins: MapPin[] }): null {
   const map = useMap()
 
   useEffect(() => {

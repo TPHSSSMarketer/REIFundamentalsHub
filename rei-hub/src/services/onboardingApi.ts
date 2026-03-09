@@ -43,6 +43,10 @@ const DEMO_ONBOARDING_STATUS = {
     deal_types: 'fix_flip,rental',
     primary_market: 'Texas',
     storage_provider: 'none',
+    investing_strategy: null as string | null,
+    mission_statement: null as string | null,
+    content_tone: null as string | null,
+    has_company_logo: false,
     email: 'demo@reifundamentals.com',
     full_name: 'Demo User',
   },
@@ -77,6 +81,10 @@ export async function getOnboardingStatus() {
             deal_types: string | null
             primary_market: string | null
             storage_provider: string | null
+            investing_strategy: string | null
+            mission_statement: string | null
+            content_tone: string | null
+            has_company_logo: boolean
             email: string
             full_name: string | null
           }
