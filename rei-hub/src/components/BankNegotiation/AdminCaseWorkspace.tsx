@@ -21,6 +21,8 @@ import {
   Eye,
   FolderOpen,
   Upload,
+  Landmark,
+  Building,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -587,6 +589,8 @@ const RECIPIENT_CONFIG: Record<string, { label: string; icon: typeof User; color
   general_counsel: { label: 'General Counsel', icon: Scale, color: 'text-purple-700', bg: 'bg-purple-50' },
   registered_agent: { label: 'Registered Agent', icon: Building2, color: 'text-amber-700', bg: 'bg-amber-50' },
   respa_address: { label: 'RESPA Address', icon: MapPin, color: 'text-green-700', bg: 'bg-green-50' },
+  tax_local: { label: 'Local Tax Office', icon: Landmark, color: 'text-teal-700', bg: 'bg-teal-50' },
+  tax_county: { label: 'County Tax Office', icon: Building, color: 'text-indigo-700', bg: 'bg-indigo-50' },
 }
 
 function ConfidenceDot({ level }: { level?: string }) {

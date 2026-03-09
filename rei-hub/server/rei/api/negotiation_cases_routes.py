@@ -323,15 +323,24 @@ async def trigger_research(
         deal = await db.get(CrmDeal, case.deal_id) if case.deal_id else None
         state = deal.state if deal else ""
 
+        # Build full property address for tax lookups
+        property_address = ""
+        if deal:
+            parts = [deal.address, deal.city, deal.state, deal.zip]
+            property_address = ", ".join(p for p in parts if p)
+
         lien_result = await db.execute(
             select(DealLien).where(DealLien.deal_id == case.deal_id).limit(1)
         )
         lien = lien_result.scalar_one_or_none()
         bank_name = lien.lien_holder if lien else "Unknown"
 
-        logger.info("=== Starting AI research for case %s, bank=%s, state=%s ===", case_id, bank_name, state)
+        logger.info(
+            "=== Starting AI research for case %s, bank=%s, state=%s, service=%s ===",
+            case_id, bank_name, state, case.service_type,
+        )
 
-        # Run research synchronously using the request DB session (same path as diagnostic test)
+        # Run research — tax recipients included only for county_tax service type
         results = await research_bank_contacts(
             bank_name=bank_name,
             state=state or "",
@@ -339,6 +348,8 @@ async def trigger_research(
             user_id=user.id,
             db=db,
             settings=get_settings(),
+            property_address=property_address,
+            service_type=case.service_type,
         )
 
         logger.info("Research: got %d results", len(results))
@@ -389,7 +400,7 @@ async def trigger_research(
 
         # Log an activity for the research completion
         if valid_count > 0:
-            note = f"AI research completed for {bank_name}. Found {valid_count} of 4 recipient contacts with usable data."
+            note = f"AI research completed for {bank_name}. Found {valid_count} of {len(results)} recipient contacts with usable data."
             summary = "Contact research has been completed for your case."
         else:
             debug_info = "; ".join(debug_snippets) if debug_snippets else "no debug info"

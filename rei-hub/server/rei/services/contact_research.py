@@ -56,6 +56,36 @@ RECIPIENT_TYPES = {
     },
 }
 
+# Tax-specific recipient types — only used for county_tax service type cases
+TAX_RECIPIENT_TYPES = {
+    "tax_local": {
+        "title": "Local Tax Collector (Town / City / Municipality)",
+        "search_hint": (
+            "Find the local tax collecting office for the property. IMPORTANT: Do NOT rely "
+            "solely on the mailing city or zip code — determine the actual town/municipality "
+            "the property is in. For example, Northport, NY 11731 is in the Town of Huntington, "
+            "while Fort Salonga, NY 11768 (nearby, overlapping zip codes) is in the Town of "
+            "Smithtown. Use the full street address to determine jurisdiction.\n\n"
+            "Look for: Town Tax Receiver, City Tax Collector, Town Comptroller, Municipal Tax "
+            "Department, or any variation. Check the town/city government website for the tax "
+            "office address, phone, and hours. In many NY counties (like Suffolk County), "
+            "property taxes are collected by the Town first."
+        ),
+    },
+    "tax_county": {
+        "title": "County Tax Office (Comptroller / Treasurer / Assessor)",
+        "search_hint": (
+            "Find the county-level tax authority for the property. Determine which county the "
+            "property is in from the full address. Look for: County Comptroller, County "
+            "Treasurer, County Tax Collector, County Tax Assessor's Office, or County Real "
+            "Property Tax Services.\n\n"
+            "Check the county government website. The county tax office handles things like "
+            "tax lien sales, delinquent tax collection, and property tax assessment. Provide "
+            "the main mailing address for tax payments or correspondence."
+        ),
+    },
+}
+
 
 # ── Research functions ────────────────────────────────────────────────────
 
@@ -67,17 +97,27 @@ async def research_bank_contacts(
     user_id: int,
     db: AsyncSession,
     settings: Settings,
+    property_address: str = "",
+    service_type: str = "bank",
 ) -> list[dict]:
-    """Research all 4 recipient contact info for a bank/servicer.
+    """Research recipient contact info for a negotiation case.
 
-    Returns list of 4 recipient dicts with contact details.
-    Uses NVIDIA AI-Q for research via ai_service.
+    For bank cases: researches 4 bank-related contacts (CEO, GC, RA, RESPA).
+    For county_tax cases: researches 2 tax authority contacts only.
     """
     import asyncio
 
+    # Choose which recipients to research based on service type
+    if service_type == "county_tax":
+        types_to_research: dict = dict(TAX_RECIPIENT_TYPES)
+        logger.info("Tax deal — researching tax authority contacts only")
+    else:
+        types_to_research = dict(RECIPIENT_TYPES)
+        logger.info("Bank deal — researching bank contacts only")
+
     results: list[dict] = []
 
-    for i, (recipient_type, config) in enumerate(RECIPIENT_TYPES.items()):
+    for i, (recipient_type, config) in enumerate(types_to_research.items()):
         # Small delay between API calls to avoid rate limiting
         if i > 0:
             await asyncio.sleep(2)
@@ -91,6 +131,7 @@ async def research_bank_contacts(
                 user_id=user_id,
                 db=db,
                 settings=settings,
+                property_address=property_address,
             )
         except Exception as exc:
             logger.error("Research call failed for %s: %s", recipient_type, exc)
@@ -113,9 +154,12 @@ async def research_single_recipient(
     user_id: int,
     db: AsyncSession,
     settings: Settings,
+    property_address: str = "",
 ) -> dict:
     """Research a single recipient. Used for manual refresh of one contact."""
-    config = RECIPIENT_TYPES.get(recipient_type)
+    # Check both standard and tax recipient types
+    all_types = {**RECIPIENT_TYPES, **TAX_RECIPIENT_TYPES}
+    config = all_types.get(recipient_type)
     if not config:
         return {
             "recipient_type": recipient_type,
@@ -130,6 +174,7 @@ async def research_single_recipient(
         user_id=user_id,
         db=db,
         settings=settings,
+        property_address=property_address,
     )
 
 
@@ -141,18 +186,34 @@ async def _research_one_recipient(
     user_id: int,
     db: AsyncSession,
     settings: Settings,
+    property_address: str = "",
 ) -> dict:
     """Internal helper — research one recipient type via AI."""
     title = config["title"]
     search_hint = config.get("search_hint", "")
 
     state_ctx = f" The property is in {state}." if state else ""
+    addr_ctx = f"\nProperty address: {property_address}" if property_address else ""
 
-    prompt = (
-        f"You are a real estate paralegal assistant. Research the following "
-        f"contact information for {bank_name} (mortgage servicer/bank).{state_ctx}\n\n"
-        f"Recipient: {title}\n\n"
-        f"Research guidance: {search_hint}\n\n"
+    # For tax-related lookups, focus on the property location instead of bank
+    is_tax_type = recipient_type.startswith("tax_")
+
+    if is_tax_type:
+        prompt = (
+            f"You are a real estate paralegal assistant. Research the following "
+            f"tax authority contact information for a property.{state_ctx}{addr_ctx}\n\n"
+            f"Recipient: {title}\n\n"
+            f"Research guidance: {search_hint}\n\n"
+        )
+    else:
+        prompt = (
+            f"You are a real estate paralegal assistant. Research the following "
+            f"contact information for {bank_name} (mortgage servicer/bank).{state_ctx}{addr_ctx}\n\n"
+            f"Recipient: {title}\n\n"
+            f"Research guidance: {search_hint}\n\n"
+        )
+
+    prompt += (
         "Return your findings as a single JSON object with these exact keys:\n"
         "```json\n"
         "{\n"

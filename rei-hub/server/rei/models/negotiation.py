@@ -239,11 +239,13 @@ class NegotiationMessage(Base):
 class NegotiationRecipient(Base):
     """Stores AI-researched contact info for a negotiation case.
 
-    Each case can have up to 4 recipients:
+    Bank cases have 4 recipients; county_tax cases add 2 more (up to 6):
     - ceo: Chief Executive Officer
     - general_counsel: General Counsel / Chief Legal Officer
     - registered_agent: Registered Agent (service of process)
     - respa_address: RESPA Designated Address (QWR / loss mitigation)
+    - tax_local: Local town/city/municipality tax office (county_tax cases only)
+    - tax_county: County tax office / comptroller (county_tax cases only)
     """
     __tablename__ = "negotiation_recipients"
 
