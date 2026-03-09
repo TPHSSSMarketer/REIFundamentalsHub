@@ -466,12 +466,16 @@ function LienCard({
 
 // ── Negotiation Modal ──────────────────────────────────────────────
 
-/** Map a DealLien's lienType to the service category for negotiations. */
+/** Map a DealLien's lienType to the machine-readable service category for negotiations.
+ *  These values must match the backend routing in contact_research.py:
+ *  - "bank"       → researches CEO, General Counsel, Registered Agent, RESPA
+ *  - "county_tax" → researches local + county tax authority contacts
+ */
 function lienTypeToService(lienType: string): string {
   const lower = lienType.toLowerCase()
-  if (lower.includes('mortgage')) return 'Bank/Mortgage'
-  if (lower.includes('county') || lower.includes('tax')) return 'County Tax'
-  return 'Other Lien'
+  if (lower.includes('mortgage')) return 'bank'
+  if (lower.includes('county') || lower.includes('tax')) return 'county_tax'
+  return 'bank'  // default to bank for other lien types
 }
 
 function NegotiationModal({
@@ -537,7 +541,7 @@ function NegotiationModal({
                   key={type}
                   className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700"
                 >
-                  {type}
+                  {type === 'bank' ? 'Bank/Mortgage' : type === 'county_tax' ? 'County Tax' : type}
                 </span>
               ))}
             </div>

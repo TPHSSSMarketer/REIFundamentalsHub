@@ -1,6 +1,7 @@
 """AI-powered contact lookup for bank negotiation recipients.
 
-Uses NVIDIA AI-Q (best for research tasks) via the central ai_service layer.
+Uses real public APIs (FDIC, SEC EDGAR, OpenCorporates) to gather verified
+data first, then passes it to the AI for formatting and gap-filling.
 """
 
 from __future__ import annotations
@@ -16,6 +17,70 @@ from rei.config import Settings
 from rei.services.ai_service import ai_complete
 
 logger = logging.getLogger(__name__)
+
+
+# ── Public API data gathering ────────────────────────────────────────────
+
+
+async def _gather_bank_data(bank_name: str, state: str = "") -> str:
+    """Query FDIC, SEC EDGAR, and OpenCorporates in parallel for real data.
+
+    Returns a formatted text block that gets injected into the AI prompt
+    so the AI works with verified facts instead of guessing.
+    """
+    from rei.services.fdic_service import search_institution_fuzzy, format_fdic_context
+    from rei.services.edgar_service import lookup_bank_full, format_edgar_context
+    from rei.services.opencorporates_service import (
+        lookup_company_full,
+        format_opencorporates_context,
+    )
+
+    # Run all three API lookups in parallel for speed
+    fdic_task = search_institution_fuzzy(bank_name)
+    edgar_task = lookup_bank_full(bank_name)
+    oc_task = lookup_company_full(bank_name, state)
+
+    fdic_results, edgar_info, oc_data = await asyncio.gather(
+        fdic_task, edgar_task, oc_task, return_exceptions=True,
+    )
+
+    # Handle any exceptions gracefully
+    if isinstance(fdic_results, Exception):
+        logger.warning("FDIC lookup failed: %s", fdic_results)
+        fdic_results = []
+    if isinstance(edgar_info, Exception):
+        logger.warning("SEC EDGAR lookup failed: %s", edgar_info)
+        edgar_info = None
+    if isinstance(oc_data, Exception):
+        logger.warning("OpenCorporates lookup failed: %s", oc_data)
+        oc_data = {}
+
+    # Format each data source into readable text
+    sections = []
+
+    fdic_text = format_fdic_context(fdic_results)
+    if fdic_text:
+        sections.append(fdic_text)
+
+    edgar_text = format_edgar_context(edgar_info)
+    if edgar_text:
+        sections.append(edgar_text)
+
+    oc_text = format_opencorporates_context(oc_data)
+    if oc_text:
+        sections.append(oc_text)
+
+    if not sections:
+        logger.info("No public API data found for %r", bank_name)
+        return ""
+
+    header = (
+        "\n\n--- VERIFIED DATA FROM PUBLIC GOVERNMENT & CORPORATE DATABASES ---\n"
+        "Use the data below as your PRIMARY source. Only supplement with your "
+        "training knowledge where gaps exist. Mark confidence as 'high' when "
+        "using data from these sources.\n\n"
+    )
+    return header + "\n\n".join(sections) + "\n--- END VERIFIED DATA ---\n"
 
 # ── Recipient types for bank negotiation pipeline ─────────────────────────
 
@@ -105,6 +170,9 @@ async def research_bank_contacts(
 
     For bank cases: researches 4 bank-related contacts (CEO, GC, RA, RESPA).
     For county_tax cases: researches 2 tax authority contacts only.
+
+    NEW: Gathers real data from FDIC, SEC EDGAR, and OpenCorporates first,
+    then feeds that verified data to the AI for formatting and gap-filling.
     """
     import asyncio
 
@@ -116,6 +184,28 @@ async def research_bank_contacts(
         types_to_research = dict(RECIPIENT_TYPES)
         logger.info("Bank deal — researching bank contacts only")
 
+    # ── Step 1: Gather REAL data from public APIs (bank cases only) ──
+    verified_data_context = ""
+    if service_type != "county_tax":
+        try:
+            logger.info("Gathering verified data from FDIC/EDGAR/OpenCorporates for %r ...", bank_name)
+            verified_data_context = await asyncio.wait_for(
+                _gather_bank_data(bank_name, state),
+                timeout=30.0,  # 30s max for all API calls
+            )
+            if verified_data_context:
+                logger.info(
+                    "Got %d chars of verified data for %r",
+                    len(verified_data_context), bank_name,
+                )
+            else:
+                logger.info("No verified data found for %r — AI will use training data", bank_name)
+        except asyncio.TimeoutError:
+            logger.warning("Public API data gathering timed out for %r", bank_name)
+        except Exception as exc:
+            logger.warning("Public API data gathering failed for %r: %s", bank_name, exc)
+
+    # ── Step 2: Research each recipient with AI (now enriched with real data) ──
     results: list[dict] = []
 
     for i, (recipient_type, config) in enumerate(types_to_research.items()):
@@ -133,6 +223,7 @@ async def research_bank_contacts(
                 db=db,
                 settings=settings,
                 property_address=property_address,
+                verified_data=verified_data_context,
             )
         except Exception as exc:
             logger.error("Research call failed for %s: %s", recipient_type, exc)
@@ -265,6 +356,17 @@ async def research_single_recipient(
             "error": f"Unknown recipient type: {recipient_type}",
         }
 
+    # Gather verified data for bank recipients (not tax)
+    verified_data = ""
+    if not recipient_type.startswith("tax_"):
+        try:
+            verified_data = await asyncio.wait_for(
+                _gather_bank_data(bank_name, state),
+                timeout=30.0,
+            )
+        except Exception as exc:
+            logger.warning("Public API data gathering failed for single refresh: %s", exc)
+
     return await _research_one_recipient(
         bank_name=bank_name,
         state=state,
@@ -274,6 +376,7 @@ async def research_single_recipient(
         db=db,
         settings=settings,
         property_address=property_address,
+        verified_data=verified_data,
     )
 
 
@@ -286,8 +389,13 @@ async def _research_one_recipient(
     db: AsyncSession,
     settings: Settings,
     property_address: str = "",
+    verified_data: str = "",
 ) -> dict:
-    """Internal helper — research one recipient type via AI."""
+    """Internal helper — research one recipient type via AI.
+
+    If *verified_data* is provided (from FDIC/EDGAR/OpenCorporates), it is
+    injected into the prompt so the AI uses real facts, not guesses.
+    """
     title = config["title"]
     search_hint = config.get("search_hint", "")
 
@@ -311,6 +419,10 @@ async def _research_one_recipient(
             f"Recipient: {title}\n\n"
             f"Research guidance: {search_hint}\n\n"
         )
+
+    # ── Inject verified public API data into the prompt ──
+    if verified_data:
+        prompt += verified_data + "\n\n"
 
     prompt += (
         "Return your findings as a single JSON object with these exact keys:\n"
