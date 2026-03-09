@@ -693,6 +693,14 @@ function ResearchResults({
         </div>
       )}
 
+      {!loading && caseStatus === 'researching' && validRecipients.length === 0 && (
+        <div className="text-center py-4">
+          <AlertCircle className="w-5 h-5 text-amber-500 mx-auto mb-2" />
+          <p className="text-xs text-slate-600 font-medium">Research appears to be stuck.</p>
+          <p className="text-xs text-slate-500 mt-1">The previous research request may have timed out. Click Re-run above to try again.</p>
+        </div>
+      )}
+
       {!loading && recipients.length > 0 && validRecipients.length === 0 && (
         <div className="text-center py-4">
           <AlertCircle className="w-5 h-5 text-orange-400 mx-auto mb-2" />

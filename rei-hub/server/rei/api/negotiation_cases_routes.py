@@ -299,7 +299,9 @@ async def trigger_research(
     Superadmin only.
     Researches all 4 recipients, saves results, logs activity, updates status.
     Returns full results so the frontend can display them immediately.
+    Wrapped in a 4-minute timeout so stuck API calls don't hang forever.
     """
+    import asyncio
     import json as _json
     from rei.services.contact_research import research_bank_contacts
 
@@ -341,16 +343,23 @@ async def trigger_research(
         )
 
         # Run research — tax recipients included only for county_tax service type
-        results = await research_bank_contacts(
-            bank_name=bank_name,
-            state=state or "",
-            negotiation_id=str(case.id),
-            user_id=user.id,
-            db=db,
-            settings=get_settings(),
-            property_address=property_address,
-            service_type=case.service_type,
-        )
+        # 4-minute timeout so stuck API calls don't leave status as "researching" forever
+        try:
+            results = await asyncio.wait_for(
+                research_bank_contacts(
+                    bank_name=bank_name,
+                    state=state or "",
+                    negotiation_id=str(case.id),
+                    user_id=user.id,
+                    db=db,
+                    settings=get_settings(),
+                    property_address=property_address,
+                    service_type=case.service_type,
+                ),
+                timeout=240.0,  # 4 minutes max
+            )
+        except asyncio.TimeoutError:
+            raise Exception("Research timed out after 4 minutes. The AI provider may be slow or unreachable. Try again later.")
 
         logger.info("Research: got %d results", len(results))
 
@@ -471,7 +480,9 @@ async def trigger_agent_research(
     Same as trigger_research but uses the agent-based approach where Kimi K2.5
     uses tools (web search, SEC lookup, state registry, etc.) to research
     contacts step by step rather than in a single-shot prompt.
+    Wrapped in a 6-minute timeout (agents take longer than single-shot).
     """
+    import asyncio
     import json as _json
     from rei.services.contact_research import research_bank_contacts_agent
 
@@ -511,17 +522,23 @@ async def trigger_agent_research(
             case_id, bank_name, state, case.service_type,
         )
 
-        # Run agent-based research
-        results = await research_bank_contacts_agent(
-            bank_name=bank_name,
-            state=state or "",
-            negotiation_id=str(case.id),
-            user_id=user.id,
-            db=db,
-            settings=get_settings(),
-            property_address=property_address,
-            service_type=case.service_type,
-        )
+        # Run agent-based research with 6-minute timeout
+        try:
+            results = await asyncio.wait_for(
+                research_bank_contacts_agent(
+                    bank_name=bank_name,
+                    state=state or "",
+                    negotiation_id=str(case.id),
+                    user_id=user.id,
+                    db=db,
+                    settings=get_settings(),
+                    property_address=property_address,
+                    service_type=case.service_type,
+                ),
+                timeout=360.0,  # 6 minutes for agent research
+            )
+        except asyncio.TimeoutError:
+            raise Exception("Agent research timed out after 6 minutes. The AI provider may be slow or unreachable. Try again later.")
 
         logger.info("Agent research: got %d results", len(results))
 
