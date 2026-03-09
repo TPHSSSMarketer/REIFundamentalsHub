@@ -74,13 +74,20 @@ async def register_webhook(
     settings = get_settings()
 
     # Build the webhook URL from the server's configured public URL
+    # Try server_url from config, fall back to RAILWAY_PUBLIC_DOMAIN env var
+    import os
     server_url = getattr(settings, "server_url", "") or ""
 
     if not server_url or "localhost" in server_url:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot determine server public URL. Set server_public_url in config.",
-        )
+        # Try Railway's auto-injected public domain
+        railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+        if railway_domain:
+            server_url = f"https://{railway_domain}"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot determine server public URL. Set SERVER_URL environment variable to your API domain (e.g. https://api.reifundamentalshub.com).",
+            )
 
     webhook_url = f"{server_url.rstrip('/')}/api/telegram/webhook"
 
