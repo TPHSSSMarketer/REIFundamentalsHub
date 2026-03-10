@@ -1853,12 +1853,17 @@ export default function Settings() {
                               return
                             }
                             const blob = await res.blob()
-                            const url = URL.createObjectURL(blob)
+                            const url = URL.createObjectURL(new Blob([blob], { type: 'audio/mpeg' }))
                             const audio = new Audio(url)
                             audio.onended = () => URL.revokeObjectURL(url)
+                            audio.onerror = () => {
+                              URL.revokeObjectURL(url)
+                              toast.error('Browser could not play the audio. Try a different browser.')
+                            }
                             await audio.play()
-                          } catch {
-                            toast.error('Could not play voice preview')
+                          } catch (err: any) {
+                            console.error('Voice preview error:', err)
+                            toast.error(err?.message || 'Could not play voice preview')
                           } finally {
                             btn.innerHTML = originalHtml
                             btn.disabled = false

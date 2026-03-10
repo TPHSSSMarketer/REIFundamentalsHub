@@ -126,11 +126,37 @@ async def voice_preview(
             detail="OpenAI API key not configured. Ask your admin to set it in Admin > Credentials.",
         )
 
-    # Generate the preview audio
-    from rei.services.telegram_channel_service import text_to_speech
+    # Generate the preview audio in MP3 format (browser-compatible)
+    import httpx
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     preview_text = _VOICE_PREVIEWS.get(voice, f"Hi, I'm {voice}. How can I help?")
-    audio_bytes = await text_to_speech(preview_text, openai_key, voice=voice)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={
+                    "Authorization": f"Bearer {openai_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "tts-1",
+                    "input": preview_text,
+                    "voice": voice,
+                    "response_format": "mp3",  # MP3 plays in all browsers
+                },
+            )
+            resp.raise_for_status()
+            audio_bytes = resp.content
+    except Exception as exc:
+        logger.error("Voice preview TTS failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to generate voice preview. Please try again.",
+        )
 
     if not audio_bytes:
         raise HTTPException(
@@ -140,6 +166,6 @@ async def voice_preview(
 
     return Response(
         content=audio_bytes,
-        media_type="audio/ogg",
-        headers={"Content-Disposition": f"inline; filename=preview-{voice}.ogg"},
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": f"inline; filename=preview-{voice}.mp3"},
     )
