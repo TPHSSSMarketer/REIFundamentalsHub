@@ -1848,18 +1848,19 @@ export default function Settings() {
                               body: JSON.stringify({ voice: v.value }),
                             })
                             if (!res.ok) {
-                              const err = await res.json().catch(() => ({ detail: 'Preview failed' }))
-                              toast.error(err.detail || 'Failed to load preview')
+                              const errData = await res.json().catch(() => ({ detail: 'Preview failed' }))
+                              toast.error(errData.detail || 'Failed to load preview')
                               return
                             }
-                            const blob = await res.blob()
-                            const url = URL.createObjectURL(new Blob([blob], { type: 'audio/mpeg' }))
-                            const audio = new Audio(url)
-                            audio.onended = () => URL.revokeObjectURL(url)
-                            audio.onerror = () => {
-                              URL.revokeObjectURL(url)
-                              toast.error('Browser could not play the audio. Try a different browser.')
+                            const data = await res.json()
+                            if (!data.audio) {
+                              toast.error('No audio data received')
+                              return
                             }
+                            // Convert base64 to data URL and play
+                            const dataUrl = `data:${data.mime || 'audio/mpeg'};base64,${data.audio}`
+                            const audio = new Audio(dataUrl)
+                            audio.onerror = () => toast.error('Browser could not play audio')
                             await audio.play()
                           } catch (err: any) {
                             console.error('Voice preview error:', err)

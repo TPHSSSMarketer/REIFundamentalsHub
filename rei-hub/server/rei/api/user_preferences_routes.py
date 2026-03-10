@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -126,7 +125,10 @@ async def voice_preview(
             detail="OpenAI API key not configured. Ask your admin to set it in Admin > Credentials.",
         )
 
-    # Generate the preview audio in MP3 format (browser-compatible)
+    # Generate the preview audio in MP3 format and return as base64 data URL
+    # (returning raw binary through FastAPI can cause encoding issues with
+    #  some middleware stacks, so we use a JSON response with base64 instead)
+    import base64
     import httpx
     import logging
 
@@ -146,7 +148,7 @@ async def voice_preview(
                     "model": "tts-1",
                     "input": preview_text,
                     "voice": voice,
-                    "response_format": "mp3",  # MP3 plays in all browsers
+                    "response_format": "mp3",
                 },
             )
             resp.raise_for_status()
@@ -164,8 +166,13 @@ async def voice_preview(
             detail="Failed to generate voice preview. Please try again.",
         )
 
-    return Response(
-        content=audio_bytes,
-        media_type="audio/mpeg",
-        headers={"Content-Disposition": f"inline; filename=preview-{voice}.mp3"},
-    )
+    logger.info("Voice preview generated: voice=%s, bytes=%d", voice, len(audio_bytes))
+
+    # Return as base64-encoded JSON — avoids any binary encoding issues
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+    return {
+        "audio": audio_b64,
+        "format": "mp3",
+        "mime": "audio/mpeg",
+        "voice": voice,
+    }
