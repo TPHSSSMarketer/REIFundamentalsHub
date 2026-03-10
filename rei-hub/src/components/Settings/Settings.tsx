@@ -1854,13 +1854,30 @@ export default function Settings() {
                             }
                             const data = await res.json()
                             if (!data.audio) {
-                              toast.error('No audio data received')
+                              toast.error('No audio data received from server')
                               return
                             }
-                            // Convert base64 to data URL and play
-                            const dataUrl = `data:${data.mime || 'audio/mpeg'};base64,${data.audio}`
-                            const audio = new Audio(dataUrl)
-                            audio.onerror = () => toast.error('Browser could not play audio')
+                            console.log(`Voice preview: received ${data.audio.length} chars of base64 for ${data.voice}`)
+
+                            // Decode base64 → binary → Blob → Object URL (most reliable cross-browser approach)
+                            const binaryString = atob(data.audio)
+                            const bytes = new Uint8Array(binaryString.length)
+                            for (let i = 0; i < binaryString.length; i++) {
+                              bytes[i] = binaryString.charCodeAt(i)
+                            }
+                            const blob = new Blob([bytes.buffer], { type: 'audio/mpeg' })
+                            console.log(`Voice preview: created blob, size=${blob.size} bytes`)
+
+                            const url = URL.createObjectURL(blob)
+                            const audio = new Audio()
+                            audio.onended = () => URL.revokeObjectURL(url)
+                            audio.onerror = (ev) => {
+                              console.error('Audio playback error:', ev)
+                              URL.revokeObjectURL(url)
+                              toast.error('Browser could not play the audio file')
+                            }
+                            audio.src = url
+                            audio.load()
                             await audio.play()
                           } catch (err: any) {
                             console.error('Voice preview error:', err)
