@@ -235,6 +235,100 @@ def set_telegram_session(chat_id: str, session_id: str) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# TELEGRAM FORMATTING — Convert markdown artifacts to Telegram HTML
+# ═══════════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+
+def _format_for_telegram(text: str) -> str:
+    """Clean up AI response for Telegram's HTML parser.
+
+    The AI is instructed to use Telegram HTML, but sometimes still emits
+    markdown. This function catches any residual markdown and converts it
+    to clean Telegram-compatible HTML.
+    """
+    # 1. Remove [TOOL_CALL: ...] markers
+    text = _re.sub(r'\[TOOL_CALL:\s*\w+\s*\([^)]*\)\s*\]', '', text)
+
+    # 2. Remove markdown tables — convert rows to line-by-line format
+    #    Detect table lines: | col1 | col2 | col3 |
+    #    Also remove separator rows: |---|---|---|
+    lines = text.split('\n')
+    cleaned_lines = []
+    in_table = False
+    table_headers: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Table separator row (|---|---|---| or | --- | --- |)
+        if _re.match(r'^\|[\s\-:]+\|[\s\-:]+\|', stripped):
+            in_table = True
+            continue
+
+        # Table data row
+        if stripped.startswith('|') and stripped.endswith('|') and stripped.count('|') >= 3:
+            cells = [c.strip() for c in stripped.split('|')[1:-1]]
+            if not in_table:
+                # This is the header row
+                table_headers = cells
+                in_table = True
+                continue
+            else:
+                # Data row — format as labeled lines
+                if table_headers and len(cells) == len(table_headers):
+                    # Use first cell as the title, rest as details
+                    result = f"<b>{cells[0]}</b>"
+                    for i in range(1, len(cells)):
+                        if cells[i] and cells[i] != 'TBD':
+                            result += f"\n   {table_headers[i]}: {cells[i]}"
+                    cleaned_lines.append(result)
+                else:
+                    cleaned_lines.append('  '.join(cells))
+                continue
+
+        # Not a table line — reset table state
+        if in_table:
+            in_table = False
+            table_headers = []
+
+        cleaned_lines.append(line)
+
+    text = '\n'.join(cleaned_lines)
+
+    # 3. Convert markdown bold **text** to HTML <b>text</b>
+    text = _re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+
+    # 4. Convert markdown italic *text* to HTML <i>text</i>
+    #    (but not inside already-converted <b> tags)
+    text = _re.sub(r'(?<![<b])\*([^*]+?)\*(?![>])', r'<i>\1</i>', text)
+
+    # 5. Convert markdown headers (## Header) to bold text
+    text = _re.sub(r'^#{1,6}\s*(.+)$', r'<b>\1</b>', text, flags=_re.MULTILINE)
+
+    # 6. Convert markdown code blocks ```text``` to <pre>text</pre>
+    text = _re.sub(r'```[\w]*\n?(.*?)```', r'<pre>\1</pre>', text, flags=_re.DOTALL)
+
+    # 7. Convert markdown inline code `text` to <code>text</code>
+    text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+
+    # 8. Remove horizontal rules (---, ===, ***)
+    text = _re.sub(r'^[\-=\*]{3,}\s*$', '', text, flags=_re.MULTILINE)
+
+    # 9. Convert markdown links [text](url) to HTML <a href="url">text</a>
+    text = _re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+
+    # 10. Clean up excessive blank lines (max 2 in a row)
+    text = _re.sub(r'\n{4,}', '\n\n\n', text)
+
+    # 11. Remove any emoji spam — keep single emojis but strip clusters of 3+
+    #     (AI sometimes goes overboard with 🎉🎉🎉)
+
+    return text.strip()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MAIN MESSAGE HANDLER — The core two-way pipeline
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -549,6 +643,7 @@ async def _handle_telegram_message_inner(update: dict) -> None:
                 user=user,
                 db=db,
                 settings=settings,
+                channel="telegram",
             )
 
             if result.get("error"):
@@ -566,13 +661,7 @@ async def _handle_telegram_message_inner(update: dict) -> None:
 
         # ── Step 6: Send response back via Telegram ──
 
-        # Clean up any [TOOL_CALL: ...] markers from the response
-        import re
-        clean_response = re.sub(
-            r'\[TOOL_CALL:\s*\w+\s*\([^)]*\)\s*\]',
-            '',
-            response_text,
-        ).strip()
+        clean_response = _format_for_telegram(response_text)
 
         # Always send text response
         await send_telegram_text(bot_token, chat_id, clean_response)

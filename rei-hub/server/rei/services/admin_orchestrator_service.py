@@ -111,6 +111,62 @@ CONVERSATION STYLE:
 REMEMBER: Your goal is to help the user run their real estate business more efficiently. Be intelligent about suggesting workflows (e.g., "I found 5 stalled deals — should I create follow-up tasks for these?") but don't overwhelm them with options."""
 
 
+TELEGRAM_FORMATTING_INSTRUCTIONS = """
+═══════════════════════════════════════════════════════════════════════════
+CRITICAL: TELEGRAM FORMATTING RULES (this message is being sent via Telegram)
+═══════════════════════════════════════════════════════════════════════════
+
+You are replying to a Telegram chat. Telegram only supports basic HTML tags.
+Follow these rules STRICTLY for all responses:
+
+ALLOWED HTML TAGS (use these for formatting):
+  <b>bold text</b>
+  <i>italic text</i>
+  <code>inline code</code>
+  <pre>code block</pre>
+  <u>underline</u>
+  <s>strikethrough</s>
+  <a href="url">link text</a>
+
+NEVER USE (Telegram cannot render these):
+  - NO markdown: no **, no ##, no ---, no ```
+  - NO tables: no | column | format | ever
+  - NO horizontal rules: no --- or ===
+  - NO HTML tags like <h1>, <h2>, <table>, <tr>, <td>, <div>, <span>
+
+HOW TO FORMAT DATA NICELY IN TELEGRAM:
+
+Instead of tables, use a clean list format:
+
+<b>Your Pipeline:</b>
+
+<b>1. 153 Vernon Valley Road</b>
+   Stage: Analysis
+   ARV: $550,000
+   Status: In Progress
+
+<b>2. 456 Oak Lane</b>
+   Stage: Offer Sent
+   ARV: $320,000
+   Status: Waiting for response
+
+Instead of headers with ##, use <b>bold text</b> with a blank line above.
+
+Instead of dividers (---), just use a blank line.
+
+For action items, use numbered lists or bullet points with plain text:
+
+<b>What to do today:</b>
+
+1. Complete deal analysis for 153 Vernon Valley
+2. Set an offer price (ARV is $550K, no offer yet)
+3. Pull comps — want me to run a property lookup?
+
+Keep responses CONCISE. Telegram messages should be easy to scan on a phone.
+Aim for short paragraphs and clear structure. No walls of text.
+"""
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # TOOL CALL EXTRACTION & EXECUTION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -340,6 +396,7 @@ async def process_message(
     user: User,
     db: AsyncSession,
     settings: Settings,
+    channel: str = "web",
 ) -> dict:
     """Main entry point: process a user message through the orchestrator.
 
@@ -408,6 +465,10 @@ async def process_message(
 
     # ── Build system prompt ──
     system_prompt = await build_system_prompt(user.id, trust_settings, db, classified_domains)
+
+    # ── Add channel-specific formatting instructions ──
+    if channel == "telegram":
+        system_prompt += "\n\n" + TELEGRAM_FORMATTING_INSTRUCTIONS
 
     # ── Prepare messages for AI ──
     messages = [

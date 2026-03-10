@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import MarkdownMessage from './MarkdownMessage';
 import {
   Bot,
   MessageSquare,
@@ -299,8 +300,8 @@ const ChatTab: React.FC = () => {
                     </div>
                   ) : (
                     <div className="flex justify-start">
-                      <div className="bg-white border border-slate-200 rounded-lg p-3 max-w-md">
-                        <p className="text-slate-900">{message.content}</p>
+                      <div className="bg-white border border-slate-200 rounded-lg p-3 max-w-lg">
+                        <MarkdownMessage content={message.content} />
                         {message.tool_calls && (
                           <details className="mt-2 text-xs text-slate-600">
                             <summary className="cursor-pointer font-medium">Tool calls</summary>
