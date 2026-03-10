@@ -254,6 +254,37 @@ export async function deleteKnowledgeEntry(entryId: string): Promise<any> {
   return handleResponse(res)
 }
 
+export async function bulkImportKnowledge(
+  files: File[],
+  entryType: string = 'training',
+): Promise<{
+  status: string
+  created: number
+  errors: number
+  results: Array<{
+    filename: string
+    status: string
+    id?: string
+    name?: string
+    chars?: number
+    message?: string
+  }>
+}> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  formData.append('entry_type', entryType)
+
+  const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/bulk-import`, {
+    method: 'POST',
+    headers: getAuthHeader(),  // No Content-Type — browser sets multipart boundary
+    body: formData,
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
 // ══════════════════════════════════════════════════════════════
 //  CONVERSATIONS
 // ══════════════════════════════════════════════════════════════

@@ -208,4 +208,9 @@ KNOWN_PROVIDERS: dict[str, list[dict[str, str]]] = {
         {"name": "x_twitter_redirect_uri", "label": "Redirect URI", "type": "text"},
     ],
     "instagram_oauth": [],  # Uses same Facebook app — no extra credentials needed
+    # ── Vector Database ──────────────────────────────────────────────────
+    "qdrant": [
+        {"name": "qdrant_url", "label": "Qdrant URL", "type": "text"},
+        {"name": "qdrant_api_key", "label": "API Key (optional for local)", "type": "secret"},
+    ],
 }

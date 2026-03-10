@@ -20,7 +20,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -429,6 +429,179 @@ async def delete_knowledge(
     await db.commit()
 
     return {"status": "deleted", "id": entry_id}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# BULK IMPORT ENDPOINT
+# ════════════════════════════════════════════════════════════════════════
+
+_MAX_BULK_FILES = 20
+_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB per file
+
+
+def _extract_text_from_pdf(content: bytes) -> str:
+    """Extract text from a PDF file."""
+    from pypdf import PdfReader
+    import io
+
+    reader = PdfReader(io.BytesIO(content))
+    pages = []
+    for page in reader.pages:
+        text = page.extract_text()
+        if text:
+            pages.append(text.strip())
+    return "\n\n".join(pages)
+
+
+def _extract_text_from_docx(content: bytes) -> str:
+    """Extract text from a .docx Word file."""
+    from docx import Document
+    import io
+
+    doc = Document(io.BytesIO(content))
+    paragraphs = []
+    for para in doc.paragraphs:
+        if para.text.strip():
+            paragraphs.append(para.text.strip())
+    return "\n\n".join(paragraphs)
+
+
+def _extract_text_from_file(filename: str, content: bytes) -> str:
+    """Extract plain text from a file based on its extension."""
+    lower = filename.lower()
+
+    if lower.endswith(".pdf"):
+        return _extract_text_from_pdf(content)
+    elif lower.endswith(".docx"):
+        return _extract_text_from_docx(content)
+    elif lower.endswith((".txt", ".md", ".markdown", ".text", ".csv")):
+        # Plain text files — try UTF-8, fall back to latin-1
+        try:
+            return content.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            return content.decode("latin-1").strip()
+    else:
+        raise ValueError(
+            f"Unsupported file type: {filename}. "
+            "Supported: .pdf, .docx, .txt, .md, .csv"
+        )
+
+
+@voice_ai_router.post("/knowledge-base/bulk-import")
+async def bulk_import_knowledge(
+    files: list[UploadFile] = File(...),
+    entry_type: str = Form("training"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk import files into the knowledge base.
+
+    Accepts PDF, DOCX, TXT, MD, and CSV files. Each file becomes one
+    knowledge entry. Text is extracted and stored as the entry content.
+    Embeddings are generated automatically for RAG retrieval.
+    """
+    allowed_types = {"account_data", "custom_script", "objection_handler", "training"}
+    if entry_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entry_type must be one of: {', '.join(allowed_types)}"
+        )
+
+    if len(files) > _MAX_BULK_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {_MAX_BULK_FILES} files per import."
+        )
+
+    results = []
+    for upload in files:
+        filename = upload.filename or "unnamed"
+        try:
+            content = await upload.read()
+
+            if len(content) > _MAX_FILE_SIZE:
+                results.append({
+                    "filename": filename,
+                    "status": "error",
+                    "message": "File too large (max 5 MB).",
+                })
+                continue
+
+            if len(content) == 0:
+                results.append({
+                    "filename": filename,
+                    "status": "error",
+                    "message": "File is empty.",
+                })
+                continue
+
+            # Extract text
+            text = _extract_text_from_file(filename, content)
+
+            if not text.strip():
+                results.append({
+                    "filename": filename,
+                    "status": "error",
+                    "message": "No text could be extracted from this file.",
+                })
+                continue
+
+            # Truncate very large content to 50K chars for DB storage
+            if len(text) > 50_000:
+                text = text[:50_000] + "\n\n[... content truncated at 50,000 characters]"
+
+            # Create knowledge entry
+            # Use filename (without extension) as the entry name
+            name = filename.rsplit(".", 1)[0] if "." in filename else filename
+
+            entry = KnowledgeEntry(
+                user_id=user.id,
+                name=name,
+                entry_type=entry_type,
+                content=text,
+            )
+            db.add(entry)
+            await db.flush()  # Get the ID before embedding
+
+            # Generate embedding
+            try:
+                await embed_knowledge_entry(entry.id, db)
+            except Exception:
+                logger.warning("Failed to embed bulk entry %s — will retry later.", entry.id)
+
+            results.append({
+                "filename": filename,
+                "status": "created",
+                "id": entry.id,
+                "name": name,
+                "chars": len(text),
+            })
+
+        except ValueError as ve:
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "message": str(ve),
+            })
+        except Exception as exc:
+            logger.error("Bulk import failed for %s: %s", filename, exc)
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "message": f"Failed to process: {str(exc)[:100]}",
+            })
+
+    await db.commit()
+
+    created_count = sum(1 for r in results if r["status"] == "created")
+    error_count = sum(1 for r in results if r["status"] == "error")
+
+    return {
+        "status": "completed",
+        "created": created_count,
+        "errors": error_count,
+        "results": results,
+    }
 
 
 # ════════════════════════════════════════════════════════════════════════

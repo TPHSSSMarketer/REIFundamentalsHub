@@ -174,6 +174,12 @@ const PROVIDER_META: Record<
     category: 'Social Media',
     icon: '📸',
   },
+  // ── Vector Database ──────────────────────────────────────────
+  qdrant: {
+    display_name: 'Qdrant',
+    category: 'AI',
+    icon: '🔍',
+  },
 }
 
 // Setup instructions shown at the top of each provider panel
@@ -250,6 +256,8 @@ const PROVIDER_INSTRUCTIONS: Record<string, string> = {
     'Go to developer.x.com > Developer Portal > Projects & Apps. Create a project and app (free tier allows 1,500 tweets/month). Under User Authentication Settings, enable OAuth 2.0 with "Read and Write" permissions and set your Redirect URI. Copy the Client ID and Client Secret. Uses OAuth 2.0 with PKCE.',
   instagram_oauth:
     'Instagram posting uses the same Facebook app — no extra credentials needed here. Make sure your Facebook app (above) has the instagram_content_publish permission. Users must have an Instagram Business account linked to a Facebook Page. Only JPEG images are supported.',
+  qdrant:
+    'Sign up at cloud.qdrant.io for a free tier (1 GB storage). Create a cluster and copy the URL (e.g. https://abc123.us-east4-0.gcp.cloud.qdrant.io:6333). Generate an API key under Data Access Control. The knowledge base vectors are stored here for fast semantic search.',
 }
 
 // Field definitions per provider
@@ -411,6 +419,10 @@ const PROVIDER_FIELDS: Record<string, CredentialField[]> = {
     { name: 'x_twitter_redirect_uri', label: 'Redirect URI', type: 'text', help: 'e.g. https://hub.reifundamentalshub.com/settings?x_code=CALLBACK' },
   ],
   instagram_oauth: [],
+  qdrant: [
+    { name: 'qdrant_url', label: 'Qdrant URL', type: 'text', help: 'e.g. https://abc123.us-east4-0.gcp.cloud.qdrant.io:6333' },
+    { name: 'qdrant_api_key', label: 'API Key', type: 'secret', help: 'From Qdrant Cloud > Data Access Control (optional for local instances)' },
+  ],
 }
 
 // ── API functions — real backend calls ───────────────────────────────────
