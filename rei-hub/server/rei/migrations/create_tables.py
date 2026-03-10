@@ -304,6 +304,8 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "campaign_id", "VARCHAR"),
     ("crm_deals", "campaign_type", "VARCHAR"),
     ("crm_deals", "campaign_name", "VARCHAR"),
+    # ── User: Preferred TTS voice ──
+    ("users", "preferred_voice", "VARCHAR DEFAULT 'nova'"),
 ]
 
 

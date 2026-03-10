@@ -218,6 +218,7 @@ export default function Settings() {
     slack_webhook_url: '',
     assistant_channel: 'web',
     voice_enabled: false,
+    preferred_voice: 'nova',
   })
   const [notifSaving, setNotifSaving] = useState(false)
 
@@ -281,6 +282,7 @@ export default function Settings() {
             slack_webhook_url: data.slack_webhook_url ?? '',
             assistant_channel: data.assistant_channel ?? 'web',
             voice_enabled: data.voice_enabled ?? false,
+            preferred_voice: data.preferred_voice ?? 'nova',
           })
         }
       } catch {
@@ -1793,6 +1795,87 @@ export default function Settings() {
             <p className="text-xs text-slate-400 mt-2 ml-15">
               You can also toggle this anytime by sending "Voice On" or "Voice Off" in the chat.
             </p>
+
+            {/* Voice Selection with Preview */}
+            {notifPrefs.voice_enabled && (
+              <div className="mt-4 ml-15">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Preferred Voice</label>
+                <p className="text-xs text-slate-500 mb-3">Choose the voice your AI Assistant will use for voice replies. Click the play button to hear a preview.</p>
+                <div className="space-y-2 max-w-md">
+                  {[
+                    { value: 'nova', label: 'Nova', desc: 'Female, warm & natural' },
+                    { value: 'alloy', label: 'Alloy', desc: 'Neutral, balanced' },
+                    { value: 'echo', label: 'Echo', desc: 'Male, clear & smooth' },
+                    { value: 'fable', label: 'Fable', desc: 'Expressive, storytelling' },
+                    { value: 'onyx', label: 'Onyx', desc: 'Male, deep & authoritative' },
+                    { value: 'shimmer', label: 'Shimmer', desc: 'Female, bright & energetic' },
+                  ].map((v) => (
+                    <div
+                      key={v.value}
+                      onClick={() => setNotifPrefs({ ...notifPrefs, preferred_voice: v.value })}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
+                        notifPrefs.preferred_voice === v.value
+                          ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-200'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        notifPrefs.preferred_voice === v.value
+                          ? 'border-primary-500'
+                          : 'border-slate-300'
+                      }`}>
+                        {notifPrefs.preferred_voice === v.value && (
+                          <div className="w-2 h-2 rounded-full bg-primary-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-slate-800">{v.label}</span>
+                        <span className="text-xs text-slate-500 ml-2">{v.desc}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const btn = e.currentTarget
+                          const originalHtml = btn.innerHTML
+                          btn.innerHTML = '<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" /></svg>'
+                          btn.disabled = true
+                          try {
+                            const res = await fetch(`${BASE_URL}/api/user/notifications/voice-preview`, {
+                              method: 'POST',
+                              headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ voice: v.value }),
+                            })
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({ detail: 'Preview failed' }))
+                              toast.error(err.detail || 'Failed to load preview')
+                              return
+                            }
+                            const blob = await res.blob()
+                            const url = URL.createObjectURL(blob)
+                            const audio = new Audio(url)
+                            audio.onended = () => URL.revokeObjectURL(url)
+                            await audio.play()
+                          } catch {
+                            toast.error('Could not play voice preview')
+                          } finally {
+                            btn.innerHTML = originalHtml
+                            btn.disabled = false
+                          }
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 hover:bg-primary-100 text-slate-500 hover:text-primary-600 transition-colors flex-shrink-0"
+                        title={`Preview ${v.label}`}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

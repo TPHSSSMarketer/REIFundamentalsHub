@@ -118,6 +118,9 @@ class User(Base):
         String, default="web", server_default="web"
     )  # "web", "telegram", "whatsapp", "slack"
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    preferred_voice: Mapped[str] = mapped_column(
+        String, default="nova", server_default="nova"
+    )  # OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer
 
     # ── Deal Analyzer Preferences ─────────────────────────────────
     analyzer_arv_multiplier: Mapped[float] = mapped_column(

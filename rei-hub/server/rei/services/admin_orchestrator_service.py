@@ -507,16 +507,85 @@ async def process_message(
                 "description": tool_def["description"],
             })
 
+    # ── Second AI pass: feed tool results back for a human-readable summary ──
+    total_tokens = ai_response.get("tokens_used", 0)
+    total_input = ai_response.get("input_tokens", 0)
+    total_output = ai_response.get("output_tokens", 0)
+    total_cost = ai_response.get("cost_cents", 0)
+
+    if tool_results:
+        # Build a tool-results message for the AI to summarize
+        results_parts = []
+        for tr in tool_results:
+            tool_name = tr["tool"]
+            result_data = tr.get("result", {})
+            if tr["status"] == "executed" and result_data.get("success"):
+                data = result_data.get("data")
+                # Truncate very large results to keep within token limits
+                data_str = json.dumps(data, default=str)
+                if len(data_str) > 6000:
+                    data_str = data_str[:6000] + "... (truncated)"
+                results_parts.append(
+                    f"[TOOL_RESULT: {tool_name}]\n{data_str}\n[/TOOL_RESULT]"
+                )
+            elif tr["status"] == "failed":
+                error_msg = result_data.get("error", "Unknown error")
+                results_parts.append(
+                    f"[TOOL_RESULT: {tool_name}]\nERROR: {error_msg}\n[/TOOL_RESULT]"
+                )
+
+        if results_parts:
+            tool_results_text = "\n\n".join(results_parts)
+
+            # Second AI call — ask the AI to summarize the tool results
+            followup_messages = [
+                {"role": "system", "content": system_prompt},
+                *history,
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": response_text},
+                {
+                    "role": "user",
+                    "content": (
+                        "Here are the results from the tools you just called. "
+                        "Please summarize these results for the user in a helpful, "
+                        "conversational way. Do NOT include any [TOOL_CALL: ...] markers. "
+                        "Just present the data clearly.\n\n" + tool_results_text
+                    ),
+                },
+            ]
+
+            followup_response = await ai_complete(
+                messages=followup_messages,
+                user_id=user.id,
+                db=db,
+                settings=settings,
+                task_type="admin_orchestration",
+                max_tokens=3000,
+                temperature=0.3,
+            )
+
+            if followup_response.get("content"):
+                response_text = followup_response["content"]
+                total_tokens += followup_response.get("tokens_used", 0)
+                total_input += followup_response.get("input_tokens", 0)
+                total_output += followup_response.get("output_tokens", 0)
+                total_cost += followup_response.get("cost_cents", 0)
+
+            logger.info(
+                "Second AI pass completed for user %s with %d tool results",
+                user.id, len(tool_results),
+            )
+
     # ── Save assistant response ──
     assistant_msg = AdminMessage(
         session_id=session_id,
         role="assistant",
         content=response_text,
         tool_calls=json.dumps(tool_calls) if tool_calls else None,
-        tokens_used=ai_response.get("tokens_used", 0),
-        input_tokens=ai_response.get("input_tokens", 0),
-        output_tokens=ai_response.get("output_tokens", 0),
-        cost_cents=ai_response.get("cost_cents", 0),
+        tokens_used=total_tokens,
+        input_tokens=total_input,
+        output_tokens=total_output,
+        cost_cents=total_cost,
         model_used=ai_response.get("model"),
     )
     db.add(assistant_msg)
@@ -552,7 +621,7 @@ async def process_message(
         "tool_results": tool_results,
         "pending_actions": pending_actions,
         "suggestions": suggestions,
-        "tokens_used": ai_response.get("tokens_used", 0),
+        "tokens_used": total_tokens,
     }
 
 

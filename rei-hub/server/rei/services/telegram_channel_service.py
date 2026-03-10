@@ -445,13 +445,27 @@ async def _handle_telegram_message_inner(update: dict) -> None:
         # ── Step 4: Check for special commands ──
         lower_text = user_text.lower().strip()
 
+        _VALID_VOICES = {"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
+        _VOICE_DESCRIPTIONS = {
+            "alloy": "Alloy (Neutral, balanced)",
+            "echo": "Echo (Male, clear & smooth)",
+            "fable": "Fable (Expressive, storytelling)",
+            "nova": "Nova (Female, warm & natural)",
+            "onyx": "Onyx (Male, deep & authoritative)",
+            "shimmer": "Shimmer (Female, bright & energetic)",
+        }
+
         if lower_text == "voice on":
             # Enable voice responses for this user
             user.voice_enabled = True
             await db.commit()
+            current_voice = getattr(user, 'preferred_voice', 'nova') or 'nova'
             await send_telegram_text(
                 bot_token, chat_id,
-                "Voice responses are now ON. I'll send you voice notes along with text replies."
+                f"Voice responses are now ON using <b>{_VOICE_DESCRIPTIONS.get(current_voice, current_voice)}</b>.\n\n"
+                "I'll send you voice notes along with text replies.\n\n"
+                "To change your voice, type: <code>voice nova</code>, <code>voice echo</code>, etc.\n"
+                "Type <code>/voice</code> to see all available voices."
             )
             return
 
@@ -461,9 +475,48 @@ async def _handle_telegram_message_inner(update: dict) -> None:
             await db.commit()
             await send_telegram_text(
                 bot_token, chat_id,
-                "Voice responses are now OFF. I'll send text-only replies."
+                "Voice responses are now OFF. I'll send text-only replies.\n\n"
+                "Type <code>voice on</code> anytime to re-enable."
             )
             return
+
+        if lower_text in ("/voice", "/voices", "voices"):
+            # Show available voices
+            current_voice = getattr(user, 'preferred_voice', 'nova') or 'nova'
+            voice_enabled = getattr(user, 'voice_enabled', False)
+            lines = ["<b>Available Voices:</b>\n"]
+            for v_name, v_desc in _VOICE_DESCRIPTIONS.items():
+                marker = " ← current" if v_name == current_voice else ""
+                lines.append(f"  • <code>voice {v_name}</code> — {v_desc}{marker}")
+            lines.append(f"\nVoice is currently: <b>{'ON' if voice_enabled else 'OFF'}</b>")
+            lines.append("\nTo change, type: <code>voice nova</code> or <code>voice echo</code>, etc.")
+            await send_telegram_text(bot_token, chat_id, "\n".join(lines))
+            return
+
+        # Handle "voice <name>" to switch voice
+        if lower_text.startswith("voice ") and lower_text != "voice on" and lower_text != "voice off":
+            requested_voice = lower_text.replace("voice ", "").strip()
+            if requested_voice in _VALID_VOICES:
+                user.preferred_voice = requested_voice
+                # Also enable voice if it wasn't on yet
+                if not getattr(user, 'voice_enabled', False):
+                    user.voice_enabled = True
+                await db.commit()
+                await send_telegram_text(
+                    bot_token, chat_id,
+                    f"Voice changed to <b>{_VOICE_DESCRIPTIONS.get(requested_voice, requested_voice)}</b>.\n"
+                    "Voice responses are ON."
+                )
+                return
+            else:
+                voice_list = ", ".join(sorted(_VALID_VOICES))
+                await send_telegram_text(
+                    bot_token, chat_id,
+                    f"Unknown voice: <code>{requested_voice}</code>\n\n"
+                    f"Available voices: {voice_list}\n\n"
+                    "Example: <code>voice echo</code>"
+                )
+                return
 
         if lower_text == "new chat" or lower_text == "/start":
             # Start a fresh session
@@ -529,7 +582,8 @@ async def _handle_telegram_message_inner(update: dict) -> None:
         if voice_enabled and clean_response:
             openai_key = await _get_openai_key(db)
             if openai_key:
-                audio_bytes = await text_to_speech(clean_response, openai_key)
+                user_voice = getattr(user, 'preferred_voice', 'nova') or 'nova'
+                audio_bytes = await text_to_speech(clean_response, openai_key, voice=user_voice)
                 if audio_bytes:
                     await send_telegram_voice(bot_token, chat_id, audio_bytes)
                     # Record TTS usage against subscriber's AI allowance
