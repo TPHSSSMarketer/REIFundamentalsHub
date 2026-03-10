@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import MetricCard from './MetricCard'
 import ActivityFeed from './ActivityFeed'
+import MarketingSourceKPIs from '@/components/Pipeline/MarketingSourceKPIs'
 import TodayWidget from '@/components/Calendar/TodayWidget'
 import { useDeals, useTasks, useContacts } from '@/hooks/useApi'
 import { formatCurrency } from '@/utils/helpers'
@@ -918,6 +919,12 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Marketing Source KPIs */}
+      <div>
+        <h2 className="text-lg font-bold text-slate-800 mb-3">Marketing Source Analytics</h2>
+        <MarketingSourceKPIs />
       </div>
     </div>
   )

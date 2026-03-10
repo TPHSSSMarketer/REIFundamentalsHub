@@ -300,6 +300,10 @@ _COLUMN_MIGRATIONS = [
     # ── User: AI Assistant channel preference ──
     ("users", "assistant_channel", "VARCHAR DEFAULT 'web'"),
     ("users", "voice_enabled", "BOOLEAN DEFAULT FALSE"),
+    # ── CRM Deals: Campaign / marketing tracking ──
+    ("crm_deals", "campaign_id", "VARCHAR"),
+    ("crm_deals", "campaign_type", "VARCHAR"),
+    ("crm_deals", "campaign_name", "VARCHAR"),
 ]
 
 

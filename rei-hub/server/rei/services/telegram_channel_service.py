@@ -369,42 +369,77 @@ async def _handle_telegram_message_inner(update: dict) -> None:
 
         # Check for voice message
         voice = message.get("voice") or message.get("audio")
+        is_voice = bool(voice)
         if voice:
             file_id = voice.get("file_id", "")
+            logger.info(
+                "Voice message from user %s: file_id=%s, duration=%s",
+                user.id, file_id, voice.get("duration"),
+            )
             if file_id:
                 openai_key = await _get_openai_key(db)
                 if openai_key:
                     # Download voice file from Telegram
                     audio_bytes = await get_telegram_file(bot_token, file_id)
                     if audio_bytes:
+                        logger.info(
+                            "Downloaded voice file for user %s: %d bytes",
+                            user.id, len(audio_bytes),
+                        )
                         # Estimate duration from file size (~16kbps for Telegram voice)
                         voice_duration = voice.get("duration", len(audio_bytes) / 2000)
                         user_text = await transcribe_voice(audio_bytes, openai_key)
-                        logger.info(
-                            "Whisper transcription for user %s: %s",
-                            user.id, user_text[:100],
-                        )
-                        # Record Whisper usage against subscriber's AI allowance
-                        from rei.services.ai_service import record_voice_usage
-                        await record_voice_usage(
-                            user_id=user.id, db=db,
-                            service="whisper",
-                            duration_seconds=voice_duration,
-                        )
+                        if user_text:
+                            logger.info(
+                                "Whisper transcription for user %s: %s",
+                                user.id, user_text[:100],
+                            )
+                            # Record Whisper usage against subscriber's AI allowance
+                            from rei.services.ai_service import record_voice_usage
+                            await record_voice_usage(
+                                user_id=user.id, db=db,
+                                service="whisper",
+                                duration_seconds=voice_duration,
+                            )
+                        else:
+                            logger.warning(
+                                "Whisper returned empty transcription for user %s",
+                                user.id,
+                            )
                     else:
+                        logger.error("Failed to download voice file for user %s", user.id)
                         user_text = "[Voice message could not be downloaded]"
                 else:
-                    user_text = "[Voice message received but OpenAI key not configured for transcription]"
+                    logger.error("No OpenAI key configured — cannot transcribe voice for user %s", user.id)
+                    user_text = ""  # Will trigger voice-specific error below
         else:
             # Regular text message
             user_text = message.get("text", "").strip()
 
         if not user_text:
-            await send_telegram_text(
-                bot_token, chat_id,
-                "I received your message but couldn't read it. "
-                "Please send a text or voice message."
-            )
+            if is_voice:
+                # Voice-specific error message
+                openai_key = await _get_openai_key(db)
+                if not openai_key:
+                    await send_telegram_text(
+                        bot_token, chat_id,
+                        "I received your voice note but can't transcribe it yet. "
+                        "An OpenAI API key needs to be configured in Admin > Credentials "
+                        "for voice recognition to work. Please send a text message instead."
+                    )
+                else:
+                    await send_telegram_text(
+                        bot_token, chat_id,
+                        "I received your voice note but couldn't transcribe it. "
+                        "The audio may have been too short or unclear. "
+                        "Please try again or send a text message."
+                    )
+            else:
+                await send_telegram_text(
+                    bot_token, chat_id,
+                    "I received your message but couldn't read it. "
+                    "Please send a text or voice message."
+                )
             return
 
         # ── Step 4: Check for special commands ──

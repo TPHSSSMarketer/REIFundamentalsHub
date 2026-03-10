@@ -251,6 +251,11 @@ class CrmDeal(Base):
     buyer_down_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
     source_of_funds: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
+    # ── Marketing / Campaign Tracking ──
+    campaign_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    campaign_type: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # email, sms, direct_mail
+    campaign_name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # denormalized for quick display
+
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

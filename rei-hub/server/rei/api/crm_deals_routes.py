@@ -158,6 +158,10 @@ class CreateDealBody(BaseModel):
     insuranceAssignable: Optional[str] = None
     buyerDownPayment: Optional[float] = None
     sourceOfFunds: Optional[str] = None
+    # Marketing / Campaign Tracking
+    campaignId: Optional[str] = None
+    campaignType: Optional[str] = None
+    campaignName: Optional[str] = None
 
 
 class UpdateDealBody(CreateDealBody):
@@ -275,6 +279,9 @@ _FIELD_MAP: dict[str, str] = {
     "insuranceAssignable": "insurance_assignable",
     "buyerDownPayment": "buyer_down_payment",
     "sourceOfFunds": "source_of_funds",
+    "campaignId": "campaign_id",
+    "campaignType": "campaign_type",
+    "campaignName": "campaign_name",
 }
 
 # Date fields need special parsing
@@ -433,6 +440,10 @@ def _deal_to_dict(d: CrmDeal, liens: list[DealLien] | None = None) -> dict:
         "insuranceAssignable": d.insurance_assignable,
         "buyerDownPayment": d.buyer_down_payment,
         "sourceOfFunds": d.source_of_funds,
+        # Campaign tracking
+        "campaignId": d.campaign_id,
+        "campaignType": d.campaign_type,
+        "campaignName": d.campaign_name,
         "createdAt": d.created_at.isoformat() if d.created_at else None,
         "updatedAt": d.updated_at.isoformat() if d.updated_at else None,
         # Dynamic liens (loaded separately)
@@ -455,6 +466,135 @@ def _apply_updates(deal: CrmDeal, updates: dict) -> None:
 
 
 # ── Endpoints ───────────────────────────────────────────────
+
+
+@crm_deals_router.get("/source-analytics")
+async def deal_source_analytics(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregate deal data by source and campaign for KPI tracking.
+
+    Returns per-source stats: deal count, total value, won count, avg days to close,
+    and per-campaign breakdowns within each source.
+    """
+    uid = workspace_user_id(user)
+    result = await db.execute(
+        select(CrmDeal).where(CrmDeal.user_id == uid, CrmDeal.is_deleted == False)  # noqa: E712
+    )
+    deals = result.scalars().all()
+
+    # Aggregate by source
+    source_map: dict[str, dict] = {}
+    campaign_map: dict[str, dict] = {}
+
+    for d in deals:
+        src = d.source or "unknown"
+        if src not in source_map:
+            source_map[src] = {
+                "source": src,
+                "totalDeals": 0,
+                "totalValue": 0.0,
+                "wonDeals": 0,
+                "wonValue": 0.0,
+                "avgOfferPrice": 0.0,
+                "_offer_sum": 0.0,
+                "_offer_count": 0,
+            }
+        s = source_map[src]
+        s["totalDeals"] += 1
+        deal_val = d.purchase_price or d.offer_price or d.list_price or 0
+        s["totalValue"] += deal_val
+
+        if d.stage == "closed_won":
+            s["wonDeals"] += 1
+            s["wonValue"] += deal_val
+
+        if d.offer_price:
+            s["_offer_sum"] += d.offer_price
+            s["_offer_count"] += 1
+
+        # Campaign breakdown
+        if d.campaign_id:
+            cid = d.campaign_id
+            if cid not in campaign_map:
+                campaign_map[cid] = {
+                    "campaignId": cid,
+                    "campaignName": d.campaign_name or "Unknown Campaign",
+                    "campaignType": d.campaign_type or "unknown",
+                    "source": src,
+                    "totalDeals": 0,
+                    "wonDeals": 0,
+                    "totalValue": 0.0,
+                }
+            cm = campaign_map[cid]
+            cm["totalDeals"] += 1
+            cm["totalValue"] += deal_val
+            if d.stage == "closed_won":
+                cm["wonDeals"] += 1
+
+    # Finalize averages
+    sources = []
+    for s in source_map.values():
+        s["avgOfferPrice"] = round(s["_offer_sum"] / s["_offer_count"], 2) if s["_offer_count"] > 0 else 0
+        s["conversionRate"] = round((s["wonDeals"] / s["totalDeals"]) * 100, 1) if s["totalDeals"] > 0 else 0
+        del s["_offer_sum"]
+        del s["_offer_count"]
+        sources.append(s)
+
+    # Sort by total deals descending
+    sources.sort(key=lambda x: x["totalDeals"], reverse=True)
+    campaigns_list = sorted(campaign_map.values(), key=lambda x: x["totalDeals"], reverse=True)
+
+    return {
+        "sources": sources,
+        "campaigns": campaigns_list,
+        "totalDeals": len(deals),
+        "totalWon": sum(1 for d in deals if d.stage == "closed_won"),
+        "totalValue": sum(d.purchase_price or d.offer_price or d.list_price or 0 for d in deals),
+    }
+
+
+@crm_deals_router.get("/campaigns")
+async def list_campaigns_for_deals(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all email + SMS campaigns for the campaign selector dropdown."""
+    from rei.models.user import EmailCampaign, SmsCampaign
+
+    uid = workspace_user_id(user)
+    campaigns: list[dict] = []
+
+    # Email campaigns
+    result = await db.execute(
+        select(EmailCampaign)
+        .where(EmailCampaign.user_id == uid)
+        .order_by(EmailCampaign.created_at.desc())
+    )
+    for c in result.scalars().all():
+        campaigns.append({
+            "id": c.id,
+            "name": c.name,
+            "type": "email",
+            "status": c.status,
+        })
+
+    # SMS campaigns
+    result = await db.execute(
+        select(SmsCampaign)
+        .where(SmsCampaign.user_id == uid)
+        .order_by(SmsCampaign.created_at.desc())
+    )
+    for c in result.scalars().all():
+        campaigns.append({
+            "id": c.id,
+            "name": c.name,
+            "type": "sms",
+            "status": c.status,
+        })
+
+    return campaigns
 
 
 @crm_deals_router.get("")

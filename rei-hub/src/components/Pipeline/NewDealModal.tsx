@@ -224,6 +224,20 @@ export default function NewDealModal({
   const [lookupInProgress, setLookupInProgress] = useState(false)
   const [lookupComplete, setLookupComplete] = useState(false)
 
+  // Campaign list for the campaign selector
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  useEffect(() => {
+    if (!isOpen) return
+    const BASE_URL = import.meta.env.VITE_API_URL || ''
+    const token = localStorage.getItem('rei_token')
+    fetch(`${BASE_URL}/api/crm/deals/campaigns`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setCampaigns(Array.isArray(data) ? data : []))
+      .catch(() => setCampaigns([]))
+  }, [isOpen])
+
   // Debounced ATTOM auto-lookup when address fields are all filled
   useEffect(() => {
     const addr = formData.address?.trim()
@@ -641,14 +655,42 @@ export default function NewDealModal({
                 value={formData.source || ''}
                 onChange={(val) => setField('source', val)}
                 options={[
+                  { label: 'Driving for Dollars', value: 'driving_for_dollars' },
                   { label: 'Direct Mail', value: 'direct_mail' },
-                  { label: 'Phone Call', value: 'phone_call' },
-                  { label: 'Website', value: 'website' },
+                  { label: 'Cold Calling', value: 'cold_calling' },
+                  { label: 'Phone Call (Inbound)', value: 'phone_call' },
+                  { label: 'SMS Campaign', value: 'sms_campaign' },
+                  { label: 'Website / LeadHub', value: 'website' },
                   { label: 'Referral', value: 'referral' },
+                  { label: 'Wholesaler', value: 'wholesaler' },
                   { label: 'MLS', value: 'mls' },
+                  { label: 'Auction', value: 'auction' },
+                  { label: 'Bandit Signs', value: 'bandit_signs' },
+                  { label: 'Door Knocking', value: 'door_knocking' },
+                  { label: 'Social Media', value: 'social_media' },
+                  { label: 'Probate / Court Records', value: 'probate' },
+                  { label: 'Tax Lien List', value: 'tax_lien' },
+                  { label: 'Code Violation List', value: 'code_violation' },
+                  { label: 'Networking / REIA', value: 'networking' },
                   { label: 'Other', value: 'other' },
                 ]}
               />
+              {campaigns.length > 0 && (
+                <SelectField
+                  label="Campaign"
+                  value={formData.campaignId || ''}
+                  onChange={(val) => {
+                    const camp = campaigns.find((c) => c.id === val)
+                    setField('campaignId', val)
+                    setField('campaignType', camp?.type || '')
+                    setField('campaignName', camp?.name || '')
+                  }}
+                  options={campaigns.map((c) => ({
+                    label: `${c.name} (${c.type === 'sms' ? 'SMS' : 'Email'})`,
+                    value: c.id,
+                  }))}
+                />
+              )}
               <div className="flex items-end">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input

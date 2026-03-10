@@ -106,6 +106,27 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }>
 
 const STAGE_ORDER = ['lead', 'analysis', 'offer', 'under_contract', 'due_diligence', 'closing', 'closed_won', 'closed_lost']
 
+const SOURCE_LABELS: Record<string, string> = {
+  driving_for_dollars: 'Driving for Dollars',
+  direct_mail: 'Direct Mail',
+  cold_calling: 'Cold Calling',
+  phone_call: 'Phone Call (Inbound)',
+  sms_campaign: 'SMS Campaign',
+  website: 'Website / LeadHub',
+  referral: 'Referral',
+  wholesaler: 'Wholesaler',
+  mls: 'MLS',
+  auction: 'Auction',
+  bandit_signs: 'Bandit Signs',
+  door_knocking: 'Door Knocking',
+  social_media: 'Social Media',
+  probate: 'Probate / Court Records',
+  tax_lien: 'Tax Lien List',
+  code_violation: 'Code Violation List',
+  networking: 'Networking / REIA',
+  other: 'Other',
+}
+
 // ── Photo / Document categories ──────────────────────────────────────
 const PHOTO_CATEGORIES = [
   { id: 'front', label: 'Front' },
@@ -792,7 +813,20 @@ export default function DealDetailPage() {
               {deal.source && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Source</span>
-                  <span className="text-sm font-medium text-slate-800">{deal.source}</span>
+                  <span className="text-sm font-medium text-slate-800">{SOURCE_LABELS[deal.source || ''] || deal.source}</span>
+                </div>
+              )}
+              {deal.campaignName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Campaign</span>
+                  <span className="text-sm font-medium text-slate-800">
+                    {deal.campaignName}
+                    {deal.campaignType && (
+                      <span className="ml-1 text-xs text-slate-400">
+                        ({deal.campaignType === 'sms' ? 'SMS' : deal.campaignType === 'email' ? 'Email' : deal.campaignType})
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
               {deal.closingDate && (

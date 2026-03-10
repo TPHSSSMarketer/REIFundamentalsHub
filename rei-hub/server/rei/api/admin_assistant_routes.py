@@ -450,18 +450,8 @@ async def get_trust_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all trust settings for current user."""
-    settings_list = await get_all_trust_settings(workspace_user_id(user), db)
-    return [
-        {
-            "action_type": s.action_type,
-            "risk_level": s.risk_level,
-            "trust_level": s.trust_level,
-            "approval_count": s.approval_count,
-            "rejection_count": s.rejection_count,
-            "last_approved_at": s.last_approved_at.isoformat() if s.last_approved_at else None,
-        }
-        for s in settings_list
-    ]
+    # Service already returns list[dict] — return directly
+    return await get_all_trust_settings(workspace_user_id(user), db)
 
 
 @admin_assistant_router.put("/trust-settings/{action_type}")
@@ -478,17 +468,20 @@ async def update_trust_setting(
             detail="trust_level must be 'auto', 'ask', or 'never'",
         )
 
-    setting = await update_trust_level(
+    updated = await update_trust_level(
         user_id=workspace_user_id(user),
         action_type=action_type,
-        trust_level=body.trust_level,
+        new_level=body.trust_level,
         db=db,
     )
 
+    if not updated:
+        raise HTTPException(status_code=404, detail="Trust setting not found")
+
     return {
-        "action_type": setting.action_type,
-        "trust_level": setting.trust_level,
-        "updated_at": setting.updated_at.isoformat() if setting.updated_at else None,
+        "action_type": action_type,
+        "trust_level": body.trust_level,
+        "status": "updated",
     }
 
 
@@ -499,14 +492,13 @@ async def set_all_automatic_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Set all trust settings to automatic (enabled=True) or ask (enabled=False)."""
-    trust_level = "auto" if body.enabled else "ask"
-    result = await set_all_automatic(workspace_user_id(user), trust_level, db)
-
-    return {
-        "status": "updated",
-        "count": result,
-        "trust_level": trust_level,
-    }
+    if body.enabled:
+        count = await set_all_automatic(workspace_user_id(user), db)
+        return {"status": "updated", "count": count, "trust_level": "auto"}
+    else:
+        # Reset to defaults (LOW=auto, MEDIUM/HIGH=ask)
+        count = await reset_to_defaults(workspace_user_id(user), db)
+        return {"status": "updated", "count": count, "trust_level": "defaults"}
 
 
 @admin_assistant_router.post("/trust-settings/reset")
@@ -531,23 +523,8 @@ async def list_skills(
     db: AsyncSession = Depends(get_db),
 ):
     """List skill library (system + user-created skills)."""
-    skills = await get_skill_library(workspace_user_id(user), db)
-
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
-            "category": s.category,
-            "is_system": s.is_system,
-            "action_steps": json.loads(s.action_steps) if s.action_steps else [],
-            "icon": s.icon,
-            "enabled": s.enabled,
-            "total_runs": s.total_runs,
-            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
-        }
-        for s in skills
-    ]
+    # Service already returns list[dict] — return directly
+    return await get_skill_library(workspace_user_id(user), db)
 
 
 @admin_assistant_router.post("/skills")
@@ -568,8 +545,8 @@ async def create_skill_endpoint(
     )
 
     return {
-        "id": skill.id,
-        "name": skill.name,
+        "id": skill["id"],
+        "name": skill["name"],
         "status": "created",
     }
 
@@ -582,21 +559,17 @@ async def update_skill_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a skill."""
-    # Verify ownership
-    result = await db.execute(
-        select(AdminSkill).where(
-            and_(AdminSkill.id == skill_id, AdminSkill.user_id == workspace_user_id(user))
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Skill not found")
-
     updates = body.model_dump(exclude_none=True)
-    skill = await update_skill(skill_id, updates, db)
+    try:
+        skill = await update_skill(skill_id, workspace_user_id(user), updates, db)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     return {
-        "id": skill.id,
-        "name": skill.name,
+        "id": skill["id"],
+        "name": skill["name"],
         "status": "updated",
     }
 
@@ -608,21 +581,13 @@ async def delete_skill_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a custom skill."""
-    result = await db.execute(
-        select(AdminSkill).where(
-            and_(AdminSkill.id == skill_id, AdminSkill.user_id == workspace_user_id(user))
-        )
-    )
-    skill = result.scalar_one_or_none()
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    if skill.is_system:
-        raise HTTPException(
-            status_code=403,
-            detail="System skills cannot be deleted",
-        )
+    try:
+        deleted = await delete_skill(skill_id, workspace_user_id(user), db)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
-    await delete_skill(skill_id, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Skill not found")
 
     return {"status": "deleted", "id": skill_id}
 

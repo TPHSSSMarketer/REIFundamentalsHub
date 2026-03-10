@@ -207,6 +207,11 @@ export interface Deal {
   buyerDownPayment?: number
   sourceOfFunds?: string
 
+  // ── Marketing / Campaign Tracking ──
+  campaignId?: string
+  campaignType?: string  // email, sms, direct_mail
+  campaignName?: string
+
   // ── Front Photo (from deal list) ──
   frontPhotoThumbnail?: string  // base64 thumbnail of front-of-house photo
 

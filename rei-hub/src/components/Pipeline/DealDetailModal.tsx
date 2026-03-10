@@ -19,6 +19,27 @@ const STAGE_LABELS: Record<string, string> = {
   closed_lost: 'Closed Lost',
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  driving_for_dollars: 'Driving for Dollars',
+  direct_mail: 'Direct Mail',
+  cold_calling: 'Cold Calling',
+  phone_call: 'Phone Call (Inbound)',
+  sms_campaign: 'SMS Campaign',
+  website: 'Website / LeadHub',
+  referral: 'Referral',
+  wholesaler: 'Wholesaler',
+  mls: 'MLS',
+  auction: 'Auction',
+  bandit_signs: 'Bandit Signs',
+  door_knocking: 'Door Knocking',
+  social_media: 'Social Media',
+  probate: 'Probate / Court Records',
+  tax_lien: 'Tax Lien List',
+  code_violation: 'Code Violation List',
+  networking: 'Networking / REIA',
+  other: 'Other',
+}
+
 interface DealDetailModalProps {
   deal: Deal | null
   onClose: () => void
@@ -120,7 +141,21 @@ export default function DealDetailModal({ deal, onClose }: DealDetailModalProps)
           {deal.source && (
             <div className="flex items-center justify-between py-2 border-b border-slate-100">
               <span className="text-slate-500">Source</span>
-              <span className="font-medium text-slate-800">{deal.source}</span>
+              <span className="font-medium text-slate-800">{SOURCE_LABELS[deal.source || ''] || deal.source}</span>
+            </div>
+          )}
+
+          {deal.campaignName && (
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <span className="text-slate-500">Campaign</span>
+              <span className="font-medium text-slate-800">
+                {deal.campaignName}
+                {deal.campaignType && (
+                  <span className="ml-1 text-xs text-slate-400">
+                    ({deal.campaignType === 'sms' ? 'SMS' : deal.campaignType === 'email' ? 'Email' : deal.campaignType})
+                  </span>
+                )}
+              </span>
             </div>
           )}
 
