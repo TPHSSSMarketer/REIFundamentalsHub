@@ -239,16 +239,67 @@ def set_telegram_session(chat_id: str, session_id: str) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+async def _try_auto_link_admin(
+    chat_id: str, db: AsyncSession
+) -> Optional[User]:
+    """If the sender's chat_id matches the admin's stored Chat ID in
+    provider credentials, auto-link it to the admin's User record.
+
+    This solves the chicken-and-egg problem where the admin needs their
+    chat_id to configure Telegram but can't get it without the bot working.
+    """
+    from rei.services.credentials_service import get_provider_credentials
+
+    creds = await get_provider_credentials(db, "telegram")
+    if not creds:
+        return None
+
+    stored_chat_id = creds.get("telegram_chat_id", "")
+    if not stored_chat_id or str(stored_chat_id) != str(chat_id):
+        return None
+
+    # The sender's chat_id matches the admin's stored Chat ID.
+    # Find the admin user (superadmin) and auto-link.
+    stmt = select(User).where(User.is_superadmin == True)  # noqa: E712
+    result = await db.execute(stmt)
+    admin = result.scalar_one_or_none()
+    if not admin:
+        return None
+
+    # Auto-set telegram fields on the admin's User record
+    admin.telegram_enabled = True
+    admin.telegram_chat_id = str(chat_id)
+    await db.commit()
+    await db.refresh(admin)
+
+    logger.info(
+        "Auto-linked Telegram chat_id %s to admin user %s",
+        chat_id, admin.id,
+    )
+    return admin
+
+
 async def handle_telegram_message(update: dict) -> None:
     """Process an incoming Telegram message end-to-end.
 
     Flow:
     1. Extract sender chat_id and message content (text or voice)
-    2. Match chat_id to a subscriber account
+    2. Match chat_id to a subscriber account (with admin auto-link fallback)
     3. If voice: transcribe with Whisper
     4. Route through the Assistant orchestrator
     5. Send response back via Telegram (text, and optionally voice)
     """
+    try:
+        await _handle_telegram_message_inner(update)
+    except Exception as exc:
+        logger.error(
+            "FATAL error in handle_telegram_message: %s",
+            exc, exc_info=True,
+        )
+
+
+async def _handle_telegram_message_inner(update: dict) -> None:
+    """Inner handler — separated so the outer wrapper can catch all errors."""
     message = update.get("message", {})
     chat_id = str(message.get("chat", {}).get("id", ""))
     if not chat_id:
@@ -256,6 +307,22 @@ async def handle_telegram_message(update: dict) -> None:
         return
 
     settings = get_settings()
+
+    # Check for /chatid command BEFORE database lookup so ANY sender can use it
+    raw_text = (message.get("text") or "").strip().lower()
+    if raw_text in ("/chatid", "/chat_id", "/mychatid", "/id"):
+        # Respond with the sender's chat_id — no auth needed
+        # We need the bot token to reply, so open a quick DB session
+        async with async_session_factory() as db:
+            bot_token = await _get_bot_token(db)
+            if bot_token:
+                await send_telegram_text(
+                    bot_token, chat_id,
+                    f"Your Telegram Chat ID is:\n\n<code>{chat_id}</code>\n\n"
+                    "Copy this and paste it into your REI Hub Settings "
+                    "under Preferences > Notifications > Telegram Chat ID."
+                )
+        return
 
     async with async_session_factory() as db:
         # ── Step 1: Get bot token ──
@@ -266,13 +333,28 @@ async def handle_telegram_message(update: dict) -> None:
 
         # ── Step 2: Find the subscriber ──
         user = await find_user_by_telegram_chat_id(chat_id, db)
+
+        # Fallback: try to auto-link if sender matches admin's stored Chat ID
         if not user:
-            # Unknown sender — send a polite "not linked" message
+            user = await _try_auto_link_admin(chat_id, db)
+            if user:
+                logger.info(
+                    "Auto-linked admin user %s via credential Chat ID match",
+                    user.id,
+                )
+
+        if not user:
+            # Unknown sender — include their chat_id so they can copy it
             await send_telegram_text(
                 bot_token, chat_id,
-                "Hi! I don't recognize this Telegram account. "
-                "Please link your Telegram in your REI Hub Settings "
-                "under Preferences > Notifications to use the Assistant."
+                f"Hi! I don't recognize this Telegram account.\n\n"
+                f"Your Chat ID is: <code>{chat_id}</code>\n\n"
+                "To link your account:\n"
+                "1. Log into REI Hub\n"
+                "2. Go to Settings > Preferences > Notifications\n"
+                "3. Enable Telegram and paste this Chat ID\n"
+                "4. Save your preferences\n\n"
+                "Then message me again!"
             )
             logger.info("Telegram message from unknown chat_id %s — not linked", chat_id)
             return
