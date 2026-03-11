@@ -116,8 +116,8 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "chat":          ("anthropic", "claude-haiku-4-5-20251001"),
     "webchat":       ("anthropic", "claude-haiku-4-5-20251001"),
     "general":       ("anthropic", None),  # uses default_model (Sonnet)
-    # Admin AI Assistant — MiniMax 2.5 (native tool calling, cost-effective)
-    "admin_orchestration": ("nvidia_minimax", None),
+    # Admin AI Assistant — Claude Sonnet with native tool calling
+    "admin_orchestration": ("anthropic", "claude-sonnet-4-6"),
     # NVIDIA Kimi — research & legal
     "research":      ("nvidia_kimi", None),
     "legal":         ("nvidia_kimi", None),
@@ -745,7 +745,7 @@ async def ai_complete(
                 max_tokens,
                 temperature,
                 images=images,
-                tools=tools if resolved["provider"] == "anthropic" else None,
+                tools=tools,
             )
         elif tools:
             # NVIDIA with native tool calling

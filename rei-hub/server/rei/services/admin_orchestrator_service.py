@@ -836,7 +836,7 @@ async def process_message(
         # Strip any [TOOL_CALL: ...] markers the AI left in the response
         import re as _re
         clean_text = _re.sub(
-            r'\[TOOL_CALL:\s*\w+\s*\([^)]*\)\s*\]', '', response_text
+            r'\[TOOL_CALL:\s*\w+\s*\([^)]*\)\s*\]', '', response_text or ""
         ).strip()
 
         # Build a summary of what's pending
@@ -875,10 +875,14 @@ async def process_message(
         response_text = clean_text + approval_prompt
 
     # ── Save assistant response ──
+    # Ensure we always have some text (native tool use can return empty text)
+    if not response_text and tool_calls:
+        response_text = "Processing your request..."
+
     assistant_msg = AdminMessage(
         session_id=session_id,
         role="assistant",
-        content=response_text,
+        content=response_text or "I'm working on that for you.",
         tool_calls=json.dumps(tool_calls) if tool_calls else None,
         tokens_used=total_tokens,
         input_tokens=total_input,
