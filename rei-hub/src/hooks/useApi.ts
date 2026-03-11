@@ -103,6 +103,8 @@ export function useDeals() {
   return useQuery({
     queryKey: ['deals'],
     queryFn: () => getDeals(USER_ID),
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

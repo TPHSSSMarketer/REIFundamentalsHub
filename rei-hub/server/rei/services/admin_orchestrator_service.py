@@ -825,8 +825,13 @@ async def process_message(
         for tr in tool_results:
             tool_name = tr["tool"]
             result_data = tr.get("result", {})
-            if tr["status"] == "executed" and result_data.get("success"):
-                data = result_data.get("data")
+            if tr["status"] == "executed":
+                # Handle both formats:
+                # Old format: {"success": True, "data": {...}}
+                # New format: direct result dict e.g. {"status": "created", ...}
+                data = result_data.get("data") if result_data.get("success") is not None else result_data
+                if data is None:
+                    data = result_data
                 # Truncate very large results to keep within token limits
                 data_str = json.dumps(data, default=str)
                 if len(data_str) > 6000:
@@ -938,7 +943,21 @@ async def process_message(
     # ── Save assistant response ──
     # Ensure we always have some text (native tool use can return empty text)
     if not response_text and tool_calls:
-        response_text = "Processing your request..."
+        if tool_results:
+            # Tools ran but no summary was generated — build a basic one
+            summaries = []
+            for tr in tool_results:
+                r = tr.get("result", {})
+                msg = r.get("message") or r.get("data", {}).get("message") if isinstance(r.get("data"), dict) else None
+                if msg:
+                    summaries.append(str(msg))
+                elif tr["status"] == "executed":
+                    summaries.append(f"{tr['tool']} completed successfully.")
+                else:
+                    summaries.append(f"{tr['tool']} failed: {r.get('error', 'Unknown error')}")
+            response_text = "\n".join(summaries) if summaries else "Your request has been processed."
+        else:
+            response_text = "Processing your request..."
 
     assistant_msg = AdminMessage(
         session_id=session_id,

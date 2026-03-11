@@ -286,7 +286,7 @@ const ChatTab: React.FC = () => {
   };
 
   return (
-    <div className="flex gap-6 h-[750px]">
+    <div className="flex gap-6 h-[calc(100vh-220px)] min-h-[500px]">
       {/* Sidebar */}
       <div className="hidden lg:flex flex-col w-72 bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-4">
