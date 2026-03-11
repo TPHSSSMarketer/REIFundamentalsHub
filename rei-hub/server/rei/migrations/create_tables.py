@@ -364,6 +364,26 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "lot_number", "VARCHAR"),
     ("crm_deals", "parking_type", "VARCHAR"),
     ("crm_deals", "geo_accuracy", "VARCHAR"),
+    # ── ATTOM Appraised Values ──
+    ("crm_deals", "appraised_total_value", "REAL DEFAULT NULL"),
+    ("crm_deals", "appraised_land_value", "REAL DEFAULT NULL"),
+    ("crm_deals", "appraised_improvement_value", "REAL DEFAULT NULL"),
+    # ── ATTOM Calculated Values ──
+    ("crm_deals", "calc_total_value", "REAL DEFAULT NULL"),
+    ("crm_deals", "calc_land_value", "REAL DEFAULT NULL"),
+    ("crm_deals", "calc_improvement_value", "REAL DEFAULT NULL"),
+    # ── ATTOM Tax Per Sqft ──
+    ("crm_deals", "tax_per_sqft", "REAL DEFAULT NULL"),
+    # ── ATTOM Lot Detail ──
+    ("crm_deals", "lot_depth", "VARCHAR DEFAULT NULL"),
+    ("crm_deals", "lot_frontage", "VARCHAR DEFAULT NULL"),
+    # ── ATTOM Building Sizes ──
+    ("crm_deals", "building_size", "INTEGER DEFAULT NULL"),
+    ("crm_deals", "gross_size", "INTEGER DEFAULT NULL"),
+    # ── ATTOM Sale History JSON ──
+    ("crm_deals", "sale_history_json", "TEXT DEFAULT NULL"),
+    # ── ATTOM Lien/Mortgage Records JSON ──
+    ("crm_deals", "lien_records_json", "TEXT DEFAULT NULL"),
 ]
 
 

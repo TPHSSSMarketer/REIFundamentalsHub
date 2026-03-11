@@ -1477,6 +1477,47 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
             if pd.get("geo_accuracy"):
                 deal.geo_accuracy = str(pd["geo_accuracy"])
 
+            # Appraised values
+            if ta.get("appraised_total_value"):
+                deal.appraised_total_value = _safe_float(ta["appraised_total_value"])
+            if ta.get("appraised_land_value"):
+                deal.appraised_land_value = _safe_float(ta["appraised_land_value"])
+            if ta.get("appraised_improvement_value"):
+                deal.appraised_improvement_value = _safe_float(ta["appraised_improvement_value"])
+
+            # Calculated values
+            if ta.get("calc_total_value"):
+                deal.calc_total_value = _safe_float(ta["calc_total_value"])
+            if ta.get("calc_land_value"):
+                deal.calc_land_value = _safe_float(ta["calc_land_value"])
+            if ta.get("calc_improvement_value"):
+                deal.calc_improvement_value = _safe_float(ta["calc_improvement_value"])
+
+            # Tax per sqft
+            if ta.get("tax_per_sqft"):
+                deal.tax_per_sqft = _safe_float(ta["tax_per_sqft"])
+
+            # Lot detail
+            if pd.get("lot_depth"):
+                deal.lot_depth = str(pd["lot_depth"])
+            if pd.get("lot_frontage"):
+                deal.lot_frontage = str(pd["lot_frontage"])
+
+            # Building sizes
+            if pd.get("building_size"):
+                deal.building_size = _safe_int(pd["building_size"])
+            if pd.get("gross_size"):
+                deal.gross_size = _safe_int(pd["gross_size"])
+
+            # Full sale history (save all transactions, not just the most recent)
+            if sh and len(sh) > 0:
+                deal.sale_history_json = _json.dumps(sh, default=str)
+
+            # Lien/mortgage records
+            lien_data = attom_data.get("lien_records", [])
+            if lien_data:
+                deal.lien_records_json = _json.dumps(lien_data, default=str)
+
             # Store raw ATTOM JSON
             deal.attom_raw_data = _json.dumps(attom_data, default=str)
 

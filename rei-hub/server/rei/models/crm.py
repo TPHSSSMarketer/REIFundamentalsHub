@@ -230,6 +230,33 @@ class CrmDeal(Base):
     parking_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     geo_accuracy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # ── ATTOM Appraised Values ──
+    appraised_total_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    appraised_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    appraised_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # ── ATTOM Calculated Values ──
+    calc_total_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    calc_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    calc_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # ── ATTOM Tax Per Sqft ──
+    tax_per_sqft: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # ── ATTOM Lot Detail ──
+    lot_depth: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lot_frontage: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── ATTOM Building Sizes ──
+    building_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    gross_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # ── ATTOM Sale History JSON ──
+    sale_history_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ── ATTOM Lien/Mortgage Records JSON ──
+    lien_records_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # ── ATTOM Tax / Valuation (auto-populated) ──
     market_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     market_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

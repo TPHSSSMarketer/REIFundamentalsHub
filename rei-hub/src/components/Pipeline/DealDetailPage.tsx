@@ -1799,6 +1799,18 @@ export default function DealDetailPage() {
                             <span className="text-sm font-medium text-slate-800">{deal.lotSizeAcres.toFixed(2)}</span>
                           </div>
                         )}
+                        {deal.lotDepth && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Lot Depth</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lotDepth}</span>
+                          </div>
+                        )}
+                        {deal.lotFrontage && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Lot Frontage</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lotFrontage}</span>
+                          </div>
+                        )}
                         {deal.legalDescription && (
                           <div>
                             <p className="text-sm text-slate-500 mb-1">Legal Description</p>
@@ -1903,6 +1915,18 @@ export default function DealDetailPage() {
                             <span className="text-sm font-medium text-slate-800">{deal.parkingSpaces}</span>
                           </div>
                         )}
+                        {deal.buildingSize != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Building Size</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.buildingSize.toLocaleString()} sqft</span>
+                          </div>
+                        )}
+                        {deal.grossSize != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Gross Size</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.grossSize.toLocaleString()} sqft</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1957,6 +1981,48 @@ export default function DealDetailPage() {
                             <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.propertyTaxAnnual)}</span>
                           </div>
                         )}
+                        {deal.appraisedTotalValue != null && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-sm text-slate-500">Appraised Value (Total)</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.appraisedTotalValue)}</span>
+                          </div>
+                        )}
+                        {deal.appraisedLandValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Land</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.appraisedLandValue)}</span>
+                          </div>
+                        )}
+                        {deal.appraisedImprovementValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Improvements</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.appraisedImprovementValue)}</span>
+                          </div>
+                        )}
+                        {deal.calcTotalValue != null && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-sm text-slate-500">Calculated Value (Total)</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.calcTotalValue)}</span>
+                          </div>
+                        )}
+                        {deal.calcLandValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Land</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.calcLandValue)}</span>
+                          </div>
+                        )}
+                        {deal.calcImprovementValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Improvements</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.calcImprovementValue)}</span>
+                          </div>
+                        )}
+                        {deal.taxPerSqft != null && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-sm text-slate-500">Tax per Sqft</span>
+                            <span className="text-sm font-medium text-slate-800">${deal.taxPerSqft.toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1996,6 +2062,69 @@ export default function DealDetailPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* ATTOM Full Sale History */}
+                  {deal.saleHistoryJson && (() => {
+                    try {
+                      const sales = JSON.parse(deal.saleHistoryJson)
+                      if (!Array.isArray(sales) || sales.length === 0) return null
+                      return (
+                        <div className="bg-white rounded-xl border border-slate-200 p-5">
+                          <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                            <Receipt className="w-3.5 h-3.5" />
+                            Full Sale History ({sales.length} transactions)
+                          </h4>
+                          <div className="space-y-3">
+                            {sales.map((sale: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-slate-50 rounded-lg space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-slate-800">
+                                    {sale.sale_date || 'Unknown date'}
+                                  </span>
+                                  {sale.sale_price && (
+                                    <span className="text-sm font-bold text-green-700">{formatCurrency(Number(sale.sale_price))}</span>
+                                  )}
+                                </div>
+                                {sale.buyer_name && <p className="text-xs text-slate-500">Buyer: {sale.buyer_name}</p>}
+                                {sale.seller_name && <p className="text-xs text-slate-500">Seller: {sale.seller_name}</p>}
+                                {sale.sale_type && <p className="text-xs text-slate-400">Type: {sale.sale_type}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    } catch { return null }
+                  })()}
+
+                  {/* ATTOM Lien & Mortgage Records */}
+                  {deal.lienRecordsJson && (() => {
+                    try {
+                      const liens = JSON.parse(deal.lienRecordsJson)
+                      if (!Array.isArray(liens) || liens.length === 0) return null
+                      return (
+                        <div className="bg-white rounded-xl border border-slate-200 p-5">
+                          <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                            <Landmark className="w-3.5 h-3.5" />
+                            Lien & Mortgage Records ({liens.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {liens.map((lien: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-slate-50 rounded-lg space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-slate-800">{lien.lender || 'Unknown lender'}</span>
+                                  {lien.amount && <span className="text-sm font-bold text-slate-800">{formatCurrency(Number(lien.amount))}</span>}
+                                </div>
+                                {lien.loan_type && <p className="text-xs text-slate-500">Type: {lien.loan_type}</p>}
+                                {lien.interest_rate && <p className="text-xs text-slate-500">Rate: {lien.interest_rate}% ({lien.interest_rate_type || 'Unknown'})</p>}
+                                {lien.date && <p className="text-xs text-slate-400">Date: {lien.date}</p>}
+                                {lien.due_date && <p className="text-xs text-slate-400">Due: {lien.due_date}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    } catch { return null }
+                  })()}
                 </div>
               )}
 

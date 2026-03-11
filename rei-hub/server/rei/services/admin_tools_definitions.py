@@ -446,7 +446,7 @@ DEAL_TOOLS = [
     {
         "name": "add_deal_note",
         "description": "Add a text note to a specific deal in the pipeline. Use this when the user wants to record information about a property or deal.",
-        "risk_level": "MEDIUM",
+        "risk_level": "LOW",
         "domain": "deals",
         "parameters": {
             "type": "object",

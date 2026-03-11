@@ -495,6 +495,25 @@ def _deal_to_dict(d: CrmDeal, liens: list[DealLien] | None = None) -> dict:
         "assessedLandValue": getattr(d, "assessed_land_value", None),
         "assessedImprovementValue": getattr(d, "assessed_improvement_value", None),
         "taxYear": getattr(d, "tax_year", None),
+        # ATTOM Appraised Values
+        "appraisedTotalValue": getattr(d, "appraised_total_value", None),
+        "appraisedLandValue": getattr(d, "appraised_land_value", None),
+        "appraisedImprovementValue": getattr(d, "appraised_improvement_value", None),
+        # ATTOM Calculated Values
+        "calcTotalValue": getattr(d, "calc_total_value", None),
+        "calcLandValue": getattr(d, "calc_land_value", None),
+        "calcImprovementValue": getattr(d, "calc_improvement_value", None),
+        # ATTOM Tax Per Sqft
+        "taxPerSqft": getattr(d, "tax_per_sqft", None),
+        # ATTOM Lot Detail
+        "lotDepth": getattr(d, "lot_depth", None),
+        "lotFrontage": getattr(d, "lot_frontage", None),
+        # ATTOM Building Sizes
+        "buildingSize": getattr(d, "building_size", None),
+        "grossSize": getattr(d, "gross_size", None),
+        # ATTOM Sale History & Liens
+        "saleHistoryJson": getattr(d, "sale_history_json", None),
+        "lienRecordsJson": getattr(d, "lien_records_json", None),
         # ATTOM Sale History
         "lastSaleDate": getattr(d, "last_sale_date", None),
         "lastSalePrice": getattr(d, "last_sale_price", None),

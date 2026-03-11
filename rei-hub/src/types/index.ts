@@ -274,7 +274,32 @@ export interface Deal {
   assessedImprovementValue?: number
   taxYear?: number
 
-  // ── ATTOM Sale History ──
+  // ── ATTOM Appraised Values ──
+  appraisedTotalValue?: number
+  appraisedLandValue?: number
+  appraisedImprovementValue?: number
+
+  // ── ATTOM Calculated Values ──
+  calcTotalValue?: number
+  calcLandValue?: number
+  calcImprovementValue?: number
+
+  // ── ATTOM Tax Per Sqft ──
+  taxPerSqft?: number
+
+  // ── ATTOM Lot Detail ──
+  lotDepth?: string
+  lotFrontage?: string
+
+  // ── ATTOM Building Sizes ──
+  buildingSize?: number
+  grossSize?: number
+
+  // ── ATTOM Sale History & Liens ──
+  saleHistoryJson?: string
+  lienRecordsJson?: string
+
+  // ── ATTOM Sale History (most recent) ──
   lastSaleDate?: string
   lastSalePrice?: number
   lastSaleBuyer?: string
