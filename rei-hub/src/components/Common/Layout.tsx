@@ -1,6 +1,7 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import QuickActions from './QuickActions'
+import CommandPalette from './CommandPalette'
 import NewDealModal from './NewDealModal'
 import NewContactModal from './NewContactModal'
 import SMSModal from './SMSModal'
@@ -17,7 +18,21 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const isSidebarCollapsed = useStore((s) => s.isSidebarCollapsed)
+  const isCommandPaletteOpen = useStore((s) => s.isCommandPaletteOpen)
+  const setCommandPaletteOpen = useStore((s) => s.setCommandPaletteOpen)
   const { isDemoMode, disableDemoMode } = useDemoMode()
+
+  // Global Ctrl+K / Cmd+K shortcut to open command palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen(!isCommandPaletteOpen)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isCommandPaletteOpen, setCommandPaletteOpen])
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -61,6 +76,12 @@ export default function Layout({ children }: LayoutProps) {
       <NewDealModal />
       <NewContactModal />
       <SMSModal />
+
+      {/* Command Palette (Search) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
 
       {/* Floating Softphone Widget */}
       <Softphone />

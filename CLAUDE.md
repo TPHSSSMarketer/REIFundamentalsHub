@@ -84,6 +84,21 @@ REIFundamentals Hub (React SPA + FastAPI server):
 Docker:
   docker-compose up
 
+## Communication Channels
+
+Telegram, Slack, and WhatsApp are USER-FACING channels. Subscribers use them to
+communicate with the AI Assistant (the platform's conversational AI feature).
+All three are equal communication channels for the Assistant.
+
+Telegram also serves a DUAL role for the admin (Chris): it delivers system notifications
+such as Help ticket alerts and Negotiation case updates. These admin notifications are
+separate from the user-facing Assistant conversations.
+
+Summary:
+- Telegram: User ↔ Assistant channel + Admin notifications (Help, Negotiations)
+- Slack: User ↔ Assistant channel
+- WhatsApp: User ↔ Assistant channel
+
 ## Key Rules for Claude Code
 1. REI Hub frontend is a Vite SPA. Its FastAPI backend (`rei-hub/server/`) handles only auth and billing.
 2. Do not add a Node.js/Express backend to rei-hub — it is intentionally a pure SPA.

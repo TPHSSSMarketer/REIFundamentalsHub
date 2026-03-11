@@ -14,6 +14,7 @@ from rei.models.user import User
 from rei.services.content_hub_service import (
     get_publish_history,
     list_content_entries,
+    rebuild_content_embeddings,
     save_publish_record,
     save_source_article,
     save_waterfall_content,
@@ -193,3 +194,18 @@ async def api_publish_history(
     uid = workspace_user_id(user)
     records = await get_publish_history(user_id=uid, db=db, content_entry_id=content_entry_id)
     return {"records": records, "count": len(records)}
+
+
+@content_hub_router.post("/rebuild-embeddings")
+async def api_rebuild_embeddings(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-embed all content entries into Qdrant (migration / sync tool)."""
+    uid = workspace_user_id(user)
+    try:
+        count = await rebuild_content_embeddings(user_id=uid, db=db)
+        return {"status": "completed", "count": count}
+    except Exception as exc:
+        logger.error("Failed to rebuild content embeddings: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)[:200])

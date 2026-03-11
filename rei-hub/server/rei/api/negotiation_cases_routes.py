@@ -435,10 +435,10 @@ async def trigger_research(
         case.updated_at = datetime.utcnow()
         await db.commit()
 
-        logger.info("Research completed for case %s: %d of 4 recipients had data", case_id, valid_count)
+        logger.info("Research completed for case %s: %d of %d recipients had data", case_id, valid_count, len(results))
 
         return {
-            "detail": f"Research completed. {valid_count} of 4 contacts found.",
+            "detail": f"Research completed. {valid_count} of {len(results)} contacts found.",
             "valid_count": valid_count,
             "total": len(results),
         }

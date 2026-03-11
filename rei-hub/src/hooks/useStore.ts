@@ -39,6 +39,10 @@ interface AppState {
   // Search
   globalSearch: string
   setGlobalSearch: (search: string) => void
+
+  // Command Palette
+  isCommandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -79,4 +83,8 @@ export const useStore = create<AppState>((set) => ({
   // Search
   globalSearch: '',
   setGlobalSearch: (search) => set({ globalSearch: search }),
+
+  // Command Palette
+  isCommandPaletteOpen: false,
+  setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
 }))

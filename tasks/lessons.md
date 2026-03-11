@@ -17,3 +17,15 @@
 **Mistake:** Used `"https://hub.reifundamentalshub.com".replace("hub.", "")` expecting it to only remove the subdomain prefix, but Python's `str.replace()` replaces ALL occurrences. The result was `"https://reifundamentalscom"` (both "hub." instances removed).
 
 **Rule:** When you need to replace only the first occurrence of a substring, use `str.replace(old, new, 1)` with the count parameter, or use string slicing/`re.sub()` for positional replacements.
+
+## 2026-03-10: Telegram has a DUAL role — user-facing AND admin notifications
+
+**Mistake:** Incorrectly documented Telegram as "admin-only, NOT public-facing." In reality, Telegram (along with Slack and WhatsApp) is a user-facing channel for communicating with the AI Assistant. Telegram ALSO delivers admin notifications (Help tickets, Negotiation updates) to Chris.
+
+**Rule:** Telegram, Slack, and WhatsApp are all user-facing channels for the AI Assistant. Telegram additionally serves as the admin notification channel for Help and Negotiation alerts. Never treat Telegram as admin-only — it has both roles.
+
+## 2026-03-10: When user states an architectural fact, document it — don't build something
+
+**Mistake:** User said "Telegram is just a system chat, not an outward facing chat to the public" — a clarification about architecture. In the next session, this was misinterpreted and lost context.
+
+**Rule:** When the user provides an architectural clarification or correction, the correct response is to (1) acknowledge it, (2) document it in CLAUDE.md and lessons.md, and (3) move on. Don't start building unless explicitly asked.
