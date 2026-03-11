@@ -976,7 +976,7 @@ async def ai_complete(
 
     await db.commit()
 
-    return {
+    ret = {
         "content": result["content"],
         "provider": resolved["provider"],
         "model": resolved["model"],
@@ -986,6 +986,10 @@ async def ai_complete(
         "cost_cents": cost_cents,
         "warning_pct": warning_pct,
     }
+    # Pass through native tool calls from the provider response
+    if result.get("tool_calls"):
+        ret["tool_calls"] = result["tool_calls"]
+    return ret
 
 
 # ── Voice (Whisper / TTS) usage recording ─────────────────────────────────
