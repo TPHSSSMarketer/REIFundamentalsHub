@@ -424,7 +424,7 @@ DEAL_TOOLS = [
             "The user may give short descriptions like '214 Little Plains Road, 11743' — "
             "parse the address and zip from that."
         ),
-        "risk_level": "MEDIUM",
+        "risk_level": "LOW",
         "domain": "deals",
         "parameters": {
             "type": "object",

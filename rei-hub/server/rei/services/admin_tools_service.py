@@ -1566,7 +1566,7 @@ async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
 
     return {
         "id": deal.id,
-        "property_address": deal.property_address,
+        "property_address": deal.address,
         "city": deal.city,
         "state": deal.state,
         "zip_code": deal.zip_code,
@@ -1613,14 +1613,14 @@ async def _search_deals(params: dict, user: User, db: AsyncSession) -> dict:
     matches = []
     for d in all_deals:
         searchable = " ".join(filter(None, [
-            d.property_address, d.city, d.state,
+            d.address, d.city, d.state,
             d.contact_name, d.contact_phone, d.contact_email,
             d.notes, d.stage,
         ])).lower()
         if query_text in searchable:
             matches.append({
                 "id": d.id,
-                "property_address": d.property_address,
+                "property_address": d.address,
                 "city": d.city,
                 "state": d.state,
                 "stage": d.stage,
@@ -1657,7 +1657,7 @@ async def _create_social_post(params: dict, user: User, db: AsyncSession, settin
         deal = await db.get(CrmDeal, deal_id)
         if deal and deal.user_id == _ws_uid(user):
             deal_context = (
-                f"\nProperty details: {deal.property_address}, {deal.city}, {deal.state} {deal.zip_code}"
+                f"\nProperty details: {deal.address}, {deal.city}, {deal.state} {deal.zip_code}"
                 f"\nAsking: ${deal.asking_price:,.0f}" if deal.asking_price else ""
                 f"\nARV: ${deal.arv:,.0f}" if deal.arv else ""
                 f"\nStage: {deal.stage}"

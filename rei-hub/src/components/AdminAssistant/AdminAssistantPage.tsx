@@ -29,6 +29,7 @@ import { cn } from '@/utils/helpers';
 import {
   createSession,
   listSessions,
+  deleteSession,
   getSessionMessages,
   sendMessage,
   getActionLog,
@@ -174,6 +175,22 @@ const ChatTab: React.FC = () => {
     }
   };
 
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    try {
+      await deleteSession(sessionId);
+      setSessions(sessions.filter((s) => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
+        if (remaining.length === 0) setMessages([]);
+      }
+      toast.success('Conversation deleted');
+    } catch (error) {
+      toast.error('Failed to delete conversation');
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !activeSessionId || loading) return;
 
@@ -239,7 +256,7 @@ const ChatTab: React.FC = () => {
   };
 
   return (
-    <div className="flex gap-6 h-[600px]">
+    <div className="flex gap-6 h-[750px]">
       {/* Sidebar */}
       <div className="hidden lg:flex flex-col w-72 bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-4">
@@ -258,19 +275,28 @@ const ChatTab: React.FC = () => {
             <p className="text-sm text-slate-500 text-center py-8">No conversations yet</p>
           ) : (
             sessions.map((session) => (
-              <button
+              <div
                 key={session.id}
-                onClick={() => setActiveSessionId(session.id)}
                 className={cn(
-                  'w-full text-left px-3 py-2 rounded-lg transition-colors text-sm',
+                  'group flex items-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm cursor-pointer',
                   activeSessionId === session.id
                     ? 'bg-primary-50 text-primary-600'
                     : 'hover:bg-slate-200 text-slate-700'
                 )}
+                onClick={() => setActiveSessionId(session.id)}
               >
-                <p className="font-medium truncate">{session.title}</p>
-                <p className="text-xs text-slate-500">{session.message_count} messages</p>
-              </button>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{session.title}</p>
+                  <p className="text-xs text-slate-500">{session.message_count} messages</p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -294,13 +320,13 @@ const ChatTab: React.FC = () => {
                 <div key={message.id}>
                   {message.role === 'user' ? (
                     <div className="flex justify-end">
-                      <div className="bg-primary-50 rounded-lg p-3 max-w-md">
+                      <div className="bg-primary-50 rounded-lg p-3 max-w-2xl">
                         <p className="text-slate-900">{message.content}</p>
                       </div>
                     </div>
                   ) : (
                     <div className="flex justify-start">
-                      <div className="bg-white border border-slate-200 rounded-lg p-3 max-w-lg">
+                      <div className="bg-white border border-slate-200 rounded-lg p-3 max-w-3xl">
                         <MarkdownMessage content={message.content} />
                         {message.tool_calls && (
                           <details className="mt-2 text-xs text-slate-600">

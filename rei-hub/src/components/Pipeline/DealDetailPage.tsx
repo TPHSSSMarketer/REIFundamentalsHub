@@ -47,7 +47,7 @@ import { getAuthHeader } from '@/services/auth'
 import DealLienManager from './DealLienManager'
 import DealNegotiationsTab from './DealNegotiationsTab'
 import { getTemplates, generateContractFromDeal } from '@/services/documentsApi'
-import { createPortfolioProperty } from '@/services/crmApi'
+import { createPortfolioProperty, deleteDeal } from '@/services/crmApi'
 import { analyzeDocument, analyzePropertyPhotos, type DocumentAnalysis, type PhotoAnalysisResult } from '@/services/aiApi'
 import AddTaskModal from './AddTaskModal'
 import ContractChecklist from '@/components/Documents/ContractChecklist'
@@ -615,6 +615,18 @@ export default function DealDetailPage() {
     }
   }
 
+  const handleDeleteDeal = async () => {
+    if (!dealId) return
+    if (!confirm('Are you sure you want to delete this deal? This cannot be undone.')) return
+    try {
+      await deleteDeal(dealId)
+      toast.success('Deal deleted')
+      navigate('/pipeline')
+    } catch {
+      toast.error('Failed to delete deal')
+    }
+  }
+
   // ── Loading ────────────────────────────────────────────────
 
   if (dealLoading) {
@@ -671,6 +683,12 @@ export default function DealDetailPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors min-h-[36px] shrink-0"
             >
               <Calendar className="w-3.5 h-3.5" /> Add Task
+            </button>
+            <button
+              onClick={handleDeleteDeal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors min-h-[36px] shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Deal
             </button>
           </div>
           {location && (

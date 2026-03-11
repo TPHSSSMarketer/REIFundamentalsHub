@@ -75,6 +75,17 @@ export async function listSessions(): Promise<AdminSession[]> {
   }).then((res) => handleResponse<AdminSession[]>(res))
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  if (isDemoMode()) return
+  await fetch(`${BASE_URL}/api/assistant/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  }).then((res) => {
+    if (!res.ok) throw new Error('Failed to delete session')
+  })
+}
+
 export async function getSessionMessages(sessionId: string): Promise<AdminMessage[]> {
   if (isDemoMode()) return []
   return fetch(`${BASE_URL}/api/assistant/sessions/${sessionId}/messages`, {

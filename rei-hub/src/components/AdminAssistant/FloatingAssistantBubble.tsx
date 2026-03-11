@@ -146,7 +146,7 @@ export default function FloatingAssistantBubble() {
     <div
       className={cn(
         'fixed bottom-24 right-6 z-50',
-        'w-96 max-h-[32rem]',
+        'w-[28rem] max-h-[42rem]',
         'rounded-2xl shadow-2xl',
         'bg-white border border-slate-200',
         'flex flex-col overflow-hidden'
@@ -181,7 +181,7 @@ export default function FloatingAssistantBubble() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto max-h-80 p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto max-h-[28rem] p-4 space-y-3">
         {initializing ? (
           <div className="flex items-center justify-center h-full text-slate-500">
             <p className="text-sm">Loading chat...</p>
@@ -199,8 +199,8 @@ export default function FloatingAssistantBubble() {
               className={cn(
                 'rounded-lg p-2.5 text-sm',
                 msg.role === 'user'
-                  ? 'bg-primary-50 text-slate-900 ml-12'
-                  : 'bg-slate-50 text-slate-900 mr-12'
+                  ? 'bg-primary-50 text-slate-900 ml-8'
+                  : 'bg-slate-50 text-slate-900 mr-8'
               )}
             >
               <p className="break-words">{msg.content}</p>

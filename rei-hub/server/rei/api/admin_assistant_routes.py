@@ -171,6 +171,37 @@ async def list_sessions_endpoint(
     return sessions
 
 
+@admin_assistant_router.delete("/sessions/{session_id}")
+async def delete_session_endpoint(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a chat session and all its messages."""
+    # Verify ownership
+    result = await db.execute(
+        select(AdminSession).where(
+            and_(AdminSession.id == session_id, AdminSession.user_id == workspace_user_id(user))
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Delete messages first
+    await db.execute(
+        AdminMessage.__table__.delete().where(AdminMessage.session_id == session_id)
+    )
+    # Delete action logs
+    await db.execute(
+        AdminActionLog.__table__.delete().where(AdminActionLog.session_id == session_id)
+    )
+    # Delete session
+    await db.delete(session)
+    await db.commit()
+    return {"status": "deleted"}
+
+
 @admin_assistant_router.get("/sessions/{session_id}/messages")
 async def get_messages(
     session_id: str,
