@@ -12,9 +12,9 @@ The orchestrator follows a trust-based model:
 - MEDIUM risk tools (write): ask user for confirmation by default
 - HIGH risk tools (delete, spend): always ask for confirmation
 
-Tool calling works via inline markers [TOOL_CALL: tool_name({...})] that
-the AI includes in its response text. The orchestrator extracts these,
-validates them against trust settings, and executes them.
+Tool calling works via native API tool definitions passed to the AI model.
+The model responds with structured tool_use blocks. The orchestrator extracts
+these, validates them against trust settings, and executes them.
 """
 
 from __future__ import annotations
@@ -846,7 +846,14 @@ async def process_message(
                         "Here are the results from the tools you just called. "
                         "Please summarize these results for the user in a helpful, "
                         "conversational way. Do NOT include any [TOOL_CALL: ...] markers. "
-                        "Just present the data clearly.\n\n" + tool_results_text
+                        "Just present the data clearly. "
+                        "IMPORTANT: Do NOT attempt to call any tools again. Do NOT say "
+                        "'let me try again' or 'I'll look that up'. Your job here is "
+                        "ONLY to present the results you received. If the data came back "
+                        "empty, tell the user the lookup returned no results and suggest "
+                        "they double-check the address or try a slightly different format "
+                        "(e.g. adding a zip code, using abbreviations, etc.).\n\n"
+                        + tool_results_text
                     ),
                 },
             ]
