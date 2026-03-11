@@ -741,9 +741,17 @@ async def process_message(
         should_auto = await should_auto_approve(user.id, tool_name, risk_level, db)
 
         if should_auto:
-            # Auto-approve and execute
+            # Auto-approve and execute directly (bypass trust pipeline to avoid double-check)
             logger.info(f"Auto-executing tool: {tool_name}")
-            result = await execute_tool(tool_name, params, user, db, settings, session_id)
+            from rei.services.admin_tools_service import _execute_tool_internal
+
+            exec_success = True
+            try:
+                result = await _execute_tool_internal(tool_name, params, user, db, settings)
+            except Exception as e:
+                logger.error(f"Auto-execute {tool_name} failed: {e}")
+                result = {"error": str(e)}
+                exec_success = False
 
             # Log the action
             action_log = AdminActionLog(
@@ -755,8 +763,8 @@ async def process_message(
                 proposed_details=json.dumps(params),
                 approved=True,
                 approval_method="auto",
-                execution_status="executing" if result["success"] else "failed",
-                result_data=json.dumps(result),
+                execution_status="success" if exec_success else "failed",
+                result_data=json.dumps(result, default=str),
                 executed_at=datetime.utcnow(),
             )
             db.add(action_log)
@@ -768,18 +776,18 @@ async def process_message(
                     record_tool_usage,
                     enrich_from_tool_result,
                 )
-                await record_tool_usage(tool_name, result["success"], user.id, db)
-                if result["success"] and result.get("data"):
+                await record_tool_usage(tool_name, exec_success, user.id, db)
+                if exec_success and result:
                     await enrich_from_tool_result(
-                        tool_name, params, result, user.id, session_id, db,
+                        tool_name, params, {"success": True, "data": result}, user.id, session_id, db,
                     )
             except Exception as e:
                 logger.warning("Learning hooks failed (non-fatal): %s", e)
 
             tool_results.append({
                 "tool": tool_name,
-                "status": "executed" if result["success"] else "failed",
-                "result": result,
+                "status": "executed" if exec_success else "failed",
+                "result": result if exec_success else {"error": str(result.get("error", "Unknown"))},
             })
         else:
             # Mark as pending — user approval needed

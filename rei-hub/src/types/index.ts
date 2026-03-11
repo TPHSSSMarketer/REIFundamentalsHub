@@ -219,6 +219,49 @@ export interface Deal {
   latitude?: number | null
   longitude?: number | null
 
+  // ── ATTOM Property Data ──
+  attomId?: string
+  apn?: string
+  fips?: string
+  county?: string
+  subdivision?: string
+  schoolDistrict?: string
+  legalDescription?: string
+  zoning?: string
+  lotSizeAcres?: number
+  stories?: number
+  bathroomsHalf?: number
+  totalRooms?: number
+  basementType?: string
+  basementSqft?: number
+  constructionType?: string
+  exteriorWalls?: string
+  roofType?: string
+  foundationType?: string
+  heating?: string
+  cooling?: string
+  waterType?: string
+  sewerType?: string
+  pool?: string
+  fireplaceCount?: number
+  parkingSpaces?: number
+  absenteeOwner?: string
+
+  // ── ATTOM Tax/Valuation ──
+  marketValue?: number
+  marketLandValue?: number
+  marketImprovementValue?: number
+  assessedValue?: number
+  assessedLandValue?: number
+  assessedImprovementValue?: number
+  taxYear?: number
+
+  // ── ATTOM Sale History ──
+  lastSaleDate?: string
+  lastSalePrice?: number
+  lastSaleBuyer?: string
+  lastSaleSeller?: string
+
   createdAt: string
   updatedAt: string
 }

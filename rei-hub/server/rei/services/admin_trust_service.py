@@ -59,6 +59,14 @@ async def get_trust_level(
     setting = result.scalar_one_or_none()
 
     if setting:
+        # If the tool's risk level changed (e.g. MEDIUM→LOW), update stored setting
+        if setting.risk_level != risk_level:
+            setting.risk_level = risk_level
+            new_default = DEFAULT_TRUST_BY_RISK.get(risk_level, "ask")
+            # Only upgrade trust (ask→auto), never downgrade (auto→ask)
+            if new_default == "auto" and setting.trust_level == "ask":
+                setting.trust_level = "auto"
+            await db.commit()
         return setting.trust_level
 
     # First encounter — create default based on risk level

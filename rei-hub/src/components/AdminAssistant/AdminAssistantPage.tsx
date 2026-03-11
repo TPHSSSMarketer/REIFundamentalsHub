@@ -251,8 +251,24 @@ const ChatTab: React.FC = () => {
 
   const handleApproveAction = async (actionId: string) => {
     try {
-      await approveAction(actionId);
+      const response = await approveAction(actionId);
       setPendingActions((prev) => prev.filter((a) => a.action_id !== actionId));
+
+      // Add confirmation message to chat
+      const resultData = response?.result?.result || response?.result || {};
+      const confirmMsg = resultData?.message || resultData?.status === 'created'
+        ? `Done! ${resultData.message || `Deal created: ${resultData.title || resultData.address || 'New deal'}`}`
+        : 'Action completed successfully.';
+
+      const confirmAssistantMsg: AdminMessage = {
+        id: `msg-confirm-${Date.now()}`,
+        session_id: activeSessionId || '',
+        role: 'assistant',
+        content: confirmMsg,
+        tokens_used: 0,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, confirmAssistantMsg]);
       toast.success('Action approved and executed');
     } catch (error) {
       toast.error('Failed to approve action');
