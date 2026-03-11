@@ -631,6 +631,30 @@ ALL_TOOLS = (
 # Quick lookup by name
 TOOLS_BY_NAME: dict[str, dict] = {tool["name"]: tool for tool in ALL_TOOLS}
 
+# Aliases for common AI name inversions (e.g. "property_lookup" → "lookup_property").
+# The AI sometimes reverses verb_noun to noun_verb. This map catches those.
+_TOOL_ALIASES: dict[str, str] = {
+    "property_lookup": "lookup_property",
+    "deal_create": "create_deal",
+    "contact_create": "create_contact",
+    "contact_get": "get_contacts",
+    "deal_search": "search_deals",
+    "deal_update": "update_deal",
+    "sms_send": "send_sms",
+    "market_data": "get_market_data",
+    "pipeline_summary": "get_pipeline_summary",
+}
+
+
+def resolve_tool_name(name: str) -> str:
+    """Resolve a tool name, checking aliases if the exact name isn't found."""
+    if name in TOOLS_BY_NAME:
+        return name
+    canonical = _TOOL_ALIASES.get(name)
+    if canonical and canonical in TOOLS_BY_NAME:
+        return canonical
+    return name  # Return original (will fail lookup later with a warning)
+
 # Group by domain
 TOOLS_BY_DOMAIN: dict[str, list[dict]] = {}
 for _tool in ALL_TOOLS:

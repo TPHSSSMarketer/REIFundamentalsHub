@@ -541,11 +541,11 @@ async def process_message(
 
                 # Build a human-readable response from the result
                 if exec_result.get("status") == "executed":
+                    # The result is the direct tool output (e.g. {"status": "created", "deal_id": ...})
                     result_data = exec_result.get("result", {})
-                    data = result_data.get("data", {})
 
                     # Let the AI summarize the result nicely
-                    data_str = json.dumps(data, default=str)
+                    data_str = json.dumps(result_data, default=str)
                     if len(data_str) > 6000:
                         data_str = data_str[:6000] + "... (truncated)"
 
@@ -671,6 +671,11 @@ async def process_message(
     for tool_call in tool_calls:
         tool_name = tool_call["tool"]
         params = tool_call["params"]
+
+        # Resolve aliases (AI sometimes inverts names, e.g. "property_lookup" → "lookup_property")
+        from rei.services.admin_tools_definitions import resolve_tool_name
+        tool_name = resolve_tool_name(tool_name)
+        tool_call["tool"] = tool_name  # Update in-place for downstream use
 
         # Validate tool
         if tool_name not in TOOLS_BY_NAME:
