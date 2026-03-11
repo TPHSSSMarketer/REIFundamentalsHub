@@ -358,18 +358,23 @@ EMAIL_TOOLS = [
 PROPERTY_TOOLS = [
     {
         "name": "lookup_property",
-        "description": "Look up detailed property data by address. Returns tax assessment, sale history, liens, property details, and comps from the ATTOM database.",
+        "description": (
+            "Look up detailed property data by address. Returns tax assessment, sale history, "
+            "liens, property details, and comps from the ATTOM database. You can provide a full "
+            "address or just a street + zip code. If city/state are missing, the system will "
+            "resolve them from the zip code automatically."
+        ),
         "risk_level": "LOW",
         "domain": "property",
         "parameters": {
             "type": "object",
             "properties": {
-                "address": {"type": "string", "description": "Street address (e.g., '123 Main St')"},
-                "city": {"type": "string", "description": "City name"},
-                "state": {"type": "string", "description": "2-letter state code"},
-                "zip_code": {"type": "string", "description": "ZIP code (optional)"},
+                "address": {"type": "string", "description": "Street address (e.g., '214 Little Plains Road')"},
+                "city": {"type": "string", "description": "City name (optional if zip_code provided)"},
+                "state": {"type": "string", "description": "2-letter state code (optional if zip_code provided)"},
+                "zip_code": {"type": "string", "description": "ZIP code — helps resolve city/state automatically"},
             },
-            "required": ["address", "city", "state"],
+            "required": ["address"],
         },
     },
     {
@@ -409,6 +414,34 @@ PROPERTY_TOOLS = [
 # ── Deal Management Tools ───────────────────────────────────────────
 
 DEAL_TOOLS = [
+    {
+        "name": "create_deal",
+        "description": (
+            "Create a new deal in the pipeline. Use this when the user wants to add a new "
+            "property/deal. At minimum you need an address. The system will auto-resolve "
+            "city/state from zip code if not provided. Set stage to 'lead' by default. "
+            "The user may give short descriptions like '214 Little Plains Road, 11743' — "
+            "parse the address and zip from that."
+        ),
+        "risk_level": "MEDIUM",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Street address"},
+                "city": {"type": "string", "description": "City (optional if zip provided)"},
+                "state": {"type": "string", "description": "2-letter state code (optional if zip provided)"},
+                "zip": {"type": "string", "description": "ZIP code"},
+                "stage": {"type": "string", "description": "Pipeline stage: lead, contacted, analysis, offer_made, under_contract, closed, passed", "default": "lead"},
+                "deal_type": {"type": "string", "description": "Deal type: wholesale, flip, rental, subject_to, owner_finance, other"},
+                "contact_name": {"type": "string", "description": "Seller/contact name"},
+                "asking_price": {"type": "number", "description": "Asking/list price"},
+                "arv": {"type": "number", "description": "After Repair Value"},
+                "notes": {"type": "string", "description": "Any additional notes"},
+            },
+            "required": ["address"],
+        },
+    },
     {
         "name": "add_deal_note",
         "description": "Add a text note to a specific deal in the pipeline. Use this when the user wants to record information about a property or deal.",
@@ -667,6 +700,8 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "deals": [
         "deal", "deals", "note", "notes", "photo", "photos", "picture",
         "file", "files", "upload", "attach", "document",
+        "create deal", "new deal", "add deal", "wholesale", "flip", "rental",
+        "arv", "asking price", "under contract", "offer",
     ],
     "content": [
         "social media", "social", "post", "facebook", "instagram", "linkedin",
@@ -696,6 +731,16 @@ def classify_user_intent(message: str) -> list[str]:
     for domain, keywords in DOMAIN_KEYWORDS.items():
         if any(kw in message_lower for kw in keywords):
             matched.append(domain)
+
+    # Property and deals are closely related — load both if either matches
+    if "deals" in matched and "property" not in matched:
+        matched.append("property")
+    if "property" in matched and "deals" not in matched:
+        matched.append("deals")
+
+    # CRM is often needed alongside deals (contact lookup, pipeline)
+    if "deals" in matched and "crm" not in matched:
+        matched.append("crm")
 
     # Fallback: general queries get analytics + crm
     if not matched:

@@ -228,3 +228,66 @@ export async function getStats(): Promise<AdminStats> {
     DEMO_ADMIN_STATS
   )
 }
+
+
+// ══════════════════════════════════════════════════════════════
+//  System Health — Tools Tab
+// ══════════════════════════════════════════════════════════════
+
+export interface SystemHealth {
+  database_counts: Record<string, number>
+  providers: Array<{
+    name: string
+    configured: boolean
+    last_updated: string | null
+  }>
+  qdrant: {
+    status: string
+    message: string
+    collections?: string[]
+  }
+}
+
+export async function getSystemHealth(): Promise<SystemHealth> {
+  const res = await fetch(`${BASE_URL}/api/admin/system-health`, {
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  })
+  return handleResponse<SystemHealth>(res)
+}
+
+export async function testProvider(providerName: string): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${BASE_URL}/api/admin/test-provider/${providerName}`, {
+    method: 'POST',
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  })
+  return handleResponse<{ status: string; message: string }>(res)
+}
+
+export async function rebuildKnowledgeEmbeddings(): Promise<{ status: string; entries_rebuilt: number }> {
+  const res = await fetch(`${BASE_URL}/api/admin/rebuild-knowledge-embeddings`, {
+    method: 'POST',
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  })
+  return handleResponse<{ status: string; entries_rebuilt: number }>(res)
+}
+
+export async function rebuildContentEmbeddings(): Promise<{ status: string; entries_rebuilt: number; users_processed?: number }> {
+  const res = await fetch(`${BASE_URL}/api/admin/rebuild-content-embeddings`, {
+    method: 'POST',
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  })
+  return handleResponse<{ status: string; entries_rebuilt: number }>(res)
+}
+
+export async function testTelegram(): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${BASE_URL}/api/admin/test-telegram`, {
+    method: 'POST',
+    headers: { ...getAuthHeader() },
+    credentials: 'include',
+  })
+  return handleResponse<{ status: string; message: string }>(res)
+}

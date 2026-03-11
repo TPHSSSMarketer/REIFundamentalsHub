@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.api.deps import get_db
 from rei.config import PLANS
 from rei.middleware.admin_gate import require_admin
-from rei.models.user import AIUsageByProvider, FaxLog, PhoneCredit, SmsMessage, User
+from rei.models.user import (
+    AIUsageByProvider, FaxLog, KnowledgeEntry, PhoneCredit, SmsMessage, User,
+)
 
 logger = logging.getLogger(__name__)
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -356,3 +358,205 @@ async def admin_stats(
         "ai_by_provider": ai_by_provider,
         "current_month": current_month,
     }
+
+
+# ════════════════════════════════════════════════════════════════════════
+# SYSTEM HEALTH — Tools Tab
+# ════════════════════════════════════════════════════════════════════════
+
+
+@admin_router.get("/system-health")
+async def system_health(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return system health data for the admin Tools tab.
+
+    Includes: database table counts, provider credential statuses,
+    Qdrant connectivity, and knowledge base stats.
+    """
+    from rei.services.credentials_service import get_all_credential_statuses
+    from rei.models.user import CrmDeal, CrmContact, HelpTicket, ContentEntry
+    from rei.models.negotiation import NegotiationCase
+
+    # ── Database table counts ────────────────────────────
+    counts = {}
+    table_queries = {
+        "users": select(func.count()).select_from(User),
+        "deals": select(func.count()).select_from(CrmDeal),
+        "contacts": select(func.count()).select_from(CrmContact),
+        "knowledge_entries": select(func.count()).select_from(KnowledgeEntry),
+        "knowledge_platform": select(func.count()).select_from(KnowledgeEntry).where(
+            KnowledgeEntry.user_id.is_(None)
+        ),
+        "knowledge_user": select(func.count()).select_from(KnowledgeEntry).where(
+            KnowledgeEntry.user_id.isnot(None)
+        ),
+        "negotiation_cases": select(func.count()).select_from(NegotiationCase),
+        "help_tickets": select(func.count()).select_from(HelpTicket),
+        "content_entries": select(func.count()).select_from(ContentEntry),
+    }
+
+    for key, q in table_queries.items():
+        try:
+            counts[key] = (await db.execute(q)).scalar() or 0
+        except Exception as exc:
+            logger.warning("Failed to count %s: %s", key, exc)
+            counts[key] = -1  # -1 signals error
+
+    # ── Provider credential statuses ─────────────────────
+    try:
+        provider_statuses = await get_all_credential_statuses(db)
+    except Exception as exc:
+        logger.warning("Failed to get credential statuses: %s", exc)
+        provider_statuses = []
+
+    # ── Qdrant health check ──────────────────────────────
+    qdrant_status = {"status": "not_configured", "message": "No Qdrant credentials found"}
+    try:
+        from rei.services.rag_service import _get_qdrant
+        client = await _get_qdrant()
+        if client:
+            # Try listing collections as a health check
+            collections = await client.get_collections()
+            collection_names = [c.name for c in collections.collections]
+            qdrant_status = {
+                "status": "connected",
+                "message": f"{len(collection_names)} collections found",
+                "collections": collection_names,
+            }
+        else:
+            qdrant_status = {
+                "status": "not_configured",
+                "message": "Qdrant credentials not set up",
+            }
+    except Exception as exc:
+        qdrant_status = {
+            "status": "error",
+            "message": f"Connection failed: {str(exc)[:200]}",
+        }
+
+    return {
+        "database_counts": counts,
+        "providers": [
+            {
+                "name": p["provider_name"],
+                "configured": p["configured"],
+                "last_updated": p.get("last_updated"),
+            }
+            for p in provider_statuses
+        ],
+        "qdrant": qdrant_status,
+    }
+
+
+@admin_router.post("/test-provider/{provider_name}")
+async def test_provider(
+    provider_name: str,
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Test connectivity for a specific provider. Admin only."""
+    from rei.services.credentials_service import (
+        get_provider_credentials,
+        test_provider_connection,
+    )
+
+    creds = await get_provider_credentials(db, provider_name)
+    if not creds:
+        return {"status": "error", "message": f"No credentials configured for {provider_name}"}
+
+    result = await test_provider_connection(provider_name, creds)
+    return result
+
+
+@admin_router.post("/rebuild-knowledge-embeddings")
+async def rebuild_knowledge_embeddings(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebuild all knowledge base embeddings in Qdrant. Admin only."""
+    from rei.services.rag_service import rebuild_all_embeddings
+
+    try:
+        # Rebuild platform entries (user_id=0 used for "all platform")
+        # Actually rebuild for admin user which includes platform entries
+        count = await rebuild_all_embeddings(user_id=0, db=db)
+        return {"status": "completed", "entries_rebuilt": count}
+    except Exception as exc:
+        logger.error("Failed to rebuild knowledge embeddings: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)[:200])
+
+
+@admin_router.post("/rebuild-content-embeddings")
+async def rebuild_content_embeddings_admin(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebuild content hub embeddings in Qdrant for ALL subscribers.
+
+    ContentHub uses per-user collections (content_user_{id}), so this
+    iterates through every user who has content entries and rebuilds each.
+    """
+    from rei.services.content_hub_service import rebuild_content_embeddings
+    from rei.models.crm import ContentEntry
+
+    try:
+        # Find all distinct user_ids that have content entries
+        result = await db.execute(
+            select(ContentEntry.user_id).distinct()
+        )
+        user_ids = [row[0] for row in result.all() if row[0] is not None]
+
+        total_count = 0
+        user_results = []
+        for uid in user_ids:
+            try:
+                count = await rebuild_content_embeddings(user_id=uid, db=db)
+                total_count += count
+                user_results.append({"user_id": uid, "entries": count, "status": "ok"})
+            except Exception as user_exc:
+                logger.warning("Failed to rebuild content for user %d: %s", uid, user_exc)
+                user_results.append({"user_id": uid, "entries": 0, "status": "error"})
+
+        return {
+            "status": "completed",
+            "entries_rebuilt": total_count,
+            "users_processed": len(user_ids),
+            "details": user_results,
+        }
+    except Exception as exc:
+        logger.error("Failed to rebuild content embeddings: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)[:200])
+
+
+@admin_router.post("/test-telegram")
+async def test_telegram(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a test Telegram notification. Admin only."""
+    try:
+        from rei.services.telegram_channel_service import send_telegram_text
+        from rei.services.credentials_service import get_provider_credentials
+
+        tg_creds = await get_provider_credentials(db, "telegram")
+        if not tg_creds or not tg_creds.get("telegram_bot_token"):
+            return {"status": "error", "message": "Telegram bot token not configured"}
+
+        chat_id = tg_creds.get("telegram_chat_id", "")
+        if not chat_id:
+            return {"status": "error", "message": "Telegram chat ID not configured"}
+
+        success = await send_telegram_text(
+            chat_id=chat_id,
+            text="✅ *REI Fundamentals Hub* — System health check\nTelegram connection is working\\!",
+            db=db,
+        )
+
+        if success:
+            return {"status": "connected", "message": "Test message sent to Telegram"}
+        else:
+            return {"status": "error", "message": "Failed to send test message"}
+    except Exception as exc:
+        return {"status": "error", "message": f"Telegram test failed: {str(exc)[:200]}"}

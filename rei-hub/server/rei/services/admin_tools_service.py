@@ -991,8 +991,67 @@ def _build_action_name(tool_name: str, params: dict) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
+ZIP_TO_LOCATION: dict[str, tuple[str, str]] = {
+    # Common NY zip codes for real estate investing
+    "11743": ("Huntington", "NY"), "11731": ("East Northport", "NY"),
+    "11768": ("Northport", "NY"), "11746": ("Huntington Station", "NY"),
+    "11724": ("Cold Spring Harbor", "NY"), "11740": ("Greenlawn", "NY"),
+    "11747": ("Melville", "NY"), "11721": ("Centerport", "NY"),
+    "11729": ("Deer Park", "NY"), "11757": ("Lindenhurst", "NY"),
+    "11702": ("Babylon", "NY"), "11704": ("West Babylon", "NY"),
+    "11706": ("Bay Shore", "NY"), "11722": ("Central Islip", "NY"),
+    "11741": ("Holbrook", "NY"), "11749": ("Islandia", "NY"),
+    "11752": ("Islip Terrace", "NY"), "11751": ("Islip", "NY"),
+    "11769": ("Oakdale", "NY"), "11720": ("Centereach", "NY"),
+    "11738": ("Farmingville", "NY"), "11763": ("Medford", "NY"),
+    "11772": ("Patchogue", "NY"), "11779": ("Ronkonkoma", "NY"),
+    "11787": ("Smithtown", "NY"), "11788": ("Hauppauge", "NY"),
+    "11716": ("Bohemia", "NY"), "11705": ("Bayport", "NY"),
+    "11717": ("Brentwood", "NY"), "11756": ("Levittown", "NY"),
+    "11801": ("Hicksville", "NY"), "11803": ("Plainview", "NY"),
+    "11783": ("Seaford", "NY"), "11758": ("Massapequa", "NY"),
+    "11710": ("Bellmore", "NY"), "11793": ("Wantagh", "NY"),
+    "11762": ("Massapequa Park", "NY"), "11701": ("Amityville", "NY"),
+    "11714": ("Bethpage", "NY"), "11735": ("Farmingdale", "NY"),
+    "11590": ("Westbury", "NY"), "11530": ("Garden City", "NY"),
+    "11550": ("Hempstead", "NY"), "11553": ("Uniondale", "NY"),
+    "11570": ("Rockville Centre", "NY"), "11580": ("Valley Stream", "NY"),
+}
+
+
+async def _resolve_zip(zip_code: str) -> tuple[str, str]:
+    """Resolve a zip code to (city, state). Returns ('', '') if unknown.
+
+    Uses a built-in lookup table for common zips, then falls back to
+    a free API for any zip not in the table.
+    """
+    if not zip_code:
+        return ("", "")
+
+    # Check built-in table first (fast, no API call)
+    if zip_code in ZIP_TO_LOCATION:
+        return ZIP_TO_LOCATION[zip_code]
+
+    # Fallback: free zippopotam.us API
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"https://api.zippopotam.us/us/{zip_code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                places = data.get("places", [])
+                if places:
+                    city = places[0].get("place name", "")
+                    state = places[0].get("state abbreviation", "")
+                    return (city, state)
+    except Exception:
+        pass
+
+    return ("", "")
+
+
 async def _lookup_property(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
-    """Look up property data via ATTOM."""
+    """Look up property data via ATTOM. Resolves city/state from zip if missing."""
     from rei.services.attom_property_service import lookup_property_data
 
     address = params.get("address", "")
@@ -1000,8 +1059,24 @@ async def _lookup_property(params: dict, user: User, db: AsyncSession, settings:
     state = params.get("state", "")
     zip_code = params.get("zip_code", "")
 
-    if not address or not city or not state:
-        return {"error": "Address, city, and state are required"}
+    if not address:
+        return {"error": "Street address is required"}
+
+    # Auto-resolve city/state from zip code if missing
+    if (not city or not state) and zip_code:
+        resolved_city, resolved_state = await _resolve_zip(zip_code)
+        if not city:
+            city = resolved_city
+        if not state:
+            state = resolved_state
+
+    if not city or not state:
+        return {
+            "error": (
+                "Could not determine city and state. Please provide them explicitly "
+                "or include a valid zip code."
+            )
+        }
 
     result = await lookup_property_data(
         address=address, city=city, state=state,
@@ -1064,6 +1139,70 @@ async def _search_properties(params: dict, user: User, db: AsyncSession) -> dict
 # ══════════════════════════════════════════════════════════════════
 # DEAL MANAGEMENT TOOL HANDLERS
 # ══════════════════════════════════════════════════════════════════
+
+
+async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
+    """Create a new deal in the pipeline."""
+    from rei.models.crm import CrmDeal
+
+    address = params.get("address", "").strip()
+    if not address:
+        return {"error": "Street address is required to create a deal"}
+
+    city = params.get("city", "").strip()
+    state = params.get("state", "").strip()
+    zip_code = params.get("zip", "").strip()
+
+    # Auto-resolve city/state from zip if missing
+    if (not city or not state) and zip_code:
+        resolved_city, resolved_state = await _resolve_zip(zip_code)
+        if not city:
+            city = resolved_city
+        if not state:
+            state = resolved_state
+
+    # Build title from address
+    title = address
+    if city:
+        title = f"{address}, {city}"
+
+    stage = params.get("stage", "lead")
+    deal_type = params.get("deal_type", "")
+    contact_name = params.get("contact_name", "")
+    asking_price = params.get("asking_price")
+    arv = params.get("arv")
+    notes = params.get("notes", "")
+
+    deal = CrmDeal(
+        user_id=user.id,
+        title=title,
+        address=address,
+        city=city,
+        state=state,
+        zip=zip_code,
+        stage=stage,
+        list_price=asking_price,
+        arv=arv,
+        contact_name=contact_name or None,
+        source=deal_type or None,
+        notes=notes or None,
+    )
+    db.add(deal)
+    await db.commit()
+
+    return {
+        "status": "created",
+        "deal_id": deal.id,
+        "title": title,
+        "address": address,
+        "city": city,
+        "state": state,
+        "zip": zip_code,
+        "stage": stage,
+        "asking_price": asking_price,
+        "contact_name": contact_name,
+        "message": f"Deal created: {title}" + (f", {state} {zip_code}" if state else ""),
+    }
 
 
 async def _add_deal_note(params: dict, user: User, db: AsyncSession) -> dict:
@@ -1587,6 +1726,7 @@ TOOL_HANDLERS = {
     "get_market_data": {"fn": _get_market_data, "needs_settings": True},
     "search_properties": {"fn": _search_properties, "needs_settings": False},
     # ── Deal Management Tools ────────────────────────────────────
+    "create_deal": {"fn": _create_deal, "needs_settings": False},
     "add_deal_note": {"fn": _add_deal_note, "needs_settings": False},
     "upload_deal_photo": {"fn": _upload_deal_photo, "needs_settings": False},
     "get_deal_details": {"fn": _get_deal_details, "needs_settings": False},

@@ -22,6 +22,7 @@ import AiProviderSettings from './AiProviderSettings'
 import SuperAdminCredentials from './SuperAdminCredentials'
 import EmailTemplateEditor from './EmailTemplateEditor'
 import StripeConnectSetup from '../LoanServicing/StripeConnectSetup'
+import AdminToolsTab from './AdminToolsTab'
 import { enableLoanServicing, getTenantConfig, updateTenantConfig } from '@/services/loanServicingApi'
 import { getAuthHeader, getCurrentUser } from '@/services/auth'
 import { useDemoMode } from '@/hooks/useDemoMode'
@@ -1579,11 +1580,7 @@ export default function AdminPage() {
       )}
 
       {/* ── Tools Tab ─────────────────────────────────────────── */}
-      {tab === 'Tools' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
-          <p className="text-slate-500 text-sm">Admin tools coming soon</p>
-        </div>
-      )}
+      {tab === 'Tools' && <AdminToolsTab />}
 
       {/* Edit Modal */}
       {editing && (
