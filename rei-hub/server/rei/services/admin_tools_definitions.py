@@ -721,6 +721,30 @@ for _tool in ALL_TOOLS:
     TOOLS_BY_DOMAIN[domain].append(_tool)
 
 
+def get_tools_for_native_calling(domains: list[str] | None = None) -> list[dict]:
+    """Return tool definitions in Anthropic's native tool use format.
+
+    This is the preferred way to provide tools — the model receives real
+    tool definitions and generates structured tool_use blocks instead of
+    text markers.
+
+    Args:
+        domains: If provided, only include tools from these domains.
+
+    Returns: List of dicts in Anthropic's tools format:
+        [{"name": "...", "description": "...", "input_schema": {...}}]
+    """
+    source = ALL_TOOLS if not domains else get_tools_for_domains(domains)
+    return [
+        {
+            "name": tool["name"],
+            "description": tool["description"],
+            "input_schema": tool["parameters"],
+        }
+        for tool in source
+    ]
+
+
 def get_tools_for_ai() -> list[dict]:
     """Return tool definitions formatted for AI function calling.
 

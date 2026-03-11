@@ -116,6 +116,8 @@ TASK_ROUTING: dict[str, tuple[str, str | None]] = {
     "chat":          ("anthropic", "claude-haiku-4-5-20251001"),
     "webchat":       ("anthropic", "claude-haiku-4-5-20251001"),
     "general":       ("anthropic", None),  # uses default_model (Sonnet)
+    # Admin AI Assistant — MiniMax 2.5 (native tool calling, cost-effective)
+    "admin_orchestration": ("nvidia_minimax", None),
     # NVIDIA Kimi — research & legal
     "research":      ("nvidia_kimi", None),
     "legal":         ("nvidia_kimi", None),
@@ -195,6 +197,7 @@ async def _call_anthropic(
     max_tokens: int,
     temperature: float,
     images: list[dict] | None = None,
+    tools: list[dict] | None = None,
 ) -> dict:
     """Call the Anthropic Messages API.
 
@@ -207,6 +210,8 @@ async def _call_anthropic(
         images: Optional list of vision images. Each dict:
             { "base64": str, "media_type": "image/jpeg"|"image/png"|"image/webp"|"image/gif" }
             Images are appended to the last user message as content blocks.
+        tools: Optional list of tool definitions for native tool use.
+            Each dict: { "name": str, "description": str, "input_schema": dict }
     """
     # Convert messages: Anthropic expects role/content, system goes separately
     system_text = ""
@@ -247,6 +252,8 @@ async def _call_anthropic(
     }
     if system_text:
         body["system"] = system_text
+    if tools:
+        body["tools"] = tools
 
     headers = {
         "x-api-key": api_key,
@@ -267,20 +274,30 @@ async def _call_anthropic(
         data = resp.json()
 
     content = ""
+    tool_calls_raw: list[dict] = []
     for block in data.get("content", []):
         if block.get("type") == "text":
             content += block.get("text", "")
+        elif block.get("type") == "tool_use":
+            tool_calls_raw.append({
+                "id": block.get("id", ""),
+                "function_name": block.get("name", ""),
+                "arguments": block.get("input", {}),
+            })
 
     usage = data.get("usage", {})
     input_tokens = usage.get("input_tokens", 0)
     output_tokens = usage.get("output_tokens", 0)
 
-    return {
+    result = {
         "content": content,
         "tokens_used": input_tokens + output_tokens,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
     }
+    if tool_calls_raw:
+        result["tool_calls"] = tool_calls_raw
+    return result
 
 
 async def _call_nvidia(
@@ -693,6 +710,7 @@ async def ai_complete(
     temperature: float = 0.3,
     use_own_keys: bool = False,
     images: list[dict] | None = None,
+    tools: list[dict] | None = None,
 ) -> dict:
     """Main AI completion function — resolves provider and calls the API.
 
@@ -700,8 +718,11 @@ async def ai_complete(
         images: Optional list of vision images for Claude Vision.
             Each dict: { "base64": str, "media_type": str }
             Only supported with Anthropic provider.
+        tools: Optional list of tool definitions for native tool use.
+            For Anthropic: [{"name": ..., "description": ..., "input_schema": {...}}]
+            For NVIDIA: [{"type": "function", "function": {"name": ..., "description": ..., "parameters": {...}}}]
 
-    Returns: { content, provider, model, tokens_used }
+    Returns: { content, provider, model, tokens_used, tool_calls? }
     """
     resolved = await _resolve_provider(user_id, db, settings, task_type, use_own_keys=use_own_keys)
 
@@ -724,6 +745,32 @@ async def ai_complete(
                 max_tokens,
                 temperature,
                 images=images,
+                tools=tools if resolved["provider"] == "anthropic" else None,
+            )
+        elif tools:
+            # NVIDIA with native tool calling
+            # Convert Anthropic tool format to OpenAI format if needed
+            nvidia_tools = []
+            for t in tools:
+                if "type" in t and t["type"] == "function":
+                    nvidia_tools.append(t)  # Already OpenAI format
+                else:
+                    nvidia_tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": t["name"],
+                            "description": t.get("description", ""),
+                            "parameters": t.get("input_schema", t.get("parameters", {})),
+                        },
+                    })
+            result = await _call_nvidia_with_tools(
+                messages,
+                resolved["model"],
+                resolved["api_key"],
+                resolved["base_url"],
+                max_tokens,
+                temperature,
+                tools=nvidia_tools,
             )
         else:
             result = await _call_nvidia(

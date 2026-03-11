@@ -53,3 +53,9 @@
 **Mistake:** The AI was told about `lookup_property` but called it `property_lookup`, `attom_data_lookup`, and `attom_lookup` in different conversations. The orchestrator silently skipped the unknown tool name, and the user saw "Offline" with no error message.
 
 **Rule:** AI models frequently invert or paraphrase tool names. The tool resolution system must: (1) maintain a comprehensive static alias map covering common variations (`property_lookup` → `lookup_property`, `attom_data_lookup` → `lookup_property`, etc.), (2) include a fuzzy word-overlap fallback for novel variations, and (3) the system prompt must explicitly warn the AI to use EXACT tool names from the available tools list. Never silently fail when a tool name doesn't match — always try aliases and fuzzy matching first.
+
+## 2026-03-11: NEVER use text-marker tool calling — always use native tool use API
+
+**Mistake:** The admin AI assistant used text-based `[TOOL_CALL: tool_name({...})]` markers embedded in the AI's response text. Claude models know when they don't have real tools (via the `tools` API parameter) and will refuse to generate fake text markers, saying "I don't have access to live databases." The retry mechanism, poison cleanup, and alias system couldn't fix this because the root cause was that the AI correctly identified it had no actual tool definitions.
+
+**Rule:** ALWAYS use the provider's native tool use API. For Anthropic, pass tool definitions via the `tools` parameter in the Messages API call. For NVIDIA/OpenAI-compatible, use `_call_nvidia_with_tools()`. The model responds with structured `tool_use` blocks instead of text markers. Keep text-marker extraction only as a backward-compatibility fallback. Native tool use is the ONLY reliable way to get AI models to call tools.

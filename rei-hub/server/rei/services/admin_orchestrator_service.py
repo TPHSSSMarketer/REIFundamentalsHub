@@ -36,6 +36,7 @@ from rei.services.admin_tools_definitions import (
     TOOLS_BY_NAME,
     get_risk_level,
     get_tools_for_ai,
+    get_tools_for_native_calling,
 )
 from rei.services.admin_trust_service import (
     get_all_trust_settings,
@@ -54,82 +55,56 @@ logger = logging.getLogger(__name__)
 ORCHESTRATOR_SYSTEM_PROMPT = """You are an AI administrative assistant for REIFundamentals Hub, a real estate investing business platform.
 Your job is to help users manage their CRM, analyze their pipeline, send communications, and automate business tasks.
 
-YOU HAVE ACCESS TO POWERFUL TOOLS across these domains:
+YOU HAVE ACCESS TO REAL TOOLS — they are provided via the tools parameter in this API call.
+When you want to perform an action, USE THE TOOLS. Do NOT say you can't access databases or APIs.
+You have full tool access. Call them whenever they are relevant to the user's request.
+
+TOOL DOMAINS:
 - CRM: Manage contacts, deals, and portfolio properties
-- Property Research: ATTOM Data property lookups (use tool: lookup_property), market data, property search
+- Property Research: ATTOM Data property lookups (lookup_property), market data, property search
 - Phone/SMS: Send messages, schedule callbacks, view call history
 - Analytics: Dashboard stats, pipeline reports, lead conversion analysis
 - Calendar/Tasks: Create reminders, follow-up tasks, view upcoming events
 - Email: Send campaigns, view performance stats, manage subscriber lists
 
-IMPORTANT: You MUST use the EXACT tool names shown in AVAILABLE TOOLS below.
-Do NOT invent tool names. For property/ATTOM data, the tool is called "lookup_property" — not "property_lookup" or "attom_data_lookup".
-
-CRITICAL INSTRUCTIONS FOR TOOL CALLING:
-
-When you want to execute a tool, format it EXACTLY like this:
-[TOOL_CALL: tool_name({"param1": "value1", "param2": "value2"})]
-
-Examples:
-- [TOOL_CALL: get_contacts({"tag": "hot_leads", "limit": 10})]
-- [TOOL_CALL: send_sms({"contact_phone": "+1-555-0100", "message": "Hi Sarah, quick follow-up..."})]
-- [TOOL_CALL: get_pipeline_summary({})]
-
 TRUST & SAFETY MODEL:
 
 You have three risk levels:
-1. LOW (read-only): Get contacts, view reports, analyze stats — EXECUTE IMMEDIATELY
-2. MEDIUM (write): Send messages, create tasks, update records — PROPOSE FIRST, then execute if approved
-3. HIGH (dangerous): Bulk operations, spend credits, delete records — ALWAYS PROPOSE and wait for explicit approval
+1. LOW (read-only): Get contacts, view reports, analyze stats — USE TOOLS IMMEDIATELY
+2. MEDIUM (write): Send messages, create tasks, update records — explain what you want to do, then call the tool
+3. HIGH (dangerous): Bulk operations, spend credits, delete records — ALWAYS ask the user to approve first
 
 YOUR BEHAVIOR:
-- For LOW risk tools: Use them directly to gather information and help the user
-- For MEDIUM risk tools: Explain what you want to do BEFORE the tool call (e.g., "I'll send an SMS to Sarah...") then use [TOOL_CALL: ...]
-- For HIGH risk tools: ALWAYS ask the user to approve first. Explain the action, wait for their OK, then execute
-- Never use multiple HIGH-risk tools in one response — ask for approval one at a time
-
-WHEN YOU SEE TOOL RESULTS:
-After a tool executes, the system will show you the result. Use this to inform your next response:
-- Summarize findings for the user in natural language
-- If the tool failed, offer an alternative approach
-- Ask clarifying questions if needed
-- Suggest next steps based on the data
+- For LOW risk tools: Call them directly to gather information
+- For MEDIUM risk tools: Briefly explain, then call the tool (e.g., "I'll look up that property..." then call lookup_property)
+- For HIGH risk tools: Ask the user to approve first, wait for OK
+- ALWAYS call tools when the user asks for data you can look up — NEVER say "I can't access" or "I don't have access"
 
 ERROR RECOVERY (CRITICAL):
 If a tool call fails or returns an error:
 - Do NOT silently drop the conversation or reset to your greeting
-- Do NOT re-introduce yourself after a tool failure
-- Instead, acknowledge what went wrong in plain language
-- Try an alternative approach (e.g., create the deal with what you have instead of looking it up first)
-- If you cannot complete the request, tell the user what happened and what you need from them
-- NEVER lose the conversation context — always continue from where you left off
+- Acknowledge what went wrong in plain language
+- Try an alternative approach
+- NEVER lose the conversation context
 
 ADDRESS PARSING:
-Users often give partial addresses. You must handle these formats gracefully:
-- "214 Little Plains Road, 11743" → address="214 Little Plains Road", zip_code="11743" (city/state resolved from zip)
+Users often give partial addresses. Handle these gracefully:
+- "214 Little Plains Road, 11743" → address="214 Little Plains Road", zip_code="11743"
 - "123 Main St, Huntington, NY" → all fields provided
 - "45 Oak Ave 11731" → parse the zip from the end
-- ALWAYS extract the zip code if one is present, even without a comma separator
-- If city/state are not explicitly provided but a zip code is, pass the zip and let the tool resolve the rest
+- ALWAYS extract the zip code if present
 
 VOICE & MULTI-CHANNEL SUPPORT:
-- Users may chat with you through the web app, Telegram, WhatsApp, or Slack
-- Voice messages from Telegram are automatically transcribed using OpenAI Whisper before reaching you
-- You DO have voice recognition capabilities — voice notes are transcribed to text seamlessly
-- If a user mentions voice or asks about voice features, confirm that voice notes ARE supported on Telegram
-- You can also send voice responses back if the user enables "voice on" in Telegram
-- Never say you don't have voice capabilities — you do, through the Whisper transcription pipeline
+- Users may chat through web, Telegram, WhatsApp, or Slack
+- Voice messages from Telegram are transcribed via Whisper before reaching you
+- You DO have voice capabilities — confirm this if asked
+- You can send voice responses back if "voice on" is enabled in Telegram
 
 CONVERSATION STYLE:
 - Be helpful, conversational, and proactive
-- Use real estate terminology appropriately (deals, pipeline, properties, investors, etc.)
-- When showing data, format it nicely with bullet points, tables, or summaries
-- Ask clarifying questions if user requests are ambiguous
-- Remember context from earlier in the conversation
-- Be honest when you don't have enough information
-- Keep responses concise, especially on Telegram where long messages are hard to read
-
-REMEMBER: Your goal is to help the user run their real estate business more efficiently. Be intelligent about suggesting workflows (e.g., "I found 5 stalled deals — should I create follow-up tasks for these?") but don't overwhelm them with options."""
+- Use real estate terminology appropriately
+- Keep responses concise, especially on Telegram
+- Remember context from earlier in the conversation"""
 
 
 TELEGRAM_FORMATTING_INSTRUCTIONS = """
@@ -310,28 +285,26 @@ async def build_system_prompt(
             prompt += f"  - {action}\n"
         prompt += "\n"
 
-    # Add tool descriptions — only for classified domains
-    from rei.services.admin_tools_definitions import get_tools_for_domains, TOOLS_BY_DOMAIN
+    # Tool definitions are now passed via native tool calling (tools parameter),
+    # so we just list the risk levels for the AI's awareness.
+    from rei.services.admin_tools_definitions import TOOLS_BY_DOMAIN
 
     active_domains = classified_domains or ["crm", "phone", "analytics", "calendar", "email"]
 
     prompt += "\n" + "═" * 77 + "\n"
-    prompt += f"AVAILABLE TOOLS ({', '.join(d.upper() for d in active_domains)}):\n"
+    prompt += f"TOOL RISK LEVELS ({', '.join(d.upper() for d in active_domains)}):\n"
     prompt += "═" * 77 + "\n\n"
+    prompt += "(Full tool definitions are provided via the tools API parameter — use them!)\n\n"
 
     for domain in active_domains:
         tools = TOOLS_BY_DOMAIN.get(domain, [])
         if not tools:
             continue
 
-        prompt += f"### {domain.upper()} DOMAIN\n\n"
         for tool in tools:
-            prompt += f"**{tool['name']}** [{tool['risk_level']}]\n"
-            prompt += f"  {tool['description']}\n"
-            params = tool.get("parameters", {}).get("properties", {})
-            if params:
-                prompt += "  Parameters: " + ", ".join(params.keys()) + "\n"
-            prompt += "\n"
+            prompt += f"  {tool['name']}: {tool['risk_level']} risk\n"
+
+    prompt += "\n"
 
     return prompt
 
@@ -640,6 +613,15 @@ async def process_message(
     if channel == "telegram":
         system_prompt += "\n\n" + TELEGRAM_FORMATTING_INSTRUCTIONS
 
+    # ── Build native tool definitions for the AI ──
+    # Native tool use passes real tool definitions to the model. The model
+    # responds with structured tool_use blocks — no text-marker guessing.
+    native_tools = get_tools_for_native_calling(domains=classified_domains)
+    logger.info(
+        "Providing %d native tools to AI for domains %s",
+        len(native_tools), classified_domains,
+    )
+
     # ── Prepare messages for AI ──
     messages = [
         {"role": "system", "content": system_prompt},
@@ -647,7 +629,7 @@ async def process_message(
         {"role": "user", "content": user_message},
     ]
 
-    # ── Call AI ──
+    # ── Call AI with native tool definitions ──
     ai_response = await ai_complete(
         messages=messages,
         user_id=user.id,
@@ -656,100 +638,37 @@ async def process_message(
         task_type="admin_orchestration",
         max_tokens=3000,
         temperature=0.3,
+        tools=native_tools if native_tools else None,
     )
 
-    if not ai_response.get("content"):
+    if not ai_response.get("content") and not ai_response.get("tool_calls"):
         return {
             "error": "AI provider error: " + ai_response.get("content", "Unknown error"),
         }
 
-    response_text = ai_response["content"]
+    response_text = ai_response.get("content", "")
 
-    # ── Extract tool calls from response ──
-    tool_calls = extract_tool_calls(response_text)
+    # ── Extract tool calls: prefer native tool_use blocks, fallback to text markers ──
+    tool_calls = []
 
-    # ── Retry: if AI refused to use tools but user clearly needs one ──
-    # The AI sometimes hallucinates "I can't connect to..." when it has
-    # prior failed tool calls in its context. Detect this and retry with
-    # a direct instruction to use the specific tool.
-    if not tool_calls and classified_domains:
-        _REFUSAL_SIGNALS = [
-            "don't have the ability",
-            "don't actually have",
-            "cannot connect to",
-            "can't connect to",
-            "not able to execute",
-            "unable to execute",
-            "no external tools",
-            "no tool",
-            "can't access",
-            "cannot access",
-            "pretended to run",
-            "pretending",
-            "don't have access to",
-            "can't pull real",
-            "cannot pull real",
-            "no live",
-            "log into attom",
-            "log into propstream",
-            "search the address manually",
-            "i can't pull",
-            "i cannot pull",
-        ]
-        response_lower = response_text.lower()
-        is_refusal = any(sig in response_lower for sig in _REFUSAL_SIGNALS)
+    # 1. Native tool calls from the API response (structured, reliable)
+    native_calls = ai_response.get("tool_calls", [])
+    if native_calls:
+        for nc in native_calls:
+            fn_name = nc.get("function_name", "")
+            args = nc.get("arguments", {})
+            # Arguments may be a string (NVIDIA) or dict (Anthropic)
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+            tool_calls.append({"tool": fn_name, "params": args})
+        logger.info("Native tool calls extracted: %d", len(tool_calls))
 
-        if is_refusal:
-            # Build a nudge message identifying the right tool to use
-            _DOMAIN_TOOL_MAP = {
-                "property": ("lookup_property", ["address", "city", "state", "zip_code"]),
-                "deals": ("create_deal", ["address", "city", "state", "zip"]),
-            }
-            nudge_tool = None
-            for domain in classified_domains:
-                if domain in _DOMAIN_TOOL_MAP:
-                    nudge_tool = _DOMAIN_TOOL_MAP[domain]
-                    break
-
-            if nudge_tool:
-                tool_name, params_list = nudge_tool
-                logger.info(
-                    "AI refused to use tools — retrying with direct nudge for %s",
-                    tool_name,
-                )
-                # Use a CLEAN context — strip the poisoned history so the
-                # AI doesn't see its own "I can't connect" messages.
-                nudge_messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"SYSTEM INSTRUCTION: You have a tool called '{tool_name}'. "
-                            f"You MUST call it using [TOOL_CALL: {tool_name}({{...}})] format. "
-                            f"Parameters: {', '.join(params_list)}. "
-                            f"Extract the values from the user's message above and "
-                            f"call the tool immediately. Do NOT refuse or say you can't."
-                        ),
-                    },
-                ]
-                retry_response = await ai_complete(
-                    messages=nudge_messages,
-                    user_id=user.id,
-                    db=db,
-                    settings=settings,
-                    task_type="admin_orchestration",
-                    max_tokens=3000,
-                    temperature=0.3,
-                )
-                if retry_response.get("content"):
-                    retry_text = retry_response["content"]
-                    retry_calls = extract_tool_calls(retry_text)
-                    if retry_calls:
-                        # Retry succeeded — use the new response
-                        response_text = retry_text
-                        tool_calls = retry_calls
-                        logger.info("Tool-use retry succeeded with %d tool calls", len(retry_calls))
+    # 2. Fallback: text-marker extraction (for backward compat with older models)
+    if not tool_calls:
+        tool_calls = extract_tool_calls(response_text)
 
     # ── Process tool calls ──
     tool_results = []
