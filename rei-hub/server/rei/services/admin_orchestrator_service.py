@@ -582,6 +582,27 @@ async def process_message(
     # ── Classify user intent for selective tool loading ──
     from rei.services.admin_tools_definitions import classify_user_intent
     classified_domains = classify_user_intent(user_message)
+
+    # Enrich from conversation context — short follow-up messages like "yes",
+    # "try again", "go ahead" lose the original intent. Look at recent messages
+    # in this session to recover the domains that were active.
+    if len(user_message.split()) <= 5 and not is_new_session:
+        try:
+            recent_msgs = await db.execute(
+                select(AdminMessage.content)
+                .where(AdminMessage.session_id == session_id)
+                .order_by(AdminMessage.created_at.desc())
+                .limit(6)
+            )
+            recent_texts = [r[0] for r in recent_msgs.fetchall() if r[0]]
+            for txt in recent_texts:
+                extra_domains = classify_user_intent(txt)
+                for d in extra_domains:
+                    if d not in classified_domains:
+                        classified_domains.append(d)
+        except Exception as e:
+            logger.warning("Context-based domain enrichment failed (non-fatal): %s", e)
+
     logger.info(f"Intent classified for user {user.id}: domains={classified_domains}")
 
     # ── Build system prompt ──
