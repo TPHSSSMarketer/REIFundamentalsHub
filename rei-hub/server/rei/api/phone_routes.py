@@ -1905,6 +1905,22 @@ async def webhook_conversation_status(
 
         await db.commit()
 
+        # ── Self-learning: extract and cache insights from the call ──
+        try:
+            from rei.services.studio_learning_service import enrich_from_voice_call
+            await enrich_from_voice_call(
+                extracted_data=analysis.get("extracted_data", {}),
+                outcome=analysis.get("outcome", "unknown"),
+                summary=analysis.get("summary", ""),
+                caller_mood=analysis.get("caller_mood", "unknown"),
+                deal_eagerness=analysis.get("deal_eagerness", 0),
+                user_id=conv_log.user_id,
+                conversation_id=conv_log.id,
+                db=db,
+            )
+        except Exception as e:
+            logger.warning("Voice call learning failed (non-fatal): %s", e)
+
         logger.info(
             f"Conversation {conversation_id} analyzed: "
             f"mood={conv_log.caller_mood}, eagerness={conv_log.deal_eagerness}, "

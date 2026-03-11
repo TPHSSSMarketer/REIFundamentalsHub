@@ -483,6 +483,18 @@ async def process_message(
     # ── Build system prompt ──
     system_prompt = await build_system_prompt(user.id, trust_settings, db, classified_domains)
 
+    # ── Inject learned intelligence into system prompt ──
+    try:
+        from rei.services.admin_learning_service import build_learning_context, record_topic_usage
+        learning_context = await build_learning_context(user_message, user.id, db)
+        if learning_context:
+            system_prompt += learning_context
+
+        # Record topic usage pattern
+        await record_topic_usage(user_message, user.id, db)
+    except Exception as e:
+        logger.warning("Learning context injection failed (non-fatal): %s", e)
+
     # ── Add channel-specific formatting instructions ──
     if channel == "telegram":
         system_prompt += "\n\n" + TELEGRAM_FORMATTING_INSTRUCTIONS
@@ -555,6 +567,20 @@ async def process_message(
             )
             db.add(action_log)
             await db.commit()
+
+            # ── Self-learning: record usage + auto-enrich from result ──
+            try:
+                from rei.services.admin_learning_service import (
+                    record_tool_usage,
+                    enrich_from_tool_result,
+                )
+                await record_tool_usage(tool_name, result["success"], user.id, db)
+                if result["success"] and result.get("data"):
+                    await enrich_from_tool_result(
+                        tool_name, params, result, user.id, session_id, db,
+                    )
+            except Exception as e:
+                logger.warning("Learning hooks failed (non-fatal): %s", e)
 
             tool_results.append({
                 "tool": tool_name,
@@ -691,6 +717,13 @@ async def process_message(
         elif "follow" in user_message.lower():
             suggestions.append("Create follow-up task")
             suggestions.append("View upcoming tasks")
+
+    # ── Post-conversation learning (non-blocking) ──
+    try:
+        from rei.services.admin_learning_service import run_post_conversation_learning
+        await run_post_conversation_learning(session_id, user, db, settings)
+    except Exception as e:
+        logger.warning("Post-conversation learning failed (non-fatal): %s", e)
 
     return {
         "session_id": session_id,

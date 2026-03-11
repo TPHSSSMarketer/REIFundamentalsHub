@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rei.database import Base
@@ -328,6 +328,175 @@ class AdminScheduledTask(Base):
         Text, nullable=True
     )  # JSON summary of last run
     total_runs: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# SELF-LEARNING SYSTEM — Platform intelligence that improves over time
+# ═══════════════════════════════════════════════════════════════
+
+
+class ConversationLesson(Base):
+    """Lessons automatically extracted from AI conversations.
+
+    When the assistant handles a question well (successful tool use,
+    multi-step resolution, or user correction), the system extracts
+    a reusable lesson. These lessons are injected into future system
+    prompts when similar questions arise, making the assistant smarter
+    over time.
+
+    Platform-wide: user_id is NULL (benefits everyone).
+    Per-user: user_id is set (personalized learning).
+    """
+
+    __tablename__ = "conversation_lessons"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-wide lesson
+
+    # What was learned
+    topic: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # e.g. "property_lookup", "deal_creation", "market_analysis"
+    question_pattern: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # The type of question that triggered this lesson
+    lesson_text: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # The actual lesson / best approach
+    example_exchange: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON: {"user": "...", "assistant": "..."} — a good example
+
+    # Quality signals
+    source_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="auto"
+    )  # "auto" (AI-extracted), "correction" (user corrected AI), "admin" (manually added)
+    times_used: Mapped[int] = mapped_column(Integer, default=0)
+    confidence: Mapped[float] = mapped_column(
+        Float, default=0.7
+    )  # 0.0–1.0, increases with successful reuse
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Traceability
+    source_session_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # Which conversation it came from
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class UsagePattern(Base):
+    """Tracks how tools, features, and topics are used across the platform.
+
+    Aggregated counts that help the assistant prioritize suggestions,
+    pre-load relevant tools, and adapt its behavior to actual usage.
+
+    Platform-wide: user_id is NULL (aggregate across all users).
+    Per-user: user_id is set (individual preferences).
+    """
+
+    __tablename__ = "usage_patterns"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-wide aggregate
+
+    pattern_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # "tool_usage", "topic_frequency", "workflow_sequence", "time_preference"
+
+    pattern_key: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # e.g. "lookup_property", "deals+property", "morning_pipeline_check"
+
+    # Counts and metrics
+    occurrence_count: Mapped[int] = mapped_column(Integer, default=1)
+    success_count: Mapped[int] = mapped_column(Integer, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Optional context (JSON)
+    metadata_json: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # Extra data like {"avg_time_of_day": "09:00", "common_params": {...}}
+
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+
+
+class AutoEnrichedKnowledge(Base):
+    """Knowledge automatically captured from successful tool results.
+
+    When the assistant researches something (property lookup, market data,
+    etc.) and gets a good result, the key findings are stored here so
+    the same research doesn't need to be repeated. This acts as a
+    platform-wide memory of facts the system has learned.
+
+    Examples:
+    - Property at 214 Little Plains Rd: 3bd/2ba, assessed $450K, owner John Smith
+    - Market trend: Huntington median up 8% YoY as of March 2026
+    - Zip 11743 resolves to Huntington, NY (Suffolk County)
+    """
+
+    __tablename__ = "auto_enriched_knowledge"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-wide, set = per-user data
+
+    # What was learned
+    category: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # "property", "market", "contact", "zip_resolution", "deal_outcome"
+    entity_key: Mapped[str] = mapped_column(
+        String, nullable=False, index=True
+    )  # Unique key: "prop:214_little_plains_rd_11743", "market:huntington_ny"
+    summary: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # Human-readable summary of the finding
+    raw_data: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON of the full tool result for reference
+
+    # Quality and freshness
+    source_tool: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # Which tool produced this: "lookup_property", "get_market_data"
+    confidence: Mapped[float] = mapped_column(Float, default=0.8)
+    times_referenced: Mapped[int] = mapped_column(Integer, default=0)
+    is_stale: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )  # Marked stale after expiry_days
+
+    # Traceability
+    source_session_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )

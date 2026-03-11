@@ -472,3 +472,178 @@ class ChatSession(Base):
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# STUDIO SELF-LEARNING — Intelligence from seller/buyer conversations
+# ═══════════════════════════════════════════════════════════════
+
+
+class StudioLesson(Base):
+    """Lessons learned from seller/buyer conversations.
+
+    Separate from admin ConversationLesson — these are specifically about
+    handling real estate conversations with sellers and buyers:
+    objection handling, negotiation patterns, what approaches convert.
+
+    Platform-wide: user_id is NULL (benefits all subscribers).
+    Per-subscriber: user_id is set (that investor's specific learnings).
+    """
+
+    __tablename__ = "studio_lessons"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-wide lesson
+
+    # What was learned
+    topic: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # "objection:price", "objection:timing", "conversion_pattern", "motivation:divorce"
+    question_pattern: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # The type of interaction that triggered this
+    lesson_text: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # The actual lesson / best approach
+    example_exchange: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON: {"contact_said": "...", "ai_responded": "...", "outcome": "..."}
+
+    # Quality signals
+    source_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="auto"
+    )  # "auto", "voice_call", "webchat", "sms"
+    times_used: Mapped[int] = mapped_column(Integer, default=0)
+    confidence: Mapped[float] = mapped_column(
+        Float, default=0.7
+    )  # 0.0-1.0, increases with positive outcomes
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Traceability
+    source_execution_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # FlowExecution or ConversationLog ID
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class StudioPattern(Base):
+    """Usage patterns from seller/buyer interactions.
+
+    Tracks conversation metrics: which flows convert best, which channels
+    perform, which objection types are most common, seller motivations, etc.
+
+    Separate from admin UsagePattern — these measure end-user conversation
+    effectiveness, not admin tool usage.
+    """
+
+    __tablename__ = "studio_patterns"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # NULL = platform-wide aggregate
+
+    pattern_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # "node_effectiveness", "flow_outcome", "channel_effectiveness",
+    #    "seller_motivation", "voice_call_outcome", "objection_frequency"
+
+    pattern_key: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # e.g. "flow:uuid", "channel:webchat", "mood:skeptical"
+
+    # Counts and metrics
+    occurrence_count: Mapped[int] = mapped_column(Integer, default=1)
+    success_count: Mapped[int] = mapped_column(Integer, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Optional context (JSON)
+    metadata_json: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # Extra data like {"avg_eagerness": 6.5, "common_objections": [...]}
+
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+
+
+class StudioContactMemory(Base):
+    """Remembered facts about contacts from conversations.
+
+    When a seller/buyer chats or calls, key facts (name, phone, address,
+    motivation, asking price, etc.) are stored here. If the same person
+    contacts again through any channel, the AI already knows their story.
+
+    Separate from admin AutoEnrichedKnowledge — that caches tool results
+    (property lookups, market data). This caches what contacts tell us
+    directly during conversations.
+    """
+
+    __tablename__ = "studio_contact_memory"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )  # The subscriber this contact belongs to (NULL = platform-wide)
+
+    # Contact identifier (how we find them again)
+    contact_key: Mapped[str] = mapped_column(
+        String, nullable=False, index=True
+    )  # "phone:5551234567", "email:john@example.com"
+
+    # What we know about them
+    contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    property_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Conversation-extracted data (JSON)
+    extracted_data: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # {"asking_price": "$200K", "motivation": "relocating", "timeline": "ASAP", ...}
+
+    # Interaction history
+    last_outcome: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "qualified", "appointment_set", "not_interested", etc.
+    last_mood: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "eager", "skeptical", etc.
+    interaction_count: Mapped[int] = mapped_column(Integer, default=1)
+    last_channel: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # "webchat", "sms", "voice"
+
+    # Summary for quick injection into prompts
+    summary: Mapped[str] = mapped_column(
+        Text, nullable=False, default=""
+    )
+
+    # Traceability
+    source_execution_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

@@ -496,6 +496,21 @@ async def process_message(
         "timestamp": datetime.utcnow().isoformat(),
     })
 
+    # 2b. Real-time data extraction — parse name, phone, email, address, etc.
+    #     from EVERY message so the AI always has the latest info
+    try:
+        from rei.services.studio_learning_service import update_live_extraction
+        new_data = await update_live_extraction(execution, contact_message, db)
+        if new_data:
+            # Reload variables since extraction may have updated them
+            variables = json.loads(execution.variables or "{}")
+            logger.info(
+                "Live extraction for %s: found %s",
+                execution_id, list(new_data.keys()),
+            )
+    except Exception as e:
+        logger.warning("Real-time extraction failed (non-fatal): %s", e)
+
     # 3. Retrieve relevant knowledge via RAG (scripts, objection handlers, etc.)
     knowledge = []
     if current_node.node_type in ("objective", "conversation", "statement", "greeting"):
@@ -514,6 +529,17 @@ async def process_message(
 
     # 4. Build the focused prompt for this node
     node_prompt = _build_node_prompt(current_node, variables, persona, flow.name)
+
+    # Inject learned intelligence from previous conversations
+    try:
+        from rei.services.studio_learning_service import build_studio_learning_context
+        learning_context = await build_studio_learning_context(
+            contact_message, execution.user_id, execution, db,
+        )
+        if learning_context:
+            node_prompt += "\n" + learning_context
+    except Exception as e:
+        logger.warning("Studio learning context failed (non-fatal): %s", e)
 
     # Inject knowledge: training first (sets mindset), then situational after
     if training:
@@ -577,6 +603,17 @@ async def process_message(
             if current_node.output_variable and eval_result.get("extracted_value"):
                 variables[current_node.output_variable] = eval_result["extracted_value"]
             next_node = await _get_next_node(flow.id, current_node.id, "default", db)
+
+            # Track node success
+            try:
+                from rei.services.studio_learning_service import record_node_outcome
+                await record_node_outcome(
+                    current_node, True, execution.current_node_attempts + 1,
+                    execution.id, execution.user_id, db,
+                )
+            except Exception:
+                pass
+
             execution.current_node_attempts = 0
         else:
             # Not achieved — try again or skip
@@ -585,6 +622,17 @@ async def process_message(
                     and execution.current_node_attempts >= current_node.max_attempts):
                 # Max attempts reached — skip to next
                 next_node = await _get_next_node(flow.id, current_node.id, "default", db)
+
+                # Track node failure (max attempts exceeded)
+                try:
+                    from rei.services.studio_learning_service import record_node_outcome
+                    await record_node_outcome(
+                        current_node, False, execution.current_node_attempts,
+                        execution.id, execution.user_id, db,
+                    )
+                except Exception:
+                    pass
+
                 execution.current_node_attempts = 0
 
     elif current_node.node_type == "statement":
@@ -617,8 +665,22 @@ async def process_message(
         execution.status = "completed"
         execution.completed_at = datetime.utcnow()
 
+        # Run post-conversation learning
+        try:
+            from rei.services.studio_learning_service import run_post_flow_learning
+            await run_post_flow_learning(execution.id, db, settings)
+        except Exception as e:
+            logger.warning("Post-flow learning failed (non-fatal): %s", e)
+
     elif current_node.node_type == "transfer":
         execution.status = "transferred"
+
+        # Run post-conversation learning for transfers too
+        try:
+            from rei.services.studio_learning_service import run_post_flow_learning
+            await run_post_flow_learning(execution.id, db, settings)
+        except Exception as e:
+            logger.warning("Post-flow learning failed (non-fatal): %s", e)
 
     elif current_node.node_type == "conversation":
         # Stay on this node unless there's an exit condition

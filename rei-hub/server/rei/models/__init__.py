@@ -42,6 +42,9 @@ from rei.models.conversation_flow import (
     FlowEdge,
     FlowExecution,
     ChatSession,
+    StudioLesson,
+    StudioPattern,
+    StudioContactMemory,
 )
 from rei.models.admin_assistant import (
     AdminSession,
@@ -50,6 +53,9 @@ from rei.models.admin_assistant import (
     AdminTrustSetting,
     AdminSkill,
     AdminScheduledTask,
+    ConversationLesson,
+    UsagePattern,
+    AutoEnrichedKnowledge,
 )
 from rei.models.email_template import AdminEmailTemplate
 from rei.models.user_integrations import UserWordPressIntegration
@@ -93,12 +99,18 @@ __all__ = [
     "FlowEdge",
     "FlowExecution",
     "ChatSession",
+    "StudioLesson",
+    "StudioPattern",
+    "StudioContactMemory",
     "AdminSession",
     "AdminMessage",
     "AdminActionLog",
     "AdminTrustSetting",
     "AdminSkill",
     "AdminScheduledTask",
+    "ConversationLesson",
+    "UsagePattern",
+    "AutoEnrichedKnowledge",
     "AdminEmailTemplate",
     "ContentImage",
     "ContentEntry",
