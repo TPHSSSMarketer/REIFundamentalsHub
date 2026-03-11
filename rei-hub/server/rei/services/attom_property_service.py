@@ -362,6 +362,30 @@ async def lookup_property_data(
                 "tax_per_sqft": tax.get("taxpersizeunit", ""),
             }
 
+            # ── Owner / Mailing Address ──
+            owner = assessment.get("owner", {})
+            owner1 = owner.get("owner1", {})
+            mailing = prop.get("address", {})  # Assessment address may be mailing addr
+
+            result["owner_info"] = {
+                "owner_name": (
+                    f"{owner1.get('firstNameAndMi', '')} {owner1.get('lastName', '')}".strip()
+                    if owner1 else ""
+                ),
+                "owner_name2": (
+                    f"{owner.get('owner2', {}).get('firstNameAndMi', '')} {owner.get('owner2', {}).get('lastName', '')}".strip()
+                    if owner.get("owner2") else ""
+                ),
+                "owner_type": owner1.get("type", ""),
+                "mailing_address": owner.get("mailingAddressOneLine", ""),
+                "mailing_line1": owner.get("mailaddressline1", ""),
+                "mailing_line2": owner.get("mailaddressline2", ""),
+                "mailing_city": owner.get("mailaddressline3", "").split(",")[0].strip() if owner.get("mailaddressline3") else "",
+                "mailing_state": owner.get("mailaddressline3", "").split(",")[-1].strip().split(" ")[0] if owner.get("mailaddressline3") else "",
+                "mailing_zip": owner.get("mailaddressline3", "").split()[-1] if owner.get("mailaddressline3") else "",
+                "absentee_owner": prop.get("summary", {}).get("absenteeInd", ""),
+            }
+
             # ── Lien / Mortgage Records (from assessment response) ──
             if mortgage:
                 for key in ["firstConcurrent", "secondConcurrent", "thirdConcurrent"]:

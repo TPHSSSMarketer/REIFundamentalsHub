@@ -212,6 +212,24 @@ class CrmDeal(Base):
     parking_spaces: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     absentee_owner: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # ── ATTOM Owner / Mailing (auto-populated) ──
+    owner_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    owner_name2: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    owner_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mailing_zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── ATTOM Additional Property Fields ──
+    census_tract: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    municipality: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    county_use_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    tax_code_area: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lot_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    parking_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    geo_accuracy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # ── ATTOM Tax / Valuation (auto-populated) ──
     market_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     market_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

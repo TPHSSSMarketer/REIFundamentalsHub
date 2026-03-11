@@ -56,6 +56,7 @@ import DealAnalyzer from './DealAnalyzer'
 import DealExpenditures from './DealExpenditures'
 import AIUnderwriting from './AIUnderwriting'
 import PropertyMap from '@/components/Map/PropertyMap'
+import ContactSmsThread from '@/components/Phone/ContactSmsThread'
 import type { Deal, DealFile, DealBuyerMatch } from '@/types'
 
 const BASE_URL = import.meta.env.VITE_REI_SERVER_URL ?? 'http://localhost:8001'
@@ -160,6 +161,7 @@ const TABS = [
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
   { id: 'photos', label: 'Photos', icon: Camera },
+  { id: 'research', label: 'Property Research', icon: Building2 },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'negotiations', label: 'Negotiations', icon: HeartHandshake },
   { id: 'underwriting', label: 'AI Underwriting', icon: Sparkles },
@@ -168,9 +170,76 @@ const TABS = [
   { id: 'pof', label: 'Proof of Funds', icon: Shield },
   { id: 'files', label: 'Files', icon: FileText },
   { id: 'matches', label: 'Matched Buyers', icon: Users },
+  { id: 'comms', label: 'SMS & Calls', icon: Send },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
+
+// ── EditableField Component ─────────────────────────────────────────
+
+function EditableField({
+  label,
+  value,
+  field,
+  dealId,
+  updateDeal,
+  format = 'currency',
+  className = ''
+}: {
+  label: string
+  value: number | string | null | undefined
+  field: string
+  dealId: string
+  updateDeal: any
+  format?: 'currency' | 'number' | 'text' | 'percent'
+  className?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+
+  const handleStartEdit = () => {
+    setEditValue(value != null ? String(value) : '')
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    setEditing(false)
+    const parsed = format === 'text' ? editValue :
+                   format === 'percent' ? parseFloat(editValue) || null :
+                   parseFloat(editValue.replace(/[,$]/g, '')) || null
+    updateDeal.mutate({ id: dealId, [field]: parsed })
+  }
+
+  if (editing) {
+    return (
+      <div className={cn("flex items-center justify-between", className)}>
+        <span className="text-xs text-slate-500">{label}</span>
+        <input
+          autoFocus
+          className="text-sm font-medium text-right bg-white border border-primary-300 rounded px-2 py-0.5 w-32 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+        />
+      </div>
+    )
+  }
+
+  const displayValue = value != null ? (
+    format === 'currency' ? formatCurrency(Number(value)) :
+    format === 'percent' ? `${value}%` :
+    format === 'number' ? Number(value).toLocaleString() :
+    String(value)
+  ) : '—'
+
+  return (
+    <div className={cn("flex items-center justify-between cursor-pointer group", className)} onClick={handleStartEdit}>
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-800 group-hover:text-primary-600 group-hover:underline">{displayValue}</span>
+    </div>
+  )
+}
 
 // ── Main Component ──────────────────────────────────────────────────
 
@@ -228,6 +297,8 @@ export default function DealDetailPage() {
   const [addingToPortfolio, setAddingToPortfolio] = useState(false)
   const [addedToPortfolio, setAddedToPortfolio] = useState(false)
 
+  // SMS & Calls
+  const [contactPhone, setContactPhone] = useState<string>('')
 
   // Get pipeline stages for stage selector
   const stages = useMemo(() => {
@@ -301,6 +372,23 @@ export default function DealDetailPage() {
     loadMatches()
   }, [loadMatches])
 
+  // Load contact phone number for SMS & Calls tab
+  useEffect(() => {
+    if (!deal?.contactId) return
+    const loadContact = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/contacts/${deal.contactId}`, {
+          headers: getAuthHeader(),
+          credentials: 'include',
+        })
+        if (res.ok) {
+          const contact = await res.json()
+          setContactPhone(contact.phone || '')
+        }
+      } catch {}
+    }
+    loadContact()
+  }, [deal?.contactId])
 
   // Load document templates when Documents tab is opened
   useEffect(() => {
@@ -773,41 +861,77 @@ export default function DealDetailPage() {
           {/* Financial Summary */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Financials</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               {deal.listPrice != null && (
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-500">List Price</p>
-                  <p className="text-sm font-semibold text-slate-800">{formatCurrency(deal.listPrice)}</p>
+                  <EditableField
+                    label="List Price"
+                    value={deal.listPrice}
+                    field="listPrice"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
               {deal.purchasePrice != null && (
                 <div className="p-3 bg-green-50 rounded-lg">
-                  <p className="text-xs text-green-600">Purchase Price</p>
-                  <p className="text-sm font-semibold text-green-700">{formatCurrency(deal.purchasePrice)}</p>
+                  <EditableField
+                    label="Purchase Price"
+                    value={deal.purchasePrice}
+                    field="purchasePrice"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
               {deal.arv != null && (
                 <div className="p-3 bg-primary-50 rounded-lg">
-                  <p className="text-xs text-primary-600">ARV</p>
-                  <p className="text-sm font-semibold text-primary-700">{formatCurrency(deal.arv)}</p>
+                  <EditableField
+                    label="ARV"
+                    value={deal.arv}
+                    field="arv"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
               {deal.rehabEstimate != null && (
                 <div className="p-3 bg-amber-50 rounded-lg">
-                  <p className="text-xs text-amber-600">Rehab Estimate</p>
-                  <p className="text-sm font-semibold text-amber-700">{formatCurrency(deal.rehabEstimate)}</p>
+                  <EditableField
+                    label="Rehab Estimate"
+                    value={deal.rehabEstimate}
+                    field="rehabEstimate"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
               {deal.monthlyRent != null && (
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-500">Monthly Rent</p>
-                  <p className="text-sm font-semibold text-slate-800">{formatCurrency(deal.monthlyRent)}</p>
+                  <EditableField
+                    label="Monthly Rent"
+                    value={deal.monthlyRent}
+                    field="monthlyRent"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
               {deal.allInCost != null && (
                 <div className="p-3 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-500">All-In Cost</p>
-                  <p className="text-sm font-semibold text-slate-800">{formatCurrency(deal.allInCost)}</p>
+                  <EditableField
+                    label="All-In Cost"
+                    value={deal.allInCost}
+                    field="allInCost"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="currency"
+                  />
                 </div>
               )}
             </div>
@@ -829,6 +953,29 @@ export default function DealDetailPage() {
                   >
                     {deal.contactName}
                   </button>
+                </div>
+              )}
+              {deal.ownerName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5" />
+                    Owner
+                  </span>
+                  <span className="text-sm font-medium text-slate-800">{deal.ownerName}</span>
+                </div>
+              )}
+              {deal.mailingAddress && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm text-slate-500 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5" />
+                    Mailing Address
+                  </span>
+                  <span className="text-sm font-medium text-slate-800">
+                    {deal.mailingAddress}
+                    {deal.mailingCity && `, ${deal.mailingCity}`}
+                    {deal.mailingState && `, ${deal.mailingState}`}
+                    {deal.mailingZip && ` ${deal.mailingZip}`}
+                  </span>
                 </div>
               )}
               {deal.source && (
@@ -887,54 +1034,94 @@ export default function DealDetailPage() {
               </h3>
               <div className="space-y-2.5">
                 {deal.propertyType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Property Type</span>
-                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.propertyType}</span>
-                  </div>
+                  <EditableField
+                    label="Property Type"
+                    value={deal.propertyType}
+                    field="propertyType"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="text"
+                  />
                 )}
-                {(deal.bedrooms != null || deal.bathrooms != null) && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Bed / Bath</span>
-                    <span className="text-sm font-medium text-slate-800">
-                      {deal.bedrooms ?? '—'} bd / {deal.bathrooms ?? '—'} ba
-                    </span>
-                  </div>
+                {deal.bedrooms != null && (
+                  <EditableField
+                    label="Bedrooms"
+                    value={deal.bedrooms}
+                    field="bedrooms"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="number"
+                  />
+                )}
+                {deal.bathrooms != null && (
+                  <EditableField
+                    label="Bathrooms"
+                    value={deal.bathrooms}
+                    field="bathrooms"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="number"
+                  />
                 )}
                 {deal.squareFootage != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Sq Ft</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.squareFootage.toLocaleString()}</span>
-                  </div>
+                  <EditableField
+                    label="Sq Ft"
+                    value={deal.squareFootage}
+                    field="squareFootage"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="number"
+                  />
                 )}
                 {deal.lotSize && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Lot Size</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.lotSize}</span>
-                  </div>
+                  <EditableField
+                    label="Lot Size"
+                    value={deal.lotSize}
+                    field="lotSize"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="text"
+                  />
                 )}
                 {deal.yearBuilt != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Year Built</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.yearBuilt}</span>
-                  </div>
+                  <EditableField
+                    label="Year Built"
+                    value={deal.yearBuilt}
+                    field="yearBuilt"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="number"
+                  />
                 )}
                 {deal.garage && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Garage</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.garage}</span>
-                  </div>
+                  <EditableField
+                    label="Garage"
+                    value={deal.garage}
+                    field="garage"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="text"
+                  />
                 )}
                 {deal.propertyCondition && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Condition</span>
-                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.propertyCondition}</span>
-                  </div>
+                  <EditableField
+                    label="Condition"
+                    value={deal.propertyCondition}
+                    field="propertyCondition"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="text"
+                  />
                 )}
                 {deal.occupancyStatus && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Occupancy</span>
-                    <span className="text-sm font-medium text-slate-800 capitalize">{deal.occupancyStatus}</span>
-                  </div>
+                  <EditableField
+                    label="Occupancy"
+                    value={deal.occupancyStatus}
+                    field="occupancyStatus"
+                    dealId={dealId || ''}
+                    updateDeal={updateDeal}
+                    format="text"
+                  />
                 )}
                 {deal.repairsNeeded && (
                   <div>
@@ -952,266 +1139,6 @@ export default function DealDetailPage() {
             </div>
           )}
 
-          {/* ATTOM Location & Parcel */}
-          {(deal.county || deal.subdivision || deal.schoolDistrict || deal.zoning || deal.apn || deal.fips || deal.absenteeOwner || deal.legalDescription) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5" />
-                Location & Parcel
-              </h3>
-              <div className="space-y-2.5">
-                {deal.county && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">County</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.county}</span>
-                  </div>
-                )}
-                {deal.subdivision && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Subdivision</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.subdivision}</span>
-                  </div>
-                )}
-                {deal.schoolDistrict && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">School District</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.schoolDistrict}</span>
-                  </div>
-                )}
-                {deal.zoning && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Zoning</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.zoning}</span>
-                  </div>
-                )}
-                {deal.apn && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">APN</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.apn}</span>
-                  </div>
-                )}
-                {deal.fips && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">FIPS</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.fips}</span>
-                  </div>
-                )}
-                {deal.absenteeOwner && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Absentee Owner</span>
-                    <span className={cn(
-                      'text-sm font-semibold px-2 py-0.5 rounded-full',
-                      deal.absenteeOwner === 'Y' || deal.absenteeOwner === 'Yes'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-600'
-                    )}>
-                      {deal.absenteeOwner === 'Y' ? 'Yes' : deal.absenteeOwner}
-                    </span>
-                  </div>
-                )}
-                {deal.lotSizeAcres != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Lot Size (Acres)</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.lotSizeAcres.toFixed(2)}</span>
-                  </div>
-                )}
-                {deal.legalDescription && (
-                  <div>
-                    <p className="text-sm text-slate-500 mb-1">Legal Description</p>
-                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.legalDescription}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ATTOM Construction & Features */}
-          {(deal.constructionType || deal.exteriorWalls || deal.roofType || deal.foundationType || deal.basementType || deal.heating || deal.cooling || deal.waterType || deal.sewerType || deal.pool || deal.fireplaceCount || deal.parkingSpaces || deal.stories || deal.totalRooms) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" />
-                Construction & Features
-              </h3>
-              <div className="space-y-2.5">
-                {deal.stories != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Stories</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.stories}</span>
-                  </div>
-                )}
-                {deal.totalRooms != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Total Rooms</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.totalRooms}</span>
-                  </div>
-                )}
-                {deal.constructionType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Construction</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.constructionType}</span>
-                  </div>
-                )}
-                {deal.exteriorWalls && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Exterior Walls</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.exteriorWalls}</span>
-                  </div>
-                )}
-                {deal.roofType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Roof</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.roofType}</span>
-                  </div>
-                )}
-                {deal.foundationType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Foundation</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.foundationType}</span>
-                  </div>
-                )}
-                {deal.basementType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Basement</span>
-                    <span className="text-sm font-medium text-slate-800">
-                      {deal.basementType}{deal.basementSqft ? ` (${deal.basementSqft.toLocaleString()} sqft)` : ''}
-                    </span>
-                  </div>
-                )}
-                {deal.heating && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Heating</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.heating}</span>
-                  </div>
-                )}
-                {deal.cooling && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Cooling</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.cooling}</span>
-                  </div>
-                )}
-                {deal.waterType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Water</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.waterType}</span>
-                  </div>
-                )}
-                {deal.sewerType && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Sewer</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.sewerType}</span>
-                  </div>
-                )}
-                {deal.pool && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Pool</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.pool}</span>
-                  </div>
-                )}
-                {deal.fireplaceCount != null && deal.fireplaceCount > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Fireplaces</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.fireplaceCount}</span>
-                  </div>
-                )}
-                {deal.parkingSpaces != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Parking Spaces</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.parkingSpaces}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ATTOM Tax Assessment */}
-          {(deal.marketValue != null || deal.assessedValue != null || deal.taxYear != null) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <Landmark className="w-3.5 h-3.5" />
-                Tax Assessment {deal.taxYear ? `(${deal.taxYear})` : ''}
-              </h3>
-              <div className="space-y-2.5">
-                {deal.marketValue != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Market Value (Total)</span>
-                    <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.marketValue)}</span>
-                  </div>
-                )}
-                {deal.marketLandValue != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500 pl-3">Land</span>
-                    <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.marketLandValue)}</span>
-                  </div>
-                )}
-                {deal.marketImprovementValue != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500 pl-3">Improvements</span>
-                    <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.marketImprovementValue)}</span>
-                  </div>
-                )}
-                {deal.assessedValue != null && (
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm text-slate-500">Assessed Value (Total)</span>
-                    <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.assessedValue)}</span>
-                  </div>
-                )}
-                {deal.assessedLandValue != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500 pl-3">Land</span>
-                    <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.assessedLandValue)}</span>
-                  </div>
-                )}
-                {deal.assessedImprovementValue != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500 pl-3">Improvements</span>
-                    <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.assessedImprovementValue)}</span>
-                  </div>
-                )}
-                {deal.propertyTaxAnnual != null && (
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm text-slate-500">Annual Tax</span>
-                    <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.propertyTaxAnnual)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ATTOM Last Sale */}
-          {(deal.lastSaleDate || deal.lastSalePrice != null) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" />
-                Last Sale
-              </h3>
-              <div className="space-y-2.5">
-                {deal.lastSaleDate && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Date</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.lastSaleDate}</span>
-                  </div>
-                )}
-                {deal.lastSalePrice != null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Price</span>
-                    <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.lastSalePrice)}</span>
-                  </div>
-                )}
-                {deal.lastSaleBuyer && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Buyer</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.lastSaleBuyer}</span>
-                  </div>
-                )}
-                {deal.lastSaleSeller && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Seller</span>
-                    <span className="text-sm font-medium text-slate-800">{deal.lastSaleSeller}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Seller Motivation */}
           {(deal.reasonForSelling || deal.motivationLevel || deal.timelineToSell || deal.askingPrice != null || deal.priceFlexible || deal.howEstablishedPrice || deal.bestCashOffer != null || deal.whatIfDoesntSell || deal.openToTerms) && (
@@ -1804,6 +1731,274 @@ export default function DealDetailPage() {
                 </div>
               )}
 
+              {/* ── Property Research Tab ─────────────── */}
+              {activeTab === 'research' && (
+                <div className="space-y-5">
+                  <h3 className="text-base font-semibold text-slate-900">Property Research</h3>
+
+                  {/* ATTOM Location & Parcel */}
+                  {(deal.county || deal.subdivision || deal.schoolDistrict || deal.zoning || deal.apn || deal.fips || deal.absenteeOwner || deal.legalDescription) && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                        Location & Parcel
+                      </h3>
+                      <div className="space-y-2.5">
+                        {deal.county && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">County</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.county}</span>
+                          </div>
+                        )}
+                        {deal.subdivision && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Subdivision</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.subdivision}</span>
+                          </div>
+                        )}
+                        {deal.schoolDistrict && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">School District</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.schoolDistrict}</span>
+                          </div>
+                        )}
+                        {deal.zoning && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Zoning</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.zoning}</span>
+                          </div>
+                        )}
+                        {deal.apn && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">APN</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.apn}</span>
+                          </div>
+                        )}
+                        {deal.fips && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">FIPS</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.fips}</span>
+                          </div>
+                        )}
+                        {deal.absenteeOwner && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Absentee Owner</span>
+                            <span className={cn(
+                              'text-sm font-semibold px-2 py-0.5 rounded-full',
+                              deal.absenteeOwner === 'Y' || deal.absenteeOwner === 'Yes'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-600'
+                            )}>
+                              {deal.absenteeOwner === 'Y' ? 'Yes' : deal.absenteeOwner}
+                            </span>
+                          </div>
+                        )}
+                        {deal.lotSizeAcres != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Lot Size (Acres)</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lotSizeAcres.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {deal.legalDescription && (
+                          <div>
+                            <p className="text-sm text-slate-500 mb-1">Legal Description</p>
+                            <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-2">{deal.legalDescription}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ATTOM Construction & Features */}
+                  {(deal.constructionType || deal.exteriorWalls || deal.roofType || deal.foundationType || deal.basementType || deal.heating || deal.cooling || deal.waterType || deal.sewerType || deal.pool || deal.fireplaceCount || deal.parkingSpaces || deal.stories || deal.totalRooms) && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Construction & Features
+                      </h3>
+                      <div className="space-y-2.5">
+                        {deal.stories != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Stories</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.stories}</span>
+                          </div>
+                        )}
+                        {deal.totalRooms != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Total Rooms</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.totalRooms}</span>
+                          </div>
+                        )}
+                        {deal.constructionType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Construction</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.constructionType}</span>
+                          </div>
+                        )}
+                        {deal.exteriorWalls && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Exterior Walls</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.exteriorWalls}</span>
+                          </div>
+                        )}
+                        {deal.roofType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Roof</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.roofType}</span>
+                          </div>
+                        )}
+                        {deal.foundationType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Foundation</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.foundationType}</span>
+                          </div>
+                        )}
+                        {deal.basementType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Basement</span>
+                            <span className="text-sm font-medium text-slate-800">
+                              {deal.basementType}{deal.basementSqft ? ` (${deal.basementSqft.toLocaleString()} sqft)` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {deal.heating && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Heating</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.heating}</span>
+                          </div>
+                        )}
+                        {deal.cooling && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Cooling</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.cooling}</span>
+                          </div>
+                        )}
+                        {deal.waterType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Water</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.waterType}</span>
+                          </div>
+                        )}
+                        {deal.sewerType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Sewer</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.sewerType}</span>
+                          </div>
+                        )}
+                        {deal.pool && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Pool</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.pool}</span>
+                          </div>
+                        )}
+                        {deal.fireplaceCount != null && deal.fireplaceCount > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Fireplaces</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.fireplaceCount}</span>
+                          </div>
+                        )}
+                        {deal.parkingSpaces != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Parking Spaces</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.parkingSpaces}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ATTOM Tax Assessment */}
+                  {(deal.marketValue != null || deal.assessedValue != null || deal.taxYear != null) && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <Landmark className="w-3.5 h-3.5" />
+                        Tax Assessment {deal.taxYear ? `(${deal.taxYear})` : ''}
+                      </h3>
+                      <div className="space-y-2.5">
+                        {deal.marketValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Market Value (Total)</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.marketValue)}</span>
+                          </div>
+                        )}
+                        {deal.marketLandValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Land</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.marketLandValue)}</span>
+                          </div>
+                        )}
+                        {deal.marketImprovementValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Improvements</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.marketImprovementValue)}</span>
+                          </div>
+                        )}
+                        {deal.assessedValue != null && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-sm text-slate-500">Assessed Value (Total)</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.assessedValue)}</span>
+                          </div>
+                        )}
+                        {deal.assessedLandValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Land</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.assessedLandValue)}</span>
+                          </div>
+                        )}
+                        {deal.assessedImprovementValue != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 pl-3">Improvements</span>
+                            <span className="text-sm font-medium text-slate-700">{formatCurrency(deal.assessedImprovementValue)}</span>
+                          </div>
+                        )}
+                        {deal.propertyTaxAnnual != null && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-sm text-slate-500">Annual Tax</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.propertyTaxAnnual)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ATTOM Last Sale */}
+                  {(deal.lastSaleDate || deal.lastSalePrice != null) && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5" />
+                        Last Sale
+                      </h3>
+                      <div className="space-y-2.5">
+                        {deal.lastSaleDate && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Date</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lastSaleDate}</span>
+                          </div>
+                        )}
+                        {deal.lastSalePrice != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Price</span>
+                            <span className="text-sm font-bold text-slate-800">{formatCurrency(deal.lastSalePrice)}</span>
+                          </div>
+                        )}
+                        {deal.lastSaleBuyer && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Buyer</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lastSaleBuyer}</span>
+                          </div>
+                        )}
+                        {deal.lastSaleSeller && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">Seller</span>
+                            <span className="text-sm font-medium text-slate-800">{deal.lastSaleSeller}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Files / Documents Tab ────────────────── */}
               {activeTab === 'files' && (
                 <div className="space-y-6">
@@ -2271,6 +2466,30 @@ export default function DealDetailPage() {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SMS & Calls Tab ────────────────────── */}
+              {activeTab === 'comms' && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold text-slate-900">SMS & Calls</h3>
+                  {deal.contactId && contactPhone ? (
+                    <ContactSmsThread
+                      contactId={deal.contactId}
+                      contactPhone={contactPhone}
+                      contactName={deal.contactName || 'Contact'}
+                    />
+                  ) : (
+                    <div className="text-center py-12 text-slate-400">
+                      <Send className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm">
+                        {!deal.contactId
+                          ? 'No contact linked to this deal.'
+                          : 'Contact has no phone number.'}
+                      </p>
+                      <p className="text-xs mt-1">Add a phone number to the contact to send SMS messages.</p>
                     </div>
                   )}
                 </div>

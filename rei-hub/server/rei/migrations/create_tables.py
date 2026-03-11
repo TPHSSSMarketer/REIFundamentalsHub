@@ -348,6 +348,22 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "last_sale_seller", "VARCHAR"),
     # ── Raw ATTOM JSON dump ──
     ("crm_deals", "attom_raw_data", "TEXT"),
+    # ── ATTOM Owner / Mailing ──
+    ("crm_deals", "owner_name", "VARCHAR"),
+    ("crm_deals", "owner_name2", "VARCHAR"),
+    ("crm_deals", "owner_type", "VARCHAR"),
+    ("crm_deals", "mailing_address", "VARCHAR"),
+    ("crm_deals", "mailing_city", "VARCHAR"),
+    ("crm_deals", "mailing_state", "VARCHAR"),
+    ("crm_deals", "mailing_zip", "VARCHAR"),
+    # ── ATTOM Additional Property Fields ──
+    ("crm_deals", "census_tract", "VARCHAR"),
+    ("crm_deals", "municipality", "VARCHAR"),
+    ("crm_deals", "county_use_code", "VARCHAR"),
+    ("crm_deals", "tax_code_area", "VARCHAR"),
+    ("crm_deals", "lot_number", "VARCHAR"),
+    ("crm_deals", "parking_type", "VARCHAR"),
+    ("crm_deals", "geo_accuracy", "VARCHAR"),
 ]
 
 

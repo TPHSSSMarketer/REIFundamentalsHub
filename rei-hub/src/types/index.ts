@@ -219,6 +219,24 @@ export interface Deal {
   latitude?: number | null
   longitude?: number | null
 
+  // ── ATTOM Owner / Mailing ──
+  ownerName?: string
+  ownerName2?: string
+  ownerType?: string
+  mailingAddress?: string
+  mailingCity?: string
+  mailingState?: string
+  mailingZip?: string
+
+  // ── ATTOM Additional ──
+  censusTract?: string
+  municipality?: string
+  countyUseCode?: string
+  taxCodeArea?: string
+  lotNumber?: string
+  parkingType?: string
+  geoAccuracy?: string
+
   // ── ATTOM Property Data ──
   attomId?: string
   apn?: string

@@ -1442,6 +1442,41 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
                 if latest.get("seller_name"):
                     deal.last_sale_seller = str(latest["seller_name"])
 
+            # Owner / Mailing Address
+            oi = attom_data.get("owner_info", {})
+            if oi.get("owner_name"):
+                deal.owner_name = str(oi["owner_name"])
+            if oi.get("owner_name2"):
+                deal.owner_name2 = str(oi["owner_name2"])
+            if oi.get("owner_type"):
+                deal.owner_type = str(oi["owner_type"])
+            if oi.get("mailing_address"):
+                deal.mailing_address = str(oi["mailing_address"])
+            elif oi.get("mailing_line1"):
+                deal.mailing_address = str(oi["mailing_line1"])
+            if oi.get("mailing_city"):
+                deal.mailing_city = str(oi["mailing_city"])
+            if oi.get("mailing_state"):
+                deal.mailing_state = str(oi["mailing_state"])
+            if oi.get("mailing_zip"):
+                deal.mailing_zip = str(oi["mailing_zip"])
+
+            # Additional property fields
+            if pd.get("census_tract"):
+                deal.census_tract = str(pd["census_tract"])
+            if pd.get("municipality"):
+                deal.municipality = str(pd["municipality"])
+            if pd.get("county_use_code"):
+                deal.county_use_code = str(pd["county_use_code"])
+            if pd.get("tax_code_area"):
+                deal.tax_code_area = str(pd["tax_code_area"])
+            if pd.get("lot_number"):
+                deal.lot_number = str(pd["lot_number"])
+            if pd.get("parking_type"):
+                deal.parking_type = str(pd["parking_type"])
+            if pd.get("geo_accuracy"):
+                deal.geo_accuracy = str(pd["geo_accuracy"])
+
             # Store raw ATTOM JSON
             deal.attom_raw_data = _json.dumps(attom_data, default=str)
 

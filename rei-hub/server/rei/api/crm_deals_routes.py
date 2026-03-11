@@ -444,6 +444,22 @@ def _deal_to_dict(d: CrmDeal, liens: list[DealLien] | None = None) -> dict:
         "campaignId": d.campaign_id,
         "campaignType": d.campaign_type,
         "campaignName": d.campaign_name,
+        # ATTOM Owner / Mailing
+        "ownerName": getattr(d, "owner_name", None),
+        "ownerName2": getattr(d, "owner_name2", None),
+        "ownerType": getattr(d, "owner_type", None),
+        "mailingAddress": getattr(d, "mailing_address", None),
+        "mailingCity": getattr(d, "mailing_city", None),
+        "mailingState": getattr(d, "mailing_state", None),
+        "mailingZip": getattr(d, "mailing_zip", None),
+        # ATTOM Additional
+        "censusTract": getattr(d, "census_tract", None),
+        "municipality": getattr(d, "municipality", None),
+        "countyUseCode": getattr(d, "county_use_code", None),
+        "taxCodeArea": getattr(d, "tax_code_area", None),
+        "lotNumber": getattr(d, "lot_number", None),
+        "parkingType": getattr(d, "parking_type", None),
+        "geoAccuracy": getattr(d, "geo_accuracy", None),
         # ATTOM Property Data
         "attomId": getattr(d, "attom_id", None),
         "apn": getattr(d, "apn", None),
