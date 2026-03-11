@@ -282,8 +282,8 @@ async def lookup_property_data(
                 "gross_size": size.get("grosssize", ""),
 
                 # Lot
-                "lot_size_sqft": lot.get("lotsize1", ""),
-                "lot_size_acres": lot.get("lotsize2", ""),
+                "lot_size_acres": lot.get("lotsize1", ""),
+                "lot_size_sqft": lot.get("lotsize2", ""),
                 "lot_depth": lot.get("depth", ""),
                 "lot_frontage": lot.get("frontage", ""),
                 "lot_number": lot.get("lotnum", ""),

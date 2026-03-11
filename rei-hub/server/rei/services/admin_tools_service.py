@@ -48,6 +48,26 @@ def _ws_uid(user: User) -> int:
     return user.owner_id if user.owner_id is not None else user.id
 
 
+def _safe_int(val) -> int | None:
+    """Convert a value to int, returning None if not possible."""
+    if val is None or val == "":
+        return None
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_float(val) -> float | None:
+    """Convert a value to float, returning None if not possible."""
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
 # ══════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT — Tool Execution with Trust System
 # ══════════════════════════════════════════════════════════════════
@@ -1278,6 +1298,159 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
         source=deal_type or None,
         notes=notes or None,
     )
+
+    # ── Auto-populate ATTOM property data into the deal ──
+    attom_populated = False
+    try:
+        from rei.services.attom_property_service import lookup_property_data
+        import json as _json
+
+        # Resolve all zips if none provided
+        lookup_zip = zip_code
+        all_zips = [zip_code] if zip_code else []
+        if not zip_code and city and state:
+            all_zips = await _resolve_zips_from_city_state(city, state)
+            lookup_zip = all_zips[0] if all_zips else ""
+
+        attom_data = None
+        for candidate_zip in (all_zips or [lookup_zip]):
+            result = await lookup_property_data(
+                address=address, city=city, state=state,
+                zip_code=candidate_zip, db=db,
+            )
+            has_data = (
+                result.get("property_detail")
+                or result.get("tax_assessment")
+                or result.get("sale_history")
+            )
+            if has_data:
+                attom_data = result
+                break
+
+        if attom_data:
+            pd = attom_data.get("property_detail", {})
+            ta = attom_data.get("tax_assessment", {})
+            sh = attom_data.get("sale_history", [])
+
+            # Property details
+            if pd.get("property_type"):
+                deal.property_type = str(pd["property_type"])
+            if pd.get("bedrooms"):
+                deal.bedrooms = _safe_int(pd["bedrooms"])
+            if pd.get("bathrooms_full"):
+                deal.bathrooms = _safe_float(pd["bathrooms_full"])
+            if pd.get("bathrooms_half"):
+                deal.bathrooms_half = _safe_int(pd["bathrooms_half"])
+            if pd.get("square_footage"):
+                deal.square_footage = _safe_int(pd["square_footage"])
+            if pd.get("year_built"):
+                deal.year_built = _safe_int(pd["year_built"])
+            if pd.get("lot_size_sqft"):
+                deal.lot_size = str(pd["lot_size_sqft"])
+            if pd.get("lot_size_acres"):
+                deal.lot_size_acres = _safe_float(pd["lot_size_acres"])
+            if pd.get("stories"):
+                deal.stories = _safe_int(pd["stories"])
+            if pd.get("total_rooms"):
+                deal.total_rooms = _safe_int(pd["total_rooms"])
+            if pd.get("occupancy_status"):
+                deal.occupancy_status = str(pd["occupancy_status"])
+            if pd.get("garage_type"):
+                deal.garage = str(pd["garage_type"])
+
+            # ATTOM identifiers
+            if pd.get("attom_id"):
+                deal.attom_id = str(pd["attom_id"])
+            if pd.get("apn"):
+                deal.apn = str(pd["apn"])
+            if pd.get("fips"):
+                deal.fips = str(pd["fips"])
+            if pd.get("county"):
+                deal.county = str(pd["county"])
+            if pd.get("subdivision"):
+                deal.subdivision = str(pd["subdivision"])
+            if pd.get("school_district"):
+                deal.school_district = str(pd["school_district"])
+            if pd.get("legal_description"):
+                deal.legal_description = str(pd["legal_description"])
+            if pd.get("zoning"):
+                deal.zoning = str(pd["zoning"])
+            if pd.get("absentee_owner"):
+                deal.absentee_owner = str(pd["absentee_owner"])
+
+            # Construction details
+            if pd.get("construction_type"):
+                deal.construction_type = str(pd["construction_type"])
+            if pd.get("exterior_walls"):
+                deal.exterior_walls = str(pd["exterior_walls"])
+            if pd.get("roof_type"):
+                deal.roof_type = str(pd["roof_type"])
+            if pd.get("foundation_type"):
+                deal.foundation_type = str(pd["foundation_type"])
+            if pd.get("basement_type"):
+                deal.basement_type = str(pd["basement_type"])
+            if pd.get("basement_size"):
+                deal.basement_sqft = _safe_int(pd["basement_size"])
+            if pd.get("heating"):
+                deal.heating = str(pd["heating"])
+            if pd.get("cooling"):
+                deal.cooling = str(pd["cooling"])
+            if pd.get("water"):
+                deal.water_type = str(pd["water"])
+            if pd.get("sewer"):
+                deal.sewer_type = str(pd["sewer"])
+            if pd.get("pool_type") and pd["pool_type"] != "NO POOL":
+                deal.pool = str(pd["pool_type"])
+            if pd.get("fireplace"):
+                deal.fireplace_count = _safe_int(pd["fireplace"])
+            if pd.get("parking_spaces"):
+                deal.parking_spaces = _safe_int(pd["parking_spaces"])
+
+            # Geocoding
+            if pd.get("latitude"):
+                deal.latitude = _safe_float(pd["latitude"])
+            if pd.get("longitude"):
+                deal.longitude = _safe_float(pd["longitude"])
+
+            # Tax assessment
+            if ta.get("market_total_value"):
+                deal.market_value = _safe_float(ta["market_total_value"])
+            if ta.get("market_land_value"):
+                deal.market_land_value = _safe_float(ta["market_land_value"])
+            if ta.get("market_improvement_value"):
+                deal.market_improvement_value = _safe_float(ta["market_improvement_value"])
+            if ta.get("assessed_total_value"):
+                deal.assessed_value = _safe_float(ta["assessed_total_value"])
+            if ta.get("assessed_land_value"):
+                deal.assessed_land_value = _safe_float(ta["assessed_land_value"])
+            if ta.get("assessed_improvement_value"):
+                deal.assessed_improvement_value = _safe_float(ta["assessed_improvement_value"])
+            if ta.get("tax_amount"):
+                deal.property_tax_annual = _safe_float(ta["tax_amount"])
+            if ta.get("tax_year"):
+                deal.tax_year = _safe_int(ta["tax_year"])
+
+            # Most recent sale
+            if sh:
+                latest = sh[0]
+                if latest.get("sale_date"):
+                    deal.last_sale_date = str(latest["sale_date"])
+                if latest.get("sale_price"):
+                    deal.last_sale_price = _safe_float(latest["sale_price"])
+                if latest.get("buyer_name"):
+                    deal.last_sale_buyer = str(latest["buyer_name"])
+                if latest.get("seller_name"):
+                    deal.last_sale_seller = str(latest["seller_name"])
+
+            # Store raw ATTOM JSON
+            deal.attom_raw_data = _json.dumps(attom_data, default=str)
+
+            attom_populated = True
+            logger.info("Auto-populated ATTOM data into deal for %s", address)
+
+    except Exception as e:
+        logger.warning("ATTOM auto-population failed (non-fatal): %s", e)
+
     db.add(deal)
     await db.commit()
 
@@ -1292,6 +1465,7 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
         "stage": stage,
         "asking_price": asking_price,
         "contact_name": contact_name,
+        "attom_populated": attom_populated,
         "message": f"Deal created: {title}" + (f", {state} {zip_code}" if state else ""),
     }
 
