@@ -817,6 +817,52 @@ async def process_message(
                 user.id, len(tool_results),
             )
 
+    # ── Append approval prompt for pending actions ──
+    # When tools are marked pending (MEDIUM/HIGH risk), the AI might say
+    # "I'll create that deal" without realizing it needs explicit approval.
+    # We append a clear prompt so the user knows to say "yes" or "no".
+    if pending_actions and not tool_results:
+        # Strip any [TOOL_CALL: ...] markers the AI left in the response
+        import re as _re
+        clean_text = _re.sub(
+            r'\[TOOL_CALL:\s*\w+\s*\([^)]*\)\s*\]', '', response_text
+        ).strip()
+
+        # Build a summary of what's pending
+        action_summaries = []
+        for pa in pending_actions:
+            tool = pa["tool"]
+            p = pa["params"]
+            if tool == "create_deal":
+                addr = p.get("address", "Unknown")
+                city = p.get("city", "")
+                state = p.get("state", "")
+                dtype = p.get("deal_type", "deal")
+                action_summaries.append(
+                    f"Create a {dtype} deal: {addr}, {city}, {state}".rstrip(", ")
+                )
+            elif tool == "create_contact":
+                action_summaries.append(f"Create contact: {p.get('name', 'Unknown')}")
+            elif tool == "send_sms":
+                action_summaries.append(f"Send SMS to {p.get('phone', 'Unknown')}")
+            else:
+                action_summaries.append(f"{tool.replace('_', ' ').title()}")
+
+        if len(action_summaries) == 1:
+            approval_prompt = (
+                f"\n\nI need your approval to proceed:\n"
+                f"  → {action_summaries[0]}\n\n"
+                f"Say <b>yes</b> to confirm or <b>no</b> to cancel."
+            )
+        else:
+            items = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(action_summaries))
+            approval_prompt = (
+                f"\n\nI need your approval for these actions:\n{items}\n\n"
+                f"Say <b>yes</b> to confirm all or <b>no</b> to cancel."
+            )
+
+        response_text = clean_text + approval_prompt
+
     # ── Save assistant response ──
     assistant_msg = AdminMessage(
         session_id=session_id,
