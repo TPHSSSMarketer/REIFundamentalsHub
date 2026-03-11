@@ -1001,18 +1001,17 @@ def _build_action_name(tool_name: str, params: dict) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
-async def _resolve_zip_from_city_state(city: str, state: str) -> str:
-    """Resolve a city + state to a zip code. Returns '' if unknown.
+async def _resolve_zips_from_city_state(city: str, state: str) -> list[str]:
+    """Resolve a city + state to ALL zip codes. Returns [] if unknown.
 
     Uses the free zippopotam.us reverse lookup API:
     GET https://api.zippopotam.us/us/{state}/{city}
-    Returns the first (primary) zip code for that city.
+    Returns all zip codes for that city (cities often have multiple).
     """
     if not city or not state:
-        return ""
+        return []
     try:
         import httpx
-        # zippopotam.us expects state abbreviation and city name in the URL
         city_slug = city.strip().replace(" ", "%20")
         state_slug = state.strip().upper()
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1022,11 +1021,11 @@ async def _resolve_zip_from_city_state(city: str, state: str) -> str:
             if resp.status_code == 200:
                 data = resp.json()
                 places = data.get("places", [])
-                if places:
-                    return places[0].get("post code", "")
+                zips = [p.get("post code", "") for p in places if p.get("post code")]
+                return zips
     except Exception as exc:
         logger.debug("Zip-from-city-state lookup failed for %s, %s: %s", city, state, exc)
-    return ""
+    return []
 
 
 async def _resolve_zip(zip_code: str) -> tuple[str, str]:
@@ -1135,11 +1134,30 @@ async def _lookup_property(params: dict, user: User, db: AsyncSession, settings:
             )
         }
 
-    # Auto-resolve zip code from city/state if missing — needed for ATTOM
-    # address fallbacks that use zip-based wildcard matching.
+    # Auto-resolve zip codes from city/state if missing.
+    # Cities often have multiple zips — try each one until ATTOM returns data.
     if not zip_code and city and state:
-        zip_code = await _resolve_zip_from_city_state(city, state)
-        logger.info("Resolved zip code from %s, %s → %s", city, state, zip_code or "(none)")
+        all_zips = await _resolve_zips_from_city_state(city, state)
+        logger.info("Resolved zip codes from %s, %s → %s", city, state, all_zips or "(none)")
+
+        if all_zips:
+            # Try each zip code until we get a non-empty result
+            for candidate_zip in all_zips:
+                logger.info("Trying ATTOM lookup with zip %s", candidate_zip)
+                result = await lookup_property_data(
+                    address=address, city=city, state=state,
+                    zip_code=candidate_zip, db=db,
+                )
+                # Check if we got actual data back (not just empty dicts/lists)
+                has_data = (
+                    result.get("property_detail")
+                    or result.get("tax_assessment")
+                    or result.get("sale_history")
+                )
+                if has_data:
+                    return result
+            # None of the zips returned data — return the last (empty) result
+            return result
 
     result = await lookup_property_data(
         address=address, city=city, state=state,

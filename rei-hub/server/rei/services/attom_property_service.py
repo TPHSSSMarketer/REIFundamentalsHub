@@ -164,21 +164,22 @@ async def lookup_property_data(
             address_params = {"address1": swapped, "address2": address2}
             detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
 
-    # Fallback 3: try street number + zip only (less strict matching)
+    # Fallback 3: try with just zip code (no city name) in address2
+    # Sometimes ATTOM is picky about the city name format
     if not detail_data or not detail_data.get("property"):
-        # Extract the street number from the start of the address
-        street_num_match = re.match(r"^(\d+)\s+", address)
-        if street_num_match and zip_code:
-            street_num = street_num_match.group(1)
-            # Try ATTOM's address search endpoint which is more forgiving
-            search_params = {
-                "postalcode": zip_code,
-                "address1": f"{street_num} %",  # Wildcard partial match
-            }
-            logger.info("ATTOM: trying partial match with street number %s + zip %s", street_num, zip_code)
-            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", search_params)
+        if zip_code:
+            zip_only_params = {"address1": normalized, "address2": zip_code}
+            logger.info("ATTOM: trying normalized address with zip-only address2: %s, %s", normalized, zip_code)
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", zip_only_params)
 
-    # Fallback 4: try without abbreviating anything, just clean whitespace
+    # Fallback 4: try original address with just zip code
+    if not detail_data or not detail_data.get("property"):
+        if zip_code and normalized != address:
+            zip_only_params = {"address1": address, "address2": zip_code}
+            logger.info("ATTOM: trying original address with zip-only: %s, %s", address, zip_code)
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", zip_only_params)
+
+    # Fallback 5: try without abbreviating anything, just clean whitespace
     if not detail_data or not detail_data.get("property"):
         clean = " ".join(address.split())
         if clean != address and clean != normalized:
@@ -240,11 +241,10 @@ async def lookup_property_data(
                         "seller_name": sale.get("sellerName", ""),
                     })
 
-    # ── 4. Lien Records ──
-    lien_data = await _attom_get(api_key, "/propertyapi/v1.0.0/assessment/detail", {
-        **address_params,
-        "includeliens": "true",
-    })
+    # ── 4. Lien / Mortgage Records ──
+    # Mortgage data is included in the assessment response — reuse it
+    # instead of making a separate call with the invalid "includeliens" param.
+    lien_data = assess_data
     if lien_data:
         properties = lien_data.get("property", [])
         if properties:
