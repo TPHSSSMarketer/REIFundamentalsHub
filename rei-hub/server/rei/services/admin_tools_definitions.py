@@ -631,28 +631,85 @@ ALL_TOOLS = (
 # Quick lookup by name
 TOOLS_BY_NAME: dict[str, dict] = {tool["name"]: tool for tool in ALL_TOOLS}
 
-# Aliases for common AI name inversions (e.g. "property_lookup" → "lookup_property").
-# The AI sometimes reverses verb_noun to noun_verb. This map catches those.
+# Aliases for common AI name variations.
+# The AI inverts names, adds prefixes, or uses synonyms.
 _TOOL_ALIASES: dict[str, str] = {
+    # ── lookup_property aliases ──
     "property_lookup": "lookup_property",
+    "attom_data_lookup": "lookup_property",
+    "attom_lookup": "lookup_property",
+    "attom_property_lookup": "lookup_property",
+    "property_data_lookup": "lookup_property",
+    "property_data": "lookup_property",
+    "get_property_data": "lookup_property",
+    "get_property": "lookup_property",
+    "property_search": "lookup_property",
+    "search_property": "lookup_property",
+    "fetch_property": "lookup_property",
+    "pull_property_data": "lookup_property",
+    "pull_property": "lookup_property",
+    "run_property_lookup": "lookup_property",
+    # ── create_deal aliases ──
     "deal_create": "create_deal",
+    "add_deal": "create_deal",
+    "new_deal": "create_deal",
+    # ── Other common inversions ──
     "contact_create": "create_contact",
+    "add_contact": "create_contact",
     "contact_get": "get_contacts",
     "deal_search": "search_deals",
     "deal_update": "update_deal",
     "sms_send": "send_sms",
     "market_data": "get_market_data",
+    "market_lookup": "get_market_data",
     "pipeline_summary": "get_pipeline_summary",
+    "get_pipeline": "get_pipeline_summary",
+    "content_generate": "generate_content",
+    "content_list": "list_content",
 }
 
 
 def resolve_tool_name(name: str) -> str:
-    """Resolve a tool name, checking aliases if the exact name isn't found."""
+    """Resolve a tool name, checking aliases and fuzzy matching.
+
+    Strategy:
+    1. Exact match in TOOLS_BY_NAME
+    2. Static alias lookup
+    3. Fuzzy: find tool whose name words overlap the most with the given name
+    """
     if name in TOOLS_BY_NAME:
         return name
+
+    # Static alias
     canonical = _TOOL_ALIASES.get(name)
     if canonical and canonical in TOOLS_BY_NAME:
+        import logging
+        logging.getLogger(__name__).info("Tool alias resolved: %s → %s", name, canonical)
         return canonical
+
+    # Fuzzy word-overlap: split both names into word sets and find best match.
+    # Requires at least 1 overlap AND excludes generic verbs (get/set/run/do)
+    # to avoid false matches like "get_status" → "get_contacts".
+    import logging
+    _log = logging.getLogger(__name__)
+    _GENERIC_VERBS = {"get", "set", "run", "do", "make", "list", "check", "the", "a"}
+    input_words = set(name.lower().split("_")) - _GENERIC_VERBS
+    if not input_words:
+        return name
+
+    best_match = None
+    best_score = 0
+    for tool_name in TOOLS_BY_NAME:
+        tool_words = set(tool_name.lower().split("_")) - _GENERIC_VERBS
+        overlap = len(input_words & tool_words)
+        if overlap > best_score:
+            best_score = overlap
+            best_match = tool_name
+
+    if best_match and best_score >= 1:
+        _log.info("Fuzzy tool name resolved: %s → %s (overlap=%d)", name, best_match, best_score)
+        return best_match
+
     return name  # Return original (will fail lookup later with a warning)
 
 # Group by domain

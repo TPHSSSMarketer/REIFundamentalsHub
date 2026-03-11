@@ -47,3 +47,9 @@
 **Mistake:** Admin tools used `user.id` when creating/querying CRM data, but the Pipeline frontend used `workspace_user_id(user)` which accounts for team members sharing their owner's data. Deals created by the assistant were invisible in the Pipeline for team member accounts.
 
 **Rule:** All CRM data operations (contacts, deals, portfolio, calls, SMS, events, tasks) must use `workspace_user_id(user)` (or equivalent `_ws_uid(user)` helper) — not raw `user.id`. Only use `user.id` for audit logs, billing, and admin-specific records that track the actual acting user.
+
+## 2026-03-11: AI invents tool names — always resolve aliases before failing
+
+**Mistake:** The AI was told about `lookup_property` but called it `property_lookup`, `attom_data_lookup`, and `attom_lookup` in different conversations. The orchestrator silently skipped the unknown tool name, and the user saw "Offline" with no error message.
+
+**Rule:** AI models frequently invert or paraphrase tool names. The tool resolution system must: (1) maintain a comprehensive static alias map covering common variations (`property_lookup` → `lookup_property`, `attom_data_lookup` → `lookup_property`, etc.), (2) include a fuzzy word-overlap fallback for novel variations, and (3) the system prompt must explicitly warn the AI to use EXACT tool names from the available tools list. Never silently fail when a tool name doesn't match — always try aliases and fuzzy matching first.
