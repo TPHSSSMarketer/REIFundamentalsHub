@@ -184,6 +184,52 @@ class CrmDeal(Base):
     repairs_needed: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     special_features: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # ── ATTOM Property Data (auto-populated from property lookup) ──
+    attom_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    apn: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Assessor Parcel Number
+    fips: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # County FIPS code
+    county: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    subdivision: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    school_district: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    legal_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    zoning: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lot_size_acres: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    stories: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bathrooms_half: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    total_rooms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    basement_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    basement_sqft: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    construction_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    exterior_walls: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    roof_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    foundation_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    heating: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    cooling: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    water_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sewer_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pool: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fireplace_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    parking_spaces: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    absentee_owner: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── ATTOM Tax / Valuation (auto-populated) ──
+    market_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    market_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    market_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    assessed_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    assessed_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    assessed_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tax_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # ── ATTOM Sale History (most recent, auto-populated) ──
+    last_sale_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_sale_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_sale_buyer: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_sale_seller: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # ── Raw ATTOM data (complete JSON dump for anything not mapped above) ──
+    attom_raw_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # ── Seller Motivation ──
     reason_for_selling: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     motivation_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)

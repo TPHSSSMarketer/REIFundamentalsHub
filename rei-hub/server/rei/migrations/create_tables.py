@@ -306,6 +306,48 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "campaign_name", "VARCHAR"),
     # ── User: Preferred TTS voice ──
     ("users", "preferred_voice", "VARCHAR DEFAULT 'nova'"),
+    # ── ATTOM Property Data (auto-populated from property lookup) ──
+    ("crm_deals", "attom_id", "VARCHAR"),
+    ("crm_deals", "apn", "VARCHAR"),
+    ("crm_deals", "fips", "VARCHAR"),
+    ("crm_deals", "county", "VARCHAR"),
+    ("crm_deals", "subdivision", "VARCHAR"),
+    ("crm_deals", "school_district", "VARCHAR"),
+    ("crm_deals", "legal_description", "TEXT"),
+    ("crm_deals", "zoning", "VARCHAR"),
+    ("crm_deals", "lot_size_acres", "REAL"),
+    ("crm_deals", "stories", "INTEGER"),
+    ("crm_deals", "bathrooms_half", "INTEGER"),
+    ("crm_deals", "total_rooms", "INTEGER"),
+    ("crm_deals", "basement_type", "VARCHAR"),
+    ("crm_deals", "basement_sqft", "INTEGER"),
+    ("crm_deals", "construction_type", "VARCHAR"),
+    ("crm_deals", "exterior_walls", "VARCHAR"),
+    ("crm_deals", "roof_type", "VARCHAR"),
+    ("crm_deals", "foundation_type", "VARCHAR"),
+    ("crm_deals", "heating", "VARCHAR"),
+    ("crm_deals", "cooling", "VARCHAR"),
+    ("crm_deals", "water_type", "VARCHAR"),
+    ("crm_deals", "sewer_type", "VARCHAR"),
+    ("crm_deals", "pool", "VARCHAR"),
+    ("crm_deals", "fireplace_count", "INTEGER"),
+    ("crm_deals", "parking_spaces", "INTEGER"),
+    ("crm_deals", "absentee_owner", "VARCHAR"),
+    # ── ATTOM Tax / Valuation ──
+    ("crm_deals", "market_value", "REAL"),
+    ("crm_deals", "market_land_value", "REAL"),
+    ("crm_deals", "market_improvement_value", "REAL"),
+    ("crm_deals", "assessed_value", "REAL"),
+    ("crm_deals", "assessed_land_value", "REAL"),
+    ("crm_deals", "assessed_improvement_value", "REAL"),
+    ("crm_deals", "tax_year", "INTEGER"),
+    # ── ATTOM Sale History (most recent) ──
+    ("crm_deals", "last_sale_date", "VARCHAR"),
+    ("crm_deals", "last_sale_price", "REAL"),
+    ("crm_deals", "last_sale_buyer", "VARCHAR"),
+    ("crm_deals", "last_sale_seller", "VARCHAR"),
+    # ── Raw ATTOM JSON dump ──
+    ("crm_deals", "attom_raw_data", "TEXT"),
 ]
 
 

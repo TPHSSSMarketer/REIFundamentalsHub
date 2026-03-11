@@ -187,6 +187,7 @@ async def lookup_property_data(
             address_params = {"address1": clean, "address2": address2}
             detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
 
+    # ── 1. Property Detail — capture ALL data ATTOM returns ──
     if detail_data:
         properties = detail_data.get("property", [])
         if properties:
@@ -194,19 +195,98 @@ async def lookup_property_data(
             building = prop.get("building", {})
             lot = prop.get("lot", {})
             summary = prop.get("summary", {})
+            area = prop.get("area", {})
+            address_info = prop.get("address", {})
+            location = prop.get("location", {})
+            identifier = prop.get("identifier", {})
+            utilities = prop.get("utilities", {})
+            rooms = building.get("rooms", {})
+            size = building.get("size", {})
+
             result["property_detail"] = {
+                # Core identifiers
+                "attom_id": identifier.get("attomId", ""),
+                "fips": identifier.get("fips", ""),
+                "apn": identifier.get("apn", ""),
+
+                # Address (ATTOM's canonical form)
+                "address_one_line": address_info.get("oneLine", ""),
+                "address_line1": address_info.get("line1", ""),
+                "address_line2": address_info.get("line2", ""),
+                "city": address_info.get("locality", ""),
+                "state": address_info.get("countrySubd", ""),
+                "zip": address_info.get("postal1", ""),
+                "zip4": address_info.get("postal2", ""),
+                "county": address_info.get("countrysecsubd", "") or area.get("countrysecsubd", ""),
+
+                # Location / Geocoding
+                "latitude": location.get("latitude", ""),
+                "longitude": location.get("longitude", ""),
+                "geo_accuracy": location.get("accuracy", ""),
+
+                # Property classification
                 "property_type": summary.get("propclass", ""),
+                "property_subtype": summary.get("propsubtype", ""),
+                "prop_type_detail": summary.get("proptype", ""),
+                "absentee_owner": summary.get("absenteeInd", ""),
+                "occupancy_status": summary.get("occupancystatus", ""),
                 "year_built": building.get("yearbuilt", ""),
-                "bedrooms": building.get("rooms", {}).get("beds", ""),
-                "bathrooms": building.get("rooms", {}).get("bathsfull", ""),
-                "square_footage": building.get("size", {}).get("livingsize", ""),
+
+                # Building details
+                "bedrooms": rooms.get("beds", ""),
+                "bathrooms_full": rooms.get("bathsfull", ""),
+                "bathrooms_half": rooms.get("bathshalf", ""),
+                "bathrooms_total": rooms.get("bathstotal", ""),
+                "total_rooms": rooms.get("roomsTotal", ""),
+                "stories": building.get("summary", {}).get("stories", "")
+                    or building.get("stories", ""),
+
+                # Size
+                "square_footage": size.get("livingsize", "") or size.get("universalsize", ""),
+                "building_size": size.get("bldgsize", ""),
+                "gross_size": size.get("grosssize", ""),
+
+                # Lot
                 "lot_size_sqft": lot.get("lotsize1", ""),
                 "lot_size_acres": lot.get("lotsize2", ""),
+                "lot_depth": lot.get("depth", ""),
+                "lot_frontage": lot.get("frontage", ""),
+                "lot_number": lot.get("lotnum", ""),
+                "pool_type": lot.get("pooltype", ""),
                 "zoning": lot.get("zoningtype", ""),
-                "legal_description": prop.get("area", {}).get("locallegaldescrip", ""),
+
+                # Construction & features
+                "construction_type": building.get("construction", {}).get("constructiontype", ""),
+                "exterior_walls": building.get("construction", {}).get("wallType", ""),
+                "roof_type": building.get("construction", {}).get("roofcover", ""),
+                "foundation_type": building.get("construction", {}).get("foundationtype", ""),
+                "basement_size": building.get("interior", {}).get("bsmtsize", ""),
+                "basement_type": building.get("interior", {}).get("bsmttype", ""),
+                "fireplace": building.get("interior", {}).get("fplccount", ""),
+                "garage_type": building.get("parking", {}).get("garagetype", ""),
+                "parking_spaces": building.get("parking", {}).get("prkgSpaces", ""),
+                "parking_type": building.get("parking", {}).get("prkgType", ""),
+                "heating": building.get("summary", {}).get("heatingtype", "")
+                    or utilities.get("heatingtype", ""),
+                "cooling": building.get("summary", {}).get("coolingtype", "")
+                    or utilities.get("coolingtype", ""),
+                "water": utilities.get("watertype", ""),
+                "sewer": utilities.get("sewertype", ""),
+
+                # Area / Legal
+                "legal_description": area.get("locallegaldescrip", ""),
+                "subdivision": area.get("subdname", ""),
+                "school_district": area.get("schoolDistrictName", ""),
+                "census_tract": area.get("subdtractnum", ""),
+                "tax_code_area": area.get("taxcodearea", ""),
+                "county_use_code": area.get("countyuse1", ""),
+                "municipality": area.get("munname", ""),
             }
 
-    # ── 2. Tax Assessment ──
+            # Store the raw ATTOM response for anything we didn't explicitly map
+            result["raw_property_detail"] = prop
+
+    # ── 2. Tax Assessment — capture ALL data ──
     assess_data = await _attom_get(api_key, "/propertyapi/v1.0.0/assessment/detail", address_params)
     if assess_data:
         properties = assess_data.get("property", [])
@@ -215,17 +295,59 @@ async def lookup_property_data(
             assessment = prop.get("assessment", {})
             market = assessment.get("market", {})
             assessed = assessment.get("assessed", {})
+            appraised = assessment.get("appraised", {})
+            calculated = assessment.get("calculations", {})
             tax = assessment.get("tax", {})
+            mortgage = assessment.get("mortgage", {})
+
             result["tax_assessment"] = {
+                # Market values
                 "market_total_value": market.get("mktttlvalue", ""),
                 "market_land_value": market.get("mktlandvalue", ""),
                 "market_improvement_value": market.get("mktimprvalue", ""),
-                "assessed_total_value": assessed.get("asdttlvalue", ""),
+
+                # Assessed values
+                "assessed_total_value": assessed.get("assdttlvalue", ""),
+                "assessed_land_value": assessed.get("assdlandvalue", ""),
+                "assessed_improvement_value": assessed.get("assdimprvalue", ""),
+
+                # Appraised values
+                "appraised_total_value": appraised.get("apprttlvalue", ""),
+                "appraised_land_value": appraised.get("apprlandvalue", ""),
+                "appraised_improvement_value": appraised.get("apprimprvalue", ""),
+
+                # Calculated values
+                "calc_total_value": calculated.get("calcttlvalue", ""),
+                "calc_land_value": calculated.get("calclandvalue", ""),
+                "calc_improvement_value": calculated.get("calcimprvalue", ""),
+
+                # Tax
                 "tax_amount": tax.get("taxamt", ""),
                 "tax_year": tax.get("taxyear", ""),
+                "tax_per_sqft": tax.get("taxpersizeunit", ""),
             }
 
-    # ── 3. Sale History (comps) ──
+            # ── Lien / Mortgage Records (from assessment response) ──
+            if mortgage:
+                for key in ["firstConcurrent", "secondConcurrent", "thirdConcurrent"]:
+                    lien = mortgage.get(key, {})
+                    if lien and (lien.get("amount") or lien.get("companyName")):
+                        result["lien_records"].append({
+                            "type": key,
+                            "amount": lien.get("amount", ""),
+                            "lender": lien.get("companyName", ""),
+                            "date": lien.get("date", ""),
+                            "interest_rate": lien.get("interestRate", ""),
+                            "interest_rate_type": lien.get("interestRateType", ""),
+                            "loan_type": lien.get("loanType", ""),
+                            "term": lien.get("term", ""),
+                            "due_date": lien.get("dueDate", ""),
+                        })
+
+            # Store raw for anything we missed
+            result["raw_assessment"] = prop
+
+    # ── 3. Sale History — capture ALL data ──
     sale_data = await _attom_get(api_key, "/propertyapi/v1.0.0/saleshistory/detail", address_params)
     if sale_data:
         properties = sale_data.get("property", [])
@@ -239,28 +361,12 @@ async def lookup_property_data(
                         "sale_type": sale.get("saleTransType", ""),
                         "buyer_name": sale.get("buyerName", ""),
                         "seller_name": sale.get("sellerName", ""),
+                        "recording_date": sale.get("saleRecDate", ""),
+                        "document_number": sale.get("saleDocNum", ""),
+                        "disclosure_type": sale.get("saleDisclosureType", ""),
+                        "deed_type": sale.get("deedType", ""),
+                        "price_per_sqft": prop.get("calculations", {}).get("pricepersizeunit", ""),
+                        "price_per_bed": prop.get("calculations", {}).get("priceperbed", ""),
                     })
-
-    # ── 4. Lien / Mortgage Records ──
-    # Mortgage data is included in the assessment response — reuse it
-    # instead of making a separate call with the invalid "includeliens" param.
-    lien_data = assess_data
-    if lien_data:
-        properties = lien_data.get("property", [])
-        if properties:
-            prop = properties[0] if isinstance(properties, list) else properties
-            liens = prop.get("assessment", {}).get("mortgage", {})
-            if liens:
-                for key in ["firstConcurrent", "secondConcurrent"]:
-                    lien = liens.get(key, {})
-                    if lien and lien.get("amount"):
-                        result["lien_records"].append({
-                            "type": key,
-                            "amount": lien.get("amount", ""),
-                            "lender": lien.get("companyName", ""),
-                            "date": lien.get("date", ""),
-                            "interest_rate": lien.get("interestRate", ""),
-                            "loan_type": lien.get("loanType", ""),
-                        })
 
     return result
