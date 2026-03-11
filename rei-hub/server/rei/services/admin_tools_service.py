@@ -991,48 +991,67 @@ def _build_action_name(tool_name: str, params: dict) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
-ZIP_TO_LOCATION: dict[str, tuple[str, str]] = {
-    # Common NY zip codes for real estate investing
-    "11743": ("Huntington", "NY"), "11731": ("East Northport", "NY"),
-    "11768": ("Northport", "NY"), "11746": ("Huntington Station", "NY"),
-    "11724": ("Cold Spring Harbor", "NY"), "11740": ("Greenlawn", "NY"),
-    "11747": ("Melville", "NY"), "11721": ("Centerport", "NY"),
-    "11729": ("Deer Park", "NY"), "11757": ("Lindenhurst", "NY"),
-    "11702": ("Babylon", "NY"), "11704": ("West Babylon", "NY"),
-    "11706": ("Bay Shore", "NY"), "11722": ("Central Islip", "NY"),
-    "11741": ("Holbrook", "NY"), "11749": ("Islandia", "NY"),
-    "11752": ("Islip Terrace", "NY"), "11751": ("Islip", "NY"),
-    "11769": ("Oakdale", "NY"), "11720": ("Centereach", "NY"),
-    "11738": ("Farmingville", "NY"), "11763": ("Medford", "NY"),
-    "11772": ("Patchogue", "NY"), "11779": ("Ronkonkoma", "NY"),
-    "11787": ("Smithtown", "NY"), "11788": ("Hauppauge", "NY"),
-    "11716": ("Bohemia", "NY"), "11705": ("Bayport", "NY"),
-    "11717": ("Brentwood", "NY"), "11756": ("Levittown", "NY"),
-    "11801": ("Hicksville", "NY"), "11803": ("Plainview", "NY"),
-    "11783": ("Seaford", "NY"), "11758": ("Massapequa", "NY"),
-    "11710": ("Bellmore", "NY"), "11793": ("Wantagh", "NY"),
-    "11762": ("Massapequa Park", "NY"), "11701": ("Amityville", "NY"),
-    "11714": ("Bethpage", "NY"), "11735": ("Farmingdale", "NY"),
-    "11590": ("Westbury", "NY"), "11530": ("Garden City", "NY"),
-    "11550": ("Hempstead", "NY"), "11553": ("Uniondale", "NY"),
-    "11570": ("Rockville Centre", "NY"), "11580": ("Valley Stream", "NY"),
-}
-
-
 async def _resolve_zip(zip_code: str) -> tuple[str, str]:
     """Resolve a zip code to (city, state). Returns ('', '') if unknown.
 
-    Uses a built-in lookup table for common zips, then falls back to
-    a free API for any zip not in the table.
+    Resolution order:
+    1. MarketZipCode table (local DB cache — fast, no API call)
+    2. HUD API via fetch_zip_crosswalk (authoritative, caches result)
+    3. Free zippopotam.us API (fallback if no HUD key configured)
     """
     if not zip_code:
         return ("", "")
 
-    # Check built-in table first (fast, no API call)
-    if zip_code in ZIP_TO_LOCATION:
-        return ZIP_TO_LOCATION[zip_code]
+    # 1. Check MarketZipCode table (local cache from HUD or CSV uploads)
+    try:
+        from rei.database import async_session_factory
+        from sqlalchemy import select
+        from rei.models.crm import MarketZipCode
 
-    # Fallback: free zippopotam.us API
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(MarketZipCode).where(MarketZipCode.zip_code == zip_code)
+            )
+            cached = result.scalar_one_or_none()
+            if cached:
+                # market_name is like "Huntington, NY" or "San Antonio-New Braunfels, TX"
+                # Extract city and state from it
+                state = cached.state or ""
+                city = cached.market_name.split(",")[0].strip() if cached.market_name else ""
+                if city and state:
+                    return (city, state)
+    except Exception:
+        pass
+
+    # 2. HUD API (authoritative US gov data, auto-caches to MarketZipCode)
+    try:
+        from rei.services.hud_api import fetch_zip_crosswalk, get_hud_api_key
+
+        api_key = await get_hud_api_key()
+        if api_key:
+            data = await fetch_zip_crosswalk(zip_code, api_key)
+            if data:
+                city = data.get("city", "")
+                state = data.get("state", "")
+                if city and state:
+                    # Cache for future lookups
+                    try:
+                        from rei.models.crm import MarketZipCode as MZC
+                        async with async_session_factory() as db:
+                            entry = MZC(
+                                zip_code=zip_code,
+                                market_name=data.get("cbsa") or f"{city}, {state}",
+                                state=state,
+                            )
+                            db.add(entry)
+                            await db.commit()
+                    except Exception:
+                        pass  # Unique constraint — already cached
+                    return (city, state)
+    except Exception:
+        pass
+
+    # 3. Fallback: free zippopotam.us API (no key required)
     try:
         import httpx
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1152,6 +1171,16 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
     city = params.get("city", "").strip()
     state = params.get("state", "").strip()
     zip_code = params.get("zip", "").strip()
+
+    # Require at least zip OR (city + state) for deal creation
+    has_location = bool(zip_code) or (bool(city) and bool(state))
+    if not has_location:
+        return {
+            "error": (
+                "A zip code OR city and state are required to create a deal. "
+                "Please provide at least one of: zip code, or both city and state."
+            )
+        }
 
     # Auto-resolve city/state from zip if missing
     if (not city or not state) and zip_code:

@@ -418,8 +418,9 @@ DEAL_TOOLS = [
         "name": "create_deal",
         "description": (
             "Create a new deal in the pipeline. Use this when the user wants to add a new "
-            "property/deal. At minimum you need an address. The system will auto-resolve "
-            "city/state from zip code if not provided. Set stage to 'lead' by default. "
+            "property/deal. Requires a street address PLUS at least a zip code OR both city "
+            "and state. The system will auto-resolve city/state from zip using the zip code "
+            "database. Set stage to 'lead' by default. "
             "The user may give short descriptions like '214 Little Plains Road, 11743' — "
             "parse the address and zip from that."
         ),
@@ -428,10 +429,10 @@ DEAL_TOOLS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "address": {"type": "string", "description": "Street address"},
-                "city": {"type": "string", "description": "City (optional if zip provided)"},
-                "state": {"type": "string", "description": "2-letter state code (optional if zip provided)"},
-                "zip": {"type": "string", "description": "ZIP code"},
+                "address": {"type": "string", "description": "Street address (required)"},
+                "city": {"type": "string", "description": "City (required if no zip provided)"},
+                "state": {"type": "string", "description": "2-letter state code (required if no zip provided)"},
+                "zip": {"type": "string", "description": "ZIP code (required if no city+state provided)"},
                 "stage": {"type": "string", "description": "Pipeline stage: lead, contacted, analysis, offer_made, under_contract, closed, passed", "default": "lead"},
                 "deal_type": {"type": "string", "description": "Deal type: wholesale, flip, rental, subject_to, owner_finance, other"},
                 "contact_name": {"type": "string", "description": "Seller/contact name"},
