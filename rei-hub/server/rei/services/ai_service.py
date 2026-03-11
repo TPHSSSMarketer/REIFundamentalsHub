@@ -254,6 +254,10 @@ async def _call_anthropic(
         body["system"] = system_text
     if tools:
         body["tools"] = tools
+        logger.info(
+            "Anthropic call with %d native tools (model=%s)",
+            len(tools), model,
+        )
 
     headers = {
         "x-api-key": api_key,
@@ -261,8 +265,8 @@ async def _call_anthropic(
         "content-type": "application/json",
     }
 
-    # Vision requests can take longer — increase timeout
-    timeout = 120.0 if images else 60.0
+    # Vision & tool-use requests can take longer — increase timeout
+    timeout = 120.0 if (images or tools) else 60.0
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
@@ -275,6 +279,7 @@ async def _call_anthropic(
 
     content = ""
     tool_calls_raw: list[dict] = []
+    stop_reason = data.get("stop_reason", "")
     for block in data.get("content", []):
         if block.get("type") == "text":
             content += block.get("text", "")
@@ -284,6 +289,22 @@ async def _call_anthropic(
                 "function_name": block.get("name", ""),
                 "arguments": block.get("input", {}),
             })
+
+    # Log tool call results for debugging
+    if tools:
+        logger.info(
+            "Anthropic response: stop_reason=%s, text_len=%d, tool_calls=%d, "
+            "content_blocks=%d",
+            stop_reason, len(content), len(tool_calls_raw),
+            len(data.get("content", [])),
+        )
+        if tool_calls_raw:
+            for tc in tool_calls_raw:
+                logger.info(
+                    "  Tool call: %s(%s)",
+                    tc["function_name"],
+                    str(tc["arguments"])[:200],
+                )
 
     usage = data.get("usage", {})
     input_tokens = usage.get("input_tokens", 0)

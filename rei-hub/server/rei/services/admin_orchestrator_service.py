@@ -641,6 +641,18 @@ async def process_message(
         tools=native_tools if native_tools else None,
     )
 
+    # ── Log full AI response for debugging tool use ──
+    logger.info(
+        "AI response for user %s: has_content=%s, has_tool_calls=%s, "
+        "content_preview='%s', provider=%s, model=%s",
+        user.id,
+        bool(ai_response.get("content")),
+        bool(ai_response.get("tool_calls")),
+        (ai_response.get("content", "") or "")[:100],
+        ai_response.get("provider", "?"),
+        ai_response.get("model", "?"),
+    )
+
     if not ai_response.get("content") and not ai_response.get("tool_calls"):
         return {
             "error": "AI provider error: " + ai_response.get("content", "Unknown error"),
