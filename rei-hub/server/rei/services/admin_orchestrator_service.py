@@ -617,6 +617,10 @@ async def process_message(
     # Native tool use passes real tool definitions to the model. The model
     # responds with structured tool_use blocks — no text-marker guessing.
     native_tools = get_tools_for_native_calling(domains=classified_domains)
+    print(
+        f"[ORCH] Native tools: {len(native_tools)} for domains {classified_domains}",
+        flush=True,
+    )
     logger.info(
         "Providing %d native tools to AI for domains %s",
         len(native_tools), classified_domains,
@@ -642,6 +646,14 @@ async def process_message(
     )
 
     # ── Log full AI response for debugging tool use ──
+    print(
+        f"[ORCH] AI response: has_content={bool(ai_response.get('content'))}, "
+        f"has_tool_calls={bool(ai_response.get('tool_calls'))}, "
+        f"content_preview='{(ai_response.get('content', '') or '')[:100]}', "
+        f"provider={ai_response.get('provider', '?')}, "
+        f"model={ai_response.get('model', '?')}",
+        flush=True,
+    )
     logger.info(
         "AI response for user %s: has_content=%s, has_tool_calls=%s, "
         "content_preview='%s', provider=%s, model=%s",

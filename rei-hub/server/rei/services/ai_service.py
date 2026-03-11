@@ -254,6 +254,7 @@ async def _call_anthropic(
         body["system"] = system_text
     if tools:
         body["tools"] = tools
+        print(f"[AI] Anthropic call with {len(tools)} native tools (model={model})", flush=True)
         logger.info(
             "Anthropic call with %d native tools (model=%s)",
             len(tools), model,
@@ -292,6 +293,12 @@ async def _call_anthropic(
 
     # Log tool call results for debugging
     if tools:
+        print(
+            f"[AI] Anthropic response: stop_reason={stop_reason}, "
+            f"text_len={len(content)}, tool_calls={len(tool_calls_raw)}, "
+            f"content_blocks={len(data.get('content', []))}",
+            flush=True,
+        )
         logger.info(
             "Anthropic response: stop_reason=%s, text_len=%d, tool_calls=%d, "
             "content_blocks=%d",
@@ -300,6 +307,7 @@ async def _call_anthropic(
         )
         if tool_calls_raw:
             for tc in tool_calls_raw:
+                print(f"[AI]   Tool call: {tc['function_name']}({str(tc['arguments'])[:200]})", flush=True)
                 logger.info(
                     "  Tool call: %s(%s)",
                     tc["function_name"],
@@ -746,6 +754,12 @@ async def ai_complete(
     Returns: { content, provider, model, tokens_used, tool_calls? }
     """
     resolved = await _resolve_provider(user_id, db, settings, task_type, use_own_keys=use_own_keys)
+    print(
+        f"[AI] ai_complete: task={task_type}, provider={resolved['provider']}, "
+        f"model={resolved['model']}, has_key={bool(resolved['api_key'])}, "
+        f"tools={len(tools) if tools else 0}",
+        flush=True,
+    )
 
     if not resolved["api_key"]:
         return {

@@ -4,7 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
+
+# ── Configure logging BEFORE any other imports ──────────────────────────
+# Python's default log level is WARNING, which suppresses all INFO/DEBUG.
+# This ensures our application logs (orchestrator, AI service, tools, etc.)
+# are visible in Railway's Deploy Logs.
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,  # Railway captures stderr as [err] log lines
+)
 
 from fastapi import FastAPI
 
