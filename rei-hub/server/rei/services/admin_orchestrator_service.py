@@ -470,6 +470,131 @@ async def process_message(
     db.add(user_msg)
     await db.commit()
 
+    # ── Check for pending action approval (Telegram / conversational flow) ──
+    # When the user says "yes", "go ahead", etc., check if there's a pending
+    # action in this session and execute it automatically instead of re-asking AI.
+    _APPROVAL_PHRASES = {
+        "yes", "yes please", "yes.", "yeah", "yep", "yup", "sure",
+        "go ahead", "go for it", "do it", "approved", "approve",
+        "ok", "okay", "confirm", "confirmed", "absolutely",
+        "yes please.", "please", "please do", "sounds good",
+    }
+    _REJECTION_PHRASES = {
+        "no", "no thanks", "nope", "cancel", "don't", "dont", "stop",
+        "nevermind", "never mind", "skip", "reject",
+    }
+    msg_lower = user_message.strip().lower().rstrip("!.")
+
+    if msg_lower in _APPROVAL_PHRASES or msg_lower in _REJECTION_PHRASES:
+        try:
+            # Look for pending actions in this session
+            pending_result = await db.execute(
+                select(AdminActionLog).where(
+                    and_(
+                        AdminActionLog.session_id == session_id,
+                        AdminActionLog.user_id == user.id,
+                        AdminActionLog.execution_status == "pending",
+                    )
+                ).order_by(AdminActionLog.created_at.desc()).limit(1)
+            )
+            pending_action = pending_result.scalar_one_or_none()
+
+            if pending_action:
+                if msg_lower in _REJECTION_PHRASES:
+                    # Reject the pending action
+                    pending_action.execution_status = "rejected"
+                    pending_action.approved = False
+                    pending_action.approval_method = "conversational"
+                    await db.commit()
+
+                    reject_msg = AdminMessage(
+                        session_id=session_id,
+                        role="assistant",
+                        content="No problem — I've cancelled that action. What would you like to do instead?",
+                    )
+                    db.add(reject_msg)
+                    await db.commit()
+
+                    return {
+                        "session_id": session_id,
+                        "response": reject_msg.content,
+                        "tool_calls": [],
+                        "tool_results": [],
+                        "pending_actions": [],
+                        "suggestions": [],
+                    }
+
+                # Approve and execute the pending action
+                from rei.services.admin_tools_service import execute_approved_action
+
+                logger.info(
+                    "Conversational approval detected for action %s (tool: %s)",
+                    pending_action.id, pending_action.action_type,
+                )
+
+                exec_result = await execute_approved_action(
+                    action_id=pending_action.id,
+                    user=user,
+                    db=db,
+                    settings=settings,
+                )
+
+                # Build a human-readable response from the result
+                if exec_result.get("status") == "executed":
+                    result_data = exec_result.get("result", {})
+                    data = result_data.get("data", {})
+
+                    # Let the AI summarize the result nicely
+                    data_str = json.dumps(data, default=str)
+                    if len(data_str) > 6000:
+                        data_str = data_str[:6000] + "... (truncated)"
+
+                    summary_messages = [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"The user approved the {pending_action.action_type} action "
+                                f"and it was executed successfully. Here are the results:\n\n"
+                                f"{data_str}\n\n"
+                                "Please summarize these results in a helpful, conversational way. "
+                                "Confirm what was done and mention any important details."
+                            ),
+                        }
+                    ]
+
+                    ai_summary = await ai_complete(
+                        messages=summary_messages,
+                        user_id=user.id,
+                        db=db,
+                        settings=settings,
+                        task_type="admin_orchestration",
+                        max_tokens=2000,
+                        temperature=0.3,
+                    )
+                    response_text = ai_summary.get("content", exec_result.get("message", "Done!"))
+                else:
+                    response_text = f"I ran into an issue: {exec_result.get('message', 'Unknown error')}"
+
+                # Save assistant response
+                assistant_msg = AdminMessage(
+                    session_id=session_id,
+                    role="assistant",
+                    content=response_text,
+                )
+                db.add(assistant_msg)
+                await db.commit()
+
+                return {
+                    "session_id": session_id,
+                    "response": response_text,
+                    "tool_calls": [{"tool": pending_action.action_type, "params": json.loads(pending_action.proposed_details or "{}")}],
+                    "tool_results": [exec_result],
+                    "pending_actions": [],
+                    "suggestions": [],
+                }
+        except Exception as e:
+            logger.warning("Pending action approval check failed (falling through to AI): %s", e)
+
     # ── Load optimized context (sliding window + summarization) ──
     from rei.services.admin_context_manager import get_session_context
     history, _summary_note = await get_session_context(session_id, db, settings)
