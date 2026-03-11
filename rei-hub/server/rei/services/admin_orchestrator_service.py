@@ -668,6 +668,78 @@ async def process_message(
     # ── Extract tool calls from response ──
     tool_calls = extract_tool_calls(response_text)
 
+    # ── Retry: if AI refused to use tools but user clearly needs one ──
+    # The AI sometimes hallucinates "I can't connect to..." when it has
+    # prior failed tool calls in its context. Detect this and retry with
+    # a direct instruction to use the specific tool.
+    if not tool_calls and classified_domains:
+        _REFUSAL_SIGNALS = [
+            "don't have the ability",
+            "don't actually have",
+            "cannot connect to",
+            "can't connect to",
+            "not able to execute",
+            "unable to execute",
+            "no external tools",
+            "no tool",
+            "can't access",
+            "cannot access",
+            "pretended to run",
+            "pretending",
+        ]
+        response_lower = response_text.lower()
+        is_refusal = any(sig in response_lower for sig in _REFUSAL_SIGNALS)
+
+        if is_refusal:
+            # Build a nudge message identifying the right tool to use
+            _DOMAIN_TOOL_MAP = {
+                "property": ("lookup_property", ["address", "city", "state", "zip_code"]),
+                "deals": ("create_deal", ["address", "city", "state", "zip"]),
+            }
+            nudge_tool = None
+            for domain in classified_domains:
+                if domain in _DOMAIN_TOOL_MAP:
+                    nudge_tool = _DOMAIN_TOOL_MAP[domain]
+                    break
+
+            if nudge_tool:
+                tool_name, params_list = nudge_tool
+                logger.info(
+                    "AI refused to use tools — retrying with direct nudge for %s",
+                    tool_name,
+                )
+                nudge_messages = messages + [
+                    {"role": "assistant", "content": response_text},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"SYSTEM CORRECTION: You DO have tools available. "
+                            f"You MUST use them — do NOT say you can't. "
+                            f"The tool you need is called '{tool_name}'. "
+                            f"Use it NOW with [TOOL_CALL: {tool_name}({{...}})] format. "
+                            f"Parameters: {', '.join(params_list)}. "
+                            f"Extract the values from the user's message and call the tool."
+                        ),
+                    },
+                ]
+                retry_response = await ai_complete(
+                    messages=nudge_messages,
+                    user_id=user.id,
+                    db=db,
+                    settings=settings,
+                    task_type="admin_orchestration",
+                    max_tokens=3000,
+                    temperature=0.3,
+                )
+                if retry_response.get("content"):
+                    retry_text = retry_response["content"]
+                    retry_calls = extract_tool_calls(retry_text)
+                    if retry_calls:
+                        # Retry succeeded — use the new response
+                        response_text = retry_text
+                        tool_calls = retry_calls
+                        logger.info("Tool-use retry succeeded with %d tool calls", len(retry_calls))
+
     # ── Process tool calls ──
     tool_results = []
     pending_actions = []

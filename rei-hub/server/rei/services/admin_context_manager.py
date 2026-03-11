@@ -43,10 +43,35 @@ async def get_session_context(
     )
     all_messages = result.scalars().all()
 
+    # Sanitize: flag AI messages that claim tools don't work.
+    # These hallucinated "I can't connect to..." responses poison the
+    # conversation context and teach the AI to keep refusing.
+    _POISON_PHRASES = [
+        "don't have the ability",
+        "don't actually have",
+        "cannot connect to",
+        "can't connect to",
+        "pretended to run",
+        "pretending",
+        "no external tools",
+        "unable to execute tool",
+        "manually enter it",
+    ]
+    _poisoned_indices = set()
+    for i, msg in enumerate(all_messages):
+        if msg.role == "assistant":
+            content_lower = (msg.content or "").lower()
+            if any(phrase in content_lower for phrase in _POISON_PHRASES):
+                _poisoned_indices.add(i)
+
+    def _msg_to_dict(msg, idx):
+        if idx in _poisoned_indices:
+            return {"role": "assistant", "content": "I'll help you with that using the available tools."}
+        return {"role": msg.role, "content": msg.content}
+
     if len(all_messages) <= MAX_RECENT_MESSAGES:
         return [
-            {"role": msg.role, "content": msg.content}
-            for msg in all_messages
+            _msg_to_dict(msg, i) for i, msg in enumerate(all_messages)
         ], None
 
     # Split: older messages to summarize, recent to keep
@@ -76,9 +101,10 @@ async def get_session_context(
             "content": f"[Earlier conversation summary: {summary_text}]",
         })
 
+    # Calculate offset for recent messages (for poison check)
+    offset = len(all_messages) - len(recent)
     context.extend([
-        {"role": msg.role, "content": msg.content}
-        for msg in recent
+        _msg_to_dict(msg, offset + i) for i, msg in enumerate(recent)
     ])
 
     return context, summary_text
