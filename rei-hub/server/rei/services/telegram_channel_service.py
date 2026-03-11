@@ -659,9 +659,9 @@ async def _handle_telegram_message_inner(update: dict) -> None:
                 )
                 return
 
-        if lower_text == "new chat" or lower_text == "/start":
+        if lower_text in ("new chat", "/start", "/new", "start over", "reset"):
             # Start a fresh session
-            _telegram_sessions.pop(chat_id, None)
+            _telegram_sessions.pop(str(chat_id), None)
             await send_telegram_text(
                 bot_token, chat_id,
                 "Starting a fresh conversation. How can I help you?"

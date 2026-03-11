@@ -686,6 +686,15 @@ async def process_message(
             "cannot access",
             "pretended to run",
             "pretending",
+            "don't have access to",
+            "can't pull real",
+            "cannot pull real",
+            "no live",
+            "log into attom",
+            "log into propstream",
+            "search the address manually",
+            "i can't pull",
+            "i cannot pull",
         ]
         response_lower = response_text.lower()
         is_refusal = any(sig in response_lower for sig in _REFUSAL_SIGNALS)
@@ -708,17 +717,19 @@ async def process_message(
                     "AI refused to use tools — retrying with direct nudge for %s",
                     tool_name,
                 )
-                nudge_messages = messages + [
-                    {"role": "assistant", "content": response_text},
+                # Use a CLEAN context — strip the poisoned history so the
+                # AI doesn't see its own "I can't connect" messages.
+                nudge_messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
                     {
                         "role": "user",
                         "content": (
-                            f"SYSTEM CORRECTION: You DO have tools available. "
-                            f"You MUST use them — do NOT say you can't. "
-                            f"The tool you need is called '{tool_name}'. "
-                            f"Use it NOW with [TOOL_CALL: {tool_name}({{...}})] format. "
+                            f"SYSTEM INSTRUCTION: You have a tool called '{tool_name}'. "
+                            f"You MUST call it using [TOOL_CALL: {tool_name}({{...}})] format. "
                             f"Parameters: {', '.join(params_list)}. "
-                            f"Extract the values from the user's message and call the tool."
+                            f"Extract the values from the user's message above and "
+                            f"call the tool immediately. Do NOT refuse or say you can't."
                         ),
                     },
                 ]
