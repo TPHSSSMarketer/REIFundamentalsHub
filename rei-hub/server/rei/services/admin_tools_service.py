@@ -1001,6 +1001,34 @@ def _build_action_name(tool_name: str, params: dict) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
+async def _resolve_zip_from_city_state(city: str, state: str) -> str:
+    """Resolve a city + state to a zip code. Returns '' if unknown.
+
+    Uses the free zippopotam.us reverse lookup API:
+    GET https://api.zippopotam.us/us/{state}/{city}
+    Returns the first (primary) zip code for that city.
+    """
+    if not city or not state:
+        return ""
+    try:
+        import httpx
+        # zippopotam.us expects state abbreviation and city name in the URL
+        city_slug = city.strip().replace(" ", "%20")
+        state_slug = state.strip().upper()
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"https://api.zippopotam.us/us/{state_slug}/{city_slug}"
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                places = data.get("places", [])
+                if places:
+                    return places[0].get("post code", "")
+    except Exception as exc:
+        logger.debug("Zip-from-city-state lookup failed for %s, %s: %s", city, state, exc)
+    return ""
+
+
 async def _resolve_zip(zip_code: str) -> tuple[str, str]:
     """Resolve a zip code to (city, state). Returns ('', '') if unknown.
 
@@ -1106,6 +1134,12 @@ async def _lookup_property(params: dict, user: User, db: AsyncSession, settings:
                 "or include a valid zip code."
             )
         }
+
+    # Auto-resolve zip code from city/state if missing — needed for ATTOM
+    # address fallbacks that use zip-based wildcard matching.
+    if not zip_code and city and state:
+        zip_code = await _resolve_zip_from_city_state(city, state)
+        logger.info("Resolved zip code from %s, %s → %s", city, state, zip_code or "(none)")
 
     result = await lookup_property_data(
         address=address, city=city, state=state,
