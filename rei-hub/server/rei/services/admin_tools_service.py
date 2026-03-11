@@ -1652,8 +1652,6 @@ async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
         "arv": deal.arv,
         "repair_estimate": deal.repair_estimate,
         "contact_name": deal.contact_name,
-        "contact_phone": deal.contact_phone,
-        "contact_email": deal.contact_email,
         "notes": deal.notes,
         "created_at": deal.created_at.isoformat() if deal.created_at else None,
         "files": [
@@ -1690,7 +1688,7 @@ async def _search_deals(params: dict, user: User, db: AsyncSession) -> dict:
     for d in all_deals:
         searchable = " ".join(filter(None, [
             d.address, d.city, d.state,
-            d.contact_name, d.contact_phone, d.contact_email,
+            d.contact_name,
             d.notes, d.stage,
         ])).lower()
         if query_text in searchable:
