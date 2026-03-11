@@ -12,6 +12,7 @@ Gracefully returns empty data if the ATTOM key is not configured.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 import httpx
@@ -20,6 +21,55 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rei.services.credentials_service import get_provider_credentials
 
 logger = logging.getLogger(__name__)
+
+# ── Street type abbreviations (USPS standard) ──
+_STREET_ABBREVS: dict[str, str] = {
+    "road": "Rd", "street": "St", "avenue": "Ave", "drive": "Dr",
+    "lane": "Ln", "court": "Ct", "place": "Pl", "circle": "Cir",
+    "boulevard": "Blvd", "terrace": "Ter", "trail": "Trl",
+    "highway": "Hwy", "parkway": "Pkwy", "way": "Way",
+    "hollow": "Holw", "run": "Run", "ridge": "Rdg",
+    "crossing": "Xing", "alley": "Aly", "pike": "Pike",
+    "turnpike": "Tpke", "path": "Path", "pass": "Pass",
+}
+
+# Directional abbreviations
+_DIR_ABBREVS: dict[str, str] = {
+    "north": "N", "south": "S", "east": "E", "west": "W",
+    "northeast": "NE", "northwest": "NW", "southeast": "SE", "southwest": "SW",
+}
+
+
+def _normalize_address(raw: str) -> str:
+    """Normalize a street address for ATTOM API matching.
+
+    Abbreviates common street types (Road → Rd) and directional prefixes
+    (North → N) per USPS standards. Returns the cleaned address.
+    """
+    if not raw:
+        return raw
+
+    # Collapse extra whitespace
+    addr = " ".join(raw.split())
+
+    # Normalize "and" ↔ "&" — ATTOM databases vary on which form they store.
+    # We standardize to "&" for the primary attempt (shorter, more common in
+    # property records). The retry logic will try the original if this fails.
+    addr = re.sub(r"\band\b", "&", addr, flags=re.IGNORECASE)
+
+    # Replace directional words (whole-word, case-insensitive)
+    for full, abbr in _DIR_ABBREVS.items():
+        addr = re.sub(rf"\b{full}\b", abbr, addr, flags=re.IGNORECASE)
+
+    # Replace street type (typically the last word)
+    words = addr.split()
+    if len(words) >= 2:
+        last_lower = words[-1].lower().rstrip(".,")
+        if last_lower in _STREET_ABBREVS:
+            words[-1] = _STREET_ABBREVS[last_lower]
+            addr = " ".join(words)
+
+    return addr
 
 ATTOM_BASE_URL = "https://api.gateway.attomdata.com"
 
@@ -71,10 +121,14 @@ async def lookup_property_data(
         logger.info("No ATTOM API key configured — skipping property data lookup")
         return {}
 
+    # Normalize the street address for better ATTOM matching
+    normalized = _normalize_address(address)
+    address2 = f"{city}, {state} {zip_code}".strip()
+
     # Build address params for ATTOM
     address_params = {
-        "address1": address,
-        "address2": f"{city}, {state} {zip_code}".strip(),
+        "address1": normalized,
+        "address2": address2,
     }
 
     result: dict = {
@@ -87,6 +141,29 @@ async def lookup_property_data(
 
     # ── 1. Property Detail (basic info + zoning) ──
     detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    # If normalized address got no results, try fallback variants.
+    # Addresses like "Bread and Cheese Hollow Road" might be stored as
+    # "Bread & Cheese Hollow Rd" or vice versa in ATTOM's database.
+    if not detail_data or not detail_data.get("property"):
+        # Fallback 1: try the original raw address
+        if normalized != address:
+            logger.info("ATTOM: normalized address got no results, retrying with original: %s", address)
+            address_params = {"address1": address, "address2": address2}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    if not detail_data or not detail_data.get("property"):
+        # Fallback 2: swap "and" ↔ "&" in the original address
+        swapped = None
+        if " and " in address.lower():
+            swapped = re.sub(r"\band\b", "&", address, flags=re.IGNORECASE)
+        elif "&" in address:
+            swapped = address.replace("&", "and")
+        if swapped and swapped != normalized and swapped != address:
+            logger.info("ATTOM: trying and/& swap variant: %s", swapped)
+            address_params = {"address1": swapped, "address2": address2}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
     if detail_data:
         properties = detail_data.get("property", [])
         if properties:

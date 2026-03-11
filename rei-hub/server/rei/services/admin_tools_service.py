@@ -38,6 +38,16 @@ from rei.services.admin_tools_definitions import TOOLS_BY_NAME, get_risk_level
 logger = logging.getLogger(__name__)
 
 
+def _ws_uid(user: User) -> int:
+    """Return the workspace-owner user ID (same logic as deps.workspace_user_id).
+
+    Team members share their owner's data; standalone users use their own ID.
+    Using this everywhere ensures deals/contacts created by the assistant
+    are visible in the subscriber's Pipeline and CRM views.
+    """
+    return user.owner_id if user.owner_id is not None else user.id
+
+
 # ══════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT — Tool Execution with Trust System
 # ══════════════════════════════════════════════════════════════════
@@ -401,7 +411,7 @@ async def _get_contacts(params: dict, user: User, db: AsyncSession) -> dict:
     role = params.get("role", "").lower()
     limit = params.get("limit", 25)
 
-    query = select(CrmContact).where(CrmContact.user_id == user.id)
+    query = select(CrmContact).where(CrmContact.user_id == _ws_uid(user))
 
     # Apply filters
     if role:
@@ -460,7 +470,7 @@ async def _get_contact_details(params: dict, user: User, db: AsyncSession) -> di
         select(CrmContact).where(
             and_(
                 CrmContact.id == contact_id,
-                CrmContact.user_id == user.id,
+                CrmContact.user_id == _ws_uid(user),
             )
         )
     )
@@ -500,7 +510,7 @@ async def _create_contact(params: dict, user: User, db: AsyncSession) -> dict:
 
     contact = CrmContact(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         name=name,
         phone=params.get("phone"),
         email=params.get("email"),
@@ -529,7 +539,7 @@ async def _update_contact(params: dict, user: User, db: AsyncSession) -> dict:
         select(CrmContact).where(
             and_(
                 CrmContact.id == contact_id,
-                CrmContact.user_id == user.id,
+                CrmContact.user_id == _ws_uid(user),
             )
         )
     )
@@ -568,7 +578,7 @@ async def _get_pipeline_summary(params: dict, user: User, db: AsyncSession) -> d
             func.count(CrmDeal.id).label("count"),
             func.sum(CrmDeal.offer_price).label("total_value"),
         )
-        .where(CrmDeal.user_id == user.id)
+        .where(CrmDeal.user_id == _ws_uid(user))
         .group_by(CrmDeal.stage)
     )
 
@@ -592,7 +602,7 @@ async def _get_deals(params: dict, user: User, db: AsyncSession) -> dict:
     stage = params.get("stage", "").lower()
     limit = params.get("limit", 25)
 
-    query = select(CrmDeal).where(CrmDeal.user_id == user.id)
+    query = select(CrmDeal).where(CrmDeal.user_id == _ws_uid(user))
 
     if stage:
         query = query.where(CrmDeal.stage.ilike(f"%{stage}%"))
@@ -627,7 +637,7 @@ async def _get_stalled_deals(params: dict, user: User, db: AsyncSession) -> dict
 
     query = select(CrmDeal).where(
         and_(
-            CrmDeal.user_id == user.id,
+            CrmDeal.user_id == _ws_uid(user),
             CrmDeal.updated_at < cutoff_date,
         )
     )
@@ -667,7 +677,7 @@ async def _update_deal_stage(params: dict, user: User, db: AsyncSession) -> dict
         select(CrmDeal).where(
             and_(
                 CrmDeal.id == deal_id,
-                CrmDeal.user_id == user.id,
+                CrmDeal.user_id == _ws_uid(user),
             )
         )
     )
@@ -698,7 +708,7 @@ async def _update_deal_stage(params: dict, user: User, db: AsyncSession) -> dict
 async def _get_portfolio_summary(params: dict, user: User, db: AsyncSession) -> dict:
     """Get summary of owned portfolio properties with values and rental income."""
     result = await db.execute(
-        select(CrmPortfolioProperty).where(CrmPortfolioProperty.user_id == user.id)
+        select(CrmPortfolioProperty).where(CrmPortfolioProperty.user_id == _ws_uid(user))
     )
     properties = result.scalars().all()
 
@@ -747,7 +757,7 @@ async def _send_sms(
     # Create SmsMessage record (actual Twilio send would be wired later)
     sms = SmsMessage(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         phone_number_id="",  # Would be set to user's primary phone number
         twilio_message_sid="SIM_PENDING",  # Placeholder
         direction="outbound",
@@ -792,7 +802,7 @@ async def _schedule_callback(
 
     callback = ScheduledCallback(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         contact_name=contact_name,
         contact_phone=contact_phone,
         scheduled_at=scheduled_at,
@@ -818,7 +828,7 @@ async def _get_call_history(params: dict, user: User, db: AsyncSession) -> dict:
     limit = params.get("limit", 20)
     contact_phone = params.get("contact_phone", "").lower()
 
-    query = select(CallLog).where(CallLog.user_id == user.id).order_by(
+    query = select(CallLog).where(CallLog.user_id == _ws_uid(user)).order_by(
         CallLog.created_at.desc()
     )
 
@@ -852,7 +862,7 @@ async def _get_usage_stats(params: dict, user: User, db: AsyncSession) -> dict:
     # Count calls and SMS for the user
     call_result = await db.execute(
         select(func.count(CallLog.id), func.sum(CallLog.duration_seconds)).where(
-            CallLog.user_id == user.id
+            CallLog.user_id == _ws_uid(user)
         )
     )
     call_count, total_seconds = call_result.one()
@@ -860,14 +870,14 @@ async def _get_usage_stats(params: dict, user: User, db: AsyncSession) -> dict:
     total_seconds = total_seconds or 0
 
     sms_result = await db.execute(
-        select(func.count(SmsMessage.id)).where(SmsMessage.user_id == user.id)
+        select(func.count(SmsMessage.id)).where(SmsMessage.user_id == _ws_uid(user))
     )
     sms_count = sms_result.scalar() or 0
 
     # Get credit info
     credit_result = await db.execute(
         select(PhoneCredit)
-        .where(PhoneCredit.user_id == user.id)
+        .where(PhoneCredit.user_id == _ws_uid(user))
         .order_by(PhoneCredit.created_at.desc())
         .limit(1)
     )
@@ -893,26 +903,26 @@ async def _get_dashboard_stats(params: dict, user: User, db: AsyncSession) -> di
     """Get key business metrics: leads, deals, portfolio value, call volume."""
     # Count contacts
     contact_result = await db.execute(
-        select(func.count(CrmContact.id)).where(CrmContact.user_id == user.id)
+        select(func.count(CrmContact.id)).where(CrmContact.user_id == _ws_uid(user))
     )
     total_contacts = contact_result.scalar() or 0
 
     # Count deals by status
     deal_result = await db.execute(
-        select(func.count(CrmDeal.id)).where(CrmDeal.user_id == user.id)
+        select(func.count(CrmDeal.id)).where(CrmDeal.user_id == _ws_uid(user))
     )
     total_deals = deal_result.scalar() or 0
 
     # Get pipeline value
     value_result = await db.execute(
-        select(func.sum(CrmDeal.offer_price)).where(CrmDeal.user_id == user.id)
+        select(func.sum(CrmDeal.offer_price)).where(CrmDeal.user_id == _ws_uid(user))
     )
     pipeline_value = value_result.scalar() or 0
 
     # Get portfolio value
     portfolio_result = await db.execute(
         select(func.sum(CrmPortfolioProperty.current_value)).where(
-            CrmPortfolioProperty.user_id == user.id
+            CrmPortfolioProperty.user_id == _ws_uid(user)
         )
     )
     portfolio_value = portfolio_result.scalar() or 0
@@ -922,7 +932,7 @@ async def _get_dashboard_stats(params: dict, user: User, db: AsyncSession) -> di
     call_result = await db.execute(
         select(func.count(CallLog.id)).where(
             and_(
-                CallLog.user_id == user.id,
+                CallLog.user_id == _ws_uid(user),
                 CallLog.created_at >= thirty_days_ago,
             )
         )
@@ -1203,7 +1213,7 @@ async def _create_deal(params: dict, user: User, db: AsyncSession) -> dict:
     notes = params.get("notes", "")
 
     deal = CrmDeal(
-        user_id=user.id,
+        user_id=_ws_uid(user),
         title=title,
         address=address,
         city=city,
@@ -1247,13 +1257,13 @@ async def _add_deal_note(params: dict, user: User, db: AsyncSession) -> dict:
 
     # Verify the deal belongs to this user
     deal = await db.get(CrmDeal, deal_id)
-    if not deal or deal.user_id != user.id:
+    if not deal or deal.user_id != _ws_uid(user):
         return {"error": "Deal not found"}
 
     import uuid
     new_file = DealFile(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         deal_id=deal_id,
         file_type="document",
         category=category,
@@ -1283,13 +1293,13 @@ async def _upload_deal_photo(params: dict, user: User, db: AsyncSession) -> dict
         return {"error": "deal_id and photo_data are required"}
 
     deal = await db.get(CrmDeal, deal_id)
-    if not deal or deal.user_id != user.id:
+    if not deal or deal.user_id != _ws_uid(user):
         return {"error": "Deal not found"}
 
     import uuid
     new_file = DealFile(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         deal_id=deal_id,
         file_type="photo",
         category=category,
@@ -1316,14 +1326,14 @@ async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
         return {"error": "deal_id is required"}
 
     deal = await db.get(CrmDeal, deal_id)
-    if not deal or deal.user_id != user.id:
+    if not deal or deal.user_id != _ws_uid(user):
         return {"error": "Deal not found"}
 
     # Get files (without content to keep response small)
     files_result = await db.execute(
         select(DealFile).where(
             DealFile.deal_id == deal_id,
-            DealFile.user_id == user.id,
+            DealFile.user_id == _ws_uid(user),
         )
     )
     files = files_result.scalars().all()
@@ -1369,7 +1379,7 @@ async def _search_deals(params: dict, user: User, db: AsyncSession) -> dict:
         return {"error": "query is required"}
 
     result = await db.execute(
-        select(CrmDeal).where(CrmDeal.user_id == user.id).limit(100)
+        select(CrmDeal).where(CrmDeal.user_id == _ws_uid(user)).limit(100)
     )
     all_deals = result.scalars().all()
 
@@ -1419,7 +1429,7 @@ async def _create_social_post(params: dict, user: User, db: AsyncSession, settin
     deal_context = ""
     if deal_id:
         deal = await db.get(CrmDeal, deal_id)
-        if deal and deal.user_id == user.id:
+        if deal and deal.user_id == _ws_uid(user):
             deal_context = (
                 f"\nProperty details: {deal.property_address}, {deal.city}, {deal.state} {deal.zip_code}"
                 f"\nAsking: ${deal.asking_price:,.0f}" if deal.asking_price else ""
@@ -1453,7 +1463,7 @@ async def _create_social_post(params: dict, user: User, db: AsyncSession, settin
     # Save to ContentHub
     try:
         entry_id = await save_waterfall_content(
-            user_id=user.id,
+            user_id=_ws_uid(user),
             topic=topic,
             waterfall_output=content,
             source_article_id=None,
@@ -1481,7 +1491,7 @@ async def _list_content(params: dict, user: User, db: AsyncSession) -> dict:
     limit = params.get("limit", 10)
 
     entries = await list_content_entries(
-        user_id=user.id, db=db,
+        user_id=_ws_uid(user), db=db,
         platform=platform, limit=limit,
     )
     return {"entries": entries, "count": len(entries)}
@@ -1615,7 +1625,7 @@ async def _schedule_showing(params: dict, user: User, db: AsyncSession, settings
     import uuid
     event = CalendarEvent(
         id=str(uuid.uuid4()),
-        user_id=user.id,
+        user_id=_ws_uid(user),
         title=f"Showing: {address}",
         description=notes,
         event_type="appointment",
@@ -1678,7 +1688,7 @@ async def _get_schedule(params: dict, user: User, db: AsyncSession) -> dict:
 
     # Get calendar events
     event_query = select(CalendarEvent).where(
-        CalendarEvent.user_id == user.id,
+        CalendarEvent.user_id == _ws_uid(user),
         CalendarEvent.start_datetime >= now,
         CalendarEvent.start_datetime <= end,
     )
@@ -1690,7 +1700,7 @@ async def _get_schedule(params: dict, user: User, db: AsyncSession) -> dict:
 
     # Get tasks due in the same window
     task_query = select(Task).where(
-        Task.user_id == user.id,
+        Task.user_id == _ws_uid(user),
         Task.status.in_(["pending", "in_progress"]),
         Task.due_date <= end,
     )

@@ -447,6 +447,7 @@ async def process_message(
     """
 
     # ── Load or create session ──
+    is_new_session = False
     if session_id:
         session = await db.get(AdminSession, session_id)
         if not session or session.user_id != user.id:
@@ -458,6 +459,7 @@ async def process_message(
         title = user_message[:50] + ("..." if len(user_message) > 50 else "")
         session = await create_session(user.id, title, db)
         session_id = session.id
+        is_new_session = True
 
     # ── Save user message ──
     user_msg = AdminMessage(
@@ -482,6 +484,16 @@ async def process_message(
 
     # ── Build system prompt ──
     system_prompt = await build_system_prompt(user.id, trust_settings, db, classified_domains)
+
+    # ── Inject recent-activity briefing for brand-new sessions ──
+    if is_new_session:
+        try:
+            from rei.services.admin_context_manager import build_new_session_briefing
+            briefing = await build_new_session_briefing(user.id, db)
+            if briefing:
+                system_prompt += briefing
+        except Exception as e:
+            logger.warning("New-session briefing failed (non-fatal): %s", e)
 
     # ── Inject learned intelligence into system prompt ──
     try:

@@ -1250,9 +1250,9 @@ const AdminAssistantPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content — ChatTab stays mounted to preserve conversation state */}
       <div>
-        {activeTab === 'chat' && <ChatTab />}
+        <div className={activeTab === 'chat' ? '' : 'hidden'}><ChatTab /></div>
         {activeTab === 'skills' && <SkillsTab />}
         {activeTab === 'tasks' && <TasksTab />}
         {activeTab === 'settings' && <SettingsTab />}

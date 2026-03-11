@@ -135,3 +135,92 @@ async def invalidate_summary(session_id: str, db: AsyncSession) -> None:
     if session:
         session.context_summary = None
         await db.commit()
+
+
+# ══════════════════════════════════════════════════════════════════
+# NEW-SESSION BRIEFING — recent activity context for fresh chats
+# ══════════════════════════════════════════════════════════════════
+
+
+async def build_new_session_briefing(user_id: int, db: AsyncSession) -> str:
+    """Build a short activity briefing injected into the system prompt
+    when a user starts a brand-new chat session.
+
+    Pulls recent deals, last session topics, and pending callbacks so the
+    assistant is never "blank" even in a fresh conversation.
+    """
+    from rei.models.crm import CrmDeal
+    from rei.models.user import ScheduledCallback
+
+    parts: list[str] = []
+
+    # ── Recent deals (last 7 days) ──
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        deal_result = await db.execute(
+            select(CrmDeal)
+            .where(CrmDeal.user_id == user_id, CrmDeal.created_at >= cutoff)
+            .order_by(CrmDeal.created_at.desc())
+            .limit(5)
+        )
+        recent_deals = deal_result.scalars().all()
+        if recent_deals:
+            lines = []
+            for d in recent_deals:
+                addr = d.title or d.address or "Untitled"
+                stage = d.stage or "lead"
+                lines.append(f"  - {addr} (stage: {stage})")
+            parts.append("Recent deals (last 7 days):\n" + "\n".join(lines))
+    except Exception as e:
+        logger.debug("Failed to load recent deals for briefing: %s", e)
+
+    # ── Pending callbacks ──
+    try:
+        now = datetime.utcnow()
+        cb_result = await db.execute(
+            select(ScheduledCallback)
+            .where(
+                ScheduledCallback.user_id == user_id,
+                ScheduledCallback.status == "scheduled",
+                ScheduledCallback.scheduled_at >= now,
+            )
+            .order_by(ScheduledCallback.scheduled_at.asc())
+            .limit(5)
+        )
+        callbacks = cb_result.scalars().all()
+        if callbacks:
+            lines = []
+            for cb in callbacks:
+                dt_str = cb.scheduled_at.strftime("%b %d at %I:%M %p") if cb.scheduled_at else "TBD"
+                lines.append(f"  - {cb.contact_name}: {dt_str}")
+            parts.append("Upcoming callbacks:\n" + "\n".join(lines))
+    except Exception as e:
+        logger.debug("Failed to load callbacks for briefing: %s", e)
+
+    # ── Last session topic (so we can reference what was discussed before) ──
+    try:
+        prev_session = await db.execute(
+            select(AdminSession)
+            .where(AdminSession.user_id == user_id)
+            .order_by(AdminSession.created_at.desc())
+            .limit(1)
+        )
+        last = prev_session.scalar_one_or_none()
+        if last:
+            topic = last.title or "General"
+            parts.append(f"Last conversation topic: {topic}")
+            if last.context_summary:
+                parts.append(f"Last conversation summary: {last.context_summary}")
+    except Exception as e:
+        logger.debug("Failed to load last session for briefing: %s", e)
+
+    if not parts:
+        return ""
+
+    return (
+        "\n\n── RECENT ACTIVITY BRIEFING ──\n"
+        "The user just started a new chat. Here's what's been happening recently "
+        "so you have context if they reference it:\n\n"
+        + "\n\n".join(parts)
+        + "\n── END BRIEFING ──"
+    )

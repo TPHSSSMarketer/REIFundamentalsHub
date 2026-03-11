@@ -218,15 +218,62 @@ async def find_user_by_telegram_chat_id(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-# In-memory map: telegram_chat_id -> assistant session_id
-# This keeps the conversation going across messages without creating
-# a new session every time someone texts the bot.
+# Fast in-memory cache: telegram_chat_id -> assistant session_id
+# This is a HOT CACHE only — the database is the source of truth.
+# If the cache misses (e.g. after a server restart), we fall back to
+# querying the user's most recent AdminSession from the database.
 _telegram_sessions: dict[str, str] = {}
 
 
 def get_telegram_session(chat_id: str) -> Optional[str]:
-    """Get the active Assistant session for a Telegram chat."""
+    """Get the active Assistant session for a Telegram chat (cache only)."""
     return _telegram_sessions.get(str(chat_id))
+
+
+async def get_telegram_session_with_fallback(
+    chat_id: str, user_id: int, db: AsyncSession
+) -> Optional[str]:
+    """Get the active Assistant session — checks cache first, then DB.
+
+    After a server restart the in-memory cache is empty.  Instead of
+    creating a brand-new session (losing all context), we look up the
+    user's most recent session from the database.  Sessions older than
+    2 hours are ignored so stale conversations don't carry over.
+    """
+    # 1. Fast path — in-memory cache hit
+    cached = _telegram_sessions.get(str(chat_id))
+    if cached:
+        return cached
+
+    # 2. Slow path — query the DB for the user's most recent session
+    try:
+        from datetime import datetime, timedelta
+        from rei.models.admin_assistant import AdminSession
+
+        cutoff = datetime.utcnow() - timedelta(hours=2)
+        result = await db.execute(
+            select(AdminSession.id)
+            .where(
+                AdminSession.user_id == user_id,
+                AdminSession.last_message_at >= cutoff,
+            )
+            .order_by(AdminSession.last_message_at.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            session_id = str(row)
+            # Warm the cache for future messages
+            _telegram_sessions[str(chat_id)] = session_id
+            logger.info(
+                "Recovered Telegram session from DB for chat %s: %s",
+                chat_id, session_id,
+            )
+            return session_id
+    except Exception as e:
+        logger.warning("DB session lookup failed (non-fatal): %s", e)
+
+    return None
 
 
 def set_telegram_session(chat_id: str, session_id: str) -> None:
@@ -622,7 +669,7 @@ async def _handle_telegram_message_inner(update: dict) -> None:
             return
 
         # ── Step 5: Route through the Assistant orchestrator ──
-        session_id = get_telegram_session(chat_id)
+        session_id = await get_telegram_session_with_fallback(chat_id, user.id, db)
 
         # Send "typing" indicator so user knows we're working
         try:
