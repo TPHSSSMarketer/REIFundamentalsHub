@@ -192,14 +192,28 @@ const ChatTab: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !activeSessionId || loading) return;
+    if (!inputValue.trim() || loading) return;
+
+    // Auto-create a session if none exists
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      try {
+        const session = await createSession('New Conversation');
+        setSessions((prev) => [session, ...prev]);
+        setActiveSessionId(session.id);
+        sessionId = session.id;
+      } catch {
+        toast.error('Failed to create conversation');
+        return;
+      }
+    }
 
     const userMessage = inputValue;
     setInputValue('');
     setLoading(true);
 
     try {
-      const result = await sendMessage(activeSessionId, userMessage);
+      const result = await sendMessage(sessionId, userMessage);
 
       // Add user message
       const newUserMsg: AdminMessage = {

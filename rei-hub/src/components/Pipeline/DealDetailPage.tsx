@@ -41,6 +41,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { useDeal, useUpdateDeal, usePipelines } from '@/hooks/useApi'
 import { formatCurrency, formatDate, cn } from '@/utils/helpers'
 import { getAuthHeader } from '@/services/auth'
@@ -176,6 +177,7 @@ type TabId = (typeof TABS)[number]['id']
 export default function DealDetailPage() {
   const { dealId } = useParams<{ dealId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: deal, isLoading: dealLoading } = useDeal(dealId || '')
   const updateDeal = useUpdateDeal()
   const { data: pipelines } = usePipelines()
@@ -620,6 +622,7 @@ export default function DealDetailPage() {
     if (!confirm('Are you sure you want to delete this deal? This cannot be undone.')) return
     try {
       await deleteDeal(dealId)
+      await queryClient.invalidateQueries({ queryKey: ['deals'] })
       toast.success('Deal deleted')
       navigate('/pipeline')
     } catch {
