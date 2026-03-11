@@ -179,12 +179,47 @@ async def lookup_property_data(
             logger.info("ATTOM: trying original address with zip-only: %s, %s", address, zip_code)
             detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", zip_only_params)
 
-    # Fallback 5: try without abbreviating anything, just clean whitespace
+    # Fallback 5: aggressively abbreviate ALL street-type words (not just last)
+    # e.g. "Bread & Cheese Hollow Rd" → "Bread & Cheese Holw Rd"
     if not detail_data or not detail_data.get("property"):
-        clean = " ".join(address.split())
-        if clean != address and clean != normalized:
-            logger.info("ATTOM: trying clean-whitespace only: %s", clean)
-            address_params = {"address1": clean, "address2": address2}
+        words = normalized.split()
+        aggressive = []
+        for w in words:
+            wl = w.lower().rstrip(".,")
+            if wl in _STREET_ABBREVS:
+                aggressive.append(_STREET_ABBREVS[wl])
+            else:
+                aggressive.append(w)
+        aggressive_addr = " ".join(aggressive)
+        if aggressive_addr != normalized:
+            logger.info("ATTOM: trying aggressive abbreviation: %s", aggressive_addr)
+            address_params = {"address1": aggressive_addr, "address2": address2}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    # Fallback 6: try aggressive abbreviation + zip-only
+    if not detail_data or not detail_data.get("property"):
+        words = normalized.split()
+        aggressive = []
+        for w in words:
+            wl = w.lower().rstrip(".,")
+            if wl in _STREET_ABBREVS:
+                aggressive.append(_STREET_ABBREVS[wl])
+            else:
+                aggressive.append(w)
+        aggressive_addr = " ".join(aggressive)
+        if zip_code and aggressive_addr != normalized:
+            logger.info("ATTOM: trying aggressive abbreviation + zip-only: %s, %s", aggressive_addr, zip_code)
+            address_params = {"address1": aggressive_addr, "address2": zip_code}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    # Fallback 7: try without the street type entirely
+    # e.g. "273 Bread & Cheese Hollow" (drop "Rd"/"Road")
+    if not detail_data or not detail_data.get("property"):
+        words = normalized.split()
+        if len(words) >= 3 and words[-1].lower().rstrip(".,") in _STREET_ABBREVS:
+            no_type = " ".join(words[:-1])
+            logger.info("ATTOM: trying address without street type suffix: %s", no_type)
+            address_params = {"address1": no_type, "address2": address2}
             detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
 
     # ── 1. Property Detail — capture ALL data ATTOM returns ──
