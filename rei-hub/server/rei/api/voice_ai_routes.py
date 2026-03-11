@@ -605,6 +605,196 @@ async def bulk_import_knowledge(
 
 
 # ════════════════════════════════════════════════════════════════════════
+# ADMIN: PLATFORM-LEVEL KNOWLEDGE (system-wide entries, user_id=NULL)
+# ════════════════════════════════════════════════════════════════════════
+
+
+@voice_ai_router.post("/knowledge-base/platform")
+async def create_platform_knowledge(
+    body: CreateKnowledgeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a system-wide (platform) knowledge entry. Admin only."""
+    if not getattr(user, "is_superadmin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    allowed = ("account_data", "custom_script", "objection_handler", "training")
+    if body.entry_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entry_type must be one of: {', '.join(allowed)}"
+        )
+
+    entry = KnowledgeEntry(
+        user_id=None,  # NULL = platform-level
+        name=body.name,
+        entry_type=body.entry_type,
+        content=body.content,
+    )
+    db.add(entry)
+    await db.commit()
+
+    try:
+        await embed_knowledge_entry(entry.id, db)
+    except Exception:
+        logger.warning("Failed to embed platform entry %s.", entry.id)
+
+    return {"status": "created", "id": entry.id}
+
+
+@voice_ai_router.put("/knowledge-base/platform/{entry_id}")
+async def update_platform_knowledge(
+    entry_id: str,
+    body: UpdateKnowledgeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a platform-level knowledge entry. Admin only."""
+    if not getattr(user, "is_superadmin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    result = await db.execute(
+        select(KnowledgeEntry).where(
+            and_(
+                KnowledgeEntry.id == entry_id,
+                KnowledgeEntry.user_id.is_(None),  # Must be platform entry
+            )
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Platform entry not found")
+
+    if body.name is not None:
+        entry.name = body.name
+    if body.content is not None:
+        entry.content = body.content
+    if body.is_active is not None:
+        entry.is_active = body.is_active
+
+    entry.updated_at = datetime.utcnow()
+    await db.commit()
+
+    try:
+        await embed_knowledge_entry(entry_id, db)
+    except Exception:
+        logger.warning("Failed to re-embed platform entry %s.", entry_id)
+
+    return {"status": "updated", "id": entry_id}
+
+
+@voice_ai_router.delete("/knowledge-base/platform/{entry_id}")
+async def delete_platform_knowledge(
+    entry_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a platform-level knowledge entry. Admin only."""
+    if not getattr(user, "is_superadmin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    result = await db.execute(
+        select(KnowledgeEntry).where(
+            and_(
+                KnowledgeEntry.id == entry_id,
+                KnowledgeEntry.user_id.is_(None),
+            )
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Platform entry not found")
+
+    try:
+        await delete_embedding(entry_id, db)
+    except Exception:
+        logger.warning("Failed to delete embedding for platform entry %s.", entry_id)
+
+    await db.delete(entry)
+    await db.commit()
+
+    return {"status": "deleted", "id": entry_id}
+
+
+@voice_ai_router.post("/knowledge-base/platform/bulk-import")
+async def bulk_import_platform_knowledge(
+    files: list[UploadFile] = File(...),
+    entry_type: str = Form("training"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk import files as platform-level (system-wide) entries. Admin only."""
+    if not getattr(user, "is_superadmin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    allowed_types = {"account_data", "custom_script", "objection_handler", "training"}
+    if entry_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entry_type must be one of: {', '.join(allowed_types)}"
+        )
+
+    if len(files) > _MAX_BULK_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {_MAX_BULK_FILES} files per import."
+        )
+
+    results = []
+    for upload in files:
+        filename = upload.filename or "unnamed"
+        try:
+            content = await upload.read()
+
+            if len(content) > _MAX_FILE_SIZE:
+                results.append({"filename": filename, "status": "error", "message": "File too large (max 5 MB)."})
+                continue
+            if len(content) == 0:
+                results.append({"filename": filename, "status": "error", "message": "File is empty."})
+                continue
+
+            text = _extract_text_from_file(filename, content)
+            if not text.strip():
+                results.append({"filename": filename, "status": "error", "message": "No text could be extracted."})
+                continue
+
+            if len(text) > 50_000:
+                text = text[:50_000] + "\n\n[... content truncated at 50,000 characters]"
+
+            name = filename.rsplit(".", 1)[0] if "." in filename else filename
+
+            entry = KnowledgeEntry(
+                user_id=None,  # Platform-level
+                name=name,
+                entry_type=entry_type,
+                content=text,
+            )
+            db.add(entry)
+            await db.flush()
+
+            try:
+                await embed_knowledge_entry(entry.id, db)
+            except Exception:
+                logger.warning("Failed to embed platform bulk entry %s.", entry.id)
+
+            results.append({"filename": filename, "status": "created", "id": entry.id, "name": name, "chars": len(text)})
+
+        except ValueError as ve:
+            results.append({"filename": filename, "status": "error", "message": str(ve)})
+        except Exception as exc:
+            logger.error("Platform bulk import failed for %s: %s", filename, exc)
+            results.append({"filename": filename, "status": "error", "message": f"Failed: {str(exc)[:100]}"})
+
+    await db.commit()
+
+    created_count = sum(1 for r in results if r["status"] == "created")
+    error_count = sum(1 for r in results if r["status"] == "error")
+
+    return {"status": "completed", "created": created_count, "errors": error_count, "results": results}
+
+
+# ════════════════════════════════════════════════════════════════════════
 # CONVERSATION HISTORY ENDPOINTS
 # ════════════════════════════════════════════════════════════════════════
 

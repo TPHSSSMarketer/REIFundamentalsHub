@@ -286,6 +286,70 @@ export async function bulkImportKnowledge(
 }
 
 // ══════════════════════════════════════════════════════════════
+//  ADMIN: PLATFORM-LEVEL KNOWLEDGE (system-wide entries)
+// ══════════════════════════════════════════════════════════════
+
+export async function createPlatformKnowledgeEntry(data: CreateKnowledgePayload): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/platform`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function updatePlatformKnowledgeEntry(entryId: string, data: UpdateKnowledgePayload): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/platform/${entryId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(data),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function deletePlatformKnowledgeEntry(entryId: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/platform/${entryId}`, {
+    method: 'DELETE',
+    headers: getAuthHeader(),
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+export async function bulkImportPlatformKnowledge(
+  files: File[],
+  entryType: string = 'training',
+): Promise<{
+  status: string
+  created: number
+  errors: number
+  results: Array<{
+    filename: string
+    status: string
+    id?: string
+    name?: string
+    chars?: number
+    message?: string
+  }>
+}> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  formData.append('entry_type', entryType)
+
+  const res = await fetch(`${BASE_URL}/api/voice-ai/knowledge-base/platform/bulk-import`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: formData,
+    credentials: 'include',
+  })
+  return handleResponse(res)
+}
+
+// ══════════════════════════════════════════════════════════════
 //  CONVERSATIONS
 // ══════════════════════════════════════════════════════════════
 
