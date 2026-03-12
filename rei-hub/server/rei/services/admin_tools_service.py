@@ -1645,12 +1645,12 @@ async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
         "property_address": deal.address,
         "city": deal.city,
         "state": deal.state,
-        "zip_code": deal.zip_code,
+        "zip_code": deal.zip,
         "stage": deal.stage,
         "asking_price": deal.asking_price,
         "offer_price": deal.offer_price,
         "arv": deal.arv,
-        "repair_estimate": deal.repair_estimate,
+        "rehab_estimate": deal.rehab_estimate,
         "contact_name": deal.contact_name,
         "notes": deal.notes,
         "created_at": deal.created_at.isoformat() if deal.created_at else None,
@@ -1731,7 +1731,7 @@ async def _create_social_post(params: dict, user: User, db: AsyncSession, settin
         deal = await db.get(CrmDeal, deal_id)
         if deal and deal.user_id == _ws_uid(user):
             deal_context = (
-                f"\nProperty details: {deal.address}, {deal.city}, {deal.state} {deal.zip_code}"
+                f"\nProperty details: {deal.address}, {deal.city}, {deal.state} {deal.zip}"
                 f"\nAsking: ${deal.asking_price:,.0f}" if deal.asking_price else ""
                 f"\nARV: ${deal.arv:,.0f}" if deal.arv else ""
                 f"\nStage: {deal.stage}"

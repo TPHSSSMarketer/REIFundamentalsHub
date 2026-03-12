@@ -59,3 +59,14 @@
 **Mistake:** The admin AI assistant used text-based `[TOOL_CALL: tool_name({...})]` markers embedded in the AI's response text. Claude models know when they don't have real tools (via the `tools` API parameter) and will refuse to generate fake text markers, saying "I don't have access to live databases." The retry mechanism, poison cleanup, and alias system couldn't fix this because the root cause was that the AI correctly identified it had no actual tool definitions.
 
 **Rule:** ALWAYS use the provider's native tool use API. For Anthropic, pass tool definitions via the `tools` parameter in the Messages API call. For NVIDIA/OpenAI-compatible, use `_call_nvidia_with_tools()`. The model responds with structured `tool_use` blocks instead of text markers. Keep text-marker extraction only as a backward-compatibility fallback. Native tool use is the ONLY reliable way to get AI models to call tools.
+
+## 2026-03-11: CrmDeal model field names don't always match intuitive names
+
+**Mistake:** Code in `admin_tools_service.py` referenced `deal.property_address`, `deal.contact_phone`, `deal.contact_email`, `deal.zip_code`, and `deal.repair_estimate` — none of which exist on the `CrmDeal` model. The actual field names are: `deal.address`, no contact_phone/email (those live on Contact model), `deal.zip`, and `deal.rehab_estimate`.
+
+**Rule:** Before referencing ANY field on `CrmDeal` (or any model), verify the actual column name in `server/rei/models/crm.py`. Common traps:
+- `address` not `property_address`
+- `zip` not `zip_code`
+- `rehab_estimate` not `repair_estimate`
+- No `contact_phone` or `contact_email` on deals (those are on the Contact model)
+- `contact_name` is the only contact field on CrmDeal
