@@ -253,6 +253,61 @@ async def lookup_property_data(
                 address_params = {"address1": clean, "address2": zip_code}
                 detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
 
+    # Fallback 10: USPS-aggressive abbreviation — abbreviate ALL street-type words
+    # e.g. "273 Bread & Cheese Hollow Rd" → "273 Bread & Cheese Holw Rd"
+    # ATTOM may store addresses using full USPS abbreviations
+    if not detail_data or not detail_data.get("property"):
+        words = normalized.split()
+        aggressive = []
+        for w in words:
+            wl = w.lower().rstrip(".,")
+            if wl in _STREET_ABBREVS:
+                aggressive.append(_STREET_ABBREVS[wl])
+            else:
+                aggressive.append(w)
+        aggressive_addr = " ".join(aggressive)
+        if aggressive_addr != normalized:
+            logger.info("ATTOM: trying USPS-aggressive abbreviation: %s", aggressive_addr)
+            address_params = {"address1": aggressive_addr, "address2": address2}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    # Fallback 11: USPS-aggressive + zip-only
+    if not detail_data or not detail_data.get("property"):
+        words = normalized.split()
+        aggressive = []
+        for w in words:
+            wl = w.lower().rstrip(".,")
+            if wl in _STREET_ABBREVS:
+                aggressive.append(_STREET_ABBREVS[wl])
+            else:
+                aggressive.append(w)
+        aggressive_addr = " ".join(aggressive)
+        if zip_code and aggressive_addr != normalized:
+            logger.info("ATTOM: trying USPS-aggressive + zip-only: %s, %s", aggressive_addr, zip_code)
+            address_params = {"address1": aggressive_addr, "address2": zip_code}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
+    # Fallback 12: USPS-aggressive with "and" preserved (not &)
+    # e.g. "273 Bread and Cheese Holw Rd"
+    if not detail_data or not detail_data.get("property"):
+        words = address.split()
+        aggressive_and = []
+        for w in words:
+            wl = w.lower().rstrip(".,")
+            if wl in _STREET_ABBREVS:
+                aggressive_and.append(_STREET_ABBREVS[wl])
+            else:
+                aggressive_and.append(w)
+        aggressive_and_addr = " ".join(aggressive_and)
+        if aggressive_and_addr != normalized and aggressive_and_addr != address:
+            logger.info("ATTOM: trying USPS-aggressive with 'and' preserved: %s", aggressive_and_addr)
+            address_params = {"address1": aggressive_and_addr, "address2": address2}
+            detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+            if not detail_data or not detail_data.get("property"):
+                if zip_code:
+                    address_params = {"address1": aggressive_and_addr, "address2": zip_code}
+                    detail_data = await _attom_get(api_key, "/propertyapi/v1.0.0/property/detail", address_params)
+
     # Log final outcome
     if detail_data and detail_data.get("property"):
         logger.info("ATTOM: property detail found for %s", address)
