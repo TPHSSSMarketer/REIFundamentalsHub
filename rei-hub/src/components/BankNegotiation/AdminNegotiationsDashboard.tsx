@@ -468,12 +468,29 @@ export default function AdminNegotiationsDashboard() {
     statusCounts[s] = (statusCounts[s] || 0) + 1
   }
 
+  // Reload data helper — used after returning from workspace (case may have been deleted/updated)
+  async function reloadData() {
+    try {
+      const [reqData, caseData] = await Promise.all([
+        listNegotiationRequests(),
+        listCases(),
+      ])
+      setRequests(reqData)
+      setCases(caseData)
+    } catch (err) {
+      // silent — stale data is acceptable here
+    }
+  }
+
   // If a case is selected, show workspace
   if (selectedCaseId) {
     return (
       <AdminCaseWorkspace
         caseId={selectedCaseId}
-        onBack={() => setSelectedCaseId(null)}
+        onBack={() => {
+          setSelectedCaseId(null)
+          reloadData()
+        }}
       />
     )
   }
