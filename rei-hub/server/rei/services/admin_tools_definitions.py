@@ -501,6 +501,32 @@ DEAL_TOOLS = [
             "required": ["query"],
         },
     },
+    {
+        "name": "delete_deal",
+        "description": "Delete a deal from the pipeline. Use when the user wants to remove a duplicate or unwanted deal.",
+        "risk_level": "MEDIUM",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "deal_id": {"type": "string", "description": "The deal ID to delete"},
+            },
+            "required": ["deal_id"],
+        },
+    },
+    {
+        "name": "populate_deal_attom",
+        "description": "Pull ATTOM property data and populate all fields on an existing deal. Use when a deal exists but doesn't have ATTOM data filled in yet, or when the user wants to refresh/update property data on a deal.",
+        "risk_level": "LOW",
+        "domain": "deals",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "deal_id": {"type": "string", "description": "The deal ID to populate with ATTOM data"},
+            },
+            "required": ["deal_id"],
+        },
+    },
 ]
 
 # ── ContentHub Tools (Social Media) ─────────────────────────────────
@@ -666,6 +692,10 @@ _TOOL_ALIASES: dict[str, str] = {
     "get_pipeline": "get_pipeline_summary",
     "content_generate": "generate_content",
     "content_list": "list_content",
+    "remove_deal": "delete_deal",
+    "refresh_deal_attom": "populate_deal_attom",
+    "update_deal_attom": "populate_deal_attom",
+    "fill_deal_attom": "populate_deal_attom",
 }
 
 

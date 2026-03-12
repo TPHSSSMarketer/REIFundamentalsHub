@@ -1627,7 +1627,19 @@ async def _get_deal_details(params: dict, user: User, db: AsyncSession) -> dict:
     if not deal_id:
         return {"error": "deal_id is required"}
 
+    # Try exact match first
     deal = await db.get(CrmDeal, deal_id)
+
+    # If not found, try prefix match (AI sometimes truncates UUIDs)
+    if not deal:
+        result = await db.execute(
+            select(CrmDeal).where(
+                CrmDeal.id.startswith(deal_id),
+                CrmDeal.user_id == _ws_uid(user),
+            ).limit(1)
+        )
+        deal = result.scalars().first()
+
     if not deal or deal.user_id != _ws_uid(user):
         return {"error": "Deal not found"}
 
@@ -1705,6 +1717,333 @@ async def _search_deals(params: dict, user: User, db: AsyncSession) -> dict:
             break
 
     return {"deals": matches, "count": len(matches)}
+
+
+async def _delete_deal(params: dict, user: User, db: AsyncSession) -> dict:
+    """Delete a deal from the pipeline."""
+    deal_id = params.get("deal_id", "")
+    if not deal_id:
+        return {"error": "deal_id is required"}
+
+    # Try exact match first
+    deal = await db.get(CrmDeal, deal_id)
+
+    # Prefix match for truncated UUIDs
+    if not deal:
+        result = await db.execute(
+            select(CrmDeal).where(
+                CrmDeal.id.startswith(deal_id),
+                CrmDeal.user_id == _ws_uid(user),
+            ).limit(1)
+        )
+        deal = result.scalars().first()
+
+    if not deal or deal.user_id != _ws_uid(user):
+        return {"error": "Deal not found"}
+
+    address = deal.address or "Unknown"
+    await db.delete(deal)
+    await db.commit()
+
+    return {
+        "status": "deleted",
+        "deal_id": deal_id,
+        "address": address,
+        "message": f"Deal for {address} has been deleted from the pipeline.",
+    }
+
+
+async def _populate_deal_attom(params: dict, user: User, db: AsyncSession, settings: dict) -> dict:
+    """Re-populate an existing deal with ATTOM property data."""
+    import json as _json
+
+    deal_id = params.get("deal_id", "")
+    if not deal_id:
+        return {"error": "deal_id is required"}
+
+    # Try exact match first
+    deal = await db.get(CrmDeal, deal_id)
+
+    # Prefix match for truncated UUIDs
+    if not deal:
+        result = await db.execute(
+            select(CrmDeal).where(
+                CrmDeal.id.startswith(deal_id),
+                CrmDeal.user_id == _ws_uid(user),
+            ).limit(1)
+        )
+        deal = result.scalars().first()
+
+    if not deal or deal.user_id != _ws_uid(user):
+        return {"error": "Deal not found"}
+
+    address = deal.address or params.get("address", "")
+    city = deal.city or params.get("city", "")
+    state = deal.state or params.get("state", "")
+    zip_code = deal.zip or params.get("zip", "")
+
+    if not address:
+        return {"error": "Deal has no address to look up"}
+
+    from rei.services.attom_property_service import lookup_property_data
+    attom_data = await lookup_property_data(address, city, state, zip_code, db)
+
+    if not attom_data or not (attom_data.get("property_detail") or attom_data.get("tax_assessment")):
+        return {"error": f"No ATTOM data found for {address}"}
+
+    pd = attom_data.get("property_detail", {})
+    ta = attom_data.get("tax_assessment", {})
+    sh = attom_data.get("sale_history", [])
+    fields_updated = []
+
+    # Property details
+    if pd.get("property_type") and not deal.property_type:
+        deal.property_type = str(pd["property_type"])
+        fields_updated.append("property_type")
+    if pd.get("bedrooms") and not deal.bedrooms:
+        deal.bedrooms = _safe_int(pd["bedrooms"])
+        fields_updated.append("bedrooms")
+    if pd.get("bathrooms_full") and not deal.bathrooms:
+        deal.bathrooms = _safe_float(pd["bathrooms_full"])
+        fields_updated.append("bathrooms")
+    if pd.get("square_footage") and not deal.square_footage:
+        deal.square_footage = _safe_int(pd["square_footage"])
+        fields_updated.append("square_footage")
+    if pd.get("year_built") and not deal.year_built:
+        deal.year_built = _safe_int(pd["year_built"])
+        fields_updated.append("year_built")
+    if pd.get("lot_size_sqft") and not deal.lot_size:
+        deal.lot_size = str(pd["lot_size_sqft"])
+        fields_updated.append("lot_size")
+    if pd.get("lot_size_acres") and not deal.lot_size_acres:
+        deal.lot_size_acres = _safe_float(pd["lot_size_acres"])
+        fields_updated.append("lot_size_acres")
+    if pd.get("stories") and not deal.stories:
+        deal.stories = _safe_int(pd["stories"])
+        fields_updated.append("stories")
+    if pd.get("total_rooms") and not deal.total_rooms:
+        deal.total_rooms = _safe_int(pd["total_rooms"])
+        fields_updated.append("total_rooms")
+
+    # ATTOM identifiers
+    if pd.get("attom_id") and not deal.attom_id:
+        deal.attom_id = str(pd["attom_id"])
+        fields_updated.append("attom_id")
+    if pd.get("apn") and not deal.apn:
+        deal.apn = str(pd["apn"])
+        fields_updated.append("apn")
+    if pd.get("fips") and not deal.fips:
+        deal.fips = str(pd["fips"])
+        fields_updated.append("fips")
+    if pd.get("county") and not deal.county:
+        deal.county = str(pd["county"])
+        fields_updated.append("county")
+    if pd.get("subdivision") and not deal.subdivision:
+        deal.subdivision = str(pd["subdivision"])
+        fields_updated.append("subdivision")
+    if pd.get("school_district") and not deal.school_district:
+        deal.school_district = str(pd["school_district"])
+        fields_updated.append("school_district")
+    if pd.get("legal_description") and not deal.legal_description:
+        deal.legal_description = str(pd["legal_description"])
+        fields_updated.append("legal_description")
+    if pd.get("zoning") and not deal.zoning:
+        deal.zoning = str(pd["zoning"])
+        fields_updated.append("zoning")
+    if pd.get("absentee_owner") and not deal.absentee_owner:
+        deal.absentee_owner = str(pd["absentee_owner"])
+        fields_updated.append("absentee_owner")
+
+    # Construction details
+    if pd.get("construction_type") and not deal.construction_type:
+        deal.construction_type = str(pd["construction_type"])
+        fields_updated.append("construction_type")
+    if pd.get("exterior_walls") and not deal.exterior_walls:
+        deal.exterior_walls = str(pd["exterior_walls"])
+        fields_updated.append("exterior_walls")
+    if pd.get("roof_type") and not deal.roof_type:
+        deal.roof_type = str(pd["roof_type"])
+        fields_updated.append("roof_type")
+    if pd.get("foundation_type") and not deal.foundation_type:
+        deal.foundation_type = str(pd["foundation_type"])
+        fields_updated.append("foundation_type")
+    if pd.get("basement_type") and not deal.basement_type:
+        deal.basement_type = str(pd["basement_type"])
+        fields_updated.append("basement_type")
+    if pd.get("heating") and not deal.heating:
+        deal.heating = str(pd["heating"])
+        fields_updated.append("heating")
+    if pd.get("cooling") and not deal.cooling:
+        deal.cooling = str(pd["cooling"])
+        fields_updated.append("cooling")
+    if pd.get("water") and not deal.water_type:
+        deal.water_type = str(pd["water"])
+        fields_updated.append("water_type")
+    if pd.get("sewer") and not deal.sewer_type:
+        deal.sewer_type = str(pd["sewer_type"])
+        fields_updated.append("sewer_type")
+    if pd.get("pool_type") and pd["pool_type"] != "NO POOL" and not deal.pool:
+        deal.pool = str(pd["pool_type"])
+        fields_updated.append("pool")
+    if pd.get("fireplace") and not deal.fireplace_count:
+        deal.fireplace_count = _safe_int(pd["fireplace"])
+        fields_updated.append("fireplace_count")
+    if pd.get("parking_spaces") and not deal.parking_spaces:
+        deal.parking_spaces = _safe_int(pd["parking_spaces"])
+        fields_updated.append("parking_spaces")
+
+    # Geocoding
+    if pd.get("latitude") and not deal.latitude:
+        deal.latitude = _safe_float(pd["latitude"])
+        fields_updated.append("latitude")
+    if pd.get("longitude") and not deal.longitude:
+        deal.longitude = _safe_float(pd["longitude"])
+        fields_updated.append("longitude")
+
+    # Tax assessment
+    if ta.get("market_total_value") and not deal.market_value:
+        deal.market_value = _safe_float(ta["market_total_value"])
+        fields_updated.append("market_value")
+    if ta.get("market_land_value") and not deal.market_land_value:
+        deal.market_land_value = _safe_float(ta["market_land_value"])
+        fields_updated.append("market_land_value")
+    if ta.get("market_improvement_value") and not deal.market_improvement_value:
+        deal.market_improvement_value = _safe_float(ta["market_improvement_value"])
+        fields_updated.append("market_improvement_value")
+    if ta.get("assessed_total_value") and not deal.assessed_value:
+        deal.assessed_value = _safe_float(ta["assessed_total_value"])
+        fields_updated.append("assessed_value")
+    if ta.get("assessed_land_value") and not deal.assessed_land_value:
+        deal.assessed_land_value = _safe_float(ta["assessed_land_value"])
+        fields_updated.append("assessed_land_value")
+    if ta.get("assessed_improvement_value") and not deal.assessed_improvement_value:
+        deal.assessed_improvement_value = _safe_float(ta["assessed_improvement_value"])
+        fields_updated.append("assessed_improvement_value")
+    if ta.get("tax_amount") and not deal.property_tax_annual:
+        deal.property_tax_annual = _safe_float(ta["tax_amount"])
+        fields_updated.append("property_tax_annual")
+    if ta.get("tax_year") and not deal.tax_year:
+        deal.tax_year = _safe_int(ta["tax_year"])
+        fields_updated.append("tax_year")
+
+    # Appraised values
+    if ta.get("appraised_total_value"):
+        deal.appraised_total_value = _safe_float(ta["appraised_total_value"])
+        fields_updated.append("appraised_total_value")
+    if ta.get("appraised_land_value"):
+        deal.appraised_land_value = _safe_float(ta["appraised_land_value"])
+        fields_updated.append("appraised_land_value")
+    if ta.get("appraised_improvement_value"):
+        deal.appraised_improvement_value = _safe_float(ta["appraised_improvement_value"])
+        fields_updated.append("appraised_improvement_value")
+
+    # Calculated values
+    if ta.get("calc_total_value"):
+        deal.calc_total_value = _safe_float(ta["calc_total_value"])
+        fields_updated.append("calc_total_value")
+    if ta.get("calc_land_value"):
+        deal.calc_land_value = _safe_float(ta["calc_land_value"])
+        fields_updated.append("calc_land_value")
+    if ta.get("calc_improvement_value"):
+        deal.calc_improvement_value = _safe_float(ta["calc_improvement_value"])
+        fields_updated.append("calc_improvement_value")
+
+    # Tax per sqft
+    if ta.get("tax_per_sqft"):
+        deal.tax_per_sqft = _safe_float(ta["tax_per_sqft"])
+        fields_updated.append("tax_per_sqft")
+
+    # Lot detail
+    if pd.get("lot_depth"):
+        deal.lot_depth = str(pd["lot_depth"])
+        fields_updated.append("lot_depth")
+    if pd.get("lot_frontage"):
+        deal.lot_frontage = str(pd["lot_frontage"])
+        fields_updated.append("lot_frontage")
+
+    # Building sizes
+    if pd.get("building_size"):
+        deal.building_size = _safe_int(pd["building_size"])
+        fields_updated.append("building_size")
+    if pd.get("gross_size"):
+        deal.gross_size = _safe_int(pd["gross_size"])
+        fields_updated.append("gross_size")
+
+    # Most recent sale
+    if sh:
+        latest = sh[0]
+        if latest.get("sale_date") and not deal.last_sale_date:
+            deal.last_sale_date = str(latest["sale_date"])
+            fields_updated.append("last_sale_date")
+        if latest.get("sale_price") and not deal.last_sale_price:
+            deal.last_sale_price = _safe_float(latest["sale_price"])
+            fields_updated.append("last_sale_price")
+        if latest.get("buyer_name") and not deal.last_sale_buyer:
+            deal.last_sale_buyer = str(latest["buyer_name"])
+            fields_updated.append("last_sale_buyer")
+        if latest.get("seller_name") and not deal.last_sale_seller:
+            deal.last_sale_seller = str(latest["seller_name"])
+            fields_updated.append("last_sale_seller")
+
+    # Full sale history JSON
+    if sh:
+        deal.sale_history_json = _json.dumps(sh, default=str)
+        fields_updated.append("sale_history_json")
+
+    # Lien records JSON
+    lien_data = attom_data.get("lien_records", [])
+    if lien_data:
+        deal.lien_records_json = _json.dumps(lien_data, default=str)
+        fields_updated.append("lien_records_json")
+
+    # Owner / Mailing Address
+    oi = attom_data.get("owner_info", {})
+    if oi.get("owner_name") and not deal.owner_name:
+        deal.owner_name = str(oi["owner_name"])
+        fields_updated.append("owner_name")
+    if oi.get("mailing_address") and not deal.mailing_address:
+        deal.mailing_address = str(oi["mailing_address"])
+        fields_updated.append("mailing_address")
+    elif oi.get("mailing_line1") and not deal.mailing_address:
+        deal.mailing_address = str(oi["mailing_line1"])
+        fields_updated.append("mailing_address")
+    if oi.get("mailing_city") and not deal.mailing_city:
+        deal.mailing_city = str(oi["mailing_city"])
+        fields_updated.append("mailing_city")
+    if oi.get("mailing_state") and not deal.mailing_state:
+        deal.mailing_state = str(oi["mailing_state"])
+        fields_updated.append("mailing_state")
+    if oi.get("mailing_zip") and not deal.mailing_zip:
+        deal.mailing_zip = str(oi["mailing_zip"])
+        fields_updated.append("mailing_zip")
+
+    # Additional fields
+    if pd.get("census_tract") and not deal.census_tract:
+        deal.census_tract = str(pd["census_tract"])
+        fields_updated.append("census_tract")
+    if pd.get("municipality") and not deal.municipality:
+        deal.municipality = str(pd["municipality"])
+        fields_updated.append("municipality")
+    if pd.get("county_use_code") and not deal.county_use_code:
+        deal.county_use_code = str(pd["county_use_code"])
+        fields_updated.append("county_use_code")
+    if pd.get("geo_accuracy") and not deal.geo_accuracy:
+        deal.geo_accuracy = str(pd["geo_accuracy"])
+        fields_updated.append("geo_accuracy")
+
+    # Store raw ATTOM JSON
+    deal.attom_raw_data = _json.dumps(attom_data, default=str)
+
+    await db.commit()
+
+    return {
+        "status": "updated",
+        "deal_id": deal.id,
+        "address": address,
+        "fields_updated": fields_updated,
+        "field_count": len(fields_updated),
+        "message": f"Updated {len(fields_updated)} fields on deal for {address} from ATTOM data.",
+    }
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -2070,6 +2409,8 @@ TOOL_HANDLERS = {
     "upload_deal_photo": {"fn": _upload_deal_photo, "needs_settings": False},
     "get_deal_details": {"fn": _get_deal_details, "needs_settings": False},
     "search_deals": {"fn": _search_deals, "needs_settings": False},
+    "delete_deal": {"fn": _delete_deal, "needs_settings": False},
+    "populate_deal_attom": {"fn": _populate_deal_attom, "needs_settings": True},
     # ── ContentHub Tools ─────────────────────────────────────────
     "create_social_post": {"fn": _create_social_post, "needs_settings": True},
     "list_content": {"fn": _list_content, "needs_settings": False},
