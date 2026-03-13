@@ -1201,20 +1201,26 @@ async def _get_market_data(params: dict, user: User, db: AsyncSession, settings:
 
 
 async def _search_properties(params: dict, user: User, db: AsyncSession) -> dict:
-    """Search for property listings. Uses AI to generate a listing summary
-    based on the criteria (Puppeteer web scraping can be added later)."""
+    """Search for property listings using Playwright browser scraping.
+
+    Scrapes Zillow, Realtor.com, or Redfin for active listings matching
+    the given criteria. Returns structured listing data.
+    """
+    from rei.services.browser_scraping_service import scrape_listings
+
     location = params.get("location", "")
     max_price = params.get("max_price")
     min_beds = params.get("min_beds")
     min_baths = params.get("min_baths")
     prop_type = params.get("property_type", "")
     limit = params.get("limit", 20)
+    source = params.get("source", "zillow")
 
     if not location:
         return {"error": "Location is required"}
 
     # Build a search description for the user
-    criteria = [f"Location: {location}"]
+    criteria = [f"Location: {location}", f"Source: {source}"]
     if max_price:
         criteria.append(f"Max price: ${max_price:,}")
     if min_beds:
@@ -1224,16 +1230,266 @@ async def _search_properties(params: dict, user: User, db: AsyncSession) -> dict
     if prop_type:
         criteria.append(f"Type: {prop_type}")
 
+    try:
+        result = await scrape_listings(
+            location=location,
+            source=source,
+            max_price=max_price,
+            min_beds=min_beds,
+            min_baths=min_baths,
+            property_type=prop_type,
+            limit=limit,
+        )
+
+        if result.get("error"):
+            return {
+                "status": "scrape_failed",
+                "criteria": criteria,
+                "error": result["error"],
+                "message": (
+                    f"Scraping {source} for {location} encountered an issue: {result['error']}. "
+                    "You can try a different source (zillow, realtor, redfin) or use "
+                    "lookup_property for a specific address."
+                ),
+            }
+
+        listing_count = result.get("total_found", 0)
+        return {
+            "status": "success",
+            "criteria": criteria,
+            "total_found": listing_count,
+            "listings": result.get("listings", []),
+            "source": result.get("source", source),
+            "source_url": result.get("url", ""),
+            "scraped_at": result.get("scraped_at", ""),
+            "message": (
+                f"Found {listing_count} listings on {source} for {location}."
+            ),
+        }
+
+    except ImportError:
+        return {
+            "status": "not_available",
+            "criteria": criteria,
+            "message": (
+                "Playwright is not installed. Run: pip install playwright && "
+                "playwright install chromium"
+            ),
+        }
+    except Exception as exc:
+        logger.error("search_properties failed: %s", exc, exc_info=True)
+        return {
+            "status": "error",
+            "criteria": criteria,
+            "error": str(exc)[:300],
+            "message": f"Property search failed: {str(exc)[:200]}",
+        }
+
+
+async def _market_scan(params: dict, user: User, db: AsyncSession) -> dict:
+    """Scan a market for listings and import them into a Lead List.
+
+    Scrapes the chosen source, creates or finds a named Lead List,
+    and inserts each listing as a new Lead record. Skips duplicates
+    by address match within the same list.
+    """
+    from datetime import datetime
+    from rei.services.browser_scraping_service import scrape_listings
+    from rei.models.leads_pipeline import LeadList, Lead
+
+    location = params.get("location", "")
+    source = params.get("source", "zillow")
+    list_name = params.get("list_name", "")
+    max_price = params.get("max_price")
+    min_beds = params.get("min_beds")
+    min_baths = params.get("min_baths")
+    prop_type = params.get("property_type", "")
+    limit = params.get("limit", 50)
+    skip_dupes = params.get("skip_duplicates", True)
+
+    if not location:
+        return {"error": "Location is required"}
+
+    # Auto-generate list name if not provided
+    if not list_name:
+        date_str = datetime.utcnow().strftime("%b %Y")
+        list_name = f"{location} - {source.capitalize()} - {date_str}"
+
+    # ── Step 1: Scrape listings ──
+    try:
+        scrape_result = await scrape_listings(
+            location=location,
+            source=source,
+            max_price=max_price,
+            min_beds=min_beds,
+            min_baths=min_baths,
+            property_type=prop_type,
+            limit=limit,
+        )
+    except ImportError:
+        return {
+            "status": "not_available",
+            "message": (
+                "Playwright is not installed. Run: pip install playwright && "
+                "playwright install chromium"
+            ),
+        }
+    except Exception as exc:
+        logger.error("market_scan scrape failed: %s", exc, exc_info=True)
+        return {"error": f"Scraping failed: {str(exc)[:300]}"}
+
+    if scrape_result.get("error"):
+        return {
+            "status": "scrape_failed",
+            "error": scrape_result["error"],
+            "message": f"Market scan for {location} failed: {scrape_result['error']}",
+        }
+
+    listings = scrape_result.get("listings", [])
+    if not listings:
+        return {
+            "status": "no_listings",
+            "message": f"No listings found on {source} for {location}.",
+            "location": location,
+            "source": source,
+        }
+
+    # ── Step 2: Find or create the Lead List ──
+    result = await db.execute(
+        select(LeadList).where(
+            LeadList.user_id == user.id,
+            LeadList.list_name == list_name,
+            LeadList.is_deleted.is_(False),
+        )
+    )
+    lead_list = result.scalar_one_or_none()
+
+    if not lead_list:
+        lead_list = LeadList(
+            user_id=user.id,
+            list_name=list_name,
+            source=source.capitalize(),
+            description=f"Auto-imported from {source} market scan for {location}",
+            lead_count=0,
+        )
+        db.add(lead_list)
+        await db.flush()  # Get the ID
+        logger.info("Created new Lead List: %s (id=%s)", list_name, lead_list.id)
+
+    # ── Step 3: Get existing addresses in the list (for dedup) ──
+    existing_addresses = set()
+    if skip_dupes:
+        existing_result = await db.execute(
+            select(Lead.address).where(
+                Lead.list_id == lead_list.id,
+                Lead.user_id == user.id,
+                Lead.is_deleted.is_(False),
+            )
+        )
+        existing_addresses = {
+            (addr or "").strip().lower()
+            for (addr,) in existing_result.all()
+            if addr
+        }
+
+    # ── Step 4: Import each listing as a Lead ──
+    imported = 0
+    skipped = 0
+
+    for listing in listings:
+        addr = (listing.get("address") or "").strip()
+        if not addr:
+            continue
+
+        # Skip duplicates
+        if skip_dupes and addr.lower() in existing_addresses:
+            skipped += 1
+            continue
+
+        # Build notes with listing details AND contact info
+        notes_parts = []
+        if listing.get("price"):
+            notes_parts.append(f"Price: ${listing['price']:,}")
+        if listing.get("beds"):
+            notes_parts.append(f"{listing['beds']} bed")
+        if listing.get("baths"):
+            notes_parts.append(f"{listing['baths']} bath")
+        if listing.get("sqft"):
+            notes_parts.append(f"{listing['sqft']:,} sqft")
+        if listing.get("listing_type"):
+            notes_parts.append(f"Type: {listing['listing_type'].upper()}")
+        if listing.get("owner_name"):
+            notes_parts.append(f"Owner: {listing['owner_name']}")
+        if listing.get("agent_name"):
+            notes_parts.append(f"Agent: {listing['agent_name']}")
+        if listing.get("url"):
+            notes_parts.append(f"Listing: {listing['url']}")
+        if listing.get("days_on_market") is not None:
+            notes_parts.append(f"Days on market: {listing['days_on_market']}")
+
+        tags = [source, "market_scan"]
+        if listing.get("status"):
+            tags.append(listing["status"])
+        if listing.get("listing_type"):
+            tags.append(listing["listing_type"])
+
+        # Contact fields — populate name, phone, email on the lead
+        contact_name = listing.get("owner_name") or listing.get("agent_name") or ""
+        first_name = ""
+        last_name = ""
+        if contact_name:
+            name_parts = contact_name.strip().split(" ", 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        lead = Lead(
+            user_id=user.id,
+            list_id=lead_list.id,
+            address=addr,
+            city=listing.get("city") or "",
+            state=listing.get("state") or "",
+            zip_code=listing.get("zip") or "",
+            property_type=listing.get("property_type") or prop_type or "",
+            status="new",
+            first_name=first_name or None,
+            last_name=last_name or None,
+            full_name=contact_name or None,
+            phone=listing.get("phone") or None,
+            email=listing.get("email") or None,
+            notes=" | ".join(notes_parts) if notes_parts else None,
+            tags_json=json.dumps(tags),
+        )
+        db.add(lead)
+        imported += 1
+        existing_addresses.add(addr.lower())
+
+    # Update lead count
+    lead_list.lead_count = (lead_list.lead_count or 0) + imported
+    lead_list.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    logger.info(
+        "Market scan complete: %d imported, %d skipped, list=%s",
+        imported, skipped, list_name,
+    )
+
     return {
-        "status": "search_criteria_set",
-        "criteria": criteria,
+        "status": "success",
+        "list_name": list_name,
+        "list_id": lead_list.id,
+        "location": location,
+        "source": source,
+        "total_scraped": len(listings),
+        "imported": imported,
+        "skipped_duplicates": skipped,
+        "scraped_at": scrape_result.get("scraped_at", ""),
         "message": (
-            f"Property search criteria set for {location}. "
-            "Note: Live web scraping (Zillow/Realtor.com) is coming soon. "
-            "For now, I can look up specific properties by address using the "
-            "lookup_property tool, or pull market data with get_market_data."
+            f"Imported {imported} new leads into '{list_name}' from {source}. "
+            f"{skipped} duplicates skipped."
+            if skipped
+            else f"Imported {imported} new leads into '{list_name}' from {source}."
         ),
-        "limit": limit,
     }
 
 
@@ -2403,6 +2659,7 @@ TOOL_HANDLERS = {
     "lookup_property": {"fn": _lookup_property, "needs_settings": True},
     "get_market_data": {"fn": _get_market_data, "needs_settings": True},
     "search_properties": {"fn": _search_properties, "needs_settings": False},
+    "market_scan": {"fn": _market_scan, "needs_settings": False},
     # ── Deal Management Tools ────────────────────────────────────
     "create_deal": {"fn": _create_deal, "needs_settings": False},
     "add_deal_note": {"fn": _add_deal_note, "needs_settings": False},

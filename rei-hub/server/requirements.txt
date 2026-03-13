@@ -54,3 +54,4 @@ qdrant-client==1.13.3
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 sentence-transformers==3.4.1
+playwright==1.52.0

@@ -3,13 +3,14 @@
 Pre-built automation templates available to all users. System skills
 are read-only; users can clone them to create custom variants.
 
-The 6 core skills:
+The 7 core skills:
 1. Follow-Up Scanner — Find contacts needing follow-up
 2. Pipeline Health Check — Analyze deal pipeline health
 3. Lead Scorer — Score and prioritize leads
 4. Daily Summary — Generate daily business summary
 5. Campaign Launcher — Launch SMS campaign to tagged contacts
 6. Buyer Match — Match buyers to available deals
+7. Market Scanner — Scrape listings from Zillow/Realtor/Redfin into Lead Center
 """
 
 from __future__ import annotations
@@ -87,6 +88,30 @@ SYSTEM_SKILLS = [
         "action_steps": [
             {"tool": "get_contacts", "params": {"role": "buyer", "limit": 50}},
             {"tool": "get_deals", "params": {"stage": "analysis"}},
+        ],
+    },
+    {
+        "name": "Market Scanner",
+        "description": (
+            "Scrape new property listings from Zillow, Realtor.com, or Redfin "
+            "and import them into a Lead List in Lead Center. Great for daily "
+            "market scanning — schedule this to run every morning to catch new "
+            "listings in your target markets."
+        ),
+        "category": "property",
+        "icon": "Radar",
+        "action_steps": [
+            {
+                "tool": "market_scan",
+                "params": {
+                    "location": "Huntington, NY",
+                    "source": "zillow",
+                    "max_price": 500000,
+                    "min_beds": 3,
+                    "limit": 50,
+                    "skip_duplicates": True,
+                },
+            },
         ],
     },
 ]

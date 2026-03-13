@@ -393,18 +393,56 @@ PROPERTY_TOOLS = [
     },
     {
         "name": "search_properties",
-        "description": "Search for properties matching criteria in a given area. Uses web scraping to find listings from public sources. Returns addresses, prices, beds, baths, and sqft.",
+        "description": (
+            "Search for properties matching criteria in a given area. Uses Playwright "
+            "browser scraping to find active listings from Zillow, Realtor.com, Redfin, "
+            "ForSaleByOwner.com (FSBO), or Craigslist. Returns addresses, prices, beds, "
+            "baths, sqft, listing URLs, and contact info (owner/agent name, phone, email) "
+            "when available. FSBO and Craigslist sources are best for finding owner contact "
+            "details. Default source is Zillow."
+        ),
         "risk_level": "LOW",
         "domain": "property",
         "parameters": {
             "type": "object",
             "properties": {
-                "location": {"type": "string", "description": "City, county, or ZIP code to search in"},
+                "location": {"type": "string", "description": "City and state (e.g. 'Huntington, NY'), county, or ZIP code to search in"},
+                "source": {"type": "string", "description": "Listing source: zillow, realtor, redfin, fsbo, or craigslist", "default": "zillow"},
                 "max_price": {"type": "integer", "description": "Maximum price filter"},
                 "min_beds": {"type": "integer", "description": "Minimum bedrooms"},
                 "min_baths": {"type": "integer", "description": "Minimum bathrooms"},
                 "property_type": {"type": "string", "description": "Property type: single_family, multi_family, condo, townhouse, land"},
                 "limit": {"type": "integer", "description": "Max results to return", "default": 20},
+            },
+            "required": ["location"],
+        },
+    },
+    {
+        "name": "market_scan",
+        "description": (
+            "Scan a market for new listings and import them into a Lead List in Lead Center. "
+            "Scrapes Zillow, Realtor.com, Redfin, ForSaleByOwner.com (FSBO), or Craigslist, "
+            "creates or updates a named Lead List, and adds each listing as a new lead. "
+            "FSBO and Craigslist sources also capture owner/agent name, phone, and email. "
+            "Perfect for daily market scanning automations. "
+            "Returns the number of new leads imported and the list name. "
+            "Use this when the user wants to 'scan a market', 'import listings into leads', "
+            "'find new deals and add to lead center', or 'run a daily market scan'."
+        ),
+        "risk_level": "MEDIUM",
+        "domain": "property",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City and state (e.g. 'Huntington, NY'), county, or ZIP code"},
+                "source": {"type": "string", "description": "Listing source: zillow, realtor, redfin, fsbo, or craigslist", "default": "zillow"},
+                "list_name": {"type": "string", "description": "Name for the Lead List (e.g. 'Huntington NY - March 2026'). Auto-generated if not provided."},
+                "max_price": {"type": "integer", "description": "Maximum price filter"},
+                "min_beds": {"type": "integer", "description": "Minimum bedrooms"},
+                "min_baths": {"type": "integer", "description": "Minimum bathrooms"},
+                "property_type": {"type": "string", "description": "Property type: single_family, multi_family, condo, townhouse, land"},
+                "limit": {"type": "integer", "description": "Max listings to import", "default": 50},
+                "skip_duplicates": {"type": "boolean", "description": "Skip listings already in the list (by address match)", "default": True},
             },
             "required": ["location"],
         },
@@ -696,6 +734,18 @@ _TOOL_ALIASES: dict[str, str] = {
     "refresh_deal_attom": "populate_deal_attom",
     "update_deal_attom": "populate_deal_attom",
     "fill_deal_attom": "populate_deal_attom",
+    # ── market_scan aliases ──
+    "scan_market": "market_scan",
+    "scan_listings": "market_scan",
+    "import_listings": "market_scan",
+    "scrape_market": "market_scan",
+    "daily_scan": "market_scan",
+    "find_listings": "market_scan",
+    # ── search_properties aliases ──
+    "search_listings": "search_properties",
+    "find_properties": "search_properties",
+    "scrape_zillow": "search_properties",
+    "zillow_search": "search_properties",
 }
 
 
