@@ -297,13 +297,17 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
-    const driveCode = searchParams.get('drive_code')
-    if (driveCode) {
-      handleGoogleDriveCallback(driveCode)
+    const driveFlag = searchParams.get('drive_code')
+    if (driveFlag) {
+      // The redirect URI includes ?drive_code=CALLBACK as a flag.
+      // The actual OAuth auth code is in the standard "code" query param.
+      const actualCode = searchParams.get('code')
+      if (actualCode) handleGoogleDriveCallback(actualCode)
     }
-    const dropboxCode = searchParams.get('dropbox_code')
-    if (dropboxCode) {
-      handleDropboxCallback(dropboxCode)
+    const dropboxFlag = searchParams.get('dropbox_code')
+    if (dropboxFlag) {
+      const actualCode = searchParams.get('code')
+      if (actualCode) handleDropboxCallback(actualCode)
     }
   }, [searchParams])
 
@@ -342,10 +346,16 @@ export default function Settings() {
   useEffect(() => {
     const platforms: SocialPlatform[] = ['facebook', 'linkedin', 'x', 'instagram']
     for (const p of platforms) {
-      const code = searchParams.get(`${p}_code`)
-      const verifier = searchParams.get(`${p}_code_verifier`)
-      if (code) {
-        handleSocialCallback(p, code, verifier || undefined)
+      const platformFlag = searchParams.get(`${p}_code`)
+      if (platformFlag) {
+        // The redirect URI includes ?{platform}_code=CALLBACK as a flag.
+        // The actual OAuth auth code is in the standard "code" query param
+        // appended by the OAuth provider.
+        const actualCode = searchParams.get('code')
+        const verifier = searchParams.get(`${p}_code_verifier`)
+        if (actualCode) {
+          handleSocialCallback(p, actualCode, verifier || undefined)
+        }
         break
       }
     }
