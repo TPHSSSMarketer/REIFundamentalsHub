@@ -72,9 +72,12 @@ async def match_buyers_for_deal(
 
     for bc in all_criteria:
         # Parse JSON arrays
-        prop_types = [t.lower().strip() for t in json.loads(bc.property_types_json or "[]")]
-        markets = [m.lower().strip() for m in json.loads(bc.markets_json or "[]")]
-        conditions = [c.lower().strip() for c in json.loads(bc.conditions_accepted_json or "[]")]
+        _pt = bc.property_types_json if isinstance(bc.property_types_json, list) else json.loads(bc.property_types_json or "[]")
+        prop_types = [t.lower().strip() for t in _pt]
+        _mk = bc.markets_json if isinstance(bc.markets_json, list) else json.loads(bc.markets_json or "[]")
+        markets = [m.lower().strip() for m in _mk]
+        _ca = bc.conditions_accepted_json if isinstance(bc.conditions_accepted_json, list) else json.loads(bc.conditions_accepted_json or "[]")
+        conditions = [c.lower().strip() for c in _ca]
 
         # Check each criteria dimension (skip if buyer hasn't specified)
 

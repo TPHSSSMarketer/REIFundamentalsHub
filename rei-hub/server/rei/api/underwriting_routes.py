@@ -463,8 +463,8 @@ async def get_underwriting(
         return {"has_analysis": False}
 
     try:
-        analysis = json.loads(deal.underwriting_data)
+        analysis = deal.underwriting_data if isinstance(deal.underwriting_data, dict) else json.loads(deal.underwriting_data)
         analysis["has_analysis"] = True
         return analysis
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError):
         return {"has_analysis": False}

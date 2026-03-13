@@ -458,7 +458,7 @@ async def _get_contacts(params: dict, user: User, db: AsyncSession) -> dict:
         contacts = [
             c
             for c in contacts
-            if tag in json.loads(c.tags_json or "[]")
+            if tag in (c.tags_json if isinstance(c.tags_json, list) else json.loads(c.tags_json or "[]"))
         ]
 
     return {
@@ -508,7 +508,7 @@ async def _get_contact_details(params: dict, user: User, db: AsyncSession) -> di
         "email": contact.email,
         "role": contact.role,
         "company": contact.company,
-        "tags": json.loads(contact.tags_json or "[]"),
+        "tags": contact.tags_json if isinstance(contact.tags_json, list) else json.loads(contact.tags_json or "[]"),
         "notes": contact.notes,
         "rating": contact.rating,
         "interaction_count": contact.interaction_count,
