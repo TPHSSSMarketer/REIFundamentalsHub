@@ -141,15 +141,18 @@ async def alter_float_to_numeric(engine):
             ("saved_markets", "price_change_pct", "NUMERIC(8,4)"),
         ]
 
-    for table, col, new_type in statements:
-        try:
-            async with engine.begin() as conn:
+    # Use ONE connection for all ALTERs (avoids exhausting Supabase pooler).
+    # Commit each ALTER individually; rollback on failure so the next can proceed.
+    async with engine.connect() as conn:
+        for table, col, new_type in statements:
+            try:
                 await conn.execute(
                     text(
                         f"ALTER TABLE {table} ALTER COLUMN {col} "
                         f"TYPE {new_type} USING {col}::{new_type}"
                     )
                 )
-        except Exception:
-            # Column already correct type, doesn't exist, or table missing — skip
-            pass
+                await conn.commit()
+            except Exception:
+                # Column already correct type, doesn't exist, or table missing — rollback and continue
+                await conn.rollback()
