@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from sqlalchemy import text
 from sqlalchemy.exc import CircularDependencyError
@@ -387,6 +388,31 @@ _COLUMN_MIGRATIONS = [
 ]
 
 
+async def _wait_for_db(max_retries: int = 5, base_delay: float = 5.0) -> None:
+    """Wait until the database accepts a connection.
+
+    On Railway, rapid restart retries leave zombie connections in Supabase's
+    session-mode pooler. This helper retries with increasing backoff so
+    previous connections have time to be released.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                await conn.rollback()
+            logger.info("Database connection ready (attempt %d)", attempt)
+            return
+        except Exception as exc:
+            delay = base_delay * attempt  # 5s, 10s, 15s, 20s, 25s
+            logger.warning(
+                "DB not ready (attempt %d/%d): %s — retrying in %.0fs",
+                attempt, max_retries, exc, delay,
+            )
+            if attempt == max_retries:
+                raise
+            await asyncio.sleep(delay)
+
+
 async def create_tables() -> None:
     """Run Base.metadata.create_all, then apply column migrations.
 
@@ -394,6 +420,9 @@ async def create_tables() -> None:
     that race on table creation. SQLite throws 'table already exists' when
     two workers call CREATE TABLE simultaneously.
     """
+    # Wait for the database to be reachable (handles pooler recovery)
+    await _wait_for_db()
+
     # Pre-process: detect and auto-fix any circular FK dependencies
     # so that create_all() can sort tables without errors.
     _fix_circular_fk_deps()

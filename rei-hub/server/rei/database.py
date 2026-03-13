@@ -60,8 +60,8 @@ if _is_postgres:
     engine = create_async_engine(
         _db_url,
         echo=False,
-        pool_size=3,
-        max_overflow=2,
+        pool_size=2,
+        max_overflow=1,
         pool_pre_ping=True,
         pool_recycle=300,
     )
