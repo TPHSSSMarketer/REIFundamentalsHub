@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import urllib.parse
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from rei.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -49,7 +52,17 @@ def _prepare_postgres_url(raw: str) -> str:
 
 
 if _is_postgres:
+    logger.critical("DB_RAW_URL scheme=%s host_contains_pooler=%s", _db_url.split("://")[0], "pooler" in _db_url)
     _db_url = _prepare_postgres_url(_db_url)
+    # Log the final URL with password masked for debugging
+    _debug_url = _db_url
+    try:
+        _pwd_start = _debug_url.index(":", _debug_url.index("://") + 3) + 1
+        _pwd_end = _debug_url.rindex("@")
+        _debug_url = _debug_url[:_pwd_start] + "****" + _debug_url[_pwd_end:]
+    except ValueError:
+        pass
+    logger.critical("DB_FINAL_URL: %s", _debug_url)
     engine = create_async_engine(
         _db_url,
         echo=False,
