@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rei.database import Base
@@ -36,8 +36,8 @@ class CrmContact(Base):
     email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # JSON-serialized string arrays
-    tags_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
-    markets_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    tags_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
+    markets_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
 
     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     preferred_channel: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -49,7 +49,7 @@ class CrmContact(Base):
     date_added: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_activity: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=datetime.utcnow)
 
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -68,10 +68,10 @@ class BuyerCriteria(Base):
     buyer_contact_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
     # JSON arrays of accepted values
-    property_types_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
-    markets_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
-    conditions_accepted_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
-    financing_types_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
+    property_types_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
+    markets_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
+    conditions_accepted_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
+    financing_types_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default="[]")
 
     # Budget range
     min_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
@@ -101,7 +101,7 @@ class CrmDeal(Base):
     city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    stage: Mapped[str] = mapped_column(String, nullable=False, default="lead")
+    stage: Mapped[str] = mapped_column(String, nullable=False, default="lead", index=True)
 
     # Pricing & Valuation
     list_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
@@ -252,10 +252,10 @@ class CrmDeal(Base):
     gross_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # ── ATTOM Sale History JSON ──
-    sale_history_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sale_history_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # ── ATTOM Lien/Mortgage Records JSON ──
-    lien_records_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lien_records_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # ── ATTOM Tax / Valuation (auto-populated) ──
     market_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
@@ -313,10 +313,10 @@ class CrmDeal(Base):
     exit_strategy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # ── Multi-Unit Details (JSON) ──
-    unit_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    unit_details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # ── AI Underwriting ──
-    underwriting_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)
+    underwriting_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)
 
     # ── AI Photo Analysis (overall property condition) ──
     property_condition_grade: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # A-F
@@ -347,7 +347,7 @@ class CrmDeal(Base):
     campaign_type: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # email, sms, direct_mail
     campaign_name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # denormalized for quick display
 
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

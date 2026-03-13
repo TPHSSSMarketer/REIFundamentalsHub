@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rei.database import Base
@@ -90,10 +90,10 @@ class NegotiationRequest(Base):
     )
 
     # JSON list of DealLien UUIDs the user selected
-    lien_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    lien_ids_json: Mapped[dict] = mapped_column(JSON, nullable=False, default="[]")
 
     # JSON list of service types: ["bank", "county_tax", "other_lien"]
-    service_types_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    service_types_json: Mapped[dict] = mapped_column(JSON, nullable=False, default="[]")
 
     # User's initial message/note
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -198,7 +198,7 @@ class NegotiationActivity(Base):
 
     # ── Attachments ──
     # JSON list of {file_name, file_type, deal_file_id} references
-    attachments_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attachments_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     created_by: Mapped[str] = mapped_column(String, nullable=False, default="admin")
     # admin, system, ai

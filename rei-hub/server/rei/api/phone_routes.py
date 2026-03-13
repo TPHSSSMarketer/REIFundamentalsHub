@@ -7,7 +7,8 @@ import json
 import logging
 import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -25,7 +26,6 @@ from rei.config import (
     PHONE_PRICING,
     get_settings,
 )
-from datetime import time as dt_time
 
 from rei.models.conversation_flow import Persona
 from rei.models.crm import DealFile
@@ -1608,7 +1608,13 @@ def _is_device_in_ring_window(
         start_hour, start_min = map(int, start_str.split(":"))
         end_hour, end_min = map(int, end_str.split(":"))
 
-        now = datetime.utcnow()  # TODO: Convert to user's timezone
+        # Convert UTC to user's local timezone from the ring_schedule
+        tz_name = ring_schedule.get("timezone", "America/New_York")
+        try:
+            local_tz = ZoneInfo(tz_name)
+        except (KeyError, Exception):
+            local_tz = ZoneInfo("America/New_York")
+        now = datetime.now(timezone.utc).astimezone(local_tz)
         current_day = now.isoweekday()  # 1=Monday, 7=Sunday
         current_time = dt_time(now.hour, now.minute)
         start_time = dt_time(start_hour, start_min)

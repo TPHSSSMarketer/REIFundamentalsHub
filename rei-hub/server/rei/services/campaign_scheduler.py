@@ -25,7 +25,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, time as dt_time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from sqlalchemy import select, and_, func
@@ -54,7 +55,7 @@ def is_in_calling_window(campaign: CallCampaign) -> bool:
     Respects:
     - calling_window_start / calling_window_end (e.g., 9 AM to 5 PM)
     - calling_days (e.g., Mon-Fri only)
-    - timezone (TODO: proper timezone conversion)
+    - timezone (converts UTC to campaign's local timezone)
     """
     try:
         start_str = campaign.calling_window_start or "09:00"
@@ -64,7 +65,13 @@ def is_in_calling_window(campaign: CallCampaign) -> bool:
         start_hour, start_min = map(int, start_str.split(":"))
         end_hour, end_min = map(int, end_str.split(":"))
 
-        now = datetime.utcnow()  # TODO: Convert to campaign timezone
+        # Convert UTC now to the campaign's local timezone
+        tz_name = getattr(campaign, "timezone", None) or "America/New_York"
+        try:
+            local_tz = ZoneInfo(tz_name)
+        except (KeyError, Exception):
+            local_tz = ZoneInfo("America/New_York")
+        now = datetime.now(timezone.utc).astimezone(local_tz)
         current_day = now.isoweekday()
         current_time = dt_time(now.hour, now.minute)
         start_time = dt_time(start_hour, start_min)

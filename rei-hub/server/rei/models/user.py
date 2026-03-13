@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from rei.database import Base
@@ -18,7 +18,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -32,13 +32,13 @@ class User(Base):
     # ── Subscription fields (inline on user) ──────────────────────────
     plan: Mapped[str] = mapped_column(String, default="starter")
     billing_interval: Mapped[str] = mapped_column(String, default="monthly")
-    subscription_status: Mapped[str] = mapped_column(String, default="trialing")
+    subscription_status: Mapped[str] = mapped_column(String, default="trialing", index=True)
     trial_ends_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=lambda: datetime.utcnow() + timedelta(days=_TRIAL_DAYS)
     )
     subscription_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     paypal_subscription_id: Mapped[str | None] = mapped_column(String, nullable=True)
     helm_addon_active: Mapped[bool] = mapped_column(Boolean, default=False)  # DEPRECATED — kept for DB compatibility
     helm_addon_billing_interval: Mapped[str | None] = mapped_column(String, nullable=True)  # DEPRECATED — kept for DB compatibility
@@ -675,7 +675,7 @@ class PhoneNumber(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     number: Mapped[str] = mapped_column(String)  # E.164 e.g. +15551234567
     friendly_name: Mapped[str] = mapped_column(String)
     twilio_sid: Mapped[str] = mapped_column(String)
@@ -730,8 +730,8 @@ class CallLog(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     phone_number_id: Mapped[str] = mapped_column(ForeignKey("phone_numbers.id"))
     twilio_call_sid: Mapped[str] = mapped_column(String)
     direction: Mapped[str] = mapped_column(String)  # "inbound", "outbound"
@@ -756,8 +756,8 @@ class SmsMessage(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     phone_number_id: Mapped[str] = mapped_column(ForeignKey("phone_numbers.id"))
     twilio_message_sid: Mapped[str] = mapped_column(String)
     direction: Mapped[str] = mapped_column(String)  # "inbound", "outbound"
@@ -1471,7 +1471,7 @@ class ConversationLog(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     call_log_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("call_logs.id", use_alter=True), nullable=True
     )
@@ -1486,13 +1486,13 @@ class ConversationLog(Base):
     elevenlabs_conversation_id: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )  # ElevenLabs session ID
-    transcript: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
+    transcript: Mapped[Optional[dict]] = mapped_column(
+        JSON, nullable=True
     )  # JSON: [{"role": "agent", "text": "..."}, {"role": "caller", "text": "..."}]
 
     # AI-extracted data from the call
-    extracted_data: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
+    extracted_data: Mapped[Optional[dict]] = mapped_column(
+        JSON, nullable=True
     )  # JSON: {"name": "John", "email": "...", "property_address": "...", "phone": "..."}
 
     # Mood & deal analysis
