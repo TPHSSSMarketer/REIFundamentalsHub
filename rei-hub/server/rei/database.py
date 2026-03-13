@@ -9,11 +9,18 @@ from rei.config import get_settings
 
 settings = get_settings()
 
-_is_postgres = "postgresql" in settings.database_url
+_db_url = settings.database_url
+_is_postgres = "postgresql" in _db_url
+
+# Auto-convert plain postgresql:// to postgresql+asyncpg:// so users
+# can paste a standard Supabase/PG connection string without worrying
+# about the async driver prefix.
+if _is_postgres and "+asyncpg" not in _db_url:
+    _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 if _is_postgres:
     engine = create_async_engine(
-        settings.database_url,
+        _db_url,
         echo=False,
         pool_size=20,
         max_overflow=10,
@@ -22,7 +29,7 @@ if _is_postgres:
 else:
     # SQLite for local development
     engine = create_async_engine(
-        settings.database_url,
+        _db_url,
         echo=False,
         connect_args={"check_same_thread": False},
     )
