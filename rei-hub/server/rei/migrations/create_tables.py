@@ -388,7 +388,7 @@ _COLUMN_MIGRATIONS = [
 ]
 
 
-async def _wait_for_db(max_retries: int = 5, base_delay: float = 5.0) -> None:
+async def _wait_for_db(max_retries: int = 8, base_delay: float = 8.0) -> None:
     """Wait until the database accepts a connection.
 
     On Railway, rapid restart retries leave zombie connections in Supabase's
@@ -481,11 +481,15 @@ async def create_tables() -> None:
                 pass
 
     # Migrate Float → Numeric for financial precision (idempotent)
-    try:
-        from rei.migrations.alter_float_to_numeric import alter_float_to_numeric
-        await alter_float_to_numeric(engine)
-        logger.info("Float→Numeric migration completed")
-    except Exception:
-        logger.exception("Float→Numeric migration failed (non-fatal)")
+    # TEMPORARILY DISABLED — the 89 ALTER statements overwhelm Supabase's
+    # session-mode pooler during startup. The SQLAlchemy models already use
+    # Numeric types, so new data is stored correctly. Re-enable once the
+    # app is stable, or run the migration manually via a one-off script.
+    # try:
+    #     from rei.migrations.alter_float_to_numeric import alter_float_to_numeric
+    #     await alter_float_to_numeric(engine)
+    #     logger.info("Float→Numeric migration completed")
+    # except Exception:
+    #     logger.exception("Float→Numeric migration failed (non-fatal)")
 
 
