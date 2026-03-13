@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rei.database import Base
@@ -42,9 +42,9 @@ class DealLien(Base):
 
     lien_holder: Mapped[str] = mapped_column(String, nullable=False, default="")
     account_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    interest_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    balance: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    monthly_payment: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    interest_rate: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
     loan_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # ISO date string
     maturity_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -53,7 +53,7 @@ class DealLien(Base):
     # current, delinquent, default, foreclosure
     payments_current: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # yes/no
     months_behind: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    amount_behind: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    amount_behind: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Loan details
     loan_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)

@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Boolean
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from rei.database import Base
@@ -119,7 +119,7 @@ class MarketingTouch(Base):
     # Types: postcard, letter
     delivery_status: Mapped[str] = mapped_column(String, default="pending")
     # Statuses: pending, sent, in_transit, delivered, returned, failed
-    cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cost: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     provider_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Thanks.io order ID for tracking
 

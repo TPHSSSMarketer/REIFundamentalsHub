@@ -54,3 +54,4 @@ qdrant-client==1.13.3
 torch
 sentence-transformers==3.4.1
 playwright==1.52.0
+sentry-sdk[fastapi]==2.19.2

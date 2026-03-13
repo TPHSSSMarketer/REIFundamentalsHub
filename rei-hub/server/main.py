@@ -19,7 +19,11 @@ logging.basicConfig(
     stream=sys.stderr,  # Railway captures stderr as [err] log lines
 )
 
-from fastapi import FastAPI
+import sentry_sdk
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from datetime import datetime, timedelta
 
@@ -91,6 +95,21 @@ from rei.tasks.trial_reminder import send_trial_reminders
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# ── Sentry error tracking ─────────────────────────────────────────────
+# Set SENTRY_DSN in Railway env vars to enable. Leave blank to disable.
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=0.2,  # 20% of requests get performance tracing
+        profiles_sample_rate=0.1,
+        send_default_pii=False,  # Don't send user emails/IPs to Sentry
+    )
+    logger.info("Sentry error tracking enabled (env=%s)", settings.environment)
+else:
+    logger.info("Sentry DSN not set — error tracking disabled")
 
 _TRIAL_REMINDER_INTERVAL_SECS = 60 * 60 * 24  # 24 hours
 _SEQUENCE_PROCESSOR_INTERVAL_SECS = 60 * 60  # 1 hour
@@ -299,6 +318,39 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 # Added last → innermost (closest to routes)
 app.add_middleware(CSRFProtectionMiddleware)
+
+
+# ── Global exception handlers ─────────────────────────────────────────
+# Catches unhandled errors so users get a clean JSON response instead
+# of a raw stack trace. Also reports to Sentry automatically.
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Return consistent JSON for all HTTP errors (404, 403, 422, etc.)."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail or "An error occurred"},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all for unexpected 500 errors — log details, return safe response."""
+    logger.exception(
+        "Unhandled error on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+    )
+    # Sentry captures this automatically via its FastAPI integration,
+    # but we explicitly capture just in case the integration isn't active.
+    if _sentry_dsn:
+        sentry_sdk.capture_exception(exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Our team has been notified."},
+    )
 
 
 # Routes

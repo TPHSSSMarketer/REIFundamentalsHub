@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rei.database import Base
@@ -74,8 +74,8 @@ class BuyerCriteria(Base):
     financing_types_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
 
     # Budget range
-    min_budget: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_budget: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    min_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    max_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Timeline & status
     timeline_to_purchase: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -104,61 +104,61 @@ class CrmDeal(Base):
     stage: Mapped[str] = mapped_column(String, nullable=False, default="lead")
 
     # Pricing & Valuation
-    list_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    offer_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    arv: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    list_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    offer_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    arv: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Acquisition Costs
-    earnest_money: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    down_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    closing_costs_buyer: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    loan_origination_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    appraisal_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    inspection_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    title_insurance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    attorney_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    survey_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    other_acquisition_costs: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    earnest_money: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    down_payment: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    closing_costs_buyer: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    loan_origination_fee: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    appraisal_fee: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    inspection_fee: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    title_insurance: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    attorney_fee: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    survey_fee: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    other_acquisition_costs: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Rehab / Renovation
-    rehab_estimate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    rehab_actual: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    permit_fees: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    architect_fees: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    holding_costs_during_rehab: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    rehab_estimate: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    rehab_actual: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    permit_fees: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    architect_fees: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    holding_costs_during_rehab: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Financing
-    loan_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    interest_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    loan_amount: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    interest_rate: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
     loan_term_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    monthly_mortgage_pi: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    pmi_monthly: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    monthly_mortgage_pi: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    pmi_monthly: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Monthly Operating Expenses
-    property_tax_annual: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    insurance_annual: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    property_mgmt_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    property_mgmt_flat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    vacancy_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    maintenance_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    hoa_monthly: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    utilities_monthly: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    other_expenses_monthly: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    property_tax_annual: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    insurance_annual: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    property_mgmt_percent: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    property_mgmt_flat: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    vacancy_percent: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    maintenance_percent: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    hoa_monthly: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    utilities_monthly: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    other_expenses_monthly: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Income
-    monthly_rent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    other_monthly_income: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    monthly_rent: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    other_monthly_income: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # Computed / Summary
-    all_in_cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    total_monthly_expenses: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_cash_flow: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    annual_cash_flow: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    cash_on_cash: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    cap_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    roi_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    debt_service_coverage_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    all_in_cost: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    total_monthly_expenses: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    monthly_cash_flow: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    annual_cash_flow: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    cash_on_cash: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    cap_rate: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    roi_percent: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    debt_service_coverage_ratio: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
 
     # Deal Info
     contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -231,17 +231,17 @@ class CrmDeal(Base):
     geo_accuracy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # ── ATTOM Appraised Values ──
-    appraised_total_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    appraised_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    appraised_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    appraised_total_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    appraised_land_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    appraised_improvement_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # ── ATTOM Calculated Values ──
-    calc_total_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    calc_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    calc_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    calc_total_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    calc_land_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    calc_improvement_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # ── ATTOM Tax Per Sqft ──
-    tax_per_sqft: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tax_per_sqft: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # ── ATTOM Lot Detail ──
     lot_depth: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -258,17 +258,17 @@ class CrmDeal(Base):
     lien_records_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ── ATTOM Tax / Valuation (auto-populated) ──
-    market_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    market_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    market_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    assessed_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    assessed_land_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    assessed_improvement_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    market_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    market_land_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    market_improvement_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    assessed_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    assessed_land_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    assessed_improvement_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     tax_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # ── ATTOM Sale History (most recent, auto-populated) ──
     last_sale_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    last_sale_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_sale_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     last_sale_buyer: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_sale_seller: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -279,10 +279,10 @@ class CrmDeal(Base):
     reason_for_selling: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     motivation_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     timeline_to_sell: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    asking_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    asking_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     price_flexible: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     how_established_price: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    best_cash_offer: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    best_cash_offer: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     what_if_doesnt_sell: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     open_to_terms: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -293,23 +293,23 @@ class CrmDeal(Base):
     listing_expires: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     how_long_listed: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     any_offers: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    previous_offer_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    previous_offer_amount: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # ── Homeowner Financials ──
     # Liens are now stored in the DealLien model (dynamic, unlimited).
     # Only keeping back_taxes as a deal-level field since it's not a lien.
-    back_taxes: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    back_taxes: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
 
     # ── Foreclosure Details ──
     foreclosure_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     auction_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    reinstatement_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    reinstatement_amount: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     attorney_involved: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     attorney_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     attorney_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # ── Additional Valuation ──
-    as_is_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    as_is_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     exit_strategy: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # ── Multi-Unit Details (JSON) ──
@@ -320,7 +320,7 @@ class CrmDeal(Base):
 
     # ── AI Photo Analysis (overall property condition) ──
     property_condition_grade: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # A-F
-    estimated_total_repairs: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    estimated_total_repairs: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True, default=None)
 
     # ── Geocoding ──
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -339,7 +339,7 @@ class CrmDeal(Base):
     existing_loan_servicer: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     due_on_sale_aware: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # yes, no
     insurance_assignable: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)  # yes, no, unknown
-    buyer_down_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    buyer_down_payment: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True, default=None)
     source_of_funds: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     # ── Marketing / Campaign Tracking ──
@@ -371,12 +371,12 @@ class CrmPortfolioProperty(Base):
     units: Mapped[int] = mapped_column(Integer, default=1)
 
     purchase_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    rehab_cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    current_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    loan_balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_mortgage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_rent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    rehab_cost: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    current_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    loan_balance: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    monthly_mortgage: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    monthly_rent: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source_deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 

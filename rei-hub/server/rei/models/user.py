@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from rei.database import Base
@@ -457,9 +457,9 @@ class GeneratedContract(Base):
     homeowner_name: Mapped[str] = mapped_column(String)
     buying_entity: Mapped[str] = mapped_column(String)
     property_address: Mapped[str] = mapped_column(String)
-    purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     closing_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    emd_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    emd_amount: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     additional_clauses: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     custom_fields: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     storage_provider: Mapped[str] = mapped_column(String)
@@ -684,7 +684,7 @@ class PhoneNumber(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
     forward_to: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     use_softphone: Mapped[bool] = mapped_column(Boolean, default=False)
-    monthly_cost: Mapped[float] = mapped_column(Float, default=0.00)
+    monthly_cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     status: Mapped[str] = mapped_column(String, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -744,7 +744,7 @@ class CallLog(Base):
     transcription: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     disposition: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    cost: Mapped[float] = mapped_column(Float, default=0.00)
+    cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -766,7 +766,7 @@ class SmsMessage(Base):
     body: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String)
     campaign_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    cost: Mapped[float] = mapped_column(Float, default=0.00)
+    cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -790,7 +790,7 @@ class SmsCampaign(Base):
     total_delivered: Mapped[int] = mapped_column(Integer, default=0)
     total_replied: Mapped[int] = mapped_column(Integer, default=0)
     total_opted_out: Mapped[int] = mapped_column(Integer, default=0)
-    cost: Mapped[float] = mapped_column(Float, default=0.00)
+    cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -823,7 +823,7 @@ class VoicemailDropCampaign(Base):
     status: Mapped[str] = mapped_column(String, default="draft")
     total_sent: Mapped[int] = mapped_column(Integer, default=0)
     total_delivered: Mapped[int] = mapped_column(Integer, default=0)
-    cost: Mapped[float] = mapped_column(Float, default=0.00)
+    cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -844,7 +844,7 @@ class FaxLog(Base):
     media_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     contact_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     deal_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
-    cost: Mapped[float] = mapped_column(Float, default=0.00)
+    cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0.00)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -886,15 +886,15 @@ class PhoneCredit(Base):
     included_options: Mapped[str] = mapped_column(String)
     homeowner_name: Mapped[str] = mapped_column(String)
     property_address: Mapped[str] = mapped_column(String)
-    purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    as_is_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    existing_mortgage_balance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    monthly_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    interest_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    owner_finance_down: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    as_is_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    existing_mortgage_balance: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    monthly_payment: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    interest_rate: Mapped[Optional[float]] = mapped_column(Numeric(8, 4), nullable=True)
+    owner_finance_down: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     lease_option_term: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    lease_monthly_payment: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    option_purchase_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lease_monthly_payment: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    option_purchase_price: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     additional_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     generated_file_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     storage_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -1766,11 +1766,11 @@ class SavedMarket(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     city: Mapped[str] = mapped_column(String(100), nullable=False)
     state: Mapped[str] = mapped_column(String(2), nullable=False)
-    median_home_price: Mapped[float] = mapped_column(Float, default=0)
-    median_rent: Mapped[float] = mapped_column(Float, default=0)
+    median_home_price: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    median_rent: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     avg_days_on_market: Mapped[int] = mapped_column(Integer, default=0)
     inventory_count: Mapped[int] = mapped_column(Integer, default=0)
-    price_change_pct: Mapped[float] = mapped_column(Float, default=0)
+    price_change_pct: Mapped[float] = mapped_column(Numeric(8, 4), default=0)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ── Geocoding ──

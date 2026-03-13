@@ -451,4 +451,12 @@ async def create_tables() -> None:
                 # Column already exists — nothing to do
                 pass
 
+    # Migrate Float → Numeric for financial precision (idempotent)
+    try:
+        from rei.migrations.alter_float_to_numeric import alter_float_to_numeric
+        await alter_float_to_numeric(engine)
+        logger.info("Float→Numeric migration completed")
+    except Exception:
+        logger.exception("Float→Numeric migration failed (non-fatal)")
+
 
