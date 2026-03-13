@@ -54,14 +54,16 @@ def _prepare_postgres_url(raw: str) -> str:
 if _is_postgres:
     _db_url = _prepare_postgres_url(_db_url)
     # Supabase free tier pooler allows ~15 connections total.
-    # With 2 Uvicorn workers, each gets pool_size + max_overflow max.
-    # 3 + 2 = 5 per worker × 2 workers = 10 max (safe under 15 limit).
+    # Single worker (async handles concurrency) — keep pool small.
+    # pool_recycle forces connections to refresh every 5 min, clearing
+    # stale connections that Supabase's pooler may have dropped.
     engine = create_async_engine(
         _db_url,
         echo=False,
-        pool_size=3,
-        max_overflow=2,
+        pool_size=5,
+        max_overflow=3,
         pool_pre_ping=True,
+        pool_recycle=300,
     )
 else:
     # SQLite for local development
