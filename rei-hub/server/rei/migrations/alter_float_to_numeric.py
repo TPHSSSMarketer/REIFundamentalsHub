@@ -5,15 +5,16 @@ or NUMERIC(8,4) across multiple tables for improved financial accuracy.
 """
 
 async def alter_float_to_numeric(engine):
-    """ALTER existing Float columns to Numeric(14,2) or Numeric(8,4)."""
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    """ALTER existing Float columns to Numeric(14,2) or Numeric(8,4).
 
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        # List of (table_name, column_name, new_type) tuples
-        statements = [
+    Each ALTER runs in its own transaction so a single failure (e.g.
+    column already correct type or missing) doesn't abort the rest.
+    Uses engine.begin() directly — no extra session/pool overhead.
+    """
+    from sqlalchemy import text
+
+    # List of (table_name, column_name, new_type) tuples
+    statements = [
             # ── loan_accounts ──
             ("loan_accounts", "original_balance", "NUMERIC(14,2)"),
             ("loan_accounts", "current_balance", "NUMERIC(14,2)"),
@@ -140,15 +141,15 @@ async def alter_float_to_numeric(engine):
             ("saved_markets", "price_change_pct", "NUMERIC(8,4)"),
         ]
 
-        for table, col, new_type in statements:
-            try:
-                await session.execute(
+    for table, col, new_type in statements:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
                     text(
-                        f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {new_type} USING {col}::{new_type}"
+                        f"ALTER TABLE {table} ALTER COLUMN {col} "
+                        f"TYPE {new_type} USING {col}::{new_type}"
                     )
                 )
-            except Exception as e:
-                # Column might already be correct type or not exist; skip silently
-                pass
-
-        await session.commit()
+        except Exception:
+            # Column already correct type, doesn't exist, or table missing — skip
+            pass
