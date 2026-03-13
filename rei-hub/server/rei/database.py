@@ -53,13 +53,14 @@ def _prepare_postgres_url(raw: str) -> str:
 
 if _is_postgres:
     _db_url = _prepare_postgres_url(_db_url)
-    # Supabase free tier pooler allows ~15 connections.
-    # Keep SQLAlchemy pool small so we don't hit the limit.
+    # Supabase free tier pooler allows ~15 connections total.
+    # With 2 Uvicorn workers, each gets pool_size + max_overflow max.
+    # 3 + 2 = 5 per worker × 2 workers = 10 max (safe under 15 limit).
     engine = create_async_engine(
         _db_url,
         echo=False,
-        pool_size=5,
-        max_overflow=3,
+        pool_size=3,
+        max_overflow=2,
         pool_pre_ping=True,
     )
 else:
