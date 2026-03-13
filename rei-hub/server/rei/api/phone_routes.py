@@ -28,6 +28,13 @@ from rei.config import (
 )
 
 from rei.models.conversation_flow import Persona
+from rei.services.quiet_hours import (
+    has_recent_inbound,
+    is_within_contact_hours,
+    quiet_hours_message,
+    resolve_contact_timezone,
+    tz_from_phone,
+)
 from rei.models.crm import DealFile
 from rei.models.user import (
     CallLog,
@@ -504,6 +511,9 @@ async def dial(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # No quiet hours check on direct dial — client may have requested
+    # a callback within those hours.
+
     if not _check_minutes(user):
         raise HTTPException(status_code=402, detail="No minutes available. Purchase credits.")
 
@@ -771,6 +781,15 @@ async def send_sms(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Quiet hours check — bypassed if contact texted/called us first recently
+    contact_tz = resolve_contact_timezone(phone_number=body.to_number)
+    if not is_within_contact_hours(contact_tz):
+        inbound_first = await has_recent_inbound(
+            db, user.id, contact_phone=body.to_number, contact_id=body.contact_id,
+        )
+        if not inbound_first:
+            raise HTTPException(status_code=403, detail=quiet_hours_message(contact_tz))
+
     if not _check_sms(user):
         raise HTTPException(status_code=402, detail="No SMS available. Purchase credits.")
 
@@ -866,6 +885,11 @@ async def send_sms_campaign(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # SMS campaigns are always outbound-initiated — no inbound bypass.
+    # Use default timezone; individual messages check per-number timezone.
+    if not is_within_contact_hours():
+        raise HTTPException(status_code=403, detail=quiet_hours_message())
+
     result = await db.execute(
         select(SmsCampaign).where(
             SmsCampaign.id == campaign_id, SmsCampaign.user_id == user.id
@@ -951,6 +975,12 @@ async def _bg_send_sms_campaign(
             for to_number in numbers:
                 to_number = to_number.strip()
                 if not to_number:
+                    continue
+
+                # Respect quiet hours per recipient's timezone (area code lookup)
+                recipient_tz = resolve_contact_timezone(phone_number=to_number)
+                if not is_within_contact_hours(recipient_tz):
+                    logger.info("SMS campaign %s: quiet hours for %s (%s), skipping", campaign_id, to_number, recipient_tz)
                     continue
 
                 try:
@@ -1231,6 +1261,8 @@ async def send_fax(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Fax is exempt from quiet hours — fax machines receive 24/7
+
     pn_result = await db.execute(
         select(PhoneNumber).where(
             PhoneNumber.id == body.from_number_id, PhoneNumber.user_id == user.id

@@ -42,6 +42,7 @@ from rei.models.user import (
     PhoneNumber,
 )
 from rei.services import elevenlabs_service, twilio_service
+from rei.services.quiet_hours import is_within_contact_hours, resolve_contact_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +54,16 @@ def is_in_calling_window(campaign: CallCampaign) -> bool:
     Check if the current time falls within the campaign's calling window.
 
     Respects:
+    - System-wide quiet hours (8:30 PM – 9:15 AM) — hard limit
     - calling_window_start / calling_window_end (e.g., 9 AM to 5 PM)
     - calling_days (e.g., Mon-Fri only)
     - timezone (converts UTC to campaign's local timezone)
     """
+    # Hard limit: system-wide quiet hours override any campaign settings
+    tz_name = getattr(campaign, "timezone", None) or "America/New_York"
+    if not is_within_contact_hours(tz_name):
+        return False
+
     try:
         start_str = campaign.calling_window_start or "09:00"
         end_str = campaign.calling_window_end or "17:00"
@@ -66,7 +73,6 @@ def is_in_calling_window(campaign: CallCampaign) -> bool:
         end_hour, end_min = map(int, end_str.split(":"))
 
         # Convert UTC now to the campaign's local timezone
-        tz_name = getattr(campaign, "timezone", None) or "America/New_York"
         try:
             local_tz = ZoneInfo(tz_name)
         except (KeyError, Exception):

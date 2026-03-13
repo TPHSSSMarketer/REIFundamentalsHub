@@ -37,6 +37,7 @@ from rei.models.user import (
     ScheduledCallback,
 )
 from rei.services import elevenlabs_service, twilio_service
+from rei.services.quiet_hours import is_within_contact_hours, resolve_contact_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,15 @@ async def execute_callback(
 
     Returns a dict with status info.
     """
+    # Respect quiet hours — resolve timezone from callback setting or phone area code
+    cb_tz = resolve_contact_timezone(
+        tz_name=getattr(callback, "timezone", None),
+        phone_number=getattr(callback, "to_number", None),
+    )
+    if not is_within_contact_hours(cb_tz):
+        logger.info("Callback %s skipped — quiet hours (%s)", callback.id, cb_tz)
+        return {"status": "skipped", "reason": "quiet_hours"}
+
     callback.status = "in_progress"
     callback.attempt_count += 1
     callback.last_attempt_at = datetime.utcnow()
