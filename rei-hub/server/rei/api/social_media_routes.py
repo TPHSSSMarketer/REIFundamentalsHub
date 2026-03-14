@@ -556,9 +556,13 @@ async def instagram_auth_url(
     app, we fall back to basic scopes.
     """
     app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
-    redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
-    if not app_id or not redirect_uri:
+    fb_redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+    if not app_id or not fb_redirect_uri:
         raise HTTPException(status_code=503, detail="Instagram/Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.")
+
+    # Derive an Instagram-specific redirect URI so the frontend can distinguish
+    # Instagram callbacks from Facebook callbacks (swap facebook_code → instagram_code)
+    redirect_uri = fb_redirect_uri.replace("facebook_code=", "instagram_code=")
 
     # Business-type app (ID 957976573829623) — request Instagram permissions
     params = {
@@ -585,7 +589,9 @@ async def instagram_callback(
 
     app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
     app_secret = await _resolve_cred("facebook_app_secret", "facebook_oauth", db)
-    redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+    fb_redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+    # Must match the redirect_uri used in the auth URL (instagram_code flag)
+    redirect_uri = fb_redirect_uri.replace("facebook_code=", "instagram_code=")
 
     async with aiohttp.ClientSession() as session:
         # Step 1: Exchange code for user token

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Save, Globe, Calculator, Loader2, Cloud, HardDrive, Building2, User, Sun, Moon, Monitor, DollarSign, Share2, Users, Sliders, Link2, Bell, MessageCircle } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthHeader } from '@/services/auth'
@@ -339,11 +339,16 @@ export default function Settings() {
   }
 
   // ── Social Media ──────────────────────────────────────────
+  const callbackProcessedRef = useRef(false)
+
   useEffect(() => {
     loadSocialStatuses()
   }, [])
 
   useEffect(() => {
+    // Guard against double-processing (React strict-mode / re-renders)
+    if (callbackProcessedRef.current) return
+
     const platforms: SocialPlatform[] = ['facebook', 'linkedin', 'x', 'instagram']
     for (const p of platforms) {
       const platformFlag = searchParams.get(`${p}_code`)
@@ -354,7 +359,11 @@ export default function Settings() {
         const actualCode = searchParams.get('code')
         const verifier = searchParams.get(`${p}_code_verifier`)
         if (actualCode) {
-          handleSocialCallback(p, actualCode, verifier || undefined)
+          callbackProcessedRef.current = true
+          handleSocialCallback(p, actualCode, verifier || undefined).then(() => {
+            // Clean callback params from URL so the page shows fresh status
+            setSearchParams({ tab: 'social' })
+          })
         }
         break
       }
