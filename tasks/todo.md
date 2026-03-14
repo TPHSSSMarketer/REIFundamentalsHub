@@ -145,13 +145,15 @@ User (Chris)
 
 #### 1. `businesses`
 ```
-id          UUID (primary key)
-user_id     int (FK → users)
-name        string — "TriPoint Home Solutions"
-is_active   boolean (default true)
-is_primary  boolean (default false) — the default-selected business
-created_at  datetime
-updated_at  datetime
+id                UUID (primary key)
+user_id           int (FK → users)
+name              string — "TriPoint Home Solutions"
+description       text (nullable) — what the business does
+mission_statement text (nullable) — core values / mission
+is_active         boolean (default true)
+is_primary        boolean (default false) — the default-selected business
+created_at        datetime
+updated_at        datetime
 ```
 
 #### 2. `business_wordpress_sites` (multiple per business)
