@@ -7,6 +7,7 @@ import { recordPublish } from '@/services/contentHubApi'
 import PublishHistory, { PublishEntry } from './PublishHistory'
 import ContentLibrary from './ContentLibrary'
 import { getAllSocialStatuses, publishToSocial, type SocialPlatform, type AllSocialStatuses } from '@/services/socialMediaApi'
+import { getAllBusinessSocialStatuses, publishToBusinessSocial } from '@/services/businessSocialApi'
 import { getWordPressCredentials, getWordPressStatus } from '@/services/wordPressApi'
 import { useBusinessStore } from '@/hooks/useBusinessStore'
 import {
@@ -71,10 +72,28 @@ export default function ContentHub() {
   const [selectedWpSite, setSelectedWpSite] = useState<string | null>(null)
 
   useEffect(() => {
-    getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
+    // Load social statuses — prefer business-level, fall back to user-level
+    if (currentBusiness?.id) {
+      getAllBusinessSocialStatuses(currentBusiness.id)
+        .then((biz) => {
+          // Convert to AllSocialStatuses shape for compatibility
+          setSocialStatuses({
+            facebook: { connected: biz.facebook?.connected || false, account_name: biz.facebook?.account_name },
+            linkedin: { connected: biz.linkedin?.connected || false, account_name: biz.linkedin?.account_name },
+            x: { connected: biz.x?.connected || false, account_name: biz.x?.account_name },
+            instagram: { connected: biz.instagram?.connected || false, account_name: biz.instagram?.account_name },
+          } as AllSocialStatuses)
+        })
+        .catch(() => {
+          // Fall back to user-level statuses
+          getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
+        })
+    } else {
+      getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
+    }
     // Preload WordPress status to improve UX
     getWordPressStatus().catch(() => {})
-  }, [])
+  }, [currentBusiness?.id])
 
   // Load audience segments, content types, and WordPress sites when business changes
   useEffect(() => {
@@ -335,14 +354,20 @@ export default function ContentHub() {
       return
     }
 
-    // Social publish
+    // Social publish — prefer business-level, fall back to user-level
     const platform = target as SocialPlatform
     setSocialPublishing(platform)
     setPublishConfirm(null)
     const { content, imageUrl } = resolvePublishData(platform)
 
     try {
-      const result = await publishToSocial(platform, content, imageUrl)
+      let result: { success?: boolean; status?: string; post_id?: string; error?: string }
+      if (currentBusiness?.id) {
+        const bizResult = await publishToBusinessSocial(currentBusiness.id, platform, content, imageUrl)
+        result = { success: bizResult.status === 'published', post_id: bizResult.post_id, error: bizResult.error }
+      } else {
+        result = await publishToSocial(platform, content, imageUrl)
+      }
       if (result.success) {
         const name = platform === 'x' ? 'X' : platform.charAt(0).toUpperCase() + platform.slice(1)
         toast.success(`Published to ${name}!`)

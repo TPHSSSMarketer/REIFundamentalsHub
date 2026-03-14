@@ -14,11 +14,25 @@ import {
   ChevronRight,
   Bot,
   Phone,
+  Share2,
+  Facebook,
+  Linkedin,
+  Twitter,
+  Instagram,
+  ExternalLink,
+  Unlink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useBusinessStore } from '@/hooks/useBusinessStore'
 import { getAgents, type AiAgent } from '@/services/voiceAiApi'
 import { getNumbers } from '@/services/phoneApi'
+import {
+  getAllBusinessSocialStatuses,
+  getBusinessSocialAuthUrl,
+  submitBusinessSocialCallback,
+  disconnectBusinessSocial,
+  type SocialStatus,
+} from '@/services/businessSocialApi'
 import {
   listBusinesses,
   createBusiness,
@@ -45,7 +59,7 @@ import {
   type ModuleBusinessSetting,
 } from '@/services/businessApi'
 
-type Section = 'businesses' | 'wordpress' | 'avatars' | 'content' | 'modules'
+type Section = 'businesses' | 'wordpress' | 'avatars' | 'content' | 'social' | 'modules'
 
 export default function BusinessSettings() {
   const { currentBusiness, setCurrentBusiness, businesses, setBusinesses } = useBusinessStore()
@@ -90,6 +104,7 @@ export default function BusinessSettings() {
             { id: 'wordpress' as Section, label: 'WordPress', icon: Globe },
             { id: 'avatars' as Section, label: 'Avatars', icon: Users },
             { id: 'content' as Section, label: 'Content Types', icon: FileText },
+            { id: 'social' as Section, label: 'Social Accounts', icon: Share2 },
             { id: 'modules' as Section, label: 'Module Access', icon: ToggleLeft },
           ].map((item) => {
             const Icon = item.icon
@@ -117,6 +132,7 @@ export default function BusinessSettings() {
         {activeSection === 'wordpress' && <WordPressSitesSection />}
         {activeSection === 'avatars' && <AudienceSegmentsSection />}
         {activeSection === 'content' && <ContentTypesSection />}
+        {activeSection === 'social' && <SocialAccountsSection />}
         {activeSection === 'modules' && <ModuleAccessSection />}
       </div>
     </div>
@@ -1899,6 +1915,232 @@ function ModuleAccessSection() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ============================================================================
+// Section 6: Social Accounts (per-business)
+// ============================================================================
+
+const SOCIAL_PLATFORMS = [
+  {
+    id: 'facebook',
+    label: 'Facebook',
+    icon: Facebook,
+    color: 'text-blue-600 bg-blue-50',
+    description: 'Publish to your Facebook Business Page',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    icon: Linkedin,
+    color: 'text-blue-700 bg-blue-50',
+    description: 'Share posts on your LinkedIn profile',
+  },
+  {
+    id: 'x',
+    label: 'X (Twitter)',
+    icon: Twitter,
+    color: 'text-slate-800 bg-slate-50',
+    description: 'Post tweets to your X account',
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    icon: Instagram,
+    color: 'text-pink-600 bg-pink-50',
+    description: 'Publish to your Instagram Business account',
+  },
+]
+
+function SocialAccountsSection() {
+  const { currentBusiness } = useBusinessStore()
+  const [statuses, setStatuses] = useState<Record<string, SocialStatus>>({})
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (currentBusiness?.id) {
+      loadStatuses()
+    }
+  }, [currentBusiness?.id])
+
+  // Listen for OAuth callback messages from popup window
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === 'social-oauth-callback') {
+        const { platform, code, codeVerifier } = event.data
+        handleOAuthCallback(platform, code, codeVerifier)
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [currentBusiness?.id])
+
+  async function loadStatuses() {
+    if (!currentBusiness?.id) return
+    try {
+      setLoading(true)
+      const data = await getAllBusinessSocialStatuses(currentBusiness.id)
+      setStatuses(data)
+    } catch (err) {
+      console.error('Failed to load social statuses:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleConnect(platform: string) {
+    if (!currentBusiness?.id) {
+      toast.error('Select a business first')
+      return
+    }
+    setConnecting(platform)
+    try {
+      const { auth_url } = await getBusinessSocialAuthUrl(currentBusiness.id, platform)
+      // Open OAuth in new window
+      window.open(auth_url, '_blank', 'width=600,height=700')
+      toast.info(`Complete the ${platform} authorization in the popup window`)
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to start ${platform} OAuth`)
+      console.error(err)
+    } finally {
+      setConnecting(null)
+    }
+  }
+
+  async function handleOAuthCallback(platform: string, code: string, codeVerifier?: string) {
+    if (!currentBusiness?.id || !code) return
+    try {
+      const result = await submitBusinessSocialCallback(
+        currentBusiness.id,
+        platform,
+        code,
+        codeVerifier,
+      )
+      toast.success(`${platform} connected: ${result.account_name || 'Success'}`)
+      await loadStatuses()
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to connect ${platform}`)
+      console.error(err)
+    }
+  }
+
+  async function handleDisconnect(platform: string) {
+    if (!currentBusiness?.id) return
+    if (!confirm(`Disconnect ${platform} from ${currentBusiness.name}?`)) return
+    setDisconnecting(platform)
+    try {
+      await disconnectBusinessSocial(currentBusiness.id, platform)
+      setStatuses((prev) => ({
+        ...prev,
+        [platform]: { connected: false },
+      }))
+      toast.success(`${platform} disconnected`)
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to disconnect ${platform}`)
+      console.error(err)
+    } finally {
+      setDisconnecting(null)
+    }
+  }
+
+  if (!currentBusiness?.id) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-slate-800">Social Accounts</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
+          <p className="text-slate-600">Select a business first</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-slate-800">Social Accounts</h2>
+        <p className="text-sm text-slate-600 mt-1">
+          Connect social media accounts for <span className="font-medium">{currentBusiness.name}</span>
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-24">
+          <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {SOCIAL_PLATFORMS.map((platform) => {
+            const status = statuses[platform.id] || { connected: false }
+            const Icon = platform.icon
+            const isConnecting = connecting === platform.id
+            const isDisconnecting = disconnecting === platform.id
+
+            return (
+              <div
+                key={platform.id}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${platform.color}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">{platform.label}</h3>
+                      <p className="text-xs text-slate-500">{platform.description}</p>
+                    </div>
+                  </div>
+                  {status.connected && (
+                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                      Connected
+                    </span>
+                  )}
+                </div>
+
+                {status.connected && status.account_name && (
+                  <p className="text-sm text-slate-600 mb-3 pl-1">{status.account_name}</p>
+                )}
+
+                <div className="flex gap-2">
+                  {status.connected ? (
+                    <button
+                      onClick={() => handleDisconnect(platform.id)}
+                      disabled={isDisconnecting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium disabled:opacity-50 border border-red-200"
+                    >
+                      {isDisconnecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Unlink className="w-3.5 h-3.5" />
+                      )}
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleConnect(platform.id)}
+                      disabled={isConnecting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white hover:bg-primary-700 rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      {isConnecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      )}
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

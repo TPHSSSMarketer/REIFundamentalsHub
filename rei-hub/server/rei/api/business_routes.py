@@ -988,3 +988,838 @@ async def switch_business(
     await db.commit()
 
     return {"status": "switched", "business_id": business_id}
+
+
+# ── Business Social Media Connections ───────────────────────────────────────
+
+
+import json
+import hashlib
+import secrets
+from urllib.parse import urlencode
+from datetime import datetime, timedelta
+import aiohttp
+from pydantic import BaseModel
+from typing import Optional as TypingOptional
+from rei.services.credentials_service import get_provider_credentials
+from rei.config import get_settings
+
+_settings = get_settings()
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+
+async def _resolve_cred(field: str, provider: str, db: AsyncSession) -> str:
+    """Resolve credential from env config or SuperAdmin credentials DB."""
+    val = getattr(_settings, field, "")
+    if val:
+        logger.debug("Resolved %s from env settings", field)
+        return val
+    creds = await get_provider_credentials(db, provider)
+    if creds:
+        resolved = creds.get(field, "")
+        if resolved:
+            logger.debug("Resolved %s from DB provider %s (len=%d)", field, provider, len(resolved))
+        else:
+            logger.warning("Field %s not found in DB provider %s. Available keys: %s", field, provider, list(creds.keys()))
+        return resolved
+    logger.warning("Could not resolve credential %s from env or DB", field)
+    return ""
+
+
+def _generate_pkce():
+    """Generate PKCE code verifier and challenge for X/Twitter OAuth."""
+    code_verifier = secrets.token_urlsafe(64)[:128]
+    code_challenge = hashlib.sha256(code_verifier.encode()).digest()
+    import base64
+    code_challenge_b64 = base64.urlsafe_b64encode(code_challenge).rstrip(b"=").decode()
+    return code_verifier, code_challenge_b64
+
+
+# Store PKCE verifiers in memory (per business_id). In production, use Redis.
+_pkce_store: dict[str, str] = {}
+
+
+def _social_conn_to_dict(conn: BusinessSocialConnection) -> dict:
+    """Convert BusinessSocialConnection model to response dict."""
+    return {
+        "id": conn.id,
+        "business_id": conn.business_id,
+        "platform": conn.platform,
+        "account_name": conn.account_name,
+        "account_id": conn.account_id,
+        "is_active": conn.is_active,
+        "created_at": conn.created_at,
+        "updated_at": conn.updated_at,
+    }
+
+
+class PublishBody(BaseModel):
+    content: str
+    image_url: TypingOptional[str] = None
+
+
+# ── Schemas ──────────────────────────────────────────────────────────
+
+
+class BusinessSocialConnectionResponse(BaseModel):
+    id: str
+    business_id: str
+    platform: str
+    account_name: TypingOptional[str]
+    account_id: TypingOptional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Endpoints ────────────────────────────────────────────────────────
+
+
+@router.get("/businesses/{business_id}/social")
+async def list_business_social_connections(
+    business_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all social media connections for a business."""
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    result = await db.execute(
+        select(BusinessSocialConnection)
+        .where(BusinessSocialConnection.business_id == business_id)
+        .order_by(BusinessSocialConnection.created_at.desc())
+    )
+    connections = result.scalars().all()
+
+    return {
+        "connections": [_social_conn_to_dict(c) for c in connections],
+        "count": len(connections),
+    }
+
+
+@router.get("/businesses/{business_id}/social/{platform}/auth-url")
+async def get_business_social_auth_url(
+    business_id: str,
+    platform: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get OAuth URL for a platform, scoped to a business.
+
+    Encodes user_id|business_id in the state parameter.
+    """
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    platform = platform.lower()
+    state = f"{uid}|{business_id}"
+
+    if platform == "facebook":
+        app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
+        redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+        if not app_id or not redirect_uri:
+            raise HTTPException(
+                status_code=503,
+                detail="Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.",
+            )
+
+        params = {
+            "client_id": app_id,
+            "redirect_uri": redirect_uri,
+            "scope": "pages_manage_posts,pages_read_engagement",
+            "response_type": "code",
+            "state": state,
+        }
+        url = "https://www.facebook.com/v19.0/dialog/oauth?" + urlencode(params)
+        return {"auth_url": url}
+
+    elif platform == "linkedin":
+        client_id = await _resolve_cred("linkedin_client_id", "linkedin_oauth", db)
+        redirect_uri = await _resolve_cred("linkedin_redirect_uri", "linkedin_oauth", db)
+        if not client_id or not redirect_uri:
+            raise HTTPException(
+                status_code=503,
+                detail="LinkedIn OAuth not configured. Ask your admin to add LinkedIn credentials in SuperAdmin Settings.",
+            )
+
+        params = {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": "openid profile w_member_social",
+            "state": state,
+        }
+        url = "https://www.linkedin.com/oauth/v2/authorization?" + urlencode(params)
+        return {"auth_url": url}
+
+    elif platform == "x":
+        client_id = await _resolve_cred("x_twitter_client_id", "x_twitter_oauth", db)
+        redirect_uri = await _resolve_cred("x_twitter_redirect_uri", "x_twitter_oauth", db)
+        if not client_id or not redirect_uri:
+            raise HTTPException(
+                status_code=503,
+                detail="X (Twitter) OAuth not configured. Ask your admin to add X credentials in SuperAdmin Settings.",
+            )
+
+        code_verifier, code_challenge = _generate_pkce()
+        _pkce_store[state] = code_verifier
+
+        params = {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": "tweet.read tweet.write users.read offline.access",
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        url = "https://twitter.com/i/oauth2/authorize?" + urlencode(params)
+        return {"auth_url": url}
+
+    elif platform == "instagram":
+        app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
+        fb_redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+        if not app_id or not fb_redirect_uri:
+            raise HTTPException(
+                status_code=503,
+                detail="Instagram/Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.",
+            )
+
+        redirect_uri = fb_redirect_uri.replace("facebook_code=", "instagram_code=")
+
+        params = {
+            "client_id": app_id,
+            "redirect_uri": redirect_uri,
+            "scope": "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
+            "response_type": "code",
+            "state": state,
+        }
+        url = "https://www.facebook.com/v19.0/dialog/oauth?" + urlencode(params)
+        return {"auth_url": url}
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
+
+
+@router.post("/businesses/{business_id}/social/{platform}/callback")
+async def business_social_callback(
+    business_id: str,
+    platform: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Exchange OAuth code for tokens and store in BusinessSocialConnection."""
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    code = payload.get("code", "")
+    state = payload.get("state", "")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    platform = platform.lower()
+
+    if platform == "facebook":
+        app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
+        app_secret = await _resolve_cred("facebook_app_secret", "facebook_oauth", db)
+        redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+
+        async with aiohttp.ClientSession() as session:
+            # Exchange code for short-lived user token
+            async with session.get(
+                "https://graph.facebook.com/v19.0/oauth/access_token",
+                params={
+                    "client_id": app_id,
+                    "redirect_uri": redirect_uri,
+                    "client_secret": app_secret,
+                    "code": code,
+                },
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise HTTPException(status_code=400, detail=f"Facebook token exchange failed: {body}")
+                data = await resp.json()
+                short_token = data["access_token"]
+
+            # Exchange for long-lived user token (60 days)
+            async with session.get(
+                "https://graph.facebook.com/v19.0/oauth/access_token",
+                params={
+                    "grant_type": "fb_exchange_token",
+                    "client_id": app_id,
+                    "client_secret": app_secret,
+                    "fb_exchange_token": short_token,
+                },
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logger.warning("Facebook long-lived token exchange failed: %s", body)
+                    long_token = short_token  # fallback to short-lived
+                else:
+                    data = await resp.json()
+                    long_token = data["access_token"]
+
+            # Get user's pages
+            async with session.get(
+                "https://graph.facebook.com/v19.0/me/accounts",
+                params={"access_token": long_token},
+            ) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=400, detail="Failed to fetch Facebook Pages")
+                pages_data = await resp.json()
+                pages = pages_data.get("data", [])
+
+        if not pages:
+            raise HTTPException(status_code=400, detail="No Facebook Pages found. You need to be an admin of at least one Facebook Page.")
+
+        page = pages[0]
+        account_name = page.get("name", "Facebook Page")
+        account_id = page.get("id", "")
+
+        token_data = {
+            "page_id": account_id,
+            "page_name": account_name,
+            "access_token": page["access_token"],
+        }
+
+        # Upsert into BusinessSocialConnection
+        result = await db.execute(
+            select(BusinessSocialConnection).where(
+                BusinessSocialConnection.business_id == business_id,
+                BusinessSocialConnection.platform == "facebook",
+            )
+        )
+        conn = result.scalar_one_or_none()
+
+        if conn:
+            conn.account_name = account_name
+            conn.account_id = account_id
+            conn.token_data_json = json.dumps(token_data)
+            conn.is_active = True
+        else:
+            conn = BusinessSocialConnection(
+                id=str(uuid.uuid4()),
+                business_id=business_id,
+                user_id=uid,
+                platform="facebook",
+                account_name=account_name,
+                account_id=account_id,
+                token_data_json=json.dumps(token_data),
+            )
+            db.add(conn)
+
+        await db.commit()
+        await db.refresh(conn)
+        return {"status": "connected", "account_name": account_name}
+
+    elif platform == "linkedin":
+        client_id = await _resolve_cred("linkedin_client_id", "linkedin_oauth", db)
+        client_secret = await _resolve_cred("linkedin_client_secret", "linkedin_oauth", db)
+        redirect_uri = await _resolve_cred("linkedin_redirect_uri", "linkedin_oauth", db)
+
+        if not client_id or not client_secret or not redirect_uri:
+            logger.error("LinkedIn callback missing creds: client_id=%s, secret=%s, redirect=%s",
+                          bool(client_id), bool(client_secret), bool(redirect_uri))
+            raise HTTPException(status_code=503, detail="LinkedIn OAuth credentials incomplete. Check SuperAdmin Settings.")
+
+        async with aiohttp.ClientSession() as session:
+            # Exchange code for token
+            async with session.post(
+                "https://www.linkedin.com/oauth/v2/accessToken",
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": redirect_uri,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logger.error("LinkedIn token exchange failed (HTTP %d): %s", resp.status, body[:500])
+                    raise HTTPException(status_code=400, detail=f"LinkedIn token exchange failed: {body}")
+                tokens = await resp.json()
+
+            access_token = tokens["access_token"]
+            expires_in = tokens.get("expires_in", 5184000)  # default 60 days
+
+            # Get user profile info (sub = member URN)
+            async with session.get(
+                "https://api.linkedin.com/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            ) as resp:
+                if resp.status == 200:
+                    profile = await resp.json()
+                    member_name = profile.get("name", "LinkedIn User")
+                    member_sub = profile.get("sub", "")
+                else:
+                    member_name = "LinkedIn User"
+                    member_sub = ""
+
+        account_name = member_name
+        account_id = member_sub
+
+        token_data = {
+            "access_token": access_token,
+            "expires_at": (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat(),
+            "member_sub": member_sub,
+            "member_name": member_name,
+        }
+
+        # Upsert into BusinessSocialConnection
+        result = await db.execute(
+            select(BusinessSocialConnection).where(
+                BusinessSocialConnection.business_id == business_id,
+                BusinessSocialConnection.platform == "linkedin",
+            )
+        )
+        conn = result.scalar_one_or_none()
+
+        if conn:
+            conn.account_name = account_name
+            conn.account_id = account_id
+            conn.token_data_json = json.dumps(token_data)
+            conn.token_expires_at = datetime.fromisoformat(token_data["expires_at"])
+            conn.is_active = True
+        else:
+            conn = BusinessSocialConnection(
+                id=str(uuid.uuid4()),
+                business_id=business_id,
+                user_id=uid,
+                platform="linkedin",
+                account_name=account_name,
+                account_id=account_id,
+                token_data_json=json.dumps(token_data),
+                token_expires_at=datetime.fromisoformat(token_data["expires_at"]),
+            )
+            db.add(conn)
+
+        await db.commit()
+        await db.refresh(conn)
+        return {"status": "connected", "account_name": account_name}
+
+    elif platform == "x":
+        client_id = await _resolve_cred("x_twitter_client_id", "x_twitter_oauth", db)
+        client_secret = await _resolve_cred("x_twitter_client_secret", "x_twitter_oauth", db)
+        redirect_uri = await _resolve_cred("x_twitter_redirect_uri", "x_twitter_oauth", db)
+
+        if not client_id or not client_secret or not redirect_uri:
+            logger.error("X callback missing creds: client_id=%s, secret=%s, redirect=%s",
+                          bool(client_id), bool(client_secret), bool(redirect_uri))
+            raise HTTPException(status_code=503, detail="X (Twitter) OAuth credentials incomplete. Check SuperAdmin Settings.")
+
+        code_verifier = _pkce_store.pop(state, "")
+        if not code_verifier:
+            logger.error("X PKCE verifier not found for state %s. Store has %d entries.", state, len(_pkce_store))
+            raise HTTPException(status_code=400, detail="PKCE session expired. Please try connecting again.")
+
+        import base64
+        basic_auth = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.x.com/2/oauth2/token",
+                data={
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": redirect_uri,
+                    "code_verifier": code_verifier,
+                },
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Authorization": f"Basic {basic_auth}",
+                },
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logger.error("X token exchange failed (HTTP %d): %s", resp.status, body[:500])
+                    raise HTTPException(status_code=400, detail=f"X token exchange failed: {body}")
+                tokens = await resp.json()
+
+            access_token = tokens["access_token"]
+            refresh_token = tokens.get("refresh_token", "")
+
+            # Get username
+            async with session.get(
+                "https://api.x.com/2/users/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            ) as resp:
+                if resp.status == 200:
+                    user_data = await resp.json()
+                    x_data = user_data.get("data", {})
+                    username = x_data.get("username", "")
+                    x_user_id = x_data.get("id", "")
+                else:
+                    username = ""
+                    x_user_id = ""
+
+        account_name = f"@{username}" if username else "X Account"
+        account_id = x_user_id
+
+        token_data = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "username": username,
+            "user_id": x_user_id,
+        }
+
+        # Upsert into BusinessSocialConnection
+        result = await db.execute(
+            select(BusinessSocialConnection).where(
+                BusinessSocialConnection.business_id == business_id,
+                BusinessSocialConnection.platform == "x",
+            )
+        )
+        conn = result.scalar_one_or_none()
+
+        if conn:
+            conn.account_name = account_name
+            conn.account_id = account_id
+            conn.token_data_json = json.dumps(token_data)
+            conn.is_active = True
+        else:
+            conn = BusinessSocialConnection(
+                id=str(uuid.uuid4()),
+                business_id=business_id,
+                user_id=uid,
+                platform="x",
+                account_name=account_name,
+                account_id=account_id,
+                token_data_json=json.dumps(token_data),
+            )
+            db.add(conn)
+
+        await db.commit()
+        await db.refresh(conn)
+        return {"status": "connected", "account_name": account_name}
+
+    elif platform == "instagram":
+        app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
+        app_secret = await _resolve_cred("facebook_app_secret", "facebook_oauth", db)
+        fb_redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
+        # Must match the redirect_uri used in the auth URL (instagram_code flag)
+        redirect_uri = fb_redirect_uri.replace("facebook_code=", "instagram_code=")
+
+        async with aiohttp.ClientSession() as session:
+            # Step 1: Exchange code for user token
+            async with session.get(
+                "https://graph.facebook.com/v19.0/oauth/access_token",
+                params={
+                    "client_id": app_id,
+                    "redirect_uri": redirect_uri,
+                    "client_secret": app_secret,
+                    "code": code,
+                },
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise HTTPException(status_code=400, detail=f"Facebook/Instagram token exchange failed: {body}")
+                data = await resp.json()
+                user_token = data["access_token"]
+
+            # Step 2: Get pages and find Instagram Business Account
+            async with session.get(
+                "https://graph.facebook.com/v19.0/me/accounts",
+                params={
+                    "access_token": user_token,
+                    "fields": "id,name,access_token,instagram_business_account",
+                },
+            ) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=400, detail="Failed to fetch Facebook Pages for Instagram")
+                pages_data = await resp.json()
+                pages = pages_data.get("data", [])
+
+        # Find a page with an Instagram Business Account linked
+        ig_account = None
+        page_token = None
+        for page in pages:
+            ig_biz = page.get("instagram_business_account")
+            if ig_biz:
+                ig_account = ig_biz
+                page_token = page["access_token"]
+                break
+
+        if not ig_account or not page_token:
+            raise HTTPException(
+                status_code=400,
+                detail="No Instagram Business account found. Make sure your Instagram is a Business account and linked to a Facebook Page.",
+            )
+
+        ig_user_id = ig_account["id"]
+
+        # Get IG username
+        ig_username = ""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://graph.facebook.com/v19.0/{ig_user_id}",
+                params={"fields": "username", "access_token": page_token},
+            ) as resp:
+                if resp.status == 200:
+                    ig_data = await resp.json()
+                    ig_username = ig_data.get("username", "")
+
+        account_name = f"@{ig_username}" if ig_username else "Instagram"
+        account_id = ig_user_id
+
+        token_data = {
+            "ig_user_id": ig_user_id,
+            "page_access_token": page_token,
+            "ig_username": ig_username,
+        }
+
+        # Upsert into BusinessSocialConnection
+        result = await db.execute(
+            select(BusinessSocialConnection).where(
+                BusinessSocialConnection.business_id == business_id,
+                BusinessSocialConnection.platform == "instagram",
+            )
+        )
+        conn = result.scalar_one_or_none()
+
+        if conn:
+            conn.account_name = account_name
+            conn.account_id = account_id
+            conn.token_data_json = json.dumps(token_data)
+            conn.is_active = True
+        else:
+            conn = BusinessSocialConnection(
+                id=str(uuid.uuid4()),
+                business_id=business_id,
+                user_id=uid,
+                platform="instagram",
+                account_name=account_name,
+                account_id=account_id,
+                token_data_json=json.dumps(token_data),
+            )
+            db.add(conn)
+
+        await db.commit()
+        await db.refresh(conn)
+        return {"status": "connected", "account_name": account_name}
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
+
+
+@router.get("/businesses/{business_id}/social/{platform}/status")
+async def get_business_social_status(
+    business_id: str,
+    platform: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if a platform is connected for this business."""
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    platform = platform.lower()
+
+    result = await db.execute(
+        select(BusinessSocialConnection).where(
+            BusinessSocialConnection.business_id == business_id,
+            BusinessSocialConnection.platform == platform,
+        )
+    )
+    conn = result.scalar_one_or_none()
+
+    if not conn or not conn.is_active:
+        return {"connected": False}
+
+    return {"connected": True, "account_name": conn.account_name or f"{platform} Account"}
+
+
+@router.post("/businesses/{business_id}/social/{platform}/disconnect")
+async def disconnect_business_social(
+    business_id: str,
+    platform: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft delete a social connection (set is_active=False)."""
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    platform = platform.lower()
+
+    result = await db.execute(
+        select(BusinessSocialConnection).where(
+            BusinessSocialConnection.business_id == business_id,
+            BusinessSocialConnection.platform == platform,
+        )
+    )
+    conn = result.scalar_one_or_none()
+
+    if not conn:
+        raise HTTPException(status_code=404, detail=f"{platform} connection not found")
+
+    await db.execute(
+        update(BusinessSocialConnection)
+        .where(BusinessSocialConnection.id == conn.id)
+        .values(is_active=False)
+    )
+    await db.commit()
+
+    return {"status": "disconnected", "platform": platform}
+
+
+@router.post("/businesses/{business_id}/social/{platform}/publish")
+async def publish_business_social(
+    business_id: str,
+    platform: str,
+    body: PublishBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Publish a post using a business's social connection tokens."""
+    uid = workspace_user_id(user)
+
+    await verify_business_ownership(business_id, uid, db)
+
+    platform = platform.lower()
+
+    result = await db.execute(
+        select(BusinessSocialConnection).where(
+            BusinessSocialConnection.business_id == business_id,
+            BusinessSocialConnection.platform == platform,
+        )
+    )
+    conn = result.scalar_one_or_none()
+
+    if not conn or not conn.is_active or not conn.token_data_json:
+        raise HTTPException(status_code=400, detail=f"{platform} not connected for this business")
+
+    token_data = json.loads(conn.token_data_json)
+
+    if platform == "facebook":
+        page_id = token_data.get("page_id", "")
+        access_token = token_data.get("access_token", "")
+
+        post_data = {"message": body.content, "access_token": access_token}
+        if body.image_url:
+            endpoint = f"https://graph.facebook.com/v19.0/{page_id}/photos"
+            post_data["url"] = body.image_url
+        else:
+            endpoint = f"https://graph.facebook.com/v19.0/{page_id}/feed"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(endpoint, data=post_data) as resp:
+                if resp.status in (200, 201):
+                    result = await resp.json()
+                    return {"status": "published", "post_id": result.get("id", "")}
+                else:
+                    body_text = await resp.text()
+                    logger.warning("Facebook publish failed: %s", body_text)
+                    raise HTTPException(status_code=400, detail="Facebook publish failed. Your token may have expired — try reconnecting.")
+
+    elif platform == "linkedin":
+        access_token = token_data.get("access_token", "")
+        member_sub = token_data.get("member_sub", "")
+
+        post_body = {
+            "author": f"urn:li:person:{member_sub}",
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": body.content},
+                    "shareMediaCategory": "NONE",
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.linkedin.com/v2/ugcPosts",
+                json=post_body,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "X-Restli-Protocol-Version": "2.0.0",
+                },
+            ) as resp:
+                if resp.status in (200, 201):
+                    result = await resp.json()
+                    return {"status": "published", "post_id": result.get("id", "")}
+                else:
+                    body_text = await resp.text()
+                    logger.warning("LinkedIn publish failed: %s", body_text)
+                    raise HTTPException(status_code=400, detail="LinkedIn publish failed. Your token may have expired — try reconnecting.")
+
+    elif platform == "x":
+        access_token = token_data.get("access_token", "")
+
+        tweet_text = body.content[:280]
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.x.com/2/tweets",
+                json={"text": tweet_text},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+            ) as resp:
+                if resp.status in (200, 201):
+                    result = await resp.json()
+                    tweet_id = result.get("data", {}).get("id", "")
+                    return {"status": "published", "post_id": tweet_id}
+                else:
+                    body_text = await resp.text()
+                    logger.warning("X publish failed: %s", body_text)
+                    raise HTTPException(status_code=400, detail="X publish failed. Your token may have expired — try reconnecting.")
+
+    elif platform == "instagram":
+        if not body.image_url:
+            raise HTTPException(status_code=400, detail="Instagram requires an image. Provide an image_url.")
+
+        ig_user_id = token_data.get("ig_user_id", "")
+        page_token = token_data.get("page_access_token", "")
+
+        async with aiohttp.ClientSession() as session:
+            # Step 1: Create media container
+            async with session.post(
+                f"https://graph.facebook.com/v19.0/{ig_user_id}/media",
+                data={
+                    "image_url": body.image_url,
+                    "caption": body.content,
+                    "access_token": page_token,
+                },
+            ) as resp:
+                if resp.status != 200:
+                    body_text = await resp.text()
+                    logger.warning("Instagram container creation failed: %s", body_text)
+                    raise HTTPException(status_code=400, detail="Instagram publish failed at media creation step.")
+                container = await resp.json()
+                creation_id = container.get("id")
+
+            if not creation_id:
+                raise HTTPException(status_code=400, detail="Instagram did not return a media container ID.")
+
+            # Step 2: Publish the container
+            async with session.post(
+                f"https://graph.facebook.com/v19.0/{ig_user_id}/media_publish",
+                data={
+                    "creation_id": creation_id,
+                    "access_token": page_token,
+                },
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    return {"status": "published", "post_id": result.get("id", "")}
+                else:
+                    body_text = await resp.text()
+                    logger.warning("Instagram publish failed: %s", body_text)
+                    raise HTTPException(status_code=400, detail="Instagram publish failed. Try reconnecting.")
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
