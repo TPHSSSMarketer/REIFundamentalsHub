@@ -130,6 +130,10 @@ class AudienceSegment(Base):
     tone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     demographics: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Linked AI persona and phone number for call routing
+    persona_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone_number_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

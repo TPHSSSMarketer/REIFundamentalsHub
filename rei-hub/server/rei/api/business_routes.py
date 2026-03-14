@@ -87,6 +87,8 @@ class CreateAudienceSegmentRequest(BaseModel):
     goals: Optional[str] = None
     tone: Optional[str] = None
     demographics: Optional[str] = None
+    persona_id: Optional[str] = None
+    phone_number_id: Optional[str] = None
 
 
 class UpdateAudienceSegmentRequest(BaseModel):
@@ -96,6 +98,8 @@ class UpdateAudienceSegmentRequest(BaseModel):
     goals: Optional[str] = None
     tone: Optional[str] = None
     demographics: Optional[str] = None
+    persona_id: Optional[str] = None
+    phone_number_id: Optional[str] = None
 
 
 class AudienceSegmentResponse(BaseModel):
@@ -278,6 +282,8 @@ def _audience_to_dict(audience: AudienceSegment) -> dict:
         "goals": audience.goals,
         "tone": audience.tone,
         "demographics": audience.demographics,
+        "persona_id": audience.persona_id,
+        "phone_number_id": audience.phone_number_id,
         "sort_order": audience.sort_order,
         "created_at": audience.created_at,
         "updated_at": audience.updated_at,
@@ -649,6 +655,8 @@ async def create_audience_segment(
         goals=body.goals,
         tone=body.tone,
         demographics=body.demographics,
+        persona_id=body.persona_id,
+        phone_number_id=body.phone_number_id,
     )
     db.add(audience)
     await db.commit()
@@ -702,7 +710,8 @@ async def update_audience_segment(
             detail="Audience segment not found in this business",
         )
 
-    # Build update dict
+    # Build update dict — use body.model_fields_set to detect which fields were
+    # explicitly sent (allows clearing persona_id/phone_number_id by sending null)
     update_data = {}
     if body.name is not None:
         update_data["name"] = body.name
@@ -716,6 +725,12 @@ async def update_audience_segment(
         update_data["tone"] = body.tone
     if body.demographics is not None:
         update_data["demographics"] = body.demographics
+    # persona_id and phone_number_id can be set to null (to unlink), so check
+    # if the field was explicitly included in the request payload
+    if "persona_id" in body.model_fields_set:
+        update_data["persona_id"] = body.persona_id
+    if "phone_number_id" in body.model_fields_set:
+        update_data["phone_number_id"] = body.phone_number_id
 
     if update_data:
         await db.execute(

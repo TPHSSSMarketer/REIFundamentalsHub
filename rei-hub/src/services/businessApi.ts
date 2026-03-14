@@ -60,6 +60,8 @@ export interface AudienceSegment {
   goals: string | null
   tone: string | null
   demographics: string | null
+  persona_id: string | null
+  phone_number_id: string | null
   sort_order: number
   created_at: string
   updated_at: string
@@ -263,6 +265,8 @@ export async function createAudienceSegment(
     goals?: string
     tone?: string
     demographics?: string
+    persona_id?: string | null
+    phone_number_id?: string | null
   },
 ): Promise<AudienceSegment> {
   return apiFetchWithAuth(`/api/businesses/${businessId}/audiences`, {
@@ -284,6 +288,8 @@ export async function updateAudienceSegment(
     goals: string
     tone: string
     demographics: string
+    persona_id: string | null
+    phone_number_id: string | null
   }>,
 ): Promise<AudienceSegment> {
   return apiFetchWithAuth(

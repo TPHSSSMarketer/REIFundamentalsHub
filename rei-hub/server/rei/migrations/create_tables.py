@@ -392,6 +392,9 @@ _COLUMN_MIGRATIONS = [
     ("content_publish_records", "business_id", "UUID REFERENCES businesses(id) ON DELETE SET NULL"),
     ("content_publish_records", "wordpress_site_id", "UUID REFERENCES business_wordpress_sites(id) ON DELETE SET NULL"),
     ("users", "current_business_id", "UUID REFERENCES businesses(id) ON DELETE SET NULL"),
+    # ── Audience Segment: linked persona and phone number ──
+    ("audience_segments", "persona_id", "VARCHAR"),
+    ("audience_segments", "phone_number_id", "VARCHAR"),
 ]
 
 

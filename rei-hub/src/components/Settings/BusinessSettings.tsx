@@ -12,9 +12,13 @@ import {
   X,
   Loader2,
   ChevronRight,
+  Bot,
+  Phone,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useBusinessStore } from '@/hooks/useBusinessStore'
+import { getAgents, type AiAgent } from '@/services/voiceAiApi'
+import { getNumbers } from '@/services/phoneApi'
 import {
   listBusinesses,
   createBusiness,
@@ -811,14 +815,41 @@ function AudienceSegmentsSection() {
     goals: '',
     tone: '',
     demographics: '',
+    persona_id: '' as string,
+    phone_number_id: '' as string,
   })
   const [editForm, setEditForm] = useState<Partial<AudienceSegment> | null>(null)
+
+  // Agents and phone numbers for linking
+  const [agents, setAgents] = useState<AiAgent[]>([])
+  const [phoneNumbers, setPhoneNumbers] = useState<Array<{ id: string; number: string; friendly_name?: string }>>([])
 
   useEffect(() => {
     if (currentBusiness?.id) {
       loadSegments()
     }
+    // Load agents and phone numbers once
+    loadAgentsAndPhones()
   }, [currentBusiness?.id])
+
+  async function loadAgentsAndPhones() {
+    try {
+      const [agentsData, phonesData] = await Promise.all([
+        getAgents().catch(() => [] as AiAgent[]),
+        getNumbers().catch(() => ({ numbers: [] })),
+      ])
+      setAgents(Array.isArray(agentsData) ? agentsData : [])
+      setPhoneNumbers(
+        Array.isArray(phonesData?.numbers) ? phonesData.numbers.map((n: any) => ({
+          id: String(n.id),
+          number: n.number || n.phone_number || '',
+          friendly_name: n.friendly_name || n.label || '',
+        })) : []
+      )
+    } catch (err) {
+      console.error('Failed to load agents/phones:', err)
+    }
+  }
 
   async function loadSegments() {
     if (!currentBusiness?.id) return
@@ -845,7 +876,12 @@ function AudienceSegmentsSection() {
     }
     setIsSaving(true)
     try {
-      const created = await createAudienceSegment(currentBusiness.id, newSegment)
+      const payload = {
+        ...newSegment,
+        persona_id: newSegment.persona_id || null,
+        phone_number_id: newSegment.phone_number_id || null,
+      }
+      const created = await createAudienceSegment(currentBusiness.id, payload)
       setSegments([...segments, created])
       setNewSegment({
         name: '',
@@ -854,6 +890,8 @@ function AudienceSegmentsSection() {
         goals: '',
         tone: '',
         demographics: '',
+        persona_id: '',
+        phone_number_id: '',
       })
       setIsAdding(false)
       toast.success('Audience segment created successfully')
@@ -1009,6 +1047,51 @@ function AudienceSegmentsSection() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
+
+                {/* Linked AI Agent & Phone Number */}
+                <div className="border-t border-slate-200 pt-4 mt-2">
+                  <p className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-primary-500" />
+                    Call Routing (Optional)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        AI Agent (Persona)
+                      </label>
+                      <select
+                        value={newSegment.persona_id}
+                        onChange={(e) => setNewSegment({ ...newSegment, persona_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                      >
+                        <option value="">None</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}{a.role ? ` (${a.role})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Phone Number
+                      </label>
+                      <select
+                        value={newSegment.phone_number_id}
+                        onChange={(e) => setNewSegment({ ...newSegment, phone_number_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                      >
+                        <option value="">None</option>
+                        {phoneNumbers.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.number}{p.friendly_name ? ` — ${p.friendly_name}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-2 pt-4">
                   <button
                     onClick={handleAddSegment}
@@ -1037,6 +1120,8 @@ function AudienceSegmentsSection() {
                         goals: '',
                         tone: '',
                         demographics: '',
+                        persona_id: '',
+                        phone_number_id: '',
                       })
                     }}
                     disabled={isSaving}
@@ -1131,6 +1216,51 @@ function AudienceSegmentsSection() {
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
+
+                    {/* Linked AI Agent & Phone Number */}
+                    <div className="border-t border-slate-200 pt-4 mt-2">
+                      <p className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-primary-500" />
+                        Call Routing (Optional)
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            AI Agent (Persona)
+                          </label>
+                          <select
+                            value={editForm?.persona_id || ''}
+                            onChange={(e) => setEditForm({ ...editForm, persona_id: e.target.value || null })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                          >
+                            <option value="">None</option>
+                            {agents.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.name}{a.role ? ` (${a.role})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Phone Number
+                          </label>
+                          <select
+                            value={editForm?.phone_number_id || ''}
+                            onChange={(e) => setEditForm({ ...editForm, phone_number_id: e.target.value || null })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                          >
+                            <option value="">None</option>
+                            {phoneNumbers.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.number}{p.friendly_name ? ` — ${p.friendly_name}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => handleSaveEdit(segment.id)}
@@ -1197,6 +1327,30 @@ function AudienceSegmentsSection() {
                           </div>
                         )}
                       </div>
+
+                      {/* Show linked persona and phone number */}
+                      {(segment.persona_id || segment.phone_number_id) && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-3">
+                          {segment.persona_id && (() => {
+                            const agent = agents.find((a) => a.id === segment.persona_id)
+                            return agent ? (
+                              <span className="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 text-xs px-2.5 py-1 rounded-full">
+                                <Bot className="w-3 h-3" />
+                                {agent.name}{agent.role ? ` (${agent.role})` : ''}
+                              </span>
+                            ) : null
+                          })()}
+                          {segment.phone_number_id && (() => {
+                            const phone = phoneNumbers.find((p) => p.id === segment.phone_number_id)
+                            return phone ? (
+                              <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 text-xs px-2.5 py-1 rounded-full">
+                                <Phone className="w-3 h-3" />
+                                {phone.number}
+                              </span>
+                            ) : null
+                          })()}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 ml-4">
                       <button
@@ -1209,6 +1363,8 @@ function AudienceSegmentsSection() {
                             goals: segment.goals,
                             tone: segment.tone,
                             demographics: segment.demographics,
+                            persona_id: segment.persona_id,
+                            phone_number_id: segment.phone_number_id,
                           })
                         }}
                         className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
