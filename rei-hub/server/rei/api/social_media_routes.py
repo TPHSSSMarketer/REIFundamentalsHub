@@ -30,11 +30,18 @@ async def _resolve_cred(field: str, provider: str, db=None) -> str:
     """Resolve credential from env config or SuperAdmin credentials DB."""
     val = getattr(settings, field, "")
     if val:
+        logger.debug("Resolved %s from env settings", field)
         return val
     if db:
         creds = await get_provider_credentials(db, provider)
         if creds:
-            return creds.get(field, "")
+            resolved = creds.get(field, "")
+            if resolved:
+                logger.debug("Resolved %s from DB provider %s (len=%d)", field, provider, len(resolved))
+            else:
+                logger.warning("Field %s not found in DB provider %s. Available keys: %s", field, provider, list(creds.keys()))
+            return resolved
+    logger.warning("Could not resolve credential %s from env or DB", field)
     return ""
 
 
@@ -54,16 +61,29 @@ async def facebook_auth_url(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the Facebook OAuth URL. User grants page_manage_posts permission."""
+    """Return the Facebook OAuth URL.
+
+    NOTE: The Facebook app must be "Business" type to request Pages
+    permissions (pages_manage_posts, pages_read_engagement).  If the
+    app is Consumer type, fall back to basic scopes so OAuth at least
+    completes without an "Invalid Scopes" error.  Full Pages posting
+    requires creating a Business-type Facebook app.
+    """
     app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
     redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
     if not app_id or not redirect_uri:
         raise HTTPException(status_code=503, detail="Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.")
 
+    # Business-type app scopes (Pages management):
+    #   "pages_manage_posts,pages_read_engagement"
+    # Consumer-type app scopes (basic login only):
+    #   "public_profile,email"
+    # TODO: Once a Business-type Facebook app is created, switch back to
+    #       pages_manage_posts,pages_read_engagement
     params = {
         "client_id": app_id,
         "redirect_uri": redirect_uri,
-        "scope": "pages_manage_posts,pages_read_engagement",
+        "scope": "public_profile,email",
         "response_type": "code",
         "state": str(user.id),
     }
@@ -235,6 +255,13 @@ async def linkedin_callback(
     client_secret = await _resolve_cred("linkedin_client_secret", "linkedin_oauth", db)
     redirect_uri = await _resolve_cred("linkedin_redirect_uri", "linkedin_oauth", db)
 
+    if not client_id or not client_secret or not redirect_uri:
+        logger.error("LinkedIn callback missing creds: client_id=%s, secret=%s, redirect=%s",
+                      bool(client_id), bool(client_secret), bool(redirect_uri))
+        raise HTTPException(status_code=503, detail="LinkedIn OAuth credentials incomplete. Check SuperAdmin Settings.")
+
+    logger.info("LinkedIn token exchange: client_id=%s..., redirect_uri=%s", client_id[:8], redirect_uri)
+
     async with aiohttp.ClientSession() as session:
         # Exchange code for token
         async with session.post(
@@ -250,6 +277,7 @@ async def linkedin_callback(
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
+                logger.error("LinkedIn token exchange failed (HTTP %d): %s", resp.status, body[:500])
                 raise HTTPException(status_code=400, detail=f"LinkedIn token exchange failed: {body}")
             tokens = await resp.json()
 
@@ -400,12 +428,21 @@ async def x_callback(
     client_secret = await _resolve_cred("x_twitter_client_secret", "x_twitter_oauth", db)
     redirect_uri = await _resolve_cred("x_twitter_redirect_uri", "x_twitter_oauth", db)
 
+    if not client_id or not client_secret or not redirect_uri:
+        logger.error("X callback missing creds: client_id=%s, secret=%s, redirect=%s",
+                      bool(client_id), bool(client_secret), bool(redirect_uri))
+        raise HTTPException(status_code=503, detail="X (Twitter) OAuth credentials incomplete. Check SuperAdmin Settings.")
+
     code_verifier = _pkce_store.pop(user.id, "")
     if not code_verifier:
+        logger.error("X PKCE verifier not found for user %d. Store has %d entries.", user.id, len(_pkce_store))
         raise HTTPException(status_code=400, detail="PKCE session expired. Please try connecting again.")
 
     import base64
     basic_auth = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+    logger.info("X token exchange: client_id=%s..., redirect_uri=%s, has_verifier=%s",
+                client_id[:8], redirect_uri, bool(code_verifier))
 
     async with aiohttp.ClientSession() as session:
         async with session.post(
@@ -423,6 +460,7 @@ async def x_callback(
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
+                logger.error("X token exchange failed (HTTP %d): %s", resp.status, body[:500])
                 raise HTTPException(status_code=400, detail=f"X token exchange failed: {body}")
             tokens = await resp.json()
 
@@ -516,16 +554,26 @@ async def instagram_auth_url(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Instagram uses the same Facebook OAuth — redirect to Facebook with instagram permissions."""
+    """Instagram uses the same Facebook OAuth — redirect to Facebook with instagram permissions.
+
+    NOTE: Instagram permissions (instagram_basic, instagram_content_publish) and
+    Pages permissions require a Business-type Facebook app.  With a Consumer
+    app, we fall back to basic scopes.
+    """
     app_id = await _resolve_cred("facebook_app_id", "facebook_oauth", db)
     redirect_uri = await _resolve_cred("facebook_redirect_uri", "facebook_oauth", db)
     if not app_id or not redirect_uri:
         raise HTTPException(status_code=503, detail="Instagram/Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.")
 
+    # Business-type app scopes:
+    #   "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish"
+    # Consumer-type app scopes (basic login only):
+    #   "public_profile,email"
+    # TODO: Once a Business-type Facebook app is created, switch back
     params = {
         "client_id": app_id,
         "redirect_uri": redirect_uri,
-        "scope": "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
+        "scope": "public_profile,email",
         "response_type": "code",
         "state": f"instagram_{user.id}",
     }

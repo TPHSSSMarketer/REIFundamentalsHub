@@ -199,6 +199,11 @@ class User(Base):
         String, default=lambda: str(uuid.uuid4())
     )  # unique token for public .ics feed URL
 
+    # ── Cloud Storage (Google Drive / Dropbox) ───────────────────
+    cloud_storage_settings: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # JSON: {"google_drive": {...}, "dropbox": {...}}
+
     # ── Reminder preferences ──────────────────────────────────────
     task_reminder_email: Mapped[bool] = mapped_column(
         Boolean, default=True
