@@ -122,16 +122,17 @@ User (Chris)
 ```
 User (Chris)
   ├─ Business: TriPoint Home Solutions
-  │   ├─ WordPress: Investors Site
-  │   ├─ WordPress: Homeowners Site
-  │   ├─ WordPress: Buyers Site
+  │   ├─ Profile: description, mission, core values
+  │   ├─ Avatars: Investors, Homeowners, Home Buyers
+  │   ├─ WordPress: Investors Site, Homeowners Site, Buyers Site
   │   ├─ Social: Facebook, Instagram, LinkedIn, X
   │   ├─ Content Types: Tips, Market Updates, Success Stories
   │   └─ Content Library (filtered to this business)
   │
   └─ Business: REIFundamentals
-      ├─ WordPress: REIFundamentals Site
-      ├─ WordPress: REIFundamentalsHub Site
+      ├─ Profile: description, mission, core values
+      ├─ Avatars: New Investors, Experienced Investors, Hub Users
+      ├─ WordPress: REIFundamentals Site, REIFundamentalsHub Site
       ├─ Social: Facebook, Instagram, LinkedIn, X
       ├─ Content Types: Educational, Product Updates, Industry News
       └─ Content Library (filtered to this business)
