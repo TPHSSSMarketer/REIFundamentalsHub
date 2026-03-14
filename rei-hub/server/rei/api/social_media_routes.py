@@ -74,16 +74,11 @@ async def facebook_auth_url(
     if not app_id or not redirect_uri:
         raise HTTPException(status_code=503, detail="Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.")
 
-    # Business-type app scopes (Pages management):
-    #   "pages_manage_posts,pages_read_engagement"
-    # Consumer-type app scopes (basic login only):
-    #   "public_profile,email"
-    # TODO: Once a Business-type Facebook app is created, switch back to
-    #       pages_manage_posts,pages_read_engagement
+    # Business-type app (ID 957976573829623) — request Pages permissions
     params = {
         "client_id": app_id,
         "redirect_uri": redirect_uri,
-        "scope": "public_profile,email",
+        "scope": "pages_manage_posts,pages_read_engagement",
         "response_type": "code",
         "state": str(user.id),
     }
@@ -565,15 +560,11 @@ async def instagram_auth_url(
     if not app_id or not redirect_uri:
         raise HTTPException(status_code=503, detail="Instagram/Facebook OAuth not configured. Ask your admin to add Facebook credentials in SuperAdmin Settings.")
 
-    # Business-type app scopes:
-    #   "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish"
-    # Consumer-type app scopes (basic login only):
-    #   "public_profile,email"
-    # TODO: Once a Business-type Facebook app is created, switch back
+    # Business-type app (ID 957976573829623) — request Instagram permissions
     params = {
         "client_id": app_id,
         "redirect_uri": redirect_uri,
-        "scope": "public_profile,email",
+        "scope": "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
         "response_type": "code",
         "state": f"instagram_{user.id}",
     }
