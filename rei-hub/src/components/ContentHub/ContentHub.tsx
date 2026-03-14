@@ -8,6 +8,15 @@ import PublishHistory, { PublishEntry } from './PublishHistory'
 import ContentLibrary from './ContentLibrary'
 import { getAllSocialStatuses, publishToSocial, type SocialPlatform, type AllSocialStatuses } from '@/services/socialMediaApi'
 import { getWordPressCredentials, getWordPressStatus } from '@/services/wordPressApi'
+import { useBusinessStore } from '@/hooks/useBusinessStore'
+import {
+  listAudienceSegments,
+  listContentTypes,
+  listWordPressSites,
+  type AudienceSegment,
+  type ContentType as BizContentType,
+  type BusinessWordPressSite,
+} from '@/services/businessApi'
 
 type PlatformKey = 'facebook' | 'instagram' | 'linkedin' | 'youtube_script' | 'youtube_short' | 'blog_post'
 
@@ -52,11 +61,43 @@ export default function ContentHub() {
   const [socialPublishing, setSocialPublishing] = useState<SocialPlatform | null>(null)
   const [selectedTone, setSelectedTone] = useState<string | null>(null)
 
+  // Business context
+  const { currentBusiness } = useBusinessStore()
+  const [audiences, setAudiences] = useState<AudienceSegment[]>([])
+  const [contentTypes, setContentTypes] = useState<BizContentType[]>([])
+  const [wpSites, setWpSites] = useState<BusinessWordPressSite[]>([])
+  const [selectedAudience, setSelectedAudience] = useState<string | null>(null)
+  const [selectedContentType, setSelectedContentType] = useState<string | null>(null)
+  const [selectedWpSite, setSelectedWpSite] = useState<string | null>(null)
+
   useEffect(() => {
     getAllSocialStatuses().then(setSocialStatuses).catch(() => {})
     // Preload WordPress status to improve UX
     getWordPressStatus().catch(() => {})
   }, [])
+
+  // Load audience segments, content types, and WordPress sites when business changes
+  useEffect(() => {
+    if (!currentBusiness) {
+      setAudiences([])
+      setContentTypes([])
+      setWpSites([])
+      return
+    }
+    listAudienceSegments(currentBusiness.id)
+      .then((res) => setAudiences(res.audiences || []))
+      .catch(() => {})
+    listContentTypes(currentBusiness.id)
+      .then((res) => setContentTypes(res.content_types || []))
+      .catch(() => {})
+    listWordPressSites(currentBusiness.id)
+      .then((res) => setWpSites(res.sites || []))
+      .catch(() => {})
+    // Reset selections when business changes
+    setSelectedAudience(null)
+    setSelectedContentType(null)
+    setSelectedWpSite(null)
+  }, [currentBusiness?.id])
 
   const handleScrapeUrl = useCallback(async () => {
     setIsScraping(true)
@@ -92,7 +133,7 @@ export default function ContentHub() {
       const result = await aiGenerateWaterfall({
         source_text: sourceText,
         topic: topic || sourceText.slice(0, 60),
-        tone_override: selectedTone || undefined,
+        tone_override: selectedTone || audiences.find((a) => a.id === selectedAudience)?.tone || undefined,
       })
       setWaterfall(result.content)
       setEditedWaterfall({ ...result.content })
@@ -185,9 +226,30 @@ export default function ContentHub() {
     if (!editedWaterfall) return
     setIsPublishing(true)
     try {
-      // Fetch credentials from the server instead of localStorage
-      const credentials = await getWordPressCredentials()
-      const { wp_url: wpUrl, wp_username: wpUsername, wp_app_password: wpAppPassword } = credentials
+      let wpUrl: string, wpUsername: string, wpAppPassword: string
+
+      if (selectedWpSite && wpSites.length > 0) {
+        // Use the selected business WordPress site
+        const site = wpSites.find((s) => s.id === selectedWpSite)
+        if (!site) {
+          toast.error('Selected WordPress site not found.')
+          return
+        }
+        wpUrl = site.wp_url
+        wpUsername = site.wp_username
+        wpAppPassword = site.wp_app_password
+      } else if (wpSites.length === 1) {
+        // Auto-use the only site
+        wpUrl = wpSites[0].wp_url
+        wpUsername = wpSites[0].wp_username
+        wpAppPassword = wpSites[0].wp_app_password
+      } else {
+        // Fall back to legacy single-site credentials
+        const credentials = await getWordPressCredentials()
+        wpUrl = credentials.wp_url
+        wpUsername = credentials.wp_username
+        wpAppPassword = credentials.wp_app_password
+      }
 
       const token = btoa(wpUsername + ':' + wpAppPassword)
       const res = await fetch(wpUrl.replace(/\/$/, '') + '/wp-json/wp/v2/posts', {
@@ -203,21 +265,22 @@ export default function ContentHub() {
         }),
       })
       if (res.ok) {
-        toast.success('Draft published to WordPress!')
+        const siteName = wpSites.find((s) => s.id === selectedWpSite)?.label || 'WordPress'
+        toast.success(`Draft published to ${siteName}!`)
       } else {
-        toast.error('WordPress publish failed. Check your credentials in Settings.')
+        toast.error('WordPress publish failed. Check your credentials in Settings > Businesses.')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'WordPress publish failed'
       if (msg.includes('not configured')) {
-        toast.error('Configure WordPress in Settings first.')
+        toast.error('Configure WordPress in Settings > Businesses first.')
       } else {
-        toast.error(msg + '. Check your credentials in Settings.')
+        toast.error(msg + '. Check your credentials in Settings > Businesses.')
       }
     } finally {
       setIsPublishing(false)
     }
-  }, [editedWaterfall, topic])
+  }, [editedWaterfall, topic, selectedWpSite, wpSites])
 
   // Resolve content + image for a given social platform (used by confirmation + actual publish)
   const resolvePublishData = useCallback((platform: SocialPlatform) => {
@@ -322,6 +385,48 @@ export default function ContentHub() {
           Library
         </button>
       </div>
+
+      {/* Business Context Selectors */}
+      {currentBusiness && (audiences.length > 0 || contentTypes.length > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-medium text-slate-700">Creating content for:</span>
+            <span className="text-sm font-semibold text-primary-600">{currentBusiness.name}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {audiences.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Target Audience</label>
+                <select
+                  value={selectedAudience || ''}
+                  onChange={(e) => setSelectedAudience(e.target.value || null)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">All Audiences</option>
+                  {audiences.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {contentTypes.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Content Type</label>
+                <select
+                  value={selectedContentType || ''}
+                  onChange={(e) => setSelectedContentType(e.target.value || null)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Any Type</option>
+                  {contentTypes.map((ct) => (
+                    <option key={ct.id} value={ct.id}>{ct.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Source Input Card */}
       <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -546,14 +651,32 @@ export default function ContentHub() {
 
               {publishMenuOpen && (
                 <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
-                  {/* WordPress */}
-                  <button
-                    onClick={() => handleRequestPublish('wordpress')}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 text-slate-500" />
-                    <span>WordPress (Draft)</span>
-                  </button>
+                  {/* WordPress - show each site if multiple, or legacy single option */}
+                  {wpSites.length > 1 ? (
+                    <>
+                      {wpSites.map((site) => (
+                        <button
+                          key={site.id}
+                          onClick={() => {
+                            setSelectedWpSite(site.id)
+                            handleRequestPublish('wordpress')
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4 text-slate-500" />
+                          <span>WordPress: {site.label}</span>
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleRequestPublish('wordpress')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4 text-slate-500" />
+                      <span>WordPress (Draft)</span>
+                    </button>
+                  )}
 
                   <div className="border-t border-slate-100 my-1" />
 

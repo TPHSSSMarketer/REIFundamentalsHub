@@ -364,6 +364,26 @@ async def create_business(
         )
         db.add(setting)
 
+    # Seed default content types for every new business
+    default_content_types = [
+        {"name": "Educational Tips", "description": "How-to guides, advice, and educational content", "color": "#3b82f6"},
+        {"name": "Market Updates", "description": "Local market data, trends, and neighborhood spotlights", "color": "#10b981"},
+        {"name": "Success Stories", "description": "Case studies, testimonials, and before/after deals", "color": "#f59e0b"},
+        {"name": "Industry News", "description": "Market analysis, regulatory changes, and investment trends", "color": "#8b5cf6"},
+        {"name": "Product Updates", "description": "New features, announcements, and how-to guides", "color": "#ec4899"},
+    ]
+    for idx, ct in enumerate(default_content_types):
+        content_type = ContentType(
+            id=str(uuid.uuid4()),
+            user_id=uid,
+            business_id=business.id,
+            name=ct["name"],
+            description=ct["description"],
+            color=ct["color"],
+            sort_order=idx,
+        )
+        db.add(content_type)
+
     if is_first_business:
         # Update user's current_business_id
         await db.execute(

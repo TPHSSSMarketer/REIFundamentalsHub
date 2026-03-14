@@ -42,6 +42,7 @@ import WebchatConfig from '../FlowBuilder/WebchatConfig'
 
 // Unified persona + voice hooks (replaces hardcoded personas)
 import { usePersonas, useVoices } from '@/hooks/useFlowBuilder'
+import BusinessContextBanner from '@/components/Common/BusinessContextBanner'
 import type { ElevenLabsVoice } from '@/hooks/useFlowBuilder'
 import type { Persona as DBPersona } from '@/types'
 
@@ -317,6 +318,8 @@ export default function AssistantHub() {
 
   return (
     <div className="space-y-6">
+      <BusinessContextBanner module="ai_studio" moduleLabel="AI Studio" />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">AI Studio</h1>

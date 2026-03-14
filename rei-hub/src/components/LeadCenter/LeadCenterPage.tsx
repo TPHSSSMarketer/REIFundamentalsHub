@@ -12,6 +12,7 @@ import { getTemplateDefaults } from './templates/defaults'
 import AIWebsiteBuilder from './AIWebsiteBuilder'
 import LeadsPipelineTab from './LeadsPipelineTab'
 import DirectMailTab from './DirectMailTab'
+import BusinessContextBanner from '@/components/Common/BusinessContextBanner'
 
 // ── Configuration ─────────────────────────────────────────
 
@@ -467,6 +468,8 @@ export default function LeadCenterPage() {
 
   return (
     <div className="space-y-6">
+      <BusinessContextBanner module="lead_center" moduleLabel="LeadCenter" />
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">

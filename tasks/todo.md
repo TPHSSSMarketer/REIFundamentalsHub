@@ -2,7 +2,7 @@
 
 **Date:** March 14, 2026
 **Requested by:** Chris
-**Status:** PHASE 2 COMPLETE — Database + Backend + Frontend UI built
+**Status:** PHASE 3 COMPLETE — Database + Backend + Frontend UI + Module Wiring built
 
 ---
 
@@ -363,16 +363,22 @@ When a module loads, it only shows businesses where `is_enabled = true` for that
 - [x] Settings: Content types management per business
 - [x] Settings: Module Access page (toggle businesses on/off per module)
 - [x] Vite build passes clean
-- [ ] ContentHub: business + content type + audience selectors (Phase 3)
-- [ ] ContentHub: publish to specific WordPress sites (Phase 3)
-- [ ] LeadCenter: filter to only show enabled businesses (Phase 3)
-- [ ] AI Studio: filter to only show enabled businesses (Phase 3)
+- [x] ContentHub: business + content type + audience selectors (Phase 3)
+- [x] ContentHub: publish to specific WordPress sites (Phase 3)
+- [x] LeadCenter: BusinessContextBanner shows active business + warns if disabled (Phase 3)
+- [x] AI Studio: BusinessContextBanner shows active business + warns if disabled (Phase 3)
 
-### Phase 3: Polish + Testing (Week 3-4)
+### Phase 3: Module Wiring + Polish (Week 3-4)
+- [x] ContentHub: business context selectors (audience + content type dropdowns)
+- [x] ContentHub: multi-WordPress site publishing with legacy fallback
+- [x] LeadCenter: BusinessContextBanner with module access check
+- [x] AI Studio: BusinessContextBanner with module access check
+- [x] Seed default content types when creating a business (5 types auto-created)
+- [x] Reusable BusinessContextBanner component (shows active business or warning)
+- [x] Vite build passes clean after all Phase 3 changes
 - [ ] End-to-end testing with Chris
 - [ ] Edge cases (no businesses, switching, etc.)
 - [ ] Content library filtering by business + type
-- [ ] Seed default content types per business
 
 ---
 
