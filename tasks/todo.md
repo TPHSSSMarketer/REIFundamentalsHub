@@ -188,7 +188,24 @@ created_at              datetime
 updated_at              datetime
 ```
 
-#### 4. `content_types` (per business)
+#### 4. `audience_segments` (customer avatars per business)
+```
+id              UUID (primary key)
+business_id     UUID (FK → businesses)
+user_id         int (FK → users)
+name            string — "Investors", "Homeowners", "New Investors"
+description     text — who they are, what they care about
+pain_points     text (nullable) — what problems they face
+goals           text (nullable) — what they want to achieve
+tone            string (nullable) — how to speak to them (e.g., "professional", "empathetic")
+demographics    text (nullable) — age range, location, income level, etc.
+sort_order      int (default 0)
+created_at      datetime
+updated_at      datetime
+```
+The AI content generator uses this avatar info to tailor tone, vocabulary, and messaging for each audience.
+
+#### 5. `content_types` (per business)
 ```
 id              UUID (primary key)
 business_id     UUID (FK → businesses)
