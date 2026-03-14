@@ -81,13 +81,17 @@ Social Media for: TriPoint Home Solutions
 ### 4. ContentHub — Creating Content
 ```
 Business: [TriPoint Home Solutions ▼]
+Target Audience: [Investors ▼]
 Content Type: [Market Updates ▼]
 
 Paste URL or text: [________________________]
 [Generate Content Waterfall]
 ```
-- Pick your business first, then content type
-- Generated content gets tagged to that business + type
+- Pick your business, then audience (avatar), then content type
+- The AI uses the avatar's pain points, goals, and tone to tailor the content
+- Example: A "Market Update" for Investors focuses on ROI and deal opportunities,
+  while the same topic for Homeowners focuses on property values and neighborhood trends
+- Generated content gets tagged to that business + audience + type
 
 ### 5. ContentHub — Publishing
 ```
