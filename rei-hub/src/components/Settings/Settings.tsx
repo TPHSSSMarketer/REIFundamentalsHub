@@ -394,8 +394,10 @@ export default function Settings() {
   async function handleSocialCallback(platform: SocialPlatform, code: string, codeVerifier?: string) {
     try {
       const result = await submitSocialCallback(platform, code, codeVerifier)
-      if (result.success) {
-        toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connected successfully`)
+      // Backend returns {status: "connected", account_name: "..."} on success
+      if (result.status === 'connected' || result.success) {
+        const name = result.account_name ? ` as ${result.account_name}` : ''
+        toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connected successfully${name}`)
       } else {
         toast.error(result.error || `Failed to connect ${platform}`)
       }

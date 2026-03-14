@@ -50,7 +50,7 @@ export async function submitSocialCallback(
   platform: SocialPlatform,
   code: string,
   codeVerifier?: string
-): Promise<{ success: boolean; account_name?: string; error?: string }> {
+): Promise<{ status?: string; success?: boolean; account_name?: string; error?: string }> {
   const body: Record<string, string> = { code };
   if (codeVerifier) body.code_verifier = codeVerifier;
   const response = await fetch(`${BASE_URL}/api/social/${platform}/callback`, {
