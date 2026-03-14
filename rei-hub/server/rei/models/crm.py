@@ -511,6 +511,11 @@ class ContentEntry(Base):
     performance_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     engagement_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Multi-Business scoping
+    business_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    content_type_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    audience_segment_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -536,6 +541,10 @@ class ContentPublishRecord(Base):
     comments: Mapped[int] = mapped_column(Integer, default=0)
     shares: Mapped[int] = mapped_column(Integer, default=0)
     views: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Multi-Business scoping
+    business_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wordpress_site_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     published_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

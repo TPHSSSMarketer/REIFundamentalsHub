@@ -385,6 +385,13 @@ _COLUMN_MIGRATIONS = [
     ("crm_deals", "sale_history_json", "TEXT DEFAULT NULL"),
     # ── ATTOM Lien/Mortgage Records JSON ──
     ("crm_deals", "lien_records_json", "TEXT DEFAULT NULL"),
+    # ── Multi-Business: new columns on existing tables ──
+    ("content_entries", "business_id", "UUID REFERENCES businesses(id) ON DELETE SET NULL"),
+    ("content_entries", "content_type_id", "UUID REFERENCES content_types(id) ON DELETE SET NULL"),
+    ("content_entries", "audience_segment_id", "UUID REFERENCES audience_segments(id) ON DELETE SET NULL"),
+    ("content_publish_records", "business_id", "UUID REFERENCES businesses(id) ON DELETE SET NULL"),
+    ("content_publish_records", "wordpress_site_id", "UUID REFERENCES business_wordpress_sites(id) ON DELETE SET NULL"),
+    ("users", "current_business_id", "UUID REFERENCES businesses(id) ON DELETE SET NULL"),
 ]
 
 

@@ -204,6 +204,11 @@ class User(Base):
         Text, nullable=True
     )  # JSON: {"google_drive": {...}, "dropbox": {...}}
 
+    # ── Multi-Business ─────────────────────────────────────────────
+    current_business_id: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # UUID FK to businesses.id — last-selected business
+
     # ── Reminder preferences ──────────────────────────────────────
     task_reminder_email: Mapped[bool] = mapped_column(
         Boolean, default=True

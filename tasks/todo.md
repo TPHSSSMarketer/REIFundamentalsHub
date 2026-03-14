@@ -2,7 +2,7 @@
 
 **Date:** March 14, 2026
 **Requested by:** Chris
-**Status:** PLANNING — Approved by Chris, ready to build
+**Status:** PHASE 1 IN PROGRESS — Database + Backend API built
 
 ---
 
@@ -227,8 +227,9 @@ updated_at      datetime
 
 #### `content_entries` — add columns
 ```
-business_id     UUID (FK → businesses) — which business this content belongs to
-content_type_id UUID (FK → content_types, nullable) — which content type
+business_id         UUID (FK → businesses) — which business this content belongs to
+content_type_id     UUID (FK → content_types, nullable) — which content type
+audience_segment_id UUID (FK → audience_segments, nullable) — who this content targets
 ```
 
 #### `content_publish_records` — add columns
@@ -241,6 +242,36 @@ wordpress_site_id       UUID (FK → business_wordpress_sites, nullable)
 ```
 current_business_id     UUID (FK → businesses, nullable) — last-selected business
 ```
+
+#### 6. `module_business_settings` (per-module business visibility)
+```
+id              UUID (primary key)
+user_id         int (FK → users)
+business_id     UUID (FK → businesses)
+module          string — "lead_center", "ai_studio", "content_hub"
+is_enabled      boolean (default true) — whether this business is active in this module
+created_at      datetime
+updated_at      datetime
+```
+**Purpose:** Lets users choose which businesses appear in each module. For example, Chris wants TriPoint Home Solutions active in LeadCenter and AI Studio, but NOT REIFundamentals. Each business × module combination gets its own toggle.
+
+**How it works in the UI:**
+```
+Settings → Module Access
+
+LeadCenter:
+  ☑ TriPoint Home Solutions     — uses TPHS avatars, tone, knowledge
+  ☐ REIFundamentals             — disabled, won't appear in LeadCenter
+
+AI Studio:
+  ☑ TriPoint Home Solutions     — AI uses TPHS brand voice and content
+  ☐ REIFundamentals             — disabled, won't appear in AI Studio
+
+ContentHub:
+  ☑ TriPoint Home Solutions     — can create/publish TPHS content
+  ☑ REIFundamentals             — can create/publish REI content
+```
+When a module loads, it only shows businesses where `is_enabled = true` for that module.
 
 ---
 
@@ -266,11 +297,22 @@ current_business_id     UUID (FK → businesses, nullable) — last-selected bus
 - `POST   /api/businesses/{id}/social/{platform}/callback` — Complete OAuth
 - `POST   /api/businesses/{id}/social/{platform}/disconnect` — Disconnect
 
+### Audience Segments (Customer Avatars)
+- `POST   /api/businesses/{id}/audiences` — Create avatar
+- `GET    /api/businesses/{id}/audiences` — List avatars
+- `PATCH  /api/businesses/{id}/audiences/{audience_id}` — Update avatar
+- `DELETE /api/businesses/{id}/audiences/{audience_id}` — Delete avatar
+
 ### Content Types
 - `POST   /api/businesses/{id}/content-types` — Create
 - `GET    /api/businesses/{id}/content-types` — List
 - `PATCH  /api/businesses/{id}/content-types/{type_id}` — Update
 - `DELETE /api/businesses/{id}/content-types/{type_id}` — Delete
+
+### Module Business Settings
+- `GET    /api/module-settings` — List all module/business toggles for user
+- `PATCH  /api/module-settings` — Update which businesses are enabled per module
+  - Body: `{ "business_id": "...", "module": "lead_center", "is_enabled": true }`
 
 ### ContentHub (add business_id filter)
 - All existing content endpoints get `?business_id=` parameter
@@ -297,21 +339,29 @@ current_business_id     UUID (FK → businesses, nullable) — last-selected bus
 ## Implementation Phases
 
 ### Phase 1: Database + Backend (Week 1-2)
-- [ ] Create new database tables via migrations
-- [ ] Build business CRUD endpoints
-- [ ] Build multi-WordPress endpoints
-- [ ] Build per-business social OAuth flow
-- [ ] Build content types endpoints
-- [ ] Migration script for existing data
-- [ ] Test all endpoints
+- [x] Create new database tables via Supabase migrations (all 6 tables + column additions)
+- [x] Build business CRUD endpoints (POST/GET/PATCH/DELETE + switch)
+- [x] Build multi-WordPress endpoints (add/list/update/delete per business)
+- [x] Build audience segments endpoints (CRUD per business)
+- [x] Build content types endpoints (CRUD per business)
+- [x] Build module business settings endpoints (GET/PATCH per module)
+- [x] SQLAlchemy models created (business.py) + registered in __init__.py
+- [x] Column migrations added for content_entries, content_publish_records, users
+- [x] Routes registered in main.py
+- [ ] Per-business social OAuth flow (deferred to Phase 2 — DB table ready, just needs route wiring)
+- [ ] Migration script for existing data (run when first user creates a business)
+- [ ] Test all endpoints with live API calls
 
 ### Phase 2: Frontend UI (Week 2-3)
 - [ ] Business selector dropdown component
 - [ ] Settings: WordPress sites list per business
 - [ ] Settings: Social media per business
 - [ ] Settings: Content types management
+- [ ] Settings: Module Access page (toggle businesses on/off per module)
 - [ ] ContentHub: business + content type selectors
 - [ ] ContentHub: publish to specific WordPress sites
+- [ ] LeadCenter: filter to only show enabled businesses
+- [ ] AI Studio: filter to only show enabled businesses
 
 ### Phase 3: Polish + Testing (Week 3-4)
 - [ ] End-to-end testing with Chris
@@ -330,6 +380,9 @@ current_business_id     UUID (FK → businesses, nullable) — last-selected bus
 - [ ] Chris can publish to specific WordPress sites from the publish dialog
 - [ ] Switching businesses shows only that business's data
 - [ ] Existing data migrated safely to default business
+- [ ] Chris can toggle TPHS on and REIFundamentals off in LeadCenter
+- [ ] LeadCenter only shows TPHS data when REIFundamentals is disabled
+- [ ] AI Studio respects the same per-module toggles
 
 ---
 

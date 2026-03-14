@@ -322,6 +322,7 @@ def _register_routers(app: FastAPI) -> None:
     from rei.api.email_template_routes import email_template_router
     from rei.api.integrations_routes import integrations_router
     from rei.api.telegram_webhook_routes import telegram_webhook_router
+    from rei.api.business_routes import router as business_router
 
     app.include_router(admin_router, prefix="/api")
     app.include_router(ai_router, prefix="/api")
@@ -376,6 +377,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(content_hub_router, prefix="/api")
     app.include_router(user_preferences_router, prefix="/api")
     app.include_router(integrations_router, prefix="/api")
+    app.include_router(business_router, prefix="/api")
     app.include_router(telegram_webhook_router)  # No /api prefix — webhook URL is /api/telegram/webhook (built into router)
 
 

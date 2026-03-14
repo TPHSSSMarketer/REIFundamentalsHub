@@ -59,6 +59,14 @@ from rei.models.admin_assistant import (
 )
 from rei.models.email_template import AdminEmailTemplate
 from rei.models.user_integrations import UserWordPressIntegration
+from rei.models.business import (
+    Business,
+    BusinessWordPressSite,
+    BusinessSocialConnection,
+    AudienceSegment,
+    ContentType,
+    ModuleBusinessSetting,
+)
 
 __all__ = [
     "User",
@@ -117,4 +125,10 @@ __all__ = [
     "ContentPublishRecord",
     "ContentEmbedding",
     "UserWordPressIntegration",
+    "Business",
+    "BusinessWordPressSite",
+    "BusinessSocialConnection",
+    "AudienceSegment",
+    "ContentType",
+    "ModuleBusinessSetting",
 ]
