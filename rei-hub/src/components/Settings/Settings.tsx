@@ -5,6 +5,7 @@ import { getAuthHeader } from '@/services/auth'
 import { toast } from 'sonner'
 import AiProviderUserSettings from './AiProviderUserSettings'
 import TeamManagementSection from './TeamManagementSection'
+import BusinessSettings from './BusinessSettings'
 import { useTheme } from '@/hooks/useTheme'
 import { getOnboardingStatus, saveStep } from '@/services/onboardingApi'
 import {
@@ -41,6 +42,7 @@ export default function Settings() {
 
   const TABS = [
     { id: 'profile', label: 'Profile', icon: Building2 },
+    { id: 'businesses', label: 'Businesses', icon: Globe },
     { id: 'analyzer', label: 'Deal Analyzer', icon: Calculator },
     { id: 'integrations', label: 'Integrations', icon: Link2 },
     { id: 'team', label: 'Team', icon: Users },
@@ -1071,6 +1073,9 @@ export default function Settings() {
       </div>
 
       </>}
+
+      {/* ══ Businesses Tab ══ */}
+      {activeTab === 'businesses' && <BusinessSettings />}
 
       {/* ══ Integrations Tab ══ */}
       {activeTab === 'integrations' && <>

@@ -2,7 +2,7 @@
 
 **Date:** March 14, 2026
 **Requested by:** Chris
-**Status:** PHASE 1 IN PROGRESS — Database + Backend API built
+**Status:** PHASE 2 COMPLETE — Database + Backend + Frontend UI built
 
 ---
 
@@ -353,15 +353,20 @@ When a module loads, it only shows businesses where `is_enabled = true` for that
 - [ ] Test all endpoints with live API calls
 
 ### Phase 2: Frontend UI (Week 2-3)
-- [ ] Business selector dropdown component
-- [ ] Settings: WordPress sites list per business
-- [ ] Settings: Social media per business
-- [ ] Settings: Content types management
-- [ ] Settings: Module Access page (toggle businesses on/off per module)
-- [ ] ContentHub: business + content type selectors
-- [ ] ContentHub: publish to specific WordPress sites
-- [ ] LeadCenter: filter to only show enabled businesses
-- [ ] AI Studio: filter to only show enabled businesses
+- [x] Business selector dropdown component (in Sidebar, both desktop + mobile)
+- [x] Zustand store for current business context (useBusinessStore)
+- [x] API service layer (businessApi.ts — all CRUD + module settings)
+- [x] Settings: "Businesses" tab with 5 sub-sections
+- [x] Settings: Business profiles management (create/edit/delete)
+- [x] Settings: WordPress sites list per business (add/edit/delete)
+- [x] Settings: Audience segments (customer avatars) per business
+- [x] Settings: Content types management per business
+- [x] Settings: Module Access page (toggle businesses on/off per module)
+- [x] Vite build passes clean
+- [ ] ContentHub: business + content type + audience selectors (Phase 3)
+- [ ] ContentHub: publish to specific WordPress sites (Phase 3)
+- [ ] LeadCenter: filter to only show enabled businesses (Phase 3)
+- [ ] AI Studio: filter to only show enabled businesses (Phase 3)
 
 ### Phase 3: Polish + Testing (Week 3-4)
 - [ ] End-to-end testing with Chris

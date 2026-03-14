@@ -33,6 +33,7 @@ import { useStore } from '@/hooks/useStore'
 import { useBilling } from '@/hooks/useBilling'
 import { getCurrentUser, logout } from '@/services/auth'
 import { cn } from '@/utils/helpers'
+import BusinessSelector from './BusinessSelector'
 // ThemeToggle lives in Settings page
 
 const navItems = [
@@ -126,6 +127,10 @@ export default function Sidebar() {
               >
                 <X className="w-5 h-5 text-slate-500" />
               </button>
+            </div>
+            {/* Business Selector (mobile) */}
+            <div className="px-3 py-2 border-b border-slate-200">
+              <BusinessSelector />
             </div>
             <nav className="p-2 space-y-1">
               {navItems.map((item) => (
@@ -272,6 +277,11 @@ export default function Sidebar() {
               )}
             />
           </button>
+        </div>
+
+        {/* Business Selector */}
+        <div className="px-2 py-2 border-b border-slate-200">
+          <BusinessSelector isCollapsed={isSidebarCollapsed} />
         </div>
 
         {/* Navigation */}
